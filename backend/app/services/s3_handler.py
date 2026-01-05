@@ -1,0 +1,139 @@
+import os
+import boto3
+import shutil
+from botocore.exceptions import NoCredentialsError, ClientError
+from app.core.config import settings
+
+class S3Manager:
+    def __init__(self):
+        self.mode = "s3"
+        self.bucket_name = settings.AWS_BUCKET_NAME or "local-bucket"
+        
+        # Check if AWS keys are present
+        if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+             self.s3_client = boto3.client(
+                's3',
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                region_name=settings.AWS_REGION
+            )
+             print(f"✅ S3 Manager initialized for bucket: {self.bucket_name} (Region: {settings.AWS_REGION})")
+        else:
+            self.mode = "local"
+            self.local_root = os.path.join(os.getcwd(), "local_storage")
+            os.makedirs(self.local_root, exist_ok=True)
+            print(f"✅ S3 Manager initialized in LOCAL MODE. Storage: {self.local_root}")
+
+    def upload_file(self, file_content, object_name, content_type=None):
+        """
+        Upload a file-like object to S3 or Local Storage.
+        """
+        if self.mode == "local":
+            try:
+                # Ensure directory exists
+                full_path = os.path.join(self.local_root, object_name)
+                os.makedirs(os.path.dirname(full_path), exist_ok=True)
+                
+                # Write file
+                with open(full_path, 'wb') as f:
+                    shutil.copyfileobj(file_content, f)
+                    
+                return True, full_path
+            except Exception as e:
+                print(f"❌ Local Upload Error: {e}")
+                return False, str(e)
+        
+        try:
+            extra_args = {}
+            if content_type:
+                extra_args['ContentType'] = content_type
+
+            self.s3_client.upload_fileobj(
+                file_content,
+                self.bucket_name,
+                object_name,
+                ExtraArgs=extra_args
+            )
+            return True, f"s3://{self.bucket_name}/{object_name}"
+        except ClientError as e:
+            print(f"❌ S3 Upload Error: {e}")
+            return False, str(e)
+        except Exception as e:
+            print(f"❌ Unexpected Upload Error: {e}")
+            return False, str(e)
+
+    def generate_presigned_url(self, object_name, expiration=3600):
+        """
+        Generate a presigned URL to share a temporary link.
+        """
+        if self.mode == "local":
+            # Return local static URL
+            # Assuming main.py mounts /local-storage to the local_root
+            return f"http://localhost:8001/local-storage/{object_name}"
+
+        try:
+            response = self.s3_client.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': self.bucket_name,
+                    'Key': object_name
+                },
+                ExpiresIn=expiration
+            )
+            return response
+        except ClientError as e:
+            print(f"❌ Presign Error: {e}")
+            return None
+
+    def download_to_temp_cache(self, object_name, local_path):
+        """
+        Downloads file to local cache for temporary processing.
+        """
+        if self.mode == "local":
+            try:
+                source_path = os.path.join(self.local_root, object_name)
+                if not os.path.exists(source_path):
+                    return False
+                
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                shutil.copy2(source_path, local_path)
+                return True
+            except Exception as e:
+                print(f"❌ Local Download Error: {e}")
+                return False
+
+        try:
+            # Ensure directory exists if path has one
+            directory = os.path.dirname(local_path)
+            if directory:
+                os.makedirs(directory, exist_ok=True)
+            
+            self.s3_client.download_file(self.bucket_name, object_name, local_path)
+            return True
+        except ClientError as e:
+            print(f"❌ Download Error: {e}")
+            return False
+        except Exception as e:
+            print(f"❌ Unexpected Download Error: {e}")
+            return False
+
+    def delete_file(self, object_name):
+        """
+        Deletes a file from S3 or Local.
+        """
+        if self.mode == "local":
+            try:
+                full_path = os.path.join(self.local_root, object_name)
+                if os.path.exists(full_path):
+                    os.remove(full_path)
+                return True
+            except Exception as e:
+                print(f"❌ Local Delete Error: {e}")
+                return False
+
+        try:
+            self.s3_client.delete_object(Bucket=self.bucket_name, Key=object_name)
+            return True
+        except ClientError as e:
+            print(f"❌ Delete Error: {e}")
+            return False

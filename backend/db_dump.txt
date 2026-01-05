@@ -1,0 +1,3 @@
+USERS: [('admin@digifortlabs.com',), ('mrd@hospital.com',)]
+
+HOSPITALS: [('General Hospital',)]

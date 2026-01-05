@@ -1,0 +1,11 @@
+# Secrets
+*.pem
+.env
+.env.local
+.venv/
+__pycache__/
+node_modules/
+.next/
+dist/
+*.log
+aws-config.json

@@ -1,0 +1,178 @@
+"use client";
+import Link from 'next/link';
+import { useRouter, usePathname } from 'next/navigation';
+
+interface DashboardNavbarProps {
+    userRole: string;
+}
+
+export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
+    const router = useRouter();
+    const pathname = usePathname();
+
+    const handleLogout = () => {
+        localStorage.removeItem('token');
+        router.push('/login');
+    };
+
+    const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');
+
+    return (
+        <nav className="fixed top-0 w-full z-40 bg-slate-900 border-b border-slate-800 shadow-md">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex items-center justify-between h-16">
+                    {/* Left Side: Logo & Main Nav */}
+                    <div className="flex items-center gap-8">
+                        {/* Brand */}
+                        <div className="flex-shrink-0 flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-indigo-500/30">
+                                D
+                            </div>
+                            <span className="text-lg font-bold text-white tracking-tight hidden md:block">DIGIFORT LABS</span>
+                        </div>
+
+                        {/* Desktop Navigation */}
+                        <div className="hidden md:flex items-center space-x-2">
+                            <Link
+                                href="/dashboard"
+                                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${pathname === '/dashboard'
+                                    ? 'bg-slate-800 text-white'
+                                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                    }`}
+                            >
+                                Overview
+                            </Link>
+
+                            {/* Super Admin Links */}
+                            {userRole === 'website_admin' && (
+                                <Link
+                                    href="/dashboard/hospitals"
+                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/hospitals')
+                                        ? 'bg-indigo-600 text-white'
+                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        }`}
+                                >
+                                    Hospitals
+                                </Link>
+                            )}
+
+                            {/* Audit Link - Super Admin & Hospital Admin */}
+                            {(userRole === 'website_admin' || userRole === 'hospital_admin') && (
+                                <Link
+                                    href="/dashboard/audit"
+                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/audit')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        }`}
+                                >
+                                    Audit
+                                </Link>
+                            )}
+
+                            {/* Warehouse Link (Added by Request) */}
+                            {/* Warehouse Link - Super Admin Only */}
+                            {/* Warehouse Link - Super Admin Only (Restricted by User Request) */}
+                            {userRole === 'website_admin' && (
+                                <Link
+                                    href="/dashboard/storage"
+                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/storage') && !isActive('/dashboard/storage/requests')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        }`}
+                                >
+                                    Warehouse
+                                </Link>
+                            )}
+
+
+
+                            {/* Patient Records */}
+                            {(userRole === 'hospital_admin' || userRole === 'data_uploader' || userRole === 'website_staff' || userRole === 'mrd_staff') && (
+                                <Link
+                                    href="/dashboard/records"
+                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/records')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        }`}
+                                >
+                                    Records
+                                </Link>
+                            )}
+
+                            {/* Operations */}
+                            {(userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'website_staff') && (
+                                <>
+                                    {/* Staff Management - Hospital Admin Only */}
+                                    {userRole === 'hospital_admin' && (
+                                        <Link
+                                            href="/dashboard/staff"
+                                            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/staff')
+                                                ? 'bg-slate-800 text-white'
+                                                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                                }`}
+                                        >
+                                            Staff
+                                        </Link>
+                                    )}
+
+                                    {/* File Retrieval Requests */}
+                                    <Link
+                                        href="/dashboard/requests"
+                                        className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/requests')
+                                            ? 'bg-slate-800 text-white'
+                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                            }`}
+                                    >
+                                        File Requests
+                                    </Link>
+                                    {userRole === 'mrd_staff' && (
+                                        <Link
+                                            href="/dashboard/drafts"
+                                            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/drafts')
+                                                ? 'bg-amber-900/20 text-amber-500 border border-amber-900/50'
+                                                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                                }`}
+                                        >
+                                            Drafts
+                                        </Link>
+                                    )}
+
+
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Right Side: Account & Logout */}
+                    <div className="flex items-center gap-4">
+                        {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'website_staff') && (
+                            <Link
+                                href="/dashboard/settings"
+                                className={`text-slate-400 hover:text-white transition-colors ${isActive('/dashboard/settings') ? 'text-white' : ''}`}
+                                title="Settings"
+                            >
+                                <span className="text-xl">⚙️</span>
+                            </Link>
+                        )}
+
+                        <div className="flex items-center gap-4 pl-4 border-l border-slate-700">
+                            {userRole && (
+                                <span className="hidden lg:block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                    {userRole.replace('_', ' ')}
+                                </span>
+                            )}
+                            <button
+                                onClick={handleLogout}
+                                className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-lg shadow-red-900/20"
+                            >
+                                Sign Out
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Mobile Menu Placeholder (Hidden for now as desktop focus is primary request, but structure handles resizing decently) */}
+        </nav>
+    );
+}

@@ -1,0 +1,62 @@
+[
+    {
+        "code": "P01A",
+        "description": "Appendectomy, open approach"
+    },
+    {
+        "code": "P01B",
+        "description": "Appendectomy, laparoscopic approach"
+    },
+    {
+        "code": "P02A",
+        "description": "Cesarean section, classical"
+    },
+    {
+        "code": "P02B",
+        "description": "Cesarean section, low transverse"
+    },
+    {
+        "code": "P03A",
+        "description": "Total knee replacement, cemented"
+    },
+    {
+        "code": "P03B",
+        "description": "Total knee replacement, uncemented"
+    },
+    {
+        "code": "P04A",
+        "description": "Coronary artery bypass graft, single vessel"
+    },
+    {
+        "code": "P04B",
+        "description": "Coronary artery bypass graft, double vessel"
+    },
+    {
+        "code": "P05A",
+        "description": "Cholecystectomy, total, open"
+    },
+    {
+        "code": "P05B",
+        "description": "Cholecystectomy, total, laparoscopic"
+    },
+    {
+        "code": "P06A",
+        "description": "Hemodialysis"
+    },
+    {
+        "code": "P07A",
+        "description": "Normal delivery"
+    },
+    {
+        "code": "P08A",
+        "description": "Magnetic resonance imaging (MRI) of brain"
+    },
+    {
+        "code": "P09A",
+        "description": "Computerized tomography (CT) scan of chest"
+    },
+    {
+        "code": "P10A",
+        "description": "Vaccination against COVID-11"
+    }
+]

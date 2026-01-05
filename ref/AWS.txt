@@ -1,0 +1,69 @@
+Digifort Labs: Security & Access Policies
+
+These policies ensure your AWS infrastructure remains compliant with Indian DPDP Act standards by enforcing encryption and strictly limiting access to patient data.
+
+1. S3 Bucket Policy (JSON)
+
+Apply this policy to your S3 bucket digifort-labs-mrd-india to block non-SSL traffic and ensure all data is encrypted.
+
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "EnforceSSLOnly",
+            "Effect": "Deny",
+            "Action": "s3:*",
+            "Resource": [
+                "arn:aws:s3:::digifort-labs-mrd-india",
+                "arn:aws:s3:::digifort-labs-mrd-india/*"
+            ],
+            "Condition": {
+                "Bool": {
+                    "aws:SecureTransport": "false"
+                }
+            }
+        },
+        {
+            "Sid": "EnforceServerSideEncryption",
+            "Effect": "Deny",
+            "Action": "s3:PutObject",
+            "Resource": "arn:aws:s3:::digifort-labs-mrd-india/*",
+            "Condition": {
+                "StringNotEquals": {
+                    "s3:x-amz-server-side-encryption": "AES256"
+                }
+            }
+        }
+    ]
+}
+
+
+2. Backend IAM Policy (JSON)
+
+Assign this policy to the IAM Role attached to your EC2 instance. It allows the server to generate "Presigned URLs" for doctors to view PDFs without making the files public.
+
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:aws:s3:::digifort-labs-mrd-india",
+                "arn:aws:s3:::digifort-labs-mrd-india/*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "kms:GenerateDataKey",
+                "kms:Decrypt"
+            ],
+            "Resource": "arn:aws:kms:ap-south-1:YOUR_ACCOUNT_ID:key/YOUR_KEY_ID"
+        }
+    ]
+}
