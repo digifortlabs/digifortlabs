@@ -13,8 +13,7 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
-    // @ts-expect-error - allowedDevOrigins is valid but missing from Next.js types in this version
-    allowedDevOrigins: ["localhost", "100.100.100.100"],
+    // allowedDevOrigins removed as it is invalid in this Next.js version
   },
 };
 
