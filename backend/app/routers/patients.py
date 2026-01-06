@@ -21,7 +21,7 @@ from ..services.s3_handler import S3Manager
 from ..services.storage_service import StorageService
 
 router = APIRouter(tags=["patients"])
-s3_manager = S3Manager()
+
 
 import shutil
 from ..services.encryption import encrypt_file
@@ -550,6 +550,7 @@ def confirm_upload(file_id: int, db: Session = Depends(get_db), current_user: Us
 
 @router.delete("/files/{file_id}/draft")
 def delete_draft(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    s3_manager = S3Manager()
     # MRD uses this to discard drafts
     # Review Step: Allow discarding drafts
     # if current_user.role != UserRole.MRD_STAFF:
@@ -600,6 +601,7 @@ def list_drafts(db: Session = Depends(get_db), current_user: User = Depends(get_
 def get_file_url(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # 1. Get File and Verification Patient Hospital ID
     is_platform = current_user.role in ["website_admin", "website_staff"]
+    s3_manager = S3Manager()
     
     query = db.query(PDFFile).join(Patient).filter(PDFFile.file_id == file_id)
     if not is_platform:
@@ -664,6 +666,7 @@ def request_deletion(file_id: int, db: Session = Depends(get_db), current_user: 
     # Logic: MRD -> 'requested', Hospital Admin -> Immediate Deletion
     if current_user.role == UserRole.HOSPITAL_ADMIN:
         # Strict bypass: Hospital Admin can delete immediately without Super Admin
+        s3_manager = S3Manager()
         s3_manager.delete_file(pdf_file.s3_key)
         db.delete(pdf_file)
         db.commit()
@@ -704,6 +707,7 @@ def approve_deletion(file_id: int, db: Session = Depends(get_db), current_user: 
         if pdf_file.deletion_step != 'requested':
              raise HTTPException(status_code=400, detail="Invalid deletion step for Hospital Admin")
         
+        s3_manager = S3Manager()
         s3_manager.delete_file(pdf_file.s3_key)
         db.delete(pdf_file)
         db.commit()
@@ -715,6 +719,7 @@ def approve_deletion(file_id: int, db: Session = Depends(get_db), current_user: 
     # Super Admin (Final Deletion)
     if is_super:
         # Can delete from any step, but typically from 'hospital_approved'
+        s3_manager = S3Manager()
         s3_manager.delete_file(pdf_file.s3_key)
         db.delete(pdf_file)
         db.commit()
@@ -795,9 +800,11 @@ async def delete_file(
     
     # Delete from storage
     try:
+    # Delete from storage
+    try:
         s3_manager = S3Manager()
-        location = db_file.location
-        if location.startswith("local://"):
+        location = db_file.storage_path
+        if location and location.startswith("local://"):
             file_path = location.replace("local://", "")
             s3_manager.delete_file(file_path)
             print(f"✅ Deleted from storage: {file_path}")

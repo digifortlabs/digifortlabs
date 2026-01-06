@@ -364,7 +364,7 @@ function PatientDetailContent() {
         const apiUrl = API_URL;
         setError(null);
         try {
-            const res = await fetch(`${apiUrl}/patients/${patientId}`, {
+            const res = await fetch(`${apiUrl}/patients/${patientId}?t=${new Date().getTime()}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) {
@@ -440,6 +440,7 @@ function PatientDetailContent() {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) {
+                alert("Draft discarded successfully");
                 if (id) fetchPatient(token || '', id);
             }
         } catch (e) { console.error(e); }
