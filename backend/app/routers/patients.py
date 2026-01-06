@@ -33,6 +33,7 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str):
     Updates DB status for polling.
     """
     db = SessionLocal()
+    s3_manager = S3Manager()
     try:
         # Retrieve File Record
         db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
@@ -800,19 +801,18 @@ async def delete_file(
     
     # Delete from storage
     try:
-    # Delete from storage
-    try:
         s3_manager = S3Manager()
         location = db_file.storage_path
         if location and location.startswith("local://"):
             file_path = location.replace("local://", "")
             s3_manager.delete_file(file_path)
             print(f"✅ Deleted from storage: {file_path}")
+        elif db_file.s3_key:
+             s3_manager.delete_file(db_file.s3_key)
+
     except Exception as e:
         print(f"⚠️ Failed to delete from storage: {e}")
     
-    # Update storage usage
-    file_size_mb = db_file.file_size_mb
     # Update storage usage
     file_size_mb = db_file.file_size_mb
     usage = db.query(BandwidthUsage).filter(
@@ -827,7 +827,6 @@ async def delete_file(
     
     print(f"✅ File {file_id} deleted successfully")
     
-    return {"status": "success", "message": "File deleted successfully"}
     return {"status": "success", "message": "File deleted successfully"}
 
 @router.put("/files/{file_id}/tags")
