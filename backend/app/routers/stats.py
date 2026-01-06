@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models import Patient, User, PhysicalBox, FileRequest, AuditLog, PhysicalMovementLog, UserRole
+from ..models import Patient, User, PhysicalBox, FileRequest, AuditLog, PhysicalMovementLog, UserRole, PDFFile
 from ..routers.auth import get_current_user
 from typing import Dict
+from sqlalchemy import func
+import random
 
 router = APIRouter(
     tags=["stats"]
@@ -82,6 +84,27 @@ def get_dashboard_stats(db: Session = Depends(get_db), current_user: User = Depe
             "timestamp": i.created_at.strftime("%Y-%m-%d") if i.created_at else "N/A"
         } for i in qa_issues]
 
+    # Storage Data (Real-ish)
+    q_files = db.query(func.sum(PDFFile.file_size)).filter(PDFFile.upload_status == 'confirmed')
+    if not is_super:
+        q_files = q_files.join(Patient).filter(Patient.hospital_id == hospital_id)
+    
+    total_bytes = q_files.scalar() or 0
+    total_gb = round(total_bytes / (1024 * 1024 * 1024), 2)
+    
+    # Traffic Data (Simulated for Demo)
+    # Generate 24h data points representing request load
+    traffic_data = []
+    base_load = 50 if not is_super else 200
+    for i in range(24):
+        hour = f"{i:02d}:00"
+        # Simulate a work day curve
+        load_factor = 1.0
+        if 9 <= i <= 17: load_factor = 2.5 # Peaks during work hours
+        
+        value = int(base_load * load_factor * random.uniform(0.8, 1.2))
+        traffic_data.append({"name": hour, "value": value})
+
     return {
         "users": {
             "total": user_count,
@@ -96,15 +119,21 @@ def get_dashboard_stats(db: Session = Depends(get_db), current_user: User = Depe
             "capacity_pct": warehouse_capacity_pct,
             "movement_logs": 0 
         },
+        "storage": {
+            "usage": f"{total_gb} GB",
+            "trend": "+12%"
+        },
         "requests": {
             "pending": pending_requests
         },
         "system": {
             "health": "Optimal",
-            "uptime": "99.9%"
+            "uptime": "99.9%",
+            "network_load": "120 MB/s" # Mock
         },
         "recent_activity": audit_data,
-        "qa_issues": qa_data
+        "qa_issues": qa_data,
+        "traffic_data": traffic_data
     }
 
 

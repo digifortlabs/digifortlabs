@@ -158,33 +158,61 @@ export default function CommandCenter() {
                                 <button className="px-4 py-2 bg-indigo-50 rounded-xl text-xs font-bold text-indigo-600 border border-indigo-100">Weekly</button>
                             </div>
                         </div>
-                        <div className="h-64 w-full bg-slate-50/50 rounded-2xl flex items-center justify-center border border-slate-100">
-                            <p className="text-slate-400 text-sm font-medium italic">Available in Production Environment (AWS CloudWatch Link)</p>
+                        <div className="h-64 w-full bg-white rounded-2xl flex items-center justify-center border border-slate-100 p-2">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={stats?.traffic_data || []}>
+                                    <defs>
+                                        <linearGradient id="colorTraffic" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <XAxis
+                                        dataKey="name"
+                                        axisLine={false}
+                                        tickLine={false}
+                                        tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                        interval={3}
+                                    />
+                                    <YAxis
+                                        axisLine={false}
+                                        tickLine={false}
+                                        tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                        cursor={{ stroke: '#e2e8f0', strokeWidth: 2 }}
+                                    />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="value"
+                                        stroke="#4f46e5"
+                                        strokeWidth={3}
+                                        fillOpacity={1}
+                                        fill="url(#colorTraffic)"
+                                    />
+                                </AreaChart>
+                            </ResponsiveContainer>
                         </div>
                     </div>
 
-                    {/* Recent Alerts */}
+                    {/* Recent Alerts (Real) */}
                     <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
-                        <h3 className="text-xl font-bold text-slate-800 mb-6">Recent System Alerts</h3>
+                        <h3 className="text-xl font-bold text-slate-800 mb-6">Recent Activity & Alerts</h3>
                         <div className="space-y-4">
-                            <AlertItem
-                                type="warning"
-                                title="High CPU Usage (Microservice: OCR)"
-                                time="2 mins ago"
-                                desc="OCR Service spiked to 85% load during batch processing."
-                            />
-                            <AlertItem
-                                type="info"
-                                title="Backup Completed"
-                                time="1 hour ago"
-                                desc="Daily incremental backup to S3/Glacier successful."
-                            />
-                            <AlertItem
-                                type="error"
-                                title="Failed Login Attempt"
-                                time="3 hours ago"
-                                desc="Multiple failed attempts from IP 192.168.1.105."
-                            />
+                            {stats?.recent_activity?.length > 0 ? (
+                                stats.recent_activity.map((log: any) => (
+                                    <AlertItem
+                                        key={log.id}
+                                        type={log.action.includes('FAIL') || log.action.includes('ERROR') ? 'error' : log.action.includes('WARN') ? 'warning' : 'info'}
+                                        title={log.action.replace('_', ' ')}
+                                        time={log.time}
+                                        desc={log.details}
+                                    />
+                                ))
+                            ) : (
+                                <p className="text-slate-400 text-sm italic">No recent activity logged.</p>
+                            )}
                         </div>
                     </div>
 
