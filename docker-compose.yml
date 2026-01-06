@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # Python Backend
   backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
@@ -15,18 +15,14 @@ services:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - SECRET_KEY=${SECRET_KEY}
-      - ENVIRONMENT=production
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    volumes:
+      - local_storage:/app/local_storage
     networks:
       - digifort-net
 
   # Worker for Cleanups
   worker:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     command: celery -A app.celery_app worker --loglevel=info
@@ -42,6 +38,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - local_storage:/app/local_storage
     networks:
       - digifort-net
 
@@ -57,7 +55,7 @@ services:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     networks:
       - digifort-net
-  
+
   # PostgreSQL Database
   db:
     image: postgres:13-alpine
@@ -67,7 +65,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB:-digifortlabs}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -81,7 +79,7 @@ services:
     image: redis:6-alpine
     restart: always
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -94,3 +92,4 @@ networks:
 
 volumes:
   postgres_data:
+  local_storage:

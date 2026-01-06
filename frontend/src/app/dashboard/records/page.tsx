@@ -166,8 +166,9 @@ export default function RecordsList() {
                 const msg = errData.detail || "Session expired";
                 window.location.href = `/login?error=${encodeURIComponent(msg)}`;
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
+            alert("Failed to load records. Check backend connection.");
         } finally {
             setLoading(false);
         }
