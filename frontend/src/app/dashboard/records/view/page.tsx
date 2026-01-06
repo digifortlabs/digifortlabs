@@ -358,8 +358,11 @@ function PatientDetailContent() {
         }
     }, [router, id]);
 
+    const [error, setError] = useState<string | null>(null);
+
     const fetchPatient = async (token: string, patientId: string) => {
         const apiUrl = API_URL;
+        setError(null);
         try {
             const res = await fetch(`${apiUrl}/patients/${patientId}`, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -367,11 +370,14 @@ function PatientDetailContent() {
             if (res.ok) {
                 setPatient(await res.json());
             } else {
-                alert("Patient not found or access denied");
-                router.push('/dashboard/records');
+                const errDetail = await res.text();
+                console.error("Fetch Error:", errDetail);
+                setError("Patient not found or access denied.");
+                // router.push('/dashboard/records'); // Optional: redirect or show error
             }
         } catch (error) {
             console.error(error);
+            setError("Failed to load patient data. Please check network connection.");
         }
     };
 
@@ -506,7 +512,22 @@ function PatientDetailContent() {
         router.push('/login');
     };
 
-    if (!patient) return <div className="p-8">Loading...</div>;
+    if (error) {
+        return (
+            <div className="p-8 flex flex-col items-center justify-center min-h-[50vh]">
+                <div className="text-red-500 font-bold mb-4">⚠️ Error Loading Patient</div>
+                <p className="text-gray-600 mb-6">{error}</p>
+                <button
+                    onClick={() => router.back()}
+                    className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200"
+                >
+                    Go Back
+                </button>
+            </div>
+        );
+    }
+
+    if (!patient) return <div className="p-8 text-center text-slate-500 font-medium">Loading patient record...</div>;
 
     return (
         <div className="flex-1 p-8">
