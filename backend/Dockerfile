@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    postgresql-client \
+    postgresql-client gcc musl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
