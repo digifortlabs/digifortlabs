@@ -13,3 +13,5 @@ passlib[bcrypt]
 pypdf
 moviepy
 imageio-ffmpeg
+email-validator
+dnspython
