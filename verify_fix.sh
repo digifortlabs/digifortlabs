@@ -2,8 +2,8 @@
 
 # Configuration
 API_URL="http://localhost:8000"
-ADMIN_EMAIL="admin@digifortlabs.com"
-ADMIN_PASS="admin123"
+ADMIN_EMAIL="admin@dixithospital.com"
+ADMIN_PASS="p@ssw0rd"
 
 echo "---------------------------------------------------"
 echo "🛠️  Verifying Patient Load Fix (Curl Version)"
