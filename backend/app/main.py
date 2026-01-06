@@ -47,7 +47,7 @@ app.include_router(stats.router, prefix="/stats", tags=["stats"])
 from .routers import diagnoses
 app.include_router(diagnoses.router, prefix="/diagnoses", tags=["diagnoses"])
 from .routers import procedures
-app.include_router(procedures.router, prefix="/procedures", tags=["procedures"])
+app.include_router(procedures.router, prefix="/icd11", tags=["procedures"])
 
 # Mount local storage for simulation mode (if no AWS keys)
 import os
