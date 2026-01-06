@@ -11,7 +11,8 @@ echo "---------------------------------------------------"
 
 # 1. Login to get Token
 echo "🔑 Logging in..."
-TOKEN_RESPONSE=$(curl -s -X POST "$API_URL/login" \
+# Endpoint is /auth/token (OAuth2 standard)
+TOKEN_RESPONSE=$(curl -s -X POST "$API_URL/auth/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "username=$ADMIN_EMAIL&password=$ADMIN_PASS")
 
