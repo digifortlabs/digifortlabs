@@ -249,7 +249,7 @@ class FileData(BaseModel):
     filename: str
     upload_date: datetime.datetime
     file_size_mb: float
-    status: str
+    upload_status: str
 
 class PatientDetailResponse(PatientResponse):
     files: List[FileData] = []
