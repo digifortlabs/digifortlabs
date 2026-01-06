@@ -68,8 +68,13 @@ class S3Manager:
         """
         if self.mode == "local":
             # Return local static URL
-            # Assuming main.py mounts /local-storage to the local_root
-            return f"http://localhost:8001/local-storage/{object_name}"
+            # Use settings.BACKEND_URL or fallback to relative path if served from same origin
+            base_url = settings.BACKEND_URL or "http://localhost:8000"
+            if "localhost" in base_url and settings.ENVIRONMENT == "production":
+                 # Fallback for when variable isn't set in prod
+                 base_url = "" # Return relative path?
+            
+            return f"{base_url}/local-storage/{object_name}"
 
         try:
             response = self.s3_client.generate_presigned_url(
