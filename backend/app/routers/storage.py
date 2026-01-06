@@ -8,10 +8,7 @@ from ..routers.auth import get_current_user
 from pydantic import BaseModel
 from datetime import datetime
 
-router = APIRouter(
-    prefix="/storage",
-    tags=["storage"]
-)
+router = APIRouter()
 
 # --- Rack Models ---
 class RackCreate(BaseModel):

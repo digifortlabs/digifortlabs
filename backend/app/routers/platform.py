@@ -5,10 +5,7 @@ from ..models import SystemSetting, User, UserRole
 from ..routers.auth import get_current_user
 from pydantic import BaseModel
 
-router = APIRouter(
-    prefix="/platform",
-    tags=["platform"]
-)
+router = APIRouter()
 
 class SettingUpdate(BaseModel):
     value: str

@@ -10,10 +10,7 @@ from pydantic import BaseModel, EmailStr
 
 from ..audit import log_audit
 
-router = APIRouter(
-    prefix="/hospitals",
-    tags=["hospitals"]
-)
+router = APIRouter()
 
 class HospitalCreate(BaseModel):
     legal_name: str

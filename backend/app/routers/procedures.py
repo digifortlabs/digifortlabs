@@ -8,10 +8,7 @@ from ..routers.auth import get_current_user
 from pydantic import BaseModel
 from datetime import datetime
 
-router = APIRouter(
-    prefix="/icd11",
-    tags=["icd11_procedures"]
-)
+router = APIRouter()
 
 # --- Pydantic Models ---
 

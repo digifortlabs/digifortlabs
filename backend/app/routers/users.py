@@ -10,10 +10,7 @@ from ..models import User, UserRole, Hospital, AuditLog
 from ..utils import get_password_hash
 from ..routers.auth import get_current_user
 
-router = APIRouter(
-    prefix="/users",
-    tags=["users"]
-)
+router = APIRouter()
 
 @router.delete("/{user_id}")
 def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
