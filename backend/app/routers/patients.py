@@ -21,6 +21,7 @@ from ..services.s3_handler import S3Manager
 from ..services.storage_service import StorageService
 
 router = APIRouter(tags=["patients"])
+s3_manager = S3Manager()
 
 import shutil
 from ..services.encryption import encrypt_file
