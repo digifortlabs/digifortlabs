@@ -20,7 +20,7 @@ import {
     AlertTriangle,
     Package,
     ScanLine,
-    ScanLine,
+
     Loader2,
     Camera,
     StopCircle
@@ -108,14 +108,14 @@ export default function WarehousePage() {
                     /* verbose= */ false
                 );
                 scanner.render(
-                    (decodedText) => {
+                    (decodedText: string) => {
                         console.log("Scan Success:", decodedText);
                         setScanInput(decodedText);
                         handleRealScan(decodedText);
                         setUseCamera(false);
                         scanner.clear().catch(console.error);
                     },
-                    (error) => { /* ignore */ }
+                    (error: any) => { /* ignore */ }
                 );
                 setScannerInstance(scanner);
             }, 100);
@@ -507,109 +507,16 @@ export default function WarehousePage() {
                     </div>
                 )}
 
-// Add to imports at top (I will assume Html5QrcodeScanner is available after npm install)
-                import {Html5QrcodeScanner} from "html5-qrcode";
-                import {Camera, StopCircle} from "lucide-react"; // Add these icons
+                {/* SCANNER TAB */}
+                {activeTab === 'scanner' && (
+                    <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 p-8 animate-in fade-in duration-500">
+                        <div className="text-center mb-8">
+                            <h2 className="text-2xl font-black text-slate-800">File Movement Scanner</h2>
+                            <p className="text-slate-400 font-medium">Scan patient files for check-in/check-out</p>
+                        </div>
 
-                // ... Inside component ...
-                // Scanner State
-                const [isScanning, setIsScanning] = useState(false);
-                const [scanResult, setScanResult] = useState<any>(null);
-                    const [scanInput, setScanInput] = useState('');
-                    const [useCamera, setUseCamera] = useState(false);
-                    const [scannerInstance, setScannerInstance] = useState<any>(null);
-
-    // Camera Scanner Effect
-    useEffect(() => {
-        if (useCamera && !scanResult) {
-                            // Wait for DOM
-                            setTimeout(() => {
-                                const scanner = new Html5QrcodeScanner(
-                                    "reader",
-                                    { fps: 10, qrbox: { width: 250, height: 250 } },
-                    /* verbose= */ false
-                                );
-
-                                scanner.render(
-                                    (decodedText) => {
-                                        // Success
-                                        console.log("Scan Success:", decodedText);
-                                        setScanInput(decodedText);
-                                        handleRealScan(decodedText); // Auto-submit
-                                        setUseCamera(false); // Close camera
-                                    },
-                                    (error) => {
-                                        // Ignore frame warnings
-                                    }
-                                );
-                                setScannerInstance(scanner);
-                            }, 100);
-        }
-
-        return () => {
-            if (scannerInstance) {
-                try {
-                            scannerInstance.clear().catch(console.error);
-                } catch (e) {
-                            // ignore
-                        }
-            }
-        };
-    }, [useCamera]);
-
-    // Cleanup when closing manually
-    const stopCamera = () => {
-        if (scannerInstance) {
-                            scannerInstance.clear().catch(console.error);
-        }
-                        setUseCamera(false);
-                        setScannerInstance(null);
-    };
-
-    const handleRealScan = async (overrideInput?: string) => {
-        const inputToUse = overrideInput || scanInput;
-                        if (!inputToUse) return;
-
-                        setIsScanning(true);
-                        // ... (rest of logic same as before, create separate function if needed but handleRealScan was using state)
-                        // Refactoring handleRealScan to accept optional argument
-
-                        // ... COPYING EXISTING handleRealScan LOGIC with modification ...
-                        const token = localStorage.getItem('token');
-                        try {
-            const res = await fetch(`${API_URL}/patients/?q=${encodeURIComponent(inputToUse)}`, {
-                            headers: {Authorization: `Bearer ${token}` }
-            });
-                        // ... same logic ...
-                        if (res.ok) {
-                const results = await res.json();
-                if (results.length > 0) {
-                    const patient = results[0];
-                        setScanResult({
-                            name: patient.full_name,
-                        uhid: patient.uhid || patient.patient_u_id,
-                        record_id: patient.record_id
-                    });
-                        setScanInput(''); 
-                } else {
-                            alert("No match found for: " + inputToUse);
-                        setScanResult(null);
-                }
-            }
-        } catch (e) {
-                            console.error("Scan error", e);
-                        alert("Connection Error");
-        } finally {
-                            setIsScanning(false);
-        }
-    };
-
-
-                        // UI Changes in Scanner Tab
-                        // Replace the manual input block with a conditional block
                         {!scanResult ? (
                             <div className="space-y-8">
-
                                 {/* Camera Toggle */}
                                 <div className="flex justify-center mb-6">
                                     {!useCamera ? (
@@ -623,48 +530,34 @@ export default function WarehousePage() {
                                     )}
                                 </div>
 
-                                        
-                                        {/* Camera Toggle */}
-                                        <div className="flex justify-center mb-6">
-                                            {!useCamera ? (
-                                                <button onClick={() => setUseCamera(true)} className="flex items-center gap-2 px-6 py-3 bg-slate-100 font-bold text-slate-600 rounded-full hover:bg-slate-200 transition">
-                                                    <Camera size={20} /> Use Camera
-                                                </button>
-                                            ) : (
-                                                <button onClick={stopCamera} className="flex items-center gap-2 px-6 py-3 bg-red-100 font-bold text-red-600 rounded-full hover:bg-red-200 transition">
-                                                    <StopCircle size={20} /> Stop Scanning
-                                                </button>
-                                            )}
-                                        </div>
-
-                                        {useCamera ? (
-                                            <div className="max-w-md mx-auto bg-slate-100 rounded-2xl overflow-hidden border-4 border-slate-200">
-                                                <div id="reader" className="w-full"></div>
-                                                <p className="text-center py-2 text-xs font-bold text-slate-400">Point at a QR Code or Barcode</p>
-                                            </div>
-                                        ) : (
-                                            <div className="max-w-md mx-auto relative">
-                                                <input
-                                                    autoFocus
-                                                    type="text"
-                                                    className="w-full bg-slate-50 border-2 border-indigo-100 rounded-2xl px-6 py-6 font-mono text-2xl font-bold text-center text-slate-800 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-300 placeholder:font-sans placeholder:text-lg"
-                                                    placeholder="Scan Barcode / Type UHID..."
-                                                    value={scanInput}
-                                                    onChange={e => setScanInput(e.target.value)}
-                                                    onKeyDown={e => e.key === 'Enter' && handleRealScan()}
-                                                    disabled={isScanning}
-                                                />
-                                                {isScanning && (
-                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                                                        <Loader2 className="animate-spin text-indigo-600" size={24} />
-                                                    </div>
-                                                )}
+                                {useCamera ? (
+                                    <div className="max-w-md mx-auto bg-slate-100 rounded-2xl overflow-hidden border-4 border-slate-200">
+                                        <div id="reader" className="w-full"></div>
+                                        <p className="text-center py-2 text-xs font-bold text-slate-400">Point at a QR Code or Barcode</p>
+                                    </div>
+                                ) : (
+                                    <div className="max-w-md mx-auto relative">
+                                        <input
+                                            autoFocus
+                                            type="text"
+                                            className="w-full bg-slate-50 border-2 border-indigo-100 rounded-2xl px-6 py-6 font-mono text-2xl font-bold text-center text-slate-800 focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-300 placeholder:font-sans placeholder:text-lg"
+                                            placeholder="Scan Barcode / Type UHID..."
+                                            value={scanInput}
+                                            onChange={e => setScanInput(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleRealScan()}
+                                            disabled={isScanning}
+                                        />
+                                        {isScanning && (
+                                            <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                                <Loader2 className="animate-spin text-indigo-600" size={24} />
                                             </div>
                                         )}
                                     </div>
+                                )}
+
                                 <div className="flex justify-center gap-4">
                                     <button
-                                        onClick={handleRealScan}
+                                        onClick={() => handleRealScan()}
                                         disabled={isScanning || !scanInput}
                                         className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 disabled:opacity-50 disabled:shadow-none flex items-center gap-2"
                                     >
@@ -678,465 +571,395 @@ export default function WarehousePage() {
                                     <span className="opacity-70">Focus the input field and use your barcode scanner.</span>
                                 </p>
                             </div>
-                    ) : (
-                    <div className="animate-in zoom-in-95 duration-300">
-                        <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100 inline-flex items-center gap-4 mb-8">
-                            <div className="bg-indigo-600 p-3 rounded-2xl text-white shadow-lg"><CheckCircle2 size={24} /></div>
-                            <div className="text-left">
-                                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Scan Successful</p>
-                                <h3 className="font-black text-slate-800 text-lg">{scanResult.name}</h3>
-                                <p className="text-xs font-bold text-slate-500">{scanResult.uhid}</p>
+                        ) : (
+                            <div className="animate-in zoom-in-95 duration-300">
+                                <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100 inline-flex items-center gap-4 mb-8">
+                                    <div className="bg-indigo-600 p-3 rounded-2xl text-white shadow-lg"><CheckCircle2 size={24} /></div>
+                                    <div className="text-left">
+                                        <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Scan Successful</p>
+                                        <h3 className="font-black text-slate-800 text-lg">{scanResult.name}</h3>
+                                        <p className="text-xs font-bold text-slate-500">{scanResult.uhid}</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 mb-8">
+                                    <ActionButton
+                                        icon={<MapPin size={32} />}
+                                        label="Check-In"
+                                        sub="Return to Warehouse"
+                                        color="emerald"
+                                        onClick={() => processMovement('CHECK-IN')}
+                                    />
+                                    <ActionButton
+                                        icon={<ArrowLeftRight size={32} />}
+                                        label="Check-Out"
+                                        sub="Issue to Doctor"
+                                        color="blue"
+                                        onClick={() => processMovement('CHECK-OUT')}
+                                    />
+                                </div>
+                                <button onClick={() => setScanResult(null)} className="text-slate-400 font-bold text-sm hover:text-slate-600 underline">Cancel</button>
                             </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 mb-8">
-                            <ActionButton
-                                icon={<MapPin size={32} />}
-                                label="Check-In"
-                                sub="Return to Warehouse"
-                                color="emerald"
-                                onClick={() => processMovement('CHECK-IN')}
-                            />
-                            <ActionButton
-                                icon={<ArrowLeftRight size={32} />}
-                                label="Check-Out"
-                                sub="Issue to Doctor"
-                                color="blue"
-                                onClick={() => processMovement('CHECK-OUT')}
-                            />
-                        </div>
-                        <button onClick={() => setScanResult(null)} className="text-slate-400 font-bold text-sm hover:text-slate-600 underline">Cancel</button>
+                        )}
                     </div>
-                        )}
-                </div>
-        </div>
-        </div >
-    )
-}
+                )}
 
-{/* LOGS TAB */ }
-{
-    activeTab === 'logs' && (
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden animate-in fade-in duration-500">
-            <div className="p-8 border-b border-slate-100 flex justify-between items-center">
-                <div>
-                    <h2 className="text-2xl font-black text-slate-800">File Movement Audit</h2>
-                    <p className="text-slate-400 text-sm">Real-time tracking of physical file chain-of-custody</p>
-                </div>
-                <button className="p-3 bg-slate-100 rounded-xl text-slate-600 hover:bg-slate-200 transition-all">
-                    <Download size={20} />
-                </button>
-            </div>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                    <thead>
-                        <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-[2px]">
-                            <th className="px-8 py-5">Activity</th>
-                            <th className="px-8 py-5">Patient Details</th>
-                            <th className="px-8 py-5">Destination</th>
-                            <th className="px-8 py-5">Timestamp</th>
-                            <th className="px-8 py-5">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                        {logs.length > 0 ? logs.map(log => (
-                            <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="px-8 py-6">
-                                    <span className={cn(
-                                        "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider",
-                                        log.type === 'CHECK-IN' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
-                                    )}>
-                                        {log.type}
-                                    </span>
-                                </td>
-                                <td className="px-8 py-6">
-                                    <p className="font-bold text-slate-800 text-sm">{log.name}</p>
-                                    <p className="text-[10px] font-semibold text-slate-400">{log.uhid}</p>
-                                </td>
-                                <td className="px-8 py-6">
-                                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                                        <MapPin size={12} className="text-slate-400" /> {log.dest}
+                {/* GENERATOR TAB */}
+                {
+                    activeTab === 'generator' && (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in duration-500">
+                            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-200">
+                                <h2 className="text-xl font-black mb-6 flex items-center gap-2 text-indigo-950">
+                                    <Search size={20} className="text-indigo-600" /> Find Patient File
+                                </h2>
+                                <div className="flex gap-3 mb-8">
+                                    <input
+                                        type="text"
+                                        className="flex-1 bg-slate-100 border-transparent rounded-2xl px-6 py-4 font-medium focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                                        placeholder="Enter UHID..."
+                                        value={uhidSearch}
+                                        onChange={e => setUhidSearch(e.target.value)}
+                                    />
+                                    <button onClick={handleSearch} className="bg-indigo-600 text-white px-8 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">
+                                        Search
+                                    </button>
+                                </div>
+                                {selectedPatient ? (
+                                    <div className="bg-indigo-50/50 rounded-3xl p-6 border border-indigo-100">
+                                        <div className="flex items-start justify-between mb-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg"><User size={24} /></div>
+                                                <div>
+                                                    <h3 className="font-black text-slate-800 text-lg leading-tight">{selectedPatient.name}</h3>
+                                                    <p className="text-indigo-600 text-sm font-bold uppercase tracking-widest">{selectedPatient.uhid}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1 mt-6">
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase">Warehouse Location</p>
+                                            <p className="text-sm font-semibold">{selectedPatient.location}</p>
+                                        </div>
                                     </div>
-                                </td>
-                                <td className="px-8 py-6">
-                                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-tighter">
-                                        <Clock size={12} /> {log.time}
+                                ) : (
+                                    <div className="text-center py-12 border-2 border-dashed border-slate-100 rounded-[2rem]">
+                                        <FileText size={48} className="text-slate-200 mx-auto mb-3" />
+                                        <p className="text-slate-400 font-medium">Search for a patient to generate label</p>
                                     </div>
-                                </td>
-                                <td className="px-8 py-6">
-                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 uppercase">
-                                        <CheckCircle2 size={14} /> {log.status}
-                                    </div>
-                                </td>
-                            </tr>
-                        )) : (
-                            <tr>
-                                <td colSpan={5} className="px-8 py-12 text-center text-slate-400 italic">No movement logs recorded yet.</td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    )
-}
+                                )}
+                            </div>
 
-{/* GENERATOR TAB */ }
-{
-    activeTab === 'generator' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in duration-500">
-            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-200">
-                <h2 className="text-xl font-black mb-6 flex items-center gap-2 text-indigo-950">
-                    <Search size={20} className="text-indigo-600" /> Find Patient File
-                </h2>
-                <div className="flex gap-3 mb-8">
-                    <input
-                        type="text"
-                        className="flex-1 bg-slate-100 border-transparent rounded-2xl px-6 py-4 font-medium focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                        placeholder="Enter UHID..."
-                        value={uhidSearch}
-                        onChange={e => setUhidSearch(e.target.value)}
-                    />
-                    <button onClick={handleSearch} className="bg-indigo-600 text-white px-8 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">
-                        Search
-                    </button>
-                </div>
-                {selectedPatient ? (
-                    <div className="bg-indigo-50/50 rounded-3xl p-6 border border-indigo-100">
-                        <div className="flex items-start justify-between mb-4">
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg"><User size={24} /></div>
-                                <div>
-                                    <h3 className="font-black text-slate-800 text-lg leading-tight">{selectedPatient.name}</h3>
-                                    <p className="text-indigo-600 text-sm font-bold uppercase tracking-widest">{selectedPatient.uhid}</p>
+                            <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden">
+                                <h2 className="text-lg font-bold mb-8 text-slate-400 flex items-center gap-2"><Printer size={18} /> Printer Preview</h2>
+                                {selectedPatient ? (
+                                    <div className="bg-white p-6 rounded-2xl max-w-[260px] mx-auto text-slate-900 relative">
+                                        <div className="border-b-2 border-dashed border-slate-200 pb-3 mb-3 text-center">
+                                            <p className="text-[9px] font-black uppercase tracking-[2px] text-indigo-600">Digifort Labs</p>
+                                        </div>
+                                        <div className="bg-slate-100 p-4 mb-3 flex justify-center"><QrCode size={100} className="text-slate-800" /></div>
+                                        <div className="text-center">
+                                            <h4 className="font-black text-sm uppercase">{selectedPatient.name}</h4>
+                                            <p className="text-[10px] font-bold text-indigo-600">{selectedPatient.uhid}</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="h-64 flex items-center justify-center text-slate-700 italic border border-slate-800 rounded-2xl border-dashed">No Data</div>
+                                )}
+                                <div className="mt-8 flex gap-4">
+                                    <button disabled={!selectedPatient} className="flex-1 bg-white text-slate-900 py-3 rounded-xl font-black text-sm hover:bg-slate-100 disabled:opacity-20">Print Label</button>
                                 </div>
                             </div>
                         </div>
-                        <div className="space-y-1 mt-6">
-                            <p className="text-[10px] text-slate-400 font-bold uppercase">Warehouse Location</p>
-                            <p className="text-sm font-semibold">{selectedPatient.location}</p>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="text-center py-12 border-2 border-dashed border-slate-100 rounded-[2rem]">
-                        <FileText size={48} className="text-slate-200 mx-auto mb-3" />
-                        <p className="text-slate-400 font-medium">Search for a patient to generate label</p>
-                    </div>
-                )}
-            </div>
+                    )
+                }
 
-            <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden">
-                <h2 className="text-lg font-bold mb-8 text-slate-400 flex items-center gap-2"><Printer size={18} /> Printer Preview</h2>
-                {selectedPatient ? (
-                    <div className="bg-white p-6 rounded-2xl max-w-[260px] mx-auto text-slate-900 relative">
-                        <div className="border-b-2 border-dashed border-slate-200 pb-3 mb-3 text-center">
-                            <p className="text-[9px] font-black uppercase tracking-[2px] text-indigo-600">Digifort Labs</p>
-                        </div>
-                        <div className="bg-slate-100 p-4 mb-3 flex justify-center"><QrCode size={100} className="text-slate-800" /></div>
-                        <div className="text-center">
-                            <h4 className="font-black text-sm uppercase">{selectedPatient.name}</h4>
-                            <p className="text-[10px] font-bold text-indigo-600">{selectedPatient.uhid}</p>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="h-64 flex items-center justify-center text-slate-700 italic border border-slate-800 rounded-2xl border-dashed">No Data</div>
-                )}
-                <div className="mt-8 flex gap-4">
-                    <button disabled={!selectedPatient} className="flex-1 bg-white text-slate-900 py-3 rounded-xl font-black text-sm hover:bg-slate-100 disabled:opacity-20">Print Label</button>
-                </div>
-            </div>
-        </div>
-    )
-}
-
-{/* RACK MANAGER TAB */ }
-{
-    activeTab === 'manager' && (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h2 className="text-2xl font-black text-slate-800">Rack Management</h2>
-                    <p className="text-slate-400 font-medium">Configure warehouse layout and aisles</p>
-                </div>
-                <button
-                    onClick={() => setIsCreatingRack(!isCreatingRack)}
-                    className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
-                >
-                    {isCreatingRack ? <History size={18} /> : <ScanLine size={18} />}
-                    {isCreatingRack ? "Cancel" : "Add New Rack"}
-                </button>
-            </div>
-
-            {/* Create Rack Form */}
-            {isCreatingRack && (
-                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-indigo-100 animate-in slide-in-from-top-4">
-                    <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                        <Building2 className="text-indigo-600" /> {editingRack ? "Update Rack Details" : "New Rack Details"}
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Rack Label</label>
-                            <input
-                                type="text"
-                                placeholder="e.g. Rack-A1"
-                                className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                                value={rackForm.label}
-                                onChange={e => setRackForm({ ...rackForm, label: e.target.value })}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Aisle Number</label>
-                            <select
-                                className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                                value={rackForm.aisle}
-                                onChange={e => setRackForm({ ...rackForm, aisle: parseInt(e.target.value) })}
-                            >
-                                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
-                                    <option key={n} value={n}>Aisle {n}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Capacity (Boxes)</label>
-                            <input
-                                type="number"
-                                className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                                value={rackForm.capacity}
-                                onChange={e => setRackForm({ ...rackForm, capacity: parseInt(e.target.value) })}
-                            />
-                        </div>
-                    </div>
-                    <div className="flex justify-end">
-                        <button
-                            onClick={handleCreateRack}
-                            className="bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-200"
-                        >
-                            Create Rack
-                        </button>
-                    </div>
-                </div>
-            )}
-
-
-
-            {/* Box Creation Modal */}
-            {isCreatingBox && selectedRackForBox && (
-                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95">
-                        <h3 className="text-xl font-bold text-slate-800 mb-2">Add Box to {selectedRackForBox.label}</h3>
-                        <p className="text-slate-400 text-sm mb-6">Create a new storage box in this rack.</p>
-
-                        <div className="space-y-4 mb-8">
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase">Box Label</label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g. BOX-A1-001"
-                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                                    value={boxForm.label}
-                                    onChange={e => setBoxForm({ ...boxForm, label: e.target.value })}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase">Capacity (Files)</label>
-                                <input
-                                    type="number"
-                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                                    value={boxForm.capacity}
-                                    onChange={e => setBoxForm({ ...boxForm, capacity: parseInt(e.target.value) })}
-                                />
-                                <p className="text-[10px] text-slate-400 font-bold">Standard capacity is 50 files.</p>
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => { setIsCreatingBox(false); setSelectedRackForBox(null); }}
-                                className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleCreateBox}
-                                className="flex-1 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-colors"
-                            >
-                                Create Box
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Assignment Modal */}
-            {isAssigning && selectedBoxForAssignment && (
-                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95">
-                        <h3 className="text-xl font-bold text-slate-800 mb-2">Assign File to Box</h3>
-                        <p className="text-slate-400 text-sm mb-6">Enter Patient UHID/Name to assign to <b>{selectedBoxForAssignment.label}</b></p>
-
-                        <div className="space-y-4 mb-8">
-                            <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase">Patient UHID or Record ID</label>
-                                <select
-                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                                    value={assignForm.patientId}
-                                    onChange={e => setAssignForm({ ...assignForm, patientId: e.target.value })}
+                {/* RACK MANAGER TAB */}
+                {
+                    activeTab === 'manager' && (
+                        <div className="space-y-8 animate-in fade-in duration-500">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h2 className="text-2xl font-black text-slate-800">Rack Management</h2>
+                                    <p className="text-slate-400 font-medium">Configure warehouse layout and aisles</p>
+                                </div>
+                                <button
+                                    onClick={() => setIsCreatingRack(!isCreatingRack)}
+                                    className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
                                 >
-                                    <option value="">Select a Patient...</option>
-                                    {unassignedPatients.map(p => (
-                                        <option key={p.record_id} value={p.record_id}>
-                                            {p.full_name} ({p.uhid || p.patient_u_id})
-                                        </option>
-                                    ))}
-                                </select>
-                                {unassignedPatients.length === 0 && (
-                                    <p className="text-[10px] text-red-500 mt-1 font-bold">No unassigned patients found.</p>
-                                )}
-                                <p className="text-[10px] text-slate-400">Enter the numeric Record ID (for demo) or UHID.</p>
+                                    {isCreatingRack ? <History size={18} /> : <ScanLine size={18} />}
+                                    {isCreatingRack ? "Cancel" : "Add New Rack"}
+                                </button>
+                            </div>
+
+                            {/* Create Rack Form */}
+                            {isCreatingRack && (
+                                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-indigo-100 animate-in slide-in-from-top-4">
+                                    <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+                                        <Building2 className="text-indigo-600" /> {editingRack ? "Update Rack Details" : "New Rack Details"}
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-slate-500 uppercase">Rack Label</label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. Rack-A1"
+                                                className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                                                value={rackForm.label}
+                                                onChange={e => setRackForm({ ...rackForm, label: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-slate-500 uppercase">Aisle Number</label>
+                                            <select
+                                                className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                                                value={rackForm.aisle}
+                                                onChange={e => setRackForm({ ...rackForm, aisle: parseInt(e.target.value) })}
+                                            >
+                                                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                                                    <option key={n} value={n}>Aisle {n}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-slate-500 uppercase">Capacity (Boxes)</label>
+                                            <input
+                                                type="number"
+                                                className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                                                value={rackForm.capacity}
+                                                onChange={e => setRackForm({ ...rackForm, capacity: parseInt(e.target.value) })}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end">
+                                        <button
+                                            onClick={handleCreateRack}
+                                            className="bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-200"
+                                        >
+                                            Create Rack
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+
+
+                            {/* Box Creation Modal */}
+                            {isCreatingBox && selectedRackForBox && (
+                                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                                    <div className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95">
+                                        <h3 className="text-xl font-bold text-slate-800 mb-2">Add Box to {selectedRackForBox.label}</h3>
+                                        <p className="text-slate-400 text-sm mb-6">Create a new storage box in this rack.</p>
+
+                                        <div className="space-y-4 mb-8">
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-slate-500 uppercase">Box Label</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. BOX-A1-001"
+                                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                                                    value={boxForm.label}
+                                                    onChange={e => setBoxForm({ ...boxForm, label: e.target.value })}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-slate-500 uppercase">Capacity (Files)</label>
+                                                <input
+                                                    type="number"
+                                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                                                    value={boxForm.capacity}
+                                                    onChange={e => setBoxForm({ ...boxForm, capacity: parseInt(e.target.value) })}
+                                                />
+                                                <p className="text-[10px] text-slate-400 font-bold">Standard capacity is 50 files.</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={() => { setIsCreatingBox(false); setSelectedRackForBox(null); }}
+                                                className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={handleCreateBox}
+                                                className="flex-1 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-colors"
+                                            >
+                                                Create Box
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Assignment Modal */}
+                            {isAssigning && selectedBoxForAssignment && (
+                                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                                    <div className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95">
+                                        <h3 className="text-xl font-bold text-slate-800 mb-2">Assign File to Box</h3>
+                                        <p className="text-slate-400 text-sm mb-6">Enter Patient UHID/Name to assign to <b>{selectedBoxForAssignment.label}</b></p>
+
+                                        <div className="space-y-4 mb-8">
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-slate-500 uppercase">Patient UHID or Record ID</label>
+                                                <select
+                                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                                                    value={assignForm.patientId}
+                                                    onChange={e => setAssignForm({ ...assignForm, patientId: e.target.value })}
+                                                >
+                                                    <option value="">Select a Patient...</option>
+                                                    {unassignedPatients.map(p => (
+                                                        <option key={p.record_id} value={p.record_id}>
+                                                            {p.full_name} ({p.uhid || p.patient_u_id})
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {unassignedPatients.length === 0 && (
+                                                    <p className="text-[10px] text-red-500 mt-1 font-bold">No unassigned patients found.</p>
+                                                )}
+                                                <p className="text-[10px] text-slate-400">Enter the numeric Record ID (for demo) or UHID.</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={() => { setIsAssigning(false); setSelectedBoxForAssignment(null); }}
+                                                className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={handleAssignPatient}
+                                                className="flex-1 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-colors"
+                                            >
+                                                Assign
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Racks List */}
+                            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-[2px]">
+                                            <th className="px-8 py-5">Rack ID</th>
+                                            <th className="px-8 py-5">Label</th>
+                                            <th className="px-8 py-5">Location</th>
+                                            <th className="px-8 py-5">Contents</th>
+                                            <th className="px-8 py-5">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {racks.length > 0 ? racks.map(rack => {
+                                            const rackBoxes = boxes.filter(b => b.rack_id === rack.rack_id);
+                                            return (
+                                                <React.Fragment key={rack.rack_id}>
+                                                    <tr className="hover:bg-slate-50/50 transition-colors">
+                                                        <td className="px-8 py-6 font-bold text-slate-500">#{rack.rack_id}</td>
+                                                        <td className="px-8 py-6 font-black text-slate-800 text-sm">{rack.label}</td>
+                                                        <td className="px-8 py-6">
+                                                            <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg text-xs font-bold">Aisle {rack.aisle}</span>
+                                                        </td>
+                                                        <td className="px-8 py-6 text-xs font-bold text-slate-500">
+                                                            {rackBoxes.length} Boxes / {rack.capacity} Slots
+                                                        </td>
+                                                        <td className="px-8 py-6 flex items-center gap-3">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedRackForBox(rack);
+                                                                    setIsCreatingBox(true);
+                                                                }}
+                                                                className="text-emerald-600 hover:text-emerald-800 font-bold text-xs flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100"
+                                                            >
+                                                                <Package size={14} /> Add Box
+                                                            </button>
+                                                            <button
+                                                                onClick={() => toggleRack(rack.rack_id)}
+                                                                className="text-slate-500 hover:text-slate-800 font-bold text-xs flex items-center gap-1 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200"
+                                                            >
+                                                                {expandedRackId === rack.rack_id ? 'Hide Boxes' : 'View Boxes'}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => openEditRack(rack)}
+                                                                className="text-indigo-600 hover:text-indigo-800 font-bold text-xs flex items-center gap-1 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100"
+                                                            >
+                                                                Edit
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                    {expandedRackId === rack.rack_id && (
+                                                        <tr>
+                                                            <td colSpan={5} className="px-8 py-4 bg-slate-50/50">
+                                                                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                                                                    <table className="w-full">
+                                                                        <thead>
+                                                                            <tr className="bg-slate-100 text-[9px] font-bold text-slate-400 uppercase">
+                                                                                <th className="px-6 py-3">Box Label</th>
+                                                                                <th className="px-6 py-3">Location</th>
+                                                                                <th className="px-6 py-3">Capacity</th>
+                                                                                <th className="px-6 py-3">Files</th>
+                                                                                <th className="px-6 py-3">Action</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {rackBoxes.length > 0 ? rackBoxes.map(box => (
+                                                                                <tr key={box.box_id} className="border-t border-slate-50">
+                                                                                    <td className="px-6 py-4 font-bold text-slate-700 text-xs">{box.label}</td>
+                                                                                    <td className="px-6 py-4 font-mono text-[10px] text-slate-500">
+                                                                                        {box.rack_row && box.rack_column
+                                                                                            ? `R${box.rack_row}:C${box.rack_column}`
+                                                                                            : 'UNASSIGNED'}
+                                                                                    </td>
+                                                                                    <td className="px-6 py-4 text-xs font-medium text-slate-500">{box.capacity} Files</td>
+                                                                                    <td className="px-6 py-4 text-xs font-medium text-slate-500">{box.patient_count} Assigned</td>
+                                                                                    <td className="px-6 py-4 flex items-center gap-2">
+                                                                                        <button
+                                                                                            onClick={() => {
+                                                                                                setSelectedBoxForAssignment(box);
+                                                                                                const token = localStorage.getItem('token');
+                                                                                                if (token) fetchUnassignedPatients(token);
+                                                                                                setIsAssigning(true);
+                                                                                            }}
+                                                                                            className="text-indigo-600 hover:text-indigo-800 text-[10px] font-bold uppercase tracking-wider bg-indigo-50 px-3 py-1 rounded-md"
+                                                                                        >
+                                                                                            Assign
+                                                                                        </button>
+                                                                                        <button
+                                                                                            onClick={() => openEditBox(box, rack)}
+                                                                                            className="text-slate-500 hover:text-slate-800 text-[10px] font-bold uppercase tracking-wider bg-slate-50 px-3 py-1 rounded-md"
+                                                                                        >
+                                                                                            Edit
+                                                                                        </button>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            )) : (
+                                                                                <tr>
+                                                                                    <td colSpan={4} className="px-6 py-4 text-center text-xs text-slate-400 italic">No boxes in this rack.</td>
+                                                                                </tr>
+                                                                            )}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
+                                            );
+                                        }) : (
+                                            <tr>
+                                                <td colSpan={5} className="px-8 py-12 text-center text-slate-400 italic">No racks configured. Create one to start.</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
-
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => { setIsAssigning(false); setSelectedBoxForAssignment(null); }}
-                                className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleAssignPatient}
-                                className="flex-1 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-colors"
-                            >
-                                Assign
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Racks List */}
-            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
-                <table className="w-full text-left">
-                    <thead>
-                        <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-[2px]">
-                            <th className="px-8 py-5">Rack ID</th>
-                            <th className="px-8 py-5">Label</th>
-                            <th className="px-8 py-5">Location</th>
-                            <th className="px-8 py-5">Contents</th>
-                            <th className="px-8 py-5">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                        {racks.length > 0 ? racks.map(rack => {
-                            const rackBoxes = boxes.filter(b => b.rack_id === rack.rack_id);
-                            return (
-                                <React.Fragment key={rack.rack_id}>
-                                    <tr className="hover:bg-slate-50/50 transition-colors">
-                                        <td className="px-8 py-6 font-bold text-slate-500">#{rack.rack_id}</td>
-                                        <td className="px-8 py-6 font-black text-slate-800 text-sm">{rack.label}</td>
-                                        <td className="px-8 py-6">
-                                            <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg text-xs font-bold">Aisle {rack.aisle}</span>
-                                        </td>
-                                        <td className="px-8 py-6 text-xs font-bold text-slate-500">
-                                            {rackBoxes.length} Boxes / {rack.capacity} Slots
-                                        </td>
-                                        <td className="px-8 py-6 flex items-center gap-3">
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedRackForBox(rack);
-                                                    setIsCreatingBox(true);
-                                                }}
-                                                className="text-emerald-600 hover:text-emerald-800 font-bold text-xs flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100"
-                                            >
-                                                <Package size={14} /> Add Box
-                                            </button>
-                                            <button
-                                                onClick={() => toggleRack(rack.rack_id)}
-                                                className="text-slate-500 hover:text-slate-800 font-bold text-xs flex items-center gap-1 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200"
-                                            >
-                                                {expandedRackId === rack.rack_id ? 'Hide Boxes' : 'View Boxes'}
-                                            </button>
-                                            <button
-                                                onClick={() => openEditRack(rack)}
-                                                className="text-indigo-600 hover:text-indigo-800 font-bold text-xs flex items-center gap-1 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100"
-                                            >
-                                                Edit
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    {expandedRackId === rack.rack_id && (
-                                        <tr>
-                                            <td colSpan={5} className="px-8 py-4 bg-slate-50/50">
-                                                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                                                    <table className="w-full">
-                                                        <thead>
-                                                            <tr className="bg-slate-100 text-[9px] font-bold text-slate-400 uppercase">
-                                                                <th className="px-6 py-3">Box Label</th>
-                                                                <th className="px-6 py-3">Location</th>
-                                                                <th className="px-6 py-3">Capacity</th>
-                                                                <th className="px-6 py-3">Files</th>
-                                                                <th className="px-6 py-3">Action</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {rackBoxes.length > 0 ? rackBoxes.map(box => (
-                                                                <tr key={box.box_id} className="border-t border-slate-50">
-                                                                    <td className="px-6 py-4 font-bold text-slate-700 text-xs">{box.label}</td>
-                                                                    <td className="px-6 py-4 font-mono text-[10px] text-slate-500">
-                                                                        {box.rack_row && box.rack_column
-                                                                            ? `R${box.rack_row}:C${box.rack_column}`
-                                                                            : 'UNASSIGNED'}
-                                                                    </td>
-                                                                    <td className="px-6 py-4 text-xs font-medium text-slate-500">{box.capacity} Files</td>
-                                                                    <td className="px-6 py-4 text-xs font-medium text-slate-500">{box.patient_count} Assigned</td>
-                                                                    <td className="px-6 py-4 flex items-center gap-2">
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                setSelectedBoxForAssignment(box);
-                                                                                const token = localStorage.getItem('token');
-                                                                                if (token) fetchUnassignedPatients(token);
-                                                                                setIsAssigning(true);
-                                                                            }}
-                                                                            className="text-indigo-600 hover:text-indigo-800 text-[10px] font-bold uppercase tracking-wider bg-indigo-50 px-3 py-1 rounded-md"
-                                                                        >
-                                                                            Assign
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => openEditBox(box, rack)}
-                                                                            className="text-slate-500 hover:text-slate-800 text-[10px] font-bold uppercase tracking-wider bg-slate-50 px-3 py-1 rounded-md"
-                                                                        >
-                                                                            Edit
-                                                                        </button>
-                                                                    </td>
-                                                                </tr>
-                                                            )) : (
-                                                                <tr>
-                                                                    <td colSpan={4} className="px-6 py-4 text-center text-xs text-slate-400 italic">No boxes in this rack.</td>
-                                                                </tr>
-                                                            )}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </React.Fragment>
-                            );
-                        }) : (
-                            <tr>
-                                <td colSpan={5} className="px-8 py-12 text-center text-slate-400 italic">No racks configured. Create one to start.</td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    )
-}
+                    )
+                }
 
             </main >
 
-    {/* Global Scan Animation Keyframes */ }
-    < style jsx global > {`
+            {/* Global Scan Animation Keyframes */}
+            < style jsx global > {`
         @keyframes scan {
           0% { top: 0; opacity: 0; }
           10% { opacity: 1; }
