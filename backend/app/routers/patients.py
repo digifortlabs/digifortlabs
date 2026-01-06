@@ -477,15 +477,10 @@ def get_patients(
 def get_patient(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     is_platform = current_user.role in ["website_admin", "website_staff"]
     
-    query = db.query(Patient).filter(Patient.record_id == patient_id)
+    query = db.query(Patient).options(joinedload(Patient.files)).filter(Patient.record_id == patient_id)
     if not is_platform:
         query = query.filter(Patient.hospital_id == current_user.hospital_id)
     
-    patient = query.first()
-    
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
-        
     patient = query.first()
     
     if not patient:
