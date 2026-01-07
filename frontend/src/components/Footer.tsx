@@ -11,6 +11,10 @@ export default function Footer() {
                             Pioneering the future of secure healthcare archives.
                             We bridge the physical and digital worlds to safeguard patient history.
                         </p>
+                        <div className="mt-6 text-slate-400 text-sm">
+                            <p className="font-semibold text-white">Headquarters:</p>
+                            <p>Vapi, Valsad, Gujarat</p>
+                        </div>
                     </div>
                     <div>
                         <h4 className="text-white font-bold uppercase tracking-wider text-sm mb-4">Platform</h4>

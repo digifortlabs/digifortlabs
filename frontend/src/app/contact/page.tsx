@@ -57,8 +57,8 @@ export default function ContactPage() {
                                     <div>
                                         <p className="font-bold">Headquarters</p>
                                         <p className="text-blue-100">
-                                            Cyber Park, Sector 44<br />
-                                            Gurugram, Haryana
+                                            Vapi, Valsad<br />
+                                            Gujarat
                                         </p>
                                     </div>
                                 </div>
