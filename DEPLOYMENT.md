@@ -44,7 +44,7 @@ Run the following command to build the production images and start the services 
 docker compose up -d --build
 ```
 
-## Step 3: Configure Reverse Proxy (Nginx)
+## Step 4: Configure Reverse Proxy (Nginx)
 
 Use Nginx as a reverse proxy to handle SSL and route traffic to the Docker containers.
 
@@ -53,13 +53,13 @@ Example Nginx configuration (modify `nginx.conf.template` or use as a guide):
 ```nginx
 server {
     listen 80;
-    server_name tools.codexshop.in digifortlabs.com;
+    server_name digifortlabs.com www.digifortlabs.com;
     return 301 https://$host$request_uri;
 }
 
 server {
     listen 443 ssl;
-    server_name tools.codexshop.in digifortlabs.com;
+    server_name digifortlabs.com www.digifortlabs.com;
 
     ssl_certificate /etc/letsencrypt/live/digifortlabs.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/digifortlabs.com/privkey.pem;
@@ -84,7 +84,20 @@ server {
 }
 ```
 
-## Step 4: Maintenance
+## Step 5: Updating the Application
+
+To update the application with the latest changes from the repository:
+
+1. SSH into your server: `ssh -i "your-key.pem" user@your_server_ip`
+2. Navigate to the project directory: `cd /var/www/digifortlabs` (or `/home/ec2-user/digifortlabs`)
+3. Pull the latest code and rebuild:
+
+```bash
+git pull origin master
+docker compose up -d --build
+```
+
+## Step 6: Maintenance
 
 - **View Logs**: `docker compose logs -f`
 - **Restart Services**: `docker compose restart`
@@ -100,8 +113,8 @@ server {
 
 After deployment, perform these tests to ensure everything is working correctly:
 
-1. [ ] **Frontend Accessibility**: Open `https://tools.codexshop.in` in your browser.
-2. [ ] **API Connectivity**: Visit `https://tools.codexshop.in/api/health`. It should return `{"status": "ok"}`.
+1. [ ] **Frontend Accessibility**: Open `https://digifortlabs.com` in your browser.
+2. [ ] **API Connectivity**: Visit `https://digifortlabs.com/api/health`. It should return `{"status": "ok"}`.
 3. [ ] **SSL Verification**: Check the padlock icon in the browser to ensure the SSL certificate is valid.
 4. [ ] **Database Connection**: Try to log in with admin credentials to verify the backend can talk to the database.
 5. [ ] **File Storage**: Upload a test document and verify it is stored correctly (either in S3 or local storage).

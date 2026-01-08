@@ -14,7 +14,7 @@ router = APIRouter()
 
 class HospitalCreate(BaseModel):
     legal_name: str
-    subscription_tier: str = "Standard"
+    subscription_tier: str = "Starter"
     hospital_type: str = "Private"
     email: EmailStr
     director_name: str | None = None
@@ -84,8 +84,9 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
     # Tier Distribution
     tiers = {
         "Enterprise": db.query(Hospital).filter(Hospital.subscription_tier == "Enterprise").count(),
-        "Premium": db.query(Hospital).filter(Hospital.subscription_tier == "Premium").count(),
+        "Professional": db.query(Hospital).filter(Hospital.subscription_tier == "Professional").count(),
         "Standard": db.query(Hospital).filter(Hospital.subscription_tier == "Standard").count(),
+        "Starter": db.query(Hospital).filter(Hospital.subscription_tier == "Starter").count(),
     }
     
     # Storage & Bandwidth Insights
@@ -106,7 +107,7 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
     usage_list = [{"name": h[0], "usage_mb": round((h[1] or 0) / (1024*1024), 2)} for h in top_hospitals]
 
     # Revenue Estimation (Mock)
-    revenue = (tiers["Enterprise"] * 500) + (tiers["Premium"] * 250) + (tiers["Standard"] * 100)
+    revenue = (tiers["Enterprise"] * 500) + (tiers["Professional"] * 399) + (tiers["Standard"] * 199) + (tiers["Starter"] * 99)
 
     return {
         "total_hospitals": total_hospitals,
