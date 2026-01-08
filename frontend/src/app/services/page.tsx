@@ -42,30 +42,7 @@ export default function ServicesPage() {
                     </div>
                 </div>
 
-                {/* 3.2 Physical Warehouse */}
-                <div className="mb-16">
-                    <h2 className="text-2xl font-bold text-slate-900 mb-8 border-l-4 border-emerald-500 pl-4">Advanced Physical Warehouse</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <h3 className="font-bold text-lg mb-2 text-emerald-600">Interactive Heat Map</h3>
-                            <p className="text-slate-600 text-sm">
-                                Visual occupancy monitoring with Green/Orange/Red status indicators for instant capacity planning.
-                            </p>
-                        </div>
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <h3 className="font-bold text-lg mb-2 text-emerald-600">Rack-Level Analytics</h3>
-                            <p className="text-slate-600 text-sm">
-                                "Deep-dive" into specific racks to view file lists, available slots, and audit history.
-                            </p>
-                        </div>
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                            <h3 className="font-bold text-lg mb-2 text-emerald-600">Real-Time Search</h3>
-                            <p className="text-slate-600 text-sm">
-                                Instant highlighting of exact Aisle and Rack locations for rapid physical file retrieval.
-                            </p>
-                        </div>
-                    </div>
-                </div>
+
 
                 {/* 3.3 QR & Labeling */}
                 <div className="mb-24">
@@ -87,6 +64,7 @@ export default function ServicesPage() {
                 </div>
 
                 {/* 6. Indian Compliance Framework */}
+                {/* 
                 <div className="bg-slate-900 rounded-3xl p-12 text-white relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-full blur-3xl opacity-20 transform translate-x-1/2 -translate-y-1/2"></div>
                     <h2 className="text-3xl font-bold mb-8 text-center">Indian Compliance Framework</h2>
@@ -118,11 +96,12 @@ export default function ServicesPage() {
                             <div className="flex gap-4 opacity-70">
                                 <span className="px-3 py-1 border border-slate-500 rounded text-sm">ISO 27001</span>
                                 <span className="px-3 py-1 border border-slate-500 rounded text-sm">HIPAA</span>
-                                <span className="px-3 py-1 border border-slate-500 rounded text-sm">GDPR Ready</span>
+
                             </div>
                         </div>
                     </div>
                 </div>
+*/}
 
             </div>
 

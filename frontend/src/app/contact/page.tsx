@@ -91,7 +91,7 @@ export default function ContactPage() {
                                         type="text"
                                         required
                                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                                        placeholder="John Doe"
+                                        placeholder="Anandi Joshi"
                                     />
                                 </div>
 
@@ -101,7 +101,7 @@ export default function ContactPage() {
                                         type="email"
                                         required
                                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                                        placeholder="john@hospital.com"
+                                        placeholder="anandi.joshi@bharathospital.com"
                                     />
                                 </div>
 
