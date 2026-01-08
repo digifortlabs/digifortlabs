@@ -42,14 +42,15 @@ export default function ContactPage() {
                                     <span className="text-2xl mr-4">📞</span>
                                     <div>
                                         <p className="font-bold">Phone</p>
-                                        <p className="text-blue-100">+91 98765 43210</p>
+                                        <p className="text-blue-100">Rahul Chotai: +91 81416 69879</p>
+                                        <p className="text-blue-100">Keval Kuvekar: +91 97257 90563</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start">
                                     <span className="text-2xl mr-4">📧</span>
                                     <div>
                                         <p className="font-bold">Email</p>
-                                        <p className="text-blue-100">sales@digifortlabs.com</p>
+                                        <p className="text-blue-100">info@digifortlabs.com</p>
                                     </div>
                                 </div>
                                 <div className="flex items-start">
