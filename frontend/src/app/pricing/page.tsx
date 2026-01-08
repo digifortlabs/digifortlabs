@@ -15,7 +15,7 @@ export default function Pricing() {
                         Simple, Transparent Pricing
                     </h1>
                     <p className="text-xl text-slate-400 max-w-2xl mx-auto">
-                        Choose the plan that fits your hospital's needs. No hidden fees. straightforward scaling.
+                        Choose the plan that fits your hospital's needs.
                     </p>
                 </div>
             </section>
@@ -29,8 +29,7 @@ export default function Pricing() {
                         <div className="p-6 rounded-3xl border border-slate-700 bg-slate-800/50 hover:bg-slate-800 transition-colors duration-300">
                             <h3 className="text-lg font-bold text-slate-300 mb-2">Starter</h3>
                             <div className="mb-6">
-                                <span className="text-3xl font-extrabold text-white">₹7,999</span>
-                                <span className="text-slate-500">/mo</span>
+                                <span className="text-2xl font-extrabold text-white">Contact Sales</span>
                             </div>
                             <ul className="space-y-4 mb-8">
                                 <li className="flex items-center text-slate-400 text-sm">
@@ -52,8 +51,7 @@ export default function Pricing() {
                         <div className="p-6 rounded-3xl border border-slate-700 bg-slate-800/50 hover:bg-slate-800 transition-colors duration-300">
                             <h3 className="text-lg font-bold text-slate-300 mb-2">Standard</h3>
                             <div className="mb-6">
-                                <span className="text-3xl font-extrabold text-white">₹16,999</span>
-                                <span className="text-slate-500">/mo</span>
+                                <span className="text-2xl font-extrabold text-white">Contact Sales</span>
                             </div>
                             <ul className="space-y-4 mb-8">
                                 <li className="flex items-center text-slate-400 text-sm">
@@ -78,8 +76,7 @@ export default function Pricing() {
                             </div>
                             <h3 className="text-xl font-bold mb-2">Professional</h3>
                             <div className="mb-8">
-                                <span className="text-4xl font-extrabold">₹29,999</span>
-                                <span className="text-slate-400">/mo</span>
+                                <span className="text-3xl font-extrabold">Contact Sales</span>
                             </div>
                             <ul className="space-y-4 mb-10">
                                 <li className="flex items-center text-slate-300 text-sm">
@@ -104,7 +101,7 @@ export default function Pricing() {
                         <div className="p-6 rounded-3xl border border-slate-700 bg-slate-800/50 hover:bg-slate-800 transition-colors duration-300">
                             <h3 className="text-lg font-bold text-slate-300 mb-2">Enterprise</h3>
                             <div className="mb-6">
-                                <span className="text-3xl font-extrabold text-white">Custom</span>
+                                <span className="text-2xl font-extrabold text-white">Custom</span>
                             </div>
                             <ul className="space-y-4 mb-8">
                                 <li className="flex items-center text-slate-400 text-sm">
@@ -199,59 +196,16 @@ export default function Pricing() {
                 </div>
             </section>
 
-            {/* Additional Costs - Transparency Section */}
+            {/* Additional Costs - HIDDEN AS PER REQUEST
             <section className="py-20 bg-slate-950">
                 <div className="max-w-4xl mx-auto px-6">
                     <h3 className="text-2xl font-bold text-white mb-8 text-center">Additional Service Rates</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex justify-between items-center transitiion hover:border-blue-500/30">
-                            <div>
-                                <h4 className="text-white font-semibold">Ad-hoc Pickup</h4>
-                                <p className="text-slate-400 text-sm">Beyond free limit</p>
-                            </div>
-                            <span className="text-xl font-bold text-blue-400">₹350 <span className="text-sm font-normal text-slate-500">/visit</span></span>
-                        </div>
-                        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex justify-between items-center transitiion hover:border-blue-500/30">
-                            <div>
-                                <h4 className="text-white font-semibold">Additional e-Retrieval</h4>
-                                <p className="text-slate-400 text-sm">Digitizing on demand</p>
-                            </div>
-                            <span className="text-xl font-bold text-blue-400">₹45 <span className="text-sm font-normal text-slate-500">/record</span></span>
-                        </div>
-                        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex justify-between items-center transitiion hover:border-blue-500/30">
-                            <div>
-                                <h4 className="text-white font-semibold">Physical Retrieval</h4>
-                                <p className="text-slate-400 text-sm">Original copy request</p>
-                            </div>
-                            <span className="text-xl font-bold text-blue-400">₹150 <span className="text-sm font-normal text-slate-500">+ courier</span></span>
-                        </div>
-                        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex justify-between items-center transitiion hover:border-blue-500/30">
-                            <div>
-                                <h4 className="text-white font-semibold">New Storage Box</h4>
-                                <p className="text-slate-400 text-sm">Standard Archive Box</p>
-                            </div>
-                            <span className="text-xl font-bold text-blue-400">₹120 <span className="text-sm font-normal text-slate-500">/box</span></span>
-                        </div>
-                        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex justify-between items-center transitiion hover:border-blue-500/30">
-                            <div>
-                                <h4 className="text-white font-semibold">Secure Destruction</h4>
-                                <p className="text-slate-400 text-sm">With Certificate</p>
-                            </div>
-                            <span className="text-xl font-bold text-blue-400">₹15 <span className="text-sm font-normal text-slate-500">/kg</span></span>
-                        </div>
-                        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex justify-between items-center transitiion hover:border-blue-500/30">
-                            <div>
-                                <h4 className="text-white font-semibold">Additional User</h4>
-                                <p className="text-slate-400 text-sm">Full access license</p>
-                            </div>
-                            <span className="text-xl font-bold text-blue-400">₹1,000 <span className="text-sm font-normal text-slate-500">/mo</span></span>
-                        </div>
+                         ... Hidden ...
                     </div>
-                    <p className="text-center text-slate-500 mt-8 text-sm">
-                        * All new accounts require a one-time onboarding setup fee of ₹25,000 for server configuration, staff training, and initial workflow setup.
-                    </p>
                 </div>
             </section>
+            */}
 
             <Footer />
         </main>
