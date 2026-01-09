@@ -5,6 +5,13 @@
 # This script sets up BOTH Frontend and Backend from scratch.
 # Usage: ./deploy_prod.sh
 
+# 0. ENSURE LATEST CODE
+echo "⬇️ [0/6] Pulling latest changes..."
+git pull
+if [ $? -ne 0 ]; then
+    echo "⚠️ Git pull failed. Continuing with current code..."
+fi
+
 # --- 1. SYSTEM PREP & CLEANUP ---
 echo "🧹 [1/6] Cleaning System & Checking Dependencies..."
 sudo dnf clean all
