@@ -11,7 +11,7 @@ from app.models import User, UserRole
 from app.utils import get_password_hash
 
 # LIVE RDS CONNECTION STRING
-DATABASE_URL = "postgresql://postgres:Digif0rtlab$@digifort-db.crs4e62wi3w2.ap-south-1.rds.amazonaws.com:5432/postgres?sslmode=require"
+DATABASE_URL = "postgresql://postgres:Digif0rtlab$@digifort-db.crs4e62wi3w2.ap-south-1.rds.amazonaws.com:5432/postgres"
 
 def reset_database():
     print(f"🔥 CONNECTING TO LIVE DATABASE: {DATABASE_URL}")

@@ -85,7 +85,7 @@ POSTGRES_PASSWORD=Digif0rtlab$
 POSTGRES_SERVER=digifort-db.crs4e62wi3w2.ap-south-1.rds.amazonaws.com
 POSTGRES_PORT=5432
 POSTGRES_DB=postgres
-DATABASE_URL=postgresql://postgres:Digif0rtlab$@digifort-db.crs4e62wi3w2.ap-south-1.rds.amazonaws.com:5432/postgres?sslmode=require
+DATABASE_URL=postgresql://postgres:Digif0rtlab$@digifort-db.crs4e62wi3w2.ap-south-1.rds.amazonaws.com:5432/postgres
 
 SECRET_KEY=production_key_digifort_redeploy_2026
 ALGORITHM=HS256
