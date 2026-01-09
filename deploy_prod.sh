@@ -81,11 +81,11 @@ echo "📝 [4/6] configuring Database Credentials..."
 cat > .env <<EOF
 # LIVE PRODUCTION CONFIG - Created by deploy_prod.sh
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=Keva!2902
-POSTGRES_SERVER=digifort-demo-db.crs4e62wi3w2.ap-south-1.rds.amazonaws.com
+POSTGRES_PASSWORD=Digif0rtlab$
+POSTGRES_SERVER=digifort-db.crs4e62wi3w2.ap-south-1.rds.amazonaws.com
 POSTGRES_PORT=5432
 POSTGRES_DB=postgres
-DATABASE_URL=postgresql://postgres:Keva%212902@digifort-demo-db.crs4e62wi3w2.ap-south-1.rds.amazonaws.com:5432/postgres?sslmode=require
+DATABASE_URL=postgresql://postgres:Digif0rtlab$@digifort-db.crs4e62wi3w2.ap-south-1.rds.amazonaws.com:5432/postgres?sslmode=require
 
 SECRET_KEY=production_key_digifort_redeploy_2026
 ALGORITHM=HS256
