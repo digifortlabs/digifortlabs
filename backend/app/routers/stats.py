@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Patient, User, PhysicalBox, FileRequest, AuditLog, PhysicalMovementLog, UserRole, PDFFile
 from ..routers.auth import get_current_user
+from datetime import date, datetime
 from typing import Dict
 from sqlalchemy import func
 import random
@@ -39,12 +40,18 @@ def get_dashboard_stats(db: Session = Depends(get_db), current_user: User = Depe
         box_count = 0
         warehouse_capacity_pct = 0
     
-    # 4. Requests (Pending)
-    # FileRequest model likely needs hospital connection. 
-    # Current model check needed. Assuming FileRequest -> User or Patient.
-    # If not linked, return 0 for safe fail.
-    pending_requests = 0 
-    # (Skipping complex query blindly without model check, but avoiding crash)
+    # 4. Requests (Pending) & Today's Scans
+    q_reqs = db.query(FileRequest).filter(FileRequest.status == "Pending")
+    if not is_super:
+        q_reqs = q_reqs.filter(FileRequest.hospital_id == hospital_id)
+    pending_requests = q_reqs.count()
+
+    # Calculate Today's Scans (for MRD Workflow)
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    q_todays_scans = db.query(PDFFile).filter(PDFFile.upload_date >= today_start)
+    if not is_super:
+         q_todays_scans = q_todays_scans.join(Patient).filter(Patient.hospital_id == hospital_id)
+    todays_scans_count = q_todays_scans.count()
     
     # 5. Recent Activity (Audit Logs)
     q_audit = db.query(AuditLog)
@@ -124,7 +131,8 @@ def get_dashboard_stats(db: Session = Depends(get_db), current_user: User = Depe
             "trend": "+12%"
         },
         "requests": {
-            "pending": pending_requests
+            "pending": pending_requests,
+            "todays_scans": todays_scans_count
         },
         "system": {
             "health": "Optimal",
