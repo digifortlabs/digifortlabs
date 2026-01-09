@@ -78,7 +78,7 @@ pip install -r requirements.txt
 
 # --- 4. CREATE .ENV FILE (AUTOMATICALLY) ---
 echo "📝 [4/6] configuring Database Credentials..."
-cat > .env <<EOF
+cat > .env <<'EOF'
 # LIVE PRODUCTION CONFIG - Created by deploy_prod.sh
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=Digif0rtlab$
