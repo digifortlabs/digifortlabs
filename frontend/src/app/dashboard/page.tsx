@@ -122,19 +122,19 @@ export default function CommandCenter() {
                 )}
 
                 <MetricCard
-                    label={userRole === 'website_admin' ? "Active Users" : "Total Patients"}
-                    value={stats?.users?.total || 0}
-                    trend={stats?.users?.trend || "+0%"}
-                    trendUp={true}
-                    icon={<Users size={20} />}
-                    color="indigo"
+                    label={userRole === 'website_admin' ? "Active Users" : userRole === 'mrd_staff' ? "Pending Requests" : "Total Patients"}
+                    value={userRole === 'mrd_staff' ? (stats?.requests?.pending || 0) : (stats?.users?.total || 0)}
+                    trend={userRole === 'mrd_staff' ? "Urgent" : (stats?.users?.trend || "+0%")}
+                    trendUp={userRole === 'mrd_staff' ? (stats?.requests?.pending > 0) : true}
+                    icon={userRole === 'mrd_staff' ? <FileText size={20} /> : <Users size={20} />}
+                    color={userRole === 'mrd_staff' ? 'amber' : 'indigo'}
                 />
                 <MetricCard
-                    label="Storage Usage"
-                    value={stats?.storage?.usage || "0 GB"}
-                    trend={stats?.storage?.trend || "+0%"}
+                    label={userRole === 'mrd_staff' ? "Today's Scans" : "Storage Usage"}
+                    value={userRole === 'mrd_staff' ? (stats?.requests?.todays_scans || 0) : (stats?.storage?.usage || "0 GB")}
+                    trend={userRole === 'mrd_staff' ? "New" : (stats?.storage?.trend || "+0%")}
                     trendUp={true}
-                    icon={<HardDrive size={20} />}
+                    icon={userRole === 'mrd_staff' ? <ScanLine size={20} /> : <HardDrive size={20} />}
                     color="emerald"
                 />
             </div>
@@ -290,17 +290,40 @@ export default function CommandCenter() {
                         {/* Hospital Actions */}
                         {(userRole === 'hospital_admin' || userRole === 'mrd_staff') && (
                             <div className="grid grid-cols-2 gap-4">
-                                <ActionButton
-                                    icon={<FileText size={18} />}
-                                    label="Request File"
-                                    onClick={() => router.push('/dashboard/requests')}
-                                />
+                                {/* MRD Custom Actions */}
+                                {userRole === 'mrd_staff' ? (
+                                    <>
+                                        <ActionButton
+                                            icon={<ScanLine size={18} />}
+                                            label="Digitize Records"
+                                            onClick={() => router.push('/dashboard/records/upload')}
+                                        />
+                                        <ActionButton
+                                            icon={<Users size={18} />}
+                                            label="Search Patient"
+                                            onClick={() => router.push('/dashboard/records')}
+                                        />
+                                        <ActionButton
+                                            icon={<FileText size={18} />}
+                                            label="View Pending"
+                                            onClick={() => router.push('/dashboard/requests')}
+                                        />
+                                    </>
+                                ) : (
+                                    <>
+                                        <ActionButton
+                                            icon={<FileText size={18} />}
+                                            label="Request File"
+                                            onClick={() => router.push('/dashboard/requests')}
+                                        />
 
-                                <ActionButton
-                                    icon={<Users size={18} />}
-                                    label="Add Patient"
-                                    onClick={() => router.push('/dashboard/records?action=new')}
-                                />
+                                        <ActionButton
+                                            icon={<Users size={18} />}
+                                            label="Add Patient"
+                                            onClick={() => router.push('/dashboard/records?action=new')}
+                                        />
+                                    </>
+                                )}
 
                                 {userRole === 'hospital_admin' && (
                                     <ActionButton
@@ -310,11 +333,13 @@ export default function CommandCenter() {
                                     />
                                 )}
 
-                                <ActionButton
-                                    icon={<FileText size={18} />}
-                                    label="Digitize Records"
-                                    onClick={() => router.push('/dashboard/records/upload')}
-                                />
+                                {userRole === 'hospital_admin' && (
+                                    <ActionButton
+                                        icon={<FileText size={18} />}
+                                        label="Digitize Records"
+                                        onClick={() => router.push('/dashboard/records/upload')}
+                                    />
+                                )}
                             </div>
                         )}
                     </div>
