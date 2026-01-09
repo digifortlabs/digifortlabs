@@ -129,7 +129,8 @@ def get_dashboard_stats(db: Session = Depends(get_db), current_user: User = Depe
         "system": {
             "health": "Optimal",
             "uptime": "99.9%",
-            "network_load": "120 MB/s" # Mock
+            "network_load": "120 MB/s",
+            "connected_db": str(db.get_bind().url).split('@')[-1] if 'sqlite' not in str(db.get_bind().url) else 'SQLite (Local)'
         },
         "recent_activity": audit_data,
         "qa_issues": qa_data,
