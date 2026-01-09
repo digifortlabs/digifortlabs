@@ -40,6 +40,12 @@ export default function HospitalsPage() {
 
 
 
+    const toTitleCase = (str: string) => {
+        return str.replace(/\w\S*/g, (txt) => {
+            return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+        });
+    };
+
     const handlePincodeBlur = async () => {
         if (pincode.length !== 6) return;
         setPincodeLoading(true);
@@ -48,8 +54,8 @@ export default function HospitalsPage() {
             const data = await res.json();
             if (data[0].Status === 'Success') {
                 const details = data[0].PostOffice[0];
-                setCity(details.District);
-                setState(details.State);
+                setCity(toTitleCase(details.District));
+                setState(toTitleCase(details.State));
             } else {
                 alert('Invalid Pincode');
             }
@@ -336,7 +342,7 @@ export default function HospitalsPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <label className="text-xs font-bold text-slate-600">Legal Name</label>
-                                        <input required value={legalName} onChange={e => setLegalName(e.target.value)} className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="e.g. Apollo Main" />
+                                        <input required value={legalName} onChange={e => setLegalName(toTitleCase(e.target.value))} className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="e.g. Apollo Main" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-xs font-bold text-slate-600">Contact Email</label>
@@ -358,7 +364,7 @@ export default function HospitalsPage() {
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-xs font-bold text-slate-600">City</label>
-                                        <input value={city} onChange={e => setCity(e.target.value)} className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="Auto-filled" />
+                                        <input value={city} onChange={e => setCity(toTitleCase(e.target.value))} className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="Auto-filled" />
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-xs font-bold text-slate-600">State</label>
@@ -368,7 +374,7 @@ export default function HospitalsPage() {
                                         <label className="text-xs font-bold text-slate-600">Hospital Type</label>
                                         <input
                                             value={type}
-                                            onChange={e => setType(e.target.value)}
+                                            onChange={e => setType(toTitleCase(e.target.value))}
                                             className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
                                             placeholder="e.g. Private, Clinic, etc."
                                         />
