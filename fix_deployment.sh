@@ -5,6 +5,11 @@
 
 echo "🛑 STOPPING SERVICES..."
 pm2 delete all 2>/dev/null
+# Force kill any rogue processes on ports (Nuclear option for EADDRINUSE)
+sudo fuser -k 3000/tcp 2>/dev/null || true
+sudo fuser -k 8000/tcp 2>/dev/null || true
+sudo killall -9 node 2>/dev/null || true
+sudo killall -9 uvicorn 2>/dev/null || true
 
 echo "🧹 CLEANING GIT CONFLICTS..."
 cd ~/digifortlabs
