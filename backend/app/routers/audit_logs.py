@@ -5,11 +5,13 @@ from ..database import get_db
 from ..models import AuditLog, User, UserRole
 from .auth import get_current_user
 
+from typing import Optional
+
 router = APIRouter()
 
 @router.get("/logs")
 def get_audit_logs(
-    hospital_id: int | None = None,
+    hospital_id: Optional[int] = None,
     page: int = 1,
     page_size: int = 50,
     db: Session = Depends(get_db), 

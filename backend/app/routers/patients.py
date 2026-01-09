@@ -231,7 +231,7 @@ class PatientCreate(BaseModel):
     aadhaar_number: Optional[str] = None
     dob: Optional[datetime.datetime] = None
     discharge_date: Optional[datetime.datetime] = None
-    hospital_id: int | None = None
+    hospital_id: Optional[int] = None
 
 class PatientUpdate(BaseModel):
     patient_u_id: Optional[str] = None

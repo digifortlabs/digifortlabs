@@ -147,8 +147,8 @@ def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: U
 
 
 class UserUpdate(BaseModel):
-    role: UserRole | None = None
-    password: str | None = None
+    role: Optional[UserRole] = None
+    password: Optional[str] = None
 
 @router.patch("/{user_id}")
 def update_user(user_id: int, data: UserUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

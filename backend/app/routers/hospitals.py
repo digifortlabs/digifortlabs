@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import List
+from typing import List, Optional
 from ..database import get_db
 from ..models import Hospital, PDFFile, PhysicalBox, User, UserRole, Patient
 from .auth import get_current_user
@@ -17,48 +17,48 @@ class HospitalCreate(BaseModel):
     subscription_tier: str = "Starter"
     hospital_type: str = "Private"
     email: EmailStr
-    director_name: str | None = None
-    registration_number: str | None = None
-    address: str | None = None
-    city: str | None = None
-    state: str | None = None
-    pincode: str | None = None
-    phone: str | None = None
+    director_name: Optional[str] = None
+    registration_number: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    phone: Optional[str] = None
 
 class HospitalResponse(BaseModel):
     hospital_id: int
     legal_name: str
     subscription_tier: str
-    hospital_type: str | None = None
+    hospital_type: Optional[str] = None
     email: EmailStr
-    director_name: str | None = None
-    registration_number: str | None = None
-    address: str | None = None
-    city: str | None = None
-    state: str | None = None
-    pincode: str | None = None
-    phone: str | None = None
+    director_name: Optional[str] = None
+    registration_number: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    phone: Optional[str] = None
     is_active: bool = True
-    pending_updates: str | None = None # JSON String
+    pending_updates: Optional[str] = None # JSON String
 
     class Config:
         from_attributes = True
 
 class HospitalUpdate(BaseModel):
-    director_name: str | None = None
-    registration_number: str | None = None
-    address: str | None = None
-    city: str | None = None
-    state: str | None = None
-    pincode: str | None = None
-    phone: str | None = None
-    email: str | None = None
+    director_name: Optional[str] = None
+    registration_number: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
     
     # Super Admin Only Fields
-    legal_name: str | None = None
-    subscription_tier: str | None = None
-    hospital_type: str | None = None
-    is_active: bool | None = None
+    legal_name: Optional[str] = None
+    subscription_tier: Optional[str] = None
+    hospital_type: Optional[str] = None
+    is_active: Optional[bool] = None
 
 class AdminCreate(BaseModel):
     email: EmailStr
