@@ -96,7 +96,8 @@ echo "✅ .env file created."
 # --- 5. START BACKEND WITH PM2 ---
 echo "🚀 [5/6] Launching Backend..."
 # We use the full path to uvicorn inside venv
-UVICORN_CMD="/home/ec2-user/digifortlabs/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000"
+# Enable proxy headers so FastAPI knows it's running behind Nginx HTTPS
+UVICORN_CMD="/home/ec2-user/digifortlabs/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'"
 
 pm2 delete backend 2>/dev/null || true
 pm2 start "$UVICORN_CMD" --name "backend"
