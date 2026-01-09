@@ -6,7 +6,7 @@ import imageCompression from 'browser-image-compression';
 import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe } from 'lucide-react';
 
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { API_URL } from '@/config/api';
 
 interface FileData {
     file_id: number;

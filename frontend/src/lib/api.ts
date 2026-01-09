@@ -1,4 +1,5 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { API_URL as ConfigAPI_URL } from '@/config/api';
+const API_URL = ConfigAPI_URL;
 
 export async function uploadFile(file: File, patientId: number) {
     const formData = new FormData();

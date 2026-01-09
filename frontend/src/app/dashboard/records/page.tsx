@@ -79,7 +79,8 @@ export default function RecordsList() {
 
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`http://localhost:8001/patients/check/uhid/${uhid}`, {
+            // Use the centralized API_URL which handles HTTPS automatically
+            const res = await fetch(`${API_URL}/patients/check/uhid/${uhid}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
