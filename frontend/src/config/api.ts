@@ -25,3 +25,4 @@ if (typeof window !== 'undefined') {
 
 export const API_URL = apiUrl;
 console.log('[Config] API_URL resolved to:', API_URL);
+console.log('[Config] VERSION: v3-Final-HTTPS-Fix (Live)');
