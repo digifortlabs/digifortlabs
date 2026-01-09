@@ -4,14 +4,23 @@
 // API Configuration
 // Enforce HTTPS on Production to prevent Mixed Content Errors
 
-let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+let apiUrl = 'http://localhost:8000'; // Default to local
 
+// Check if we are in the browser
 if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
+
     // If we are on the live domain, FORCE the secure API proxy
     if (hostname.includes('digifortlabs.com')) {
         apiUrl = 'https://digifortlabs.com/api';
     }
+    // Fallback solely for local network testing if needed
+    else if (window.location.protocol === 'http:') {
+        apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    }
+} else {
+    // Server-side rendering fallback
+    apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 }
 
 export const API_URL = apiUrl;
