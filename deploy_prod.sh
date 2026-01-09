@@ -29,7 +29,16 @@ if [[ "$CURRENT_NODE" != v20* ]]; then
 fi
 
 # Install Python & Git & Nginx
-sudo dnf install -y git python3 python3-pip nginx augeas-libs
+sudo dnf install -y git python3 python3-pip nginx augeas-libs unzip
+
+# Install AWS CLI v2 (if not present)
+if ! command -v aws &> /dev/null; then
+    echo "☁️ Installing AWS CLI v2..."
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    unzip -q awscliv2.zip
+    sudo ./aws/install
+    rm -rf aws awscliv2.zip
+fi
 
 # Install PM2 globally
 if ! command -v pm2 &> /dev/null; then sudo npm install -g pm2; fi
