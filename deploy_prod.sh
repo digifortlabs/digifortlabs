@@ -57,6 +57,9 @@ rm -rf node_modules .next
 echo "NEXT_PUBLIC_API_URL=https://digifortlabs.com/api" > .env.production
 echo "✅ Created frontend/.env.production"
 
+# EXPLICITLY EXPORT FOR BUILD
+export NEXT_PUBLIC_API_URL=https://digifortlabs.com/api
+
 npm install
 npm run build
 
