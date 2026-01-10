@@ -349,7 +349,7 @@ export default function RecordsList() {
             {/* Create Patient Modal */}
             {showCreateModal && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-[2rem] max-w-lg w-full p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+                    <div className="bg-white rounded-[2rem] max-w-lg w-full p-8 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-8">
                             <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
                                 <User className="text-indigo-600" /> {isEditing ? 'Edit Patient Details' : 'Register New Patient'}
