@@ -19,10 +19,6 @@ start_production.bat
 ```
 *(See `handoff.md` for detailed manual setup)*
 
-### Test Credentials
-Run `python backend/create_test_users.py` to reset:
-- **Super Admin**: `admin@digifortlabs.com` / `password123`
-- **MRD Staff**: `mrd@hospital.com` / `password123`
 
 ## Architecture
 - **Backend:** FastAPI (Python) - Port 8001
