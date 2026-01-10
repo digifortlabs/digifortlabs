@@ -1,7 +1,7 @@
 
 server {
     listen 80;
-    server_name tools.codexshop.in digifortlabs.com;
+    server_name digifortlabs.com;
 
     location / {
         proxy_pass http://127.0.0.1:3000; # Frontend (Next.js)
