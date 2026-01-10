@@ -18,6 +18,9 @@ client_secrets.json
 AWS/
 local_storage/
 test_files/
+*.db
+*.sqlite3
+*.sqlite
 
 # Python
 .venv/
