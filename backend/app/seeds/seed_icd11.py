@@ -6,8 +6,9 @@ import sys
 # Ensure we can import from app
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from app.database import SessionLocal, engine
-from app.models import Base, ICD11Code
+from app.database import SessionLocal
+from app.models import ICD11Code
+
 
 def seed_icd11():
     db = SessionLocal()

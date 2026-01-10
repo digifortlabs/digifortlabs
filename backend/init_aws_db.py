@@ -1,6 +1,7 @@
-from app.database import engine, Base
-from app import models # Import models to register them
 from sqlalchemy import text
+
+from app.database import Base, engine
+
 
 def init_db():
     print("🚀 Initializing AWS Database Schema...")

@@ -1,6 +1,7 @@
 import os
 import sys
-from sqlalchemy import create_engine, text
+
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 # Add current directory to path to import app modules

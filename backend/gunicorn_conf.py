@@ -1,6 +1,5 @@
 
 import multiprocessing
-import os
 
 # Binding
 bind = "0.0.0.0:8001"

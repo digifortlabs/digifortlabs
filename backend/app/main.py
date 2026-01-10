@@ -1,7 +1,8 @@
 from fastapi import FastAPI
+
 from .core.config import settings
-from .database import engine, Base
-from .routers import hospitals, patients, auth # We will create these next
+from .database import Base, engine
+from .routers import auth, hospitals, patients  # We will create these next
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -14,8 +15,9 @@ app = FastAPI(
     redoc_url=None if settings.ENVIRONMENT == "production" else "/redoc",
 )
 
-from .middleware.bandwidth import BandwidthMiddleware
 from fastapi.middleware.cors import CORSMiddleware
+
+from .middleware.bandwidth import BandwidthMiddleware
 
 app.add_middleware(BandwidthMiddleware)
 
@@ -24,7 +26,7 @@ print(f"Loaded CORS Origins: {settings.BACKEND_CORS_ORIGINS}")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -35,23 +37,31 @@ app.add_middleware(
 app.include_router(hospitals.router, prefix="/hospitals", tags=["hospitals"])
 app.include_router(patients.router, prefix="/patients", tags=["patients"])
 from .routers import users
+
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 from .routers import audit_logs, platform
+
 app.include_router(audit_logs.router, prefix="/audit", tags=["audit"])
 app.include_router(platform.router, prefix="/platform", tags=["platform"])
 from .routers import storage
+
 app.include_router(storage.router, prefix="/storage", tags=["storage"])
 from .routers import stats
+
 app.include_router(stats.router, prefix="/stats", tags=["stats"])
 from .routers import diagnoses
+
 app.include_router(diagnoses.router, prefix="/diagnoses", tags=["diagnoses"])
 from .routers import procedures
+
 app.include_router(procedures.router, prefix="/icd11", tags=["procedures"])
 
 # Mount local storage for simulation mode (if no AWS keys)
 import os
+
 from fastapi.staticfiles import StaticFiles
+
 if not os.getenv("AWS_ACCESS_KEY_ID"):
     local_path = os.path.join(os.getcwd(), "local_storage")
     os.makedirs(local_path, exist_ok=True)

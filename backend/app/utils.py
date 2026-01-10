@@ -1,7 +1,7 @@
-from passlib.context import CryptContext
-import os
 from datetime import datetime, timedelta
+
 from jose import jwt
+from passlib.context import CryptContext
 
 # Password Hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -14,6 +14,7 @@ def get_password_hash(password):
 
 # JWT Settings
 from .core.config import settings
+
 
 def create_access_token(data: dict):
     to_encode = data.copy()

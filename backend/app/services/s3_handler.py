@@ -1,8 +1,11 @@
 import os
-import boto3
 import shutil
-from botocore.exceptions import NoCredentialsError, ClientError
+
+import boto3
+from botocore.exceptions import ClientError
+
 from app.core.config import settings
+
 
 class S3Manager:
     def __init__(self):

@@ -1,10 +1,13 @@
+from datetime import datetime
+
+from sqlalchemy.orm import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from sqlalchemy.orm import Session
+
 from ..database import SessionLocal
-from ..models import BandwidthUsage, Hospital
-from datetime import datetime
+from ..models import BandwidthUsage
+
 
 class BandwidthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):

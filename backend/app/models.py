@@ -1,8 +1,20 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Float, UniqueConstraint
+import enum
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
 from .database import Base
-import enum
+
 
 class UserRole(str, enum.Enum):
     SUPER_ADMIN = "website_admin"

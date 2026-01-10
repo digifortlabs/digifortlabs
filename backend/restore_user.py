@@ -1,10 +1,12 @@
-from app.database import SessionLocal
-from app.models import User, Hospital, UserRole
 from passlib.context import CryptContext
+
+from app.database import SessionLocal
+from app.models import Hospital, User, UserRole
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 import uuid
+
 
 def restore_user():
     db = SessionLocal()

@@ -1,8 +1,10 @@
-from pypdf import PdfWriter, PdfReader
 import io
 import os
 import tempfile
+
 from moviepy import VideoFileClip
+from pypdf import PdfReader, PdfWriter
+
 
 def compress_pdf(file_bytes: bytes) -> bytes:
     """

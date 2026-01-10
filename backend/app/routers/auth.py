@@ -1,14 +1,13 @@
-from datetime import timedelta
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from ..database import get_db
-from ..models import User, SystemSetting, UserRole
-from ..utils import verify_password, create_access_token
+
 from ..core.config import settings
-from jose import jwt, JWTError
+from ..database import get_db
+from ..models import SystemSetting, User, UserRole
+from ..utils import create_access_token, verify_password
 
 router = APIRouter(tags=["auth"])
 
@@ -53,8 +52,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     db.commit()
 
     # --- NOTIFICATIONS & AUDIT ---
-    from ..services.email_service import EmailService
     from ..audit import log_audit
+    from ..services.email_service import EmailService
     
     # Get Request Data (Need to modify signature to accept Request)
     # Since we can't easily inject Request into this specific signature without changing it,

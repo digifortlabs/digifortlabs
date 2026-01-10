@@ -1,10 +1,12 @@
 import os
-import shutil
 from datetime import datetime
+
 from sqlalchemy.orm import Session
-from .database import SessionLocal
-from .models import TempAccessCache, BandwidthUsage
+
 from ..celery_app import celery_app
+from .database import SessionLocal
+from .models import TempAccessCache
+
 
 @celery_app.task
 def cleanup_expired_files():

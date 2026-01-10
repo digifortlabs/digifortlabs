@@ -1,9 +1,9 @@
-from sqlalchemy.orm import Session
-from app.database import SessionLocal, engine
-from app.models import ICD11ProcedureCode, Base
 import json
-import os
 import logging
+import os
+
+from app.database import SessionLocal, engine
+from app.models import ICD11ProcedureCode
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

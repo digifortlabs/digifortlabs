@@ -1,12 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-from typing import List, Optional
-from ..database import get_db
-from ..models import PhysicalBox, User, UserRole, Patient, FileRequest, PhysicalMovementLog, Hospital, PhysicalRack
-from ..routers.auth import get_current_user
-from pydantic import BaseModel
 from datetime import datetime
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from ..database import get_db
+from ..models import (
+    FileRequest,
+    Hospital,
+    Patient,
+    PhysicalBox,
+    PhysicalMovementLog,
+    PhysicalRack,
+    User,
+    UserRole,
+)
+from ..routers.auth import get_current_user
 
 router = APIRouter()
 
@@ -469,7 +479,6 @@ def get_box_patients(box_id: int, db: Session = Depends(get_db), current_user: U
         raise HTTPException(status_code=403, detail="Access denied")
 
     patients = db.query(Patient).filter(Patient.physical_box_id == box_id).all()
-    from .patients import PatientResponse # Circular import risk? Let's check imports
     
     return [
         {

@@ -1,12 +1,22 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from ..database import get_db
-from ..models import Patient, User, PhysicalBox, FileRequest, AuditLog, PhysicalMovementLog, UserRole, PDFFile
-from ..routers.auth import get_current_user
+import random
 from datetime import date, datetime
 from typing import Dict
+
+from fastapi import APIRouter, Depends
 from sqlalchemy import func
-import random
+from sqlalchemy.orm import Session
+
+from ..database import get_db
+from ..models import (
+    AuditLog,
+    FileRequest,
+    Patient,
+    PDFFile,
+    PhysicalBox,
+    User,
+    UserRole,
+)
+from ..routers.auth import get_current_user
 
 router = APIRouter(
     tags=["stats"]

@@ -1,31 +1,26 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
-from sqlalchemy.orm import joinedload
 import datetime
-from typing import List, Optional
-from ..database import get_db
-from ..models import Patient, PDFFile, Hospital
-from ..services.s3_handler import S3Manager
-from pydantic import BaseModel
-import uuid
-from ..routers.auth import get_current_user
-from ..models import User, UserRole, BandwidthUsage
-from ..services.ocr import extract_text_from_pdf
-from ..database import SessionLocal
-import io
 import os
+import uuid
+from typing import List, Optional
+
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel
+from sqlalchemy import or_
+from sqlalchemy.orm import Session, joinedload
+
+from ..database import SessionLocal, get_db
+from ..models import BandwidthUsage, Patient, PDFFile, User, UserRole
+from ..routers.auth import get_current_user
 from ..services.compression import compress_pdf, compress_video_to_mp4
-from ..services.compression import compress_pdf, compress_video_to_mp4
+from ..services.ocr import extract_text_from_pdf
 from ..services.s3_handler import S3Manager
 from ..services.storage_service import StorageService
 
 router = APIRouter(tags=["patients"])
 
 
-import shutil
 from ..services.encryption import encrypt_file
-import time
+
 
 def process_upload_task(file_id: int, temp_path: str, original_filename: str):
     """

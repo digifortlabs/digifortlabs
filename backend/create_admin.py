@@ -1,5 +1,5 @@
 from app.database import SessionLocal
-from app.models import User, Hospital, UserRole
+from app.models import Hospital, User, UserRole
 from app.utils import get_password_hash
 
 db = SessionLocal()

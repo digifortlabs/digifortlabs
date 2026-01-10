@@ -1,5 +1,4 @@
 import os
-import time
 
 DB_FILE = "digifortlabs.db"
 

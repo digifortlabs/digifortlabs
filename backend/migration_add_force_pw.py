@@ -1,5 +1,6 @@
 import sqlite3
 
+
 def migrate():
     try:
         conn = sqlite3.connect('d:/Website/DIGIFORTLABS/backend/digifort_v5.db')

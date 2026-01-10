@@ -1,12 +1,13 @@
-import sys
 import os
+import sys
 
 # Ensure backend directory is in path
 sys.path.append(os.getcwd())
 
-from app.database import SessionLocal, engine, Base
-from app.models import User, Hospital, UserRole
+from app.database import Base, SessionLocal, engine
+from app.models import Hospital, User, UserRole
 from app.utils import get_password_hash
+
 
 def create_users():
     # Init DB

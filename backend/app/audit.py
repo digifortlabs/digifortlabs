@@ -1,6 +1,9 @@
 from typing import Optional
+
 from sqlalchemy.orm import Session
+
 from .models import AuditLog
+
 
 def log_audit(db: Session, user_id: Optional[int], action: str, details: str):
     new_log = AuditLog(

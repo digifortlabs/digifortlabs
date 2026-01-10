@@ -1,6 +1,6 @@
 
-import os
 from datetime import datetime
+
 
 class EmailService:
     @staticmethod
@@ -15,10 +15,10 @@ class EmailService:
         print("\n" + "="*60)
         print(f"📧 [MOCK EMAIL SERVICE] Security Alert for: {email}")
         print(f"Time: {timestamp}")
-        print(f"Details: New Login detected.")
+        print("Details: New Login detected.")
         print(f"IP Address: {ip_address}")
         print(f"Device: {device_info}")
-        print(f"Action: If this was not you, please contact support immediately.")
+        print("Action: If this was not you, please contact support immediately.")
         print("="*60 + "\n")
         
         return True

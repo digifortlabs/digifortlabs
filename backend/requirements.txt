@@ -16,3 +16,7 @@ imageio-ffmpeg
 email-validator
 dnspython
 bcrypt==3.2.2
+pytest
+httpx
+pytest-asyncio
+ruff

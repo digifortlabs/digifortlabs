@@ -1,5 +1,6 @@
-from cryptography.fernet import Fernet
 import os
+
+from cryptography.fernet import Fernet
 
 # Generates a key if not exists (In prod, store this securely in ENV/Secrets Manager)
 # For this project, we might use a fixed key or one from env.

@@ -1,12 +1,14 @@
 
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
 from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
+
 from ..database import get_db
-from ..models import Patient, ICD11Code, PatientDiagnosis, User, UserRole
+from ..models import ICD11Code, Patient, PatientDiagnosis, User
 from .auth import get_current_user
 
 router = APIRouter()
