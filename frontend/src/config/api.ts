@@ -10,8 +10,8 @@ let apiUrl = 'http://localhost:8000'; // Default to local
 if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
 
-    // If we are on the live domain, FORCE the secure API proxy
-    if (hostname.includes('digifortlabs.com')) {
+    // If we are on the live domain OR using HTTPS, FORCE the secure API proxy
+    if (hostname.includes('digifortlabs.com') || window.location.protocol === 'https:') {
         apiUrl = 'https://digifortlabs.com/api';
     }
     // Fallback solely for local network testing if needed

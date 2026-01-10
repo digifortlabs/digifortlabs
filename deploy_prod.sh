@@ -62,6 +62,7 @@ cd ~/digifortlabs/frontend || exit
 
 # Clean install
 rm -rf node_modules .next
+rm -f .env .env.local frontend/.env frontend/.env.local frontend/.env.production
 
 # Force Production Environment Variables
 echo "NEXT_PUBLIC_API_URL=https://digifortlabs.com/api" > .env.production
