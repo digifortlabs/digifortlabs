@@ -12,8 +12,18 @@ if [ $? -ne 0 ]; then
     echo "⚠️ Git pull failed. Continuing with current code..."
 fi
 
+
 # --- 1. SYSTEM PREP & CLEANUP ---
 echo "🧹 [1/6] Cleaning System & Checking Dependencies..."
+
+# EXPLICIT REPO CLEANUP (Matches Git Deletions)
+echo "🗑️ Removing legacy files and artifacts..."
+rm -rf backend/tests backend/pytest.ini backend/conftest.py
+rm -rf frontend/__tests__ frontend/jest.config.ts frontend/jest.setup.ts
+rm -rf Logo .vscode .agent digifortlabs.db
+rm -rf check_users.py manual_setup.sh run_local.bat setup_ssl.sh fix_deployment.sh
+rm -rf AWS AWS_CREDENTIALS_GUIDE.md AWS_GUIDE.md
+
 sudo dnf clean all
 rm -rf ~/.cache ~/.npm
 # Prune docker to ensure space (if exists)
