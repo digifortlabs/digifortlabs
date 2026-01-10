@@ -22,3 +22,20 @@ class EmailService:
         print("="*60 + "\n")
         
         return True
+
+    @staticmethod
+    def send_otp_email(email: str, otp_code: str):
+        """
+        Simulates sending a password reset OTP.
+        """
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # MOCK SENDING (Log to Console)
+        print("\n" + "="*60)
+        print(f"🔐 [MOCK EMAIL SERVICE] Password Reset OTP for: {email}")
+        print(f"Time: {timestamp}")
+        print(f"OTP Code: {otp_code}")
+        print("Action: Enter this code to reset your password.")
+        print("="*60 + "\n")
+        
+        return True

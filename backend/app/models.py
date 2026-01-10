@@ -310,3 +310,14 @@ Patient.diagnoses = relationship("PatientDiagnosis", back_populates="patient")
 Patient.procedures = relationship("PatientProcedure", back_populates="patient")
 
 
+class PasswordResetOTP(Base):
+    __tablename__ = "password_reset_otps"
+
+    otp_id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, index=True, nullable=False)
+    otp_code = Column(String, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    is_used = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+

@@ -17,6 +17,18 @@ def event_loop() -> Generator:
     loop.close()
 
 @pytest.fixture
-async def client() -> AsyncGenerator[AsyncClient, None]:
+async def async_client() -> AsyncGenerator[AsyncClient, None]:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
+
+@pytest.fixture
+def db_session():
+    from app.database import SessionLocal, Base, engine
+    # Create tables
+    Base.metadata.create_all(bind=engine)
+    
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()

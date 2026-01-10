@@ -32,7 +32,6 @@ class Settings:
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
-        "https://tools.codexshop.in",
         "https://digifortlabs.com",
     ]
 

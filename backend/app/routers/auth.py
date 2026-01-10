@@ -13,6 +13,14 @@ router = APIRouter(tags=["auth"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
+class PasswordResetRequest(BaseModel):
+    email: str
+
+class PasswordResetConfirm(BaseModel):
+    email: str
+    otp: str
+    new_password: str
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -79,6 +87,70 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         }
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/request-password-reset")
+async def request_password_reset(request: PasswordResetRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == request.email).first()
+    if not user:
+        # Security: Do not reveal if user exists
+        return {"message": "If this email is registered, you will receive an OTP shortly."}
+    
+    # Generate OTP
+    import random
+    from datetime import datetime, timedelta
+    from ..models import PasswordResetOTP
+    from ..services.email_service import EmailService
+
+    otp_code = str(random.randint(100000, 999999))
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+    # Save to DB
+    otp_entry = PasswordResetOTP(
+        email=user.email,
+        otp_code=otp_code,
+        expires_at=expires_at
+    )
+    db.add(otp_entry)
+    db.commit()
+
+    # Send Email
+    EmailService.send_otp_email(user.email, otp_code)
+
+    return {"message": "If this email is registered, you will receive an OTP shortly."}
+
+
+@router.post("/reset-password")
+async def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_db)):
+    from datetime import datetime
+    from ..models import PasswordResetOTP
+    from ..utils import get_password_hash
+
+    # Find Valid OTP
+    otp_entry = db.query(PasswordResetOTP).filter(
+        PasswordResetOTP.email == data.email,
+        PasswordResetOTP.otp_code == data.otp,
+        PasswordResetOTP.is_used == False,
+        PasswordResetOTP.expires_at > datetime.utcnow()
+    ).first()
+
+    if not otp_entry:
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+
+    # Update User Password
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.hashed_password = get_password_hash(data.new_password)
+    user.plain_password = data.new_password # Demo transparency
+    
+    # Mark OTP as used
+    otp_entry.is_used = True
+    
+    db.commit()
+
+    return {"message": "Password updated successfully"}
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
