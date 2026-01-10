@@ -51,8 +51,8 @@ export default function ContactPage() {
                                     </div>
                                     <div>
                                         <p className="font-bold text-white mb-1">Phone</p>
-                                        <p className="text-slate-400 hover:text-blue-400 transition cursor-pointer">Rahul Chotai: +91 81416 69879</p>
-                                        <p className="text-slate-400 hover:text-blue-400 transition cursor-pointer">Keval Kuvekar: +91 97257 90563</p>
+                                        <a href="tel:+918141669879" className="block text-slate-400 hover:text-blue-400 transition cursor-pointer">Rahul Chotai: +91 81416 69879</a>
+                                        <a href="tel:+919725790563" className="block text-slate-400 hover:text-blue-400 transition cursor-pointer">Keval Kuvekar: +91 97257 90563</a>
                                     </div>
                                 </div>
                                 <div className="flex items-start group">
@@ -61,7 +61,7 @@ export default function ContactPage() {
                                     </div>
                                     <div>
                                         <p className="font-bold text-white mb-1">Email</p>
-                                        <p className="text-slate-400 hover:text-purple-400 transition cursor-pointer">info@digifortlabs.com</p>
+                                        <a href="mailto:info@digifortlabs.com" className="block text-slate-400 hover:text-purple-400 transition cursor-pointer">info@digifortlabs.com</a>
                                     </div>
                                 </div>
                                 <div className="flex items-start group">
