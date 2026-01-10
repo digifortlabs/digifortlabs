@@ -57,6 +57,17 @@ echo "✅ System Ready. Node: $(node -v), Python: $(python3 --version)"
 
 
 # --- 2. FRONTEND SETUP ---
+echo "Release Port 3000 to prevent conflicts..."
+sudo fuser -k 3000/tcp 2>/dev/null || true
+if command -v docker &> /dev/null; then
+    # Stop any container mapped to port 3000
+    CONTAINER_ID=$(sudo docker ps -q --filter "publish=3000")
+    if [ ! -z "$CONTAINER_ID" ]; then
+        echo "Found Docker container holding port 3000. Stopping..."
+        sudo docker stop $CONTAINER_ID
+    fi
+fi
+
 echo "🎨 [2/6] Building Frontend..."
 cd ~/digifortlabs/frontend || exit
 
