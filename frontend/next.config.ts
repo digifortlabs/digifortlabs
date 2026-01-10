@@ -15,9 +15,6 @@ const nextConfig: NextConfig = {
   experimental: {
     // allowedDevOrigins removed as it is invalid in this Next.js version
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },

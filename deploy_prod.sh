@@ -70,8 +70,8 @@ echo "✅ Created frontend/.env.production"
 # EXPLICITLY EXPORT FOR BUILD
 export NEXT_PUBLIC_API_URL=https://digifortlabs.com/api
 
-npm install
-npm run build
+npm install || exit 1
+npm run build || exit 1
 
 # Start Frontend Config check
 if [ ! -f "src/config/api.ts" ]; then
