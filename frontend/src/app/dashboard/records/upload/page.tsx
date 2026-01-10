@@ -359,22 +359,24 @@ export default function PatientUploadPage() {
 
             {/* Add Patient Modal (Simplified for View) */}
             {showPatientModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white rounded-2xl w-full max-w-lg p-8 shadow-2xl">
-                        <h2 className="text-2xl font-black mb-6">Patient Registration</h2>
-                        {/* ... Fields ... */}
-                        <div className="space-y-4">
-                            <input className="w-full p-3 bg-slate-50 rounded-xl" placeholder="Full Name (John Doe)" value={newPatient.full_name} onChange={e => setNewPatient({ ...newPatient, full_name: e.target.value })} />
-                            <input className="w-full p-3 bg-slate-50 rounded-xl" placeholder="MRD Number" value={newPatient.patient_u_id} onChange={e => { const v = toUpperCaseMRD(e.target.value); setNewPatient({ ...newPatient, patient_u_id: v }); checkDuplicateMRD(v); }} />
-                            <div className="grid grid-cols-2 gap-4">
-                                <input className="p-3 bg-slate-50 rounded-xl" placeholder="Age" type="number" value={newPatient.age} onChange={e => setNewPatient({ ...newPatient, age: e.target.value })} />
-                                <select className="p-3 bg-slate-50 rounded-xl" value={newPatient.gender} onChange={e => setNewPatient({ ...newPatient, gender: e.target.value })}>
-                                    <option value="">Gender</option><option value="Male">Male</option><option value="Female">Female</option>
-                                </select>
+                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+                    <div className="flex min-h-full items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl w-full max-w-lg p-8 shadow-2xl relative">
+                            <h2 className="text-2xl font-black mb-6">Patient Registration</h2>
+                            {/* ... Fields ... */}
+                            <div className="space-y-4">
+                                <input className="w-full p-3 bg-slate-50 rounded-xl" placeholder="Full Name (John Doe)" value={newPatient.full_name} onChange={e => setNewPatient({ ...newPatient, full_name: e.target.value })} />
+                                <input className="w-full p-3 bg-slate-50 rounded-xl" placeholder="MRD Number" value={newPatient.patient_u_id} onChange={e => { const v = toUpperCaseMRD(e.target.value); setNewPatient({ ...newPatient, patient_u_id: v }); checkDuplicateMRD(v); }} />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <input className="p-3 bg-slate-50 rounded-xl" placeholder="Age" type="number" value={newPatient.age} onChange={e => setNewPatient({ ...newPatient, age: e.target.value })} />
+                                    <select className="p-3 bg-slate-50 rounded-xl" value={newPatient.gender} onChange={e => setNewPatient({ ...newPatient, gender: e.target.value })}>
+                                        <option value="">Gender</option><option value="Male">Male</option><option value="Female">Female</option>
+                                    </select>
+                                </div>
+                                <input className="w-full p-3 bg-slate-50 rounded-xl" placeholder="Mobile Number" value={newPatient.contact_number} onChange={e => setNewPatient({ ...newPatient, contact_number: e.target.value })} />
+                                <button onClick={handleCreatePatient} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl mt-4">Register Patient</button>
+                                <button onClick={() => setShowPatientModal(false)} className="w-full text-slate-400 font-bold py-2 mt-2">Cancel</button>
                             </div>
-                            <input className="w-full p-3 bg-slate-50 rounded-xl" placeholder="Mobile Number" value={newPatient.contact_number} onChange={e => setNewPatient({ ...newPatient, contact_number: e.target.value })} />
-                            <button onClick={handleCreatePatient} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl mt-4">Register Patient</button>
-                            <button onClick={() => setShowPatientModal(false)} className="w-full text-slate-400 font-bold py-2 mt-2">Cancel</button>
                         </div>
                     </div>
                 </div>

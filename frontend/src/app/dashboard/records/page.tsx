@@ -348,179 +348,181 @@ export default function RecordsList() {
 
             {/* Create Patient Modal */}
             {showCreateModal && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-[2rem] max-w-lg w-full p-8 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-                        <div className="flex justify-between items-center mb-8">
-                            <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-                                <User className="text-indigo-600" /> {isEditing ? 'Edit Patient Details' : 'Register New Patient'}
-                            </h2>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={resetForm}
-                                    className="px-3 py-1 text-xs font-bold text-slate-400 hover:text-indigo-600 border border-slate-200 rounded-lg hover:border-indigo-200 transition"
-                                >
-                                    Reset Form
-                                </button>
-                                <button
-                                    onClick={() => { setShowCreateModal(false); resetForm(); router.replace('/dashboard/records'); }}
-                                    className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition"
-                                >
-                                    ✕
-                                </button>
+                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm">
+                    <div className="flex min-h-full items-center justify-center p-4">
+                        <div className="bg-white rounded-[2rem] max-w-lg w-full p-8 shadow-2xl animate-in zoom-in-95 duration-200 relative">
+                            <div className="flex justify-between items-center mb-8">
+                                <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+                                    <User className="text-indigo-600" /> {isEditing ? 'Edit Patient Details' : 'Register New Patient'}
+                                </h2>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={resetForm}
+                                        className="px-3 py-1 text-xs font-bold text-slate-400 hover:text-indigo-600 border border-slate-200 rounded-lg hover:border-indigo-200 transition"
+                                    >
+                                        Reset Form
+                                    </button>
+                                    <button
+                                        onClick={() => { setShowCreateModal(false); resetForm(); router.replace('/dashboard/records'); }}
+                                        className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
                             </div>
-                        </div>
 
-                        <form onSubmit={handleCreate} className="space-y-6">
-                            {/* Section 1: Patient Identity */}
-                            <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-                                <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                    <User size={14} /> Patient Identity (UHID)
-                                </h3>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="col-span-2">
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">UHID (Permanent Patient ID)</label>
-                                        <div className="relative">
-                                            <input type="text" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono text-indigo-700 font-bold"
-                                                value={newPatient.uhid}
-                                                onChange={e => {
-                                                    const val = toUpperCaseMRD(e.target.value);
-                                                    setNewPatient({ ...newPatient, uhid: val });
-                                                }}
-                                                onBlur={(e) => checkExistingUHID(e.target.value)}
-                                                placeholder="Enter UHID to auto-fill..." />
-                                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-indigo-400 font-bold pointer-events-none">
-                                                {isExistingPatient ? "FOUND" : "NEW"}
+                            <form onSubmit={handleCreate} className="space-y-6">
+                                {/* Section 1: Patient Identity */}
+                                <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                                    <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <User size={14} /> Patient Identity (UHID)
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="col-span-2">
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">UHID (Permanent Patient ID)</label>
+                                            <div className="relative">
+                                                <input type="text" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono text-indigo-700 font-bold"
+                                                    value={newPatient.uhid}
+                                                    onChange={e => {
+                                                        const val = toUpperCaseMRD(e.target.value);
+                                                        setNewPatient({ ...newPatient, uhid: val });
+                                                    }}
+                                                    onBlur={(e) => checkExistingUHID(e.target.value)}
+                                                    placeholder="Enter UHID to auto-fill..." />
+                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-indigo-400 font-bold pointer-events-none">
+                                                    {isExistingPatient ? "FOUND" : "NEW"}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
 
-                                    <div className="col-span-2 relative">
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">Full Name <span className="text-red-500">*</span></label>
-                                        <input
-                                            type="text"
-                                            required
-                                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-900 transition"
-                                            placeholder="Patient Name"
-                                            value={newPatient.full_name}
-                                            onChange={e => handleNameSearch(e.target.value)}
-                                            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                                            autoComplete="off"
-                                        />
-                                        {showSuggestions && suggestions.length > 0 && (
-                                            <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-60 overflow-y-auto">
-                                                {suggestions.map((p, idx) => (
-                                                    <button
-                                                        key={idx}
-                                                        type="button"
-                                                        onClick={() => handleSelectPatient(p)}
-                                                        className="w-full text-left px-4 py-3 hover:bg-indigo-50 transition border-b border-slate-50 last:border-0"
-                                                    >
-                                                        <p className="font-bold text-slate-800 text-sm">{p.full_name}</p>
-                                                        <p className="text-xs text-slate-500 flex gap-2">
-                                                            <span>{p.uhid ? `UHID: ${p.uhid}` : `mrd: ${p.patient_u_id}`}</span>
-                                                            <span>• {p.gender}, {p.age}y</span>
-                                                        </p>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
+                                        <div className="col-span-2 relative">
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Full Name <span className="text-red-500">*</span></label>
+                                            <input
+                                                type="text"
+                                                required
+                                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-900 transition"
+                                                placeholder="Patient Name"
+                                                value={newPatient.full_name}
+                                                onChange={e => handleNameSearch(e.target.value)}
+                                                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                                                autoComplete="off"
+                                            />
+                                            {showSuggestions && suggestions.length > 0 && (
+                                                <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-60 overflow-y-auto">
+                                                    {suggestions.map((p, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            type="button"
+                                                            onClick={() => handleSelectPatient(p)}
+                                                            className="w-full text-left px-4 py-3 hover:bg-indigo-50 transition border-b border-slate-50 last:border-0"
+                                                        >
+                                                            <p className="font-bold text-slate-800 text-sm">{p.full_name}</p>
+                                                            <p className="text-xs text-slate-500 flex gap-2">
+                                                                <span>{p.uhid ? `UHID: ${p.uhid}` : `mrd: ${p.patient_u_id}`}</span>
+                                                                <span>• {p.gender}, {p.age}y</span>
+                                                            </p>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
 
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">Age <span className="text-red-500">*</span></label>
-                                        <input required type="number" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
-                                            value={newPatient.age} onChange={e => setNewPatient({ ...newPatient, age: e.target.value })} placeholder="Years" />
-                                    </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Age <span className="text-red-500">*</span></label>
+                                            <input required type="number" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
+                                                value={newPatient.age} onChange={e => setNewPatient({ ...newPatient, age: e.target.value })} placeholder="Years" />
+                                        </div>
 
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">Gender <span className="text-red-500">*</span></label>
-                                        <select required className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
-                                            value={newPatient.gender} onChange={e => setNewPatient({ ...newPatient, gender: e.target.value })}>
-                                            <option value="">Select Gender</option>
-                                            <option value="Male">Male</option>
-                                            <option value="Female">Female</option>
-                                            <option value="Other">Other</option>
-                                        </select>
-                                    </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Gender <span className="text-red-500">*</span></label>
+                                            <select required className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
+                                                value={newPatient.gender} onChange={e => setNewPatient({ ...newPatient, gender: e.target.value })}>
+                                                <option value="">Select Gender</option>
+                                                <option value="Male">Male</option>
+                                                <option value="Female">Female</option>
+                                                <option value="Other">Other</option>
+                                            </select>
+                                        </div>
 
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">Date of Birth</label>
-                                        <input type="date" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
-                                            value={newPatient.dob} onChange={e => calculateAge(e.target.value)} />
-                                    </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Date of Birth</label>
+                                            <input type="date" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
+                                                value={newPatient.dob} onChange={e => calculateAge(e.target.value)} />
+                                        </div>
 
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">Aadhaar Number <span className="text-gray-400 font-normal">(Optional)</span></label>
-                                        <input type="text" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono tracking-widest"
-                                            value={newPatient.aadhaar_number}
-                                            onChange={e => {
-                                                const val = e.target.value.replace(/\D/g, '').slice(0, 12);
-                                                setNewPatient({ ...newPatient, aadhaar_number: val });
-                                            }}
-                                            placeholder="0000 0000 0000"
-                                            pattern="\d{12}"
-                                        />
-                                    </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Aadhaar Number <span className="text-gray-400 font-normal">(Optional)</span></label>
+                                            <input type="text" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono tracking-widest"
+                                                value={newPatient.aadhaar_number}
+                                                onChange={e => {
+                                                    const val = e.target.value.replace(/\D/g, '').slice(0, 12);
+                                                    setNewPatient({ ...newPatient, aadhaar_number: val });
+                                                }}
+                                                placeholder="0000 0000 0000"
+                                                pattern="\d{12}"
+                                            />
+                                        </div>
 
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">Contact Number <span className="text-red-500">*</span></label>
-                                        <input required type="tel" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
-                                            value={newPatient.contact_number} onChange={e => setNewPatient({ ...newPatient, contact_number: e.target.value })} placeholder="Mobile Number" />
-                                    </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Contact Number <span className="text-red-500">*</span></label>
+                                            <input required type="tel" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
+                                                value={newPatient.contact_number} onChange={e => setNewPatient({ ...newPatient, contact_number: e.target.value })} placeholder="Mobile Number" />
+                                        </div>
 
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">Email ID</label>
-                                        <input type="email" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
-                                            value={newPatient.email_id} onChange={e => setNewPatient({ ...newPatient, email_id: e.target.value })} placeholder="Optional" />
-                                    </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Email ID</label>
+                                            <input type="email" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
+                                                value={newPatient.email_id} onChange={e => setNewPatient({ ...newPatient, email_id: e.target.value })} placeholder="Optional" />
+                                        </div>
 
-                                    <div className="col-span-2">
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">Address</label>
-                                        <input type="text" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
-                                            value={newPatient.address}
-                                            onChange={e => setNewPatient({ ...newPatient, address: toTitleCase(e.target.value) })}
-                                            placeholder="Address..." />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Section 2: Admission / File Details */}
-                            <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100">
-                                <h3 className="text-xs font-black text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                    <FileText size={14} /> Visit / File Details (MRD)
-                                </h3>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="col-span-2">
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">MRD No. (Unique File ID) <span className="text-red-500">*</span></label>
-                                        <input required type="text" className={`w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-mono font-black text-slate-800 ${isMRDDuplicate ? 'border-red-500' : 'border-slate-200'}`}
-                                            value={newPatient.patient_u_id}
-                                            onChange={e => {
-                                                const val = toUpperCaseMRD(e.target.value);
-                                                setNewPatient({ ...newPatient, patient_u_id: val });
-                                                if (val.length >= 3) checkDuplicateMRD(val);
-                                                else setIsMRDDuplicate(false);
-                                            }}
-                                            placeholder="Enter New MRD Number" />
-                                        {isMRDDuplicate && <p className="text-red-500 text-xs mt-1">⚠️ This MRD Number already exists!</p>}
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">Discharge Date</label>
-                                        <input type="date" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-500"
-                                            value={newPatient.discharge_date} onChange={e => setNewPatient({ ...newPatient, discharge_date: e.target.value })} />
+                                        <div className="col-span-2">
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Address</label>
+                                            <input type="text" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
+                                                value={newPatient.address}
+                                                onChange={e => setNewPatient({ ...newPatient, address: toTitleCase(e.target.value) })}
+                                                placeholder="Address..." />
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="pt-4 flex gap-3">
-                                <button type="button" onClick={() => { setShowCreateModal(false); router.replace('/dashboard/records'); }} className="flex-1 py-3.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition">
-                                    Cancel
-                                </button>
-                                <button type="submit" className="flex-1 py-3.5 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2">
-                                    <Upload size={18} /> Register & Upload
-                                </button>
-                            </div>
-                        </form>
+                                {/* Section 2: Admission / File Details */}
+                                <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100">
+                                    <h3 className="text-xs font-black text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <FileText size={14} /> Visit / File Details (MRD)
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="col-span-2">
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">MRD No. (Unique File ID) <span className="text-red-500">*</span></label>
+                                            <input required type="text" className={`w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-mono font-black text-slate-800 ${isMRDDuplicate ? 'border-red-500' : 'border-slate-200'}`}
+                                                value={newPatient.patient_u_id}
+                                                onChange={e => {
+                                                    const val = toUpperCaseMRD(e.target.value);
+                                                    setNewPatient({ ...newPatient, patient_u_id: val });
+                                                    if (val.length >= 3) checkDuplicateMRD(val);
+                                                    else setIsMRDDuplicate(false);
+                                                }}
+                                                placeholder="Enter New MRD Number" />
+                                            {isMRDDuplicate && <p className="text-red-500 text-xs mt-1">⚠️ This MRD Number already exists!</p>}
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Discharge Date</label>
+                                            <input type="date" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-500"
+                                                value={newPatient.discharge_date} onChange={e => setNewPatient({ ...newPatient, discharge_date: e.target.value })} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 flex gap-3">
+                                    <button type="button" onClick={() => { setShowCreateModal(false); router.replace('/dashboard/records'); }} className="flex-1 py-3.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition">
+                                        Cancel
+                                    </button>
+                                    <button type="submit" className="flex-1 py-3.5 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2">
+                                        <Upload size={18} /> Register & Upload
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
             )}
