@@ -135,3 +135,92 @@ class StorageService:
         db.commit()
         print(f"✅ Auto-Assigned Patient {patient.full_name} to Box {selected_box.label}")
         return selected_box
+    @staticmethod
+    def migrate_to_s3(db: Session, file_id: int):
+        """
+        Migrates a local draft to S3 hierarchy.
+        """
+        from ..models import PDFFile
+        from ..services.s3_handler import S3Manager
+        import os, uuid, io
+        import re
+
+        f = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+        if not f or "drafts/" not in (f.s3_key or ""):
+            return False, "Not a draft or file not found"
+
+        s3_manager = S3Manager()
+        if s3_manager.mode != "s3":
+            return False, "S3 not configured"
+
+        # 1. Fetch encrypted bytes from local
+        encrypted_bytes = s3_manager.get_file_bytes(f.s3_key)
+        if not encrypted_bytes:
+            return False, "Local file not found"
+
+        # 2. Generate Archival Key
+        patient = f.patient
+        date_source = patient.discharge_date or patient.created_at or datetime.now()
+        year_str = date_source.strftime("%Y")
+        month_str = date_source.strftime("%m")
+        
+        def sanitize(n): return re.sub(r'[^\w\s-]', '', n).replace(' ', '_')
+        hospital_name = sanitize(patient.hospital.legal_name or f"Hospital_{patient.hospital_id}")
+        mrd_number = sanitize(patient.patient_u_id)
+        
+        unique_id = f.s3_key.split('_')[-1] if '_' in f.s3_key else uuid.uuid4().hex[:8]
+        ext = os.path.splitext(f.s3_key)[1] # includes .enc
+        
+        new_s3_key = f"{hospital_name}/{year_str}/{month_str}/{mrd_number}_{unique_id}"
+        if not new_s3_key.endswith(".enc"): new_s3_key += ext
+        
+        # 3. Upload to S3
+        success, location = s3_manager.upload_file(io.BytesIO(encrypted_bytes), new_s3_key)
+        
+        if success:
+            # 4. Delete Local Draft
+            old_key = f.s3_key
+            f.s3_key = new_s3_key
+            f.storage_path = location
+            f.upload_status = 'confirmed'
+            
+            # Delete from local disk
+            original_mode = s3_manager.mode
+            s3_manager.mode = "local"
+            s3_manager.delete_file(old_key)
+            s3_manager.mode = original_mode
+            db.commit()
+            return True, "Migrated successfully"
+            
+        return False, "Upload failed"
+
+    @staticmethod
+    def process_auto_confirmations(db: Session):
+        """
+        Finds drafts older than 24 hours and migrates them to S3.
+        """
+        from datetime import timedelta
+        from ..models import PDFFile
+        
+        limit = datetime.now() - timedelta(hours=24)
+        
+        # Find pending drafts older than 24h
+        drafts = db.query(PDFFile).filter(
+            PDFFile.upload_status == 'draft',
+            PDFFile.upload_date <= limit
+        ).all()
+        
+        results = {"total": len(drafts), "success": 0, "failed": 0}
+        for d in drafts:
+            success, msg = StorageService.migrate_to_s3(db, d.file_id)
+            if success:
+                results["success"] += 1
+            else:
+                # Still mark as confirmed even if S3 fails, so it doesn't loop forever
+                # Or we can just log it. 
+                print(f"⚠️ Auto-confirm migration failed for file {d.file_id}: {msg}")
+                d.upload_status = 'confirmed' # Fallback to local confirm
+                db.commit()
+                results["failed"] += 1
+                
+        return results

@@ -67,6 +67,30 @@ if not os.getenv("AWS_ACCESS_KEY_ID"):
 
 
 
+@app.on_event("startup")
+async def startup_event():
+    # Start periodic background tasks
+    import asyncio
+    from .services.storage_service import StorageService
+    from .database import SessionLocal
+
+    async def auto_confirm_loop():
+        while True:
+            try:
+                db = SessionLocal()
+                print("🕒 Running Scheduled Task: Auto-Confirming Drafts...")
+                results = StorageService.process_auto_confirmations(db)
+                if results["total"] > 0:
+                     print(f"✅ Auto-confirmed {results['success']} files ({results['failed']} failed)")
+                db.close()
+            except Exception as e:
+                print(f"❌ Auto-confirm Loop Error: {e}")
+            
+            # Run every 1 hour
+            await asyncio.sleep(3600)
+
+    asyncio.create_task(auto_confirm_loop())
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Digifort Labs API"}

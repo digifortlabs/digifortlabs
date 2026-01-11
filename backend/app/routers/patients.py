@@ -562,51 +562,20 @@ def confirm_upload(file_id: int, db: Session = Depends(get_db), current_user: Us
     if not f: 
         raise HTTPException(status_code=404, detail="File not found")
         
-    # Migration Logic: Local Draft -> S3 Archive
-    s3_manager = S3Manager()
-    
-    # Check if currently local (draft)
+    # Migration Logic: Local Draft -> S3 Archive via StorageService
     if "drafts/" in (f.s3_key or ""):
-        # 1. Fetch encrypted bytes from local
-        encrypted_bytes = s3_manager.get_file_bytes(f.s3_key)
-        if encrypted_bytes and s3_manager.mode == "s3":
-            # 2. Generate Archival Key
-            patient = f.patient
-            date_source = patient.discharge_date or patient.created_at or datetime.datetime.now()
-            year_str = date_source.strftime("%Y")
-            month_str = date_source.strftime("%m")
-            
-            import re
-            def sanitize(n): return re.sub(r'[^\w\s-]', '', n).replace(' ', '_')
-            hospital_name = sanitize(patient.hospital.legal_name or f"Hospital_{patient.hospital_id}")
-            mrd_number = sanitize(patient.patient_u_id)
-            
-            # Keep the unique identifier from the draft key for consistency
-            unique_id = f.s3_key.split('_')[-1] if '_' in f.s3_key else uuid.uuid4().hex[:8]
-            ext = os.path.splitext(f.s3_key)[1] # includes .enc
-            
-            new_s3_key = f"{hospital_name}/{year_str}/{month_str}/{mrd_number}_{unique_id}"
-            if not new_s3_key.endswith(".enc"): new_s3_key += ext
-            
-            # 3. Upload to S3
-            import io
-            success, location = s3_manager.upload_file(io.BytesIO(encrypted_bytes), new_s3_key)
-            
-            if success:
-                # 4. Delete Local Draft
-                old_key = f.s3_key
-                f.s3_key = new_s3_key
-                f.storage_path = location
-                
-                # Delete from local disk
-                original_mode = s3_manager.mode
-                s3_manager.mode = "local"
-                s3_manager.delete_file(old_key)
-                s3_manager.mode = original_mode
+        success, msg = StorageService.migrate_to_s3(db, file_id)
+        if not success:
+            # If S3 migration failed, we still mark as confirmed locally
+            f.upload_status = 'confirmed'
+            db.commit()
+            return {"status": "partial", "message": f"Confirmed locally, but archival error: {msg}"}
+        
+        return {"status": "success", "message": "File confirmed and archived to S3"}
 
     f.upload_status = 'confirmed'
     db.commit()
-    return {"status": "success", "message": "File confirmed and archived to S3"}
+    return {"status": "success", "message": "File confirmed and published"}
 
 @router.delete("/files/{file_id}/draft")
 def delete_draft(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

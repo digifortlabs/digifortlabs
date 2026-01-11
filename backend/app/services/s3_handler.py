@@ -55,7 +55,9 @@ class S3Manager:
                 return False, str(e)
         
         try:
-            extra_args = {}
+            extra_args = {
+                'StorageClass': 'INTELLIGENT_TIERING'
+            }
             if content_type:
                 extra_args['ContentType'] = content_type
 
