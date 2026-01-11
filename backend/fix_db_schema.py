@@ -38,6 +38,13 @@ def run_migration():
                     print(f"✅ Verified {table}.chapter")
                 except Exception as e:
                     print(f"⚠️ Warning adding {table}.chapter: {e}")
+            
+            # 3. QA Issues table updates
+            try:
+                conn.execute(text("ALTER TABLE qa_issues ADD COLUMN IF NOT EXISTS hospital_id INTEGER"))
+                print("✅ Verified qa_issues.hospital_id")
+            except Exception as e:
+                print(f"⚠️ Warning adding qa_issues.hospital_id: {e}")
                 
             conn.commit()
         else:
@@ -54,6 +61,9 @@ def run_migration():
                 ],
                 "icd11_procedure_codes": [
                     ("chapter", "VARCHAR", "NULL")
+                ],
+                "qa_issues": [
+                    ("hospital_id", "INTEGER", "NULL")
                 ]
             }
             for table, cols in tables_cols.items():

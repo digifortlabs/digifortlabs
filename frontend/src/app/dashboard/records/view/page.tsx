@@ -669,30 +669,52 @@ function PatientDetailContent() {
                                             <span className="text-[10px] text-gray-300 italic">No tags</span>
                                         )}
                                     </div>
-                                    <button
-                                        onClick={() => {
-                                            const newTags = prompt("Enter tags (comma separated):", file.tags || "");
-                                            if (newTags !== null) {
-                                                // Save tags
-                                                fetch(`${API_URL}/patients/files/${file.file_id}/tags`, {
-                                                    method: 'PUT',
-                                                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
-                                                    body: JSON.stringify({ tags: newTags })
-                                                }).then(async res => {
-                                                    if (res.ok) {
-                                                        alert("Tags saved!");
-                                                        // Reload to see changes (or update state optimistically if I had complex state logic, but reload is safer here)
+                                    <div className="flex justify-between items-center w-full">
+                                        <button
+                                            onClick={() => {
+                                                const newTags = prompt("Enter tags (comma separated):", file.tags || "");
+                                                if (newTags !== null) {
+                                                    fetch(`${API_URL}/patients/files/${file.file_id}/tags`, {
+                                                        method: 'PUT',
+                                                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+                                                        body: JSON.stringify({ tags: newTags })
+                                                    }).then(res => {
+                                                        if (res.ok) alert("Tags saved!");
                                                         window.location.reload();
-                                                    } else {
-                                                        alert("Failed to save tags");
-                                                    }
-                                                });
-                                            }
-                                        }}
-                                        className="text-[10px] font-bold text-slate-400 hover:text-indigo-600 flex items-center gap-1 transition"
-                                    >
-                                        ✏️ Edit Tags
-                                    </button>
+                                                    });
+                                                }
+                                            }}
+                                            className="text-[10px] font-bold text-slate-400 hover:text-indigo-600 flex items-center gap-1 transition"
+                                        >
+                                            ✏️ Edit Tags
+                                        </button>
+
+                                        <button
+                                            onClick={async () => {
+                                                const issue = prompt("Issue Type (e.g. Blurry Scan, Missing Page):");
+                                                if (!issue) return;
+                                                const details = prompt("Details:");
+                                                if (!details) return;
+
+                                                try {
+                                                    const res = await fetch(`${API_URL}/qa/report`, {
+                                                        method: 'POST',
+                                                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+                                                        body: JSON.stringify({
+                                                            file_id: file.file_id,
+                                                            issue_type: issue,
+                                                            details: details,
+                                                            severity: 'medium'
+                                                        })
+                                                    });
+                                                    if (res.ok) alert("Issue reported to QA Monitor");
+                                                } catch (e) { console.error(e); }
+                                            }}
+                                            className="text-[10px] font-bold text-red-400 hover:text-red-600 flex items-center gap-1 transition"
+                                        >
+                                            ⚠️ Report Issue
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div className="flex flex-col gap-2">

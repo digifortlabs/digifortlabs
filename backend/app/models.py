@@ -256,12 +256,15 @@ class QAIssue(Base):
     __tablename__ = "qa_issues"
 
     issue_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=True)
     filename = Column(String)
     issue_type = Column(String) # e.g. "Missing Page", "Blurry", "Corruption"
     details = Column(String)
     severity = Column(String, default="medium") # high, medium, low
     status = Column(String, default="open") # open, resolved, ignored
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    hospital = relationship("Hospital")
 
 
 class PhysicalRack(Base):

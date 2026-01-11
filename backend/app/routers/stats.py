@@ -77,29 +77,37 @@ def get_dashboard_stats(db: Session = Depends(get_db), current_user: User = Depe
         "time": log.timestamp.strftime("%H:%M")
     } for log in recent_audits]
 
-    # 6. QA Issues (Global for now, or filter if QAIssue has hospital_id)
-    # Warning: QAIssue might not have hospital_id.
-    # Safe Mode: Only show for Super Admin.
+    # 6. QA Issues (Filtered by Hospital)
     qa_data = []
-    if is_super:
-        from ..models import QAIssue
-        qa_count = db.query(QAIssue).count()
-        if qa_count == 0:
-            db.add_all([
-                QAIssue(filename="Discharge_Sum_P_Sharma.pdf", issue_type="Missing Page", details="Gap between pg 1 and 3", severity="high"),
-                QAIssue(filename="Lab_Report_9921.pdf", issue_type="Blurry Scan", details="Text unreadable on pg 1", severity="medium")
-            ])
-            db.commit()
-        
-        qa_issues = db.query(QAIssue).filter(QAIssue.status == "open").all()
-        qa_data = [{
-            "id": i.issue_id,
-            "file": i.filename,
-            "issue": i.issue_type,
-            "details": i.details,
-            "severity": i.severity,
-            "timestamp": i.created_at.strftime("%Y-%m-%d") if i.created_at else "N/A"
-        } for i in qa_issues]
+    # Both Super Admin and Hospital Admin can see their own QA issues
+    from ..models import QAIssue
+    
+    q_qa = db.query(QAIssue).filter(QAIssue.status == "open")
+    if not is_super:
+        q_qa = q_qa.filter(QAIssue.hospital_id == hospital_id)
+    
+    qa_count = q_qa.count()
+    
+    # Optional: Seed data for new hospitals/super admin if purely empty for demo
+    if qa_count == 0 and is_super:
+        db.add_all([
+            QAIssue(hospital_id=None, filename="Discharge_Sum_P_Sharma.pdf", issue_type="Missing Page", details="Gap between pg 1 and 3", severity="high"),
+            QAIssue(hospital_id=None, filename="Lab_Report_9921.pdf", issue_type="Blurry Scan", details="Text unreadable on pg 1", severity="medium")
+        ])
+        db.commit()
+        # Refresh query
+        qa_issues = q_qa.all()
+    else:
+        qa_issues = q_qa.all()
+
+    qa_data = [{
+        "id": i.issue_id,
+        "file": i.filename,
+        "issue": i.issue_type,
+        "details": i.details,
+        "severity": i.severity,
+        "timestamp": i.created_at.strftime("%Y-%m-%d") if i.created_at else "N/A"
+    } for i in qa_issues]
 
     # Storage Data (Real-ish)
     q_files = db.query(func.sum(PDFFile.file_size)).filter(PDFFile.upload_status == 'confirmed')

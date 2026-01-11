@@ -386,9 +386,17 @@ export default function CommandCenter() {
                                 <button onClick={() => setShowQaModal(false)} className="flex-1 py-3 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200">
                                     Flag for Rescan
                                 </button>
-                                <button onClick={() => {
-                                    setShowQaModal(false);
-                                    setQaIssues(prev => prev.filter(i => i.id !== selectedIssue.id));
+                                <button onClick={async () => {
+                                    try {
+                                        const res = await fetch(`${API_URL}/qa/${selectedIssue.id}/resolve`, {
+                                            method: 'POST',
+                                            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                                        });
+                                        if (res.ok) {
+                                            setQaIssues(prev => prev.filter(i => i.id !== selectedIssue.id));
+                                            setShowQaModal(false);
+                                        }
+                                    } catch (e) { console.error(e); }
                                 }} className="flex-1 py-3 rounded-xl bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-600 shadow-lg shadow-emerald-200">
                                     Mark Resolved
                                 </button>
