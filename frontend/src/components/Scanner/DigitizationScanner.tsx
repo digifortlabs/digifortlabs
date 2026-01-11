@@ -264,7 +264,7 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
 
                 ctx.drawImage(img, startX, startY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
 
-                const croppedSrc = canvas.toDataURL('image/jpeg', 0.9);
+                const croppedSrc = canvas.toDataURL('image/jpeg', 0.7);
                 const newPage: CapturedPage = {
                     id: Math.random().toString(36).substr(2, 9),
                     dataUrl: croppedSrc,
