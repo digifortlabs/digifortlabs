@@ -77,7 +77,7 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str):
 
         if db_file.processing_stage == 'cancelled': return
             
-        # 1.5 OCR (Text Extraction)
+        # 1.5 OCR (Text Extraction) & Page Counting
         # Run only for PDFs
         if os.path.splitext(original_filename)[1].lower() == '.pdf':
             try:
@@ -86,6 +86,16 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str):
                 
                 with open(processed_path, 'rb') as f:
                     content_bytes = f.read()
+                
+                # Count Pages
+                try:
+                    from pypdf import PdfReader
+                    import io
+                    reader = PdfReader(io.BytesIO(content_bytes))
+                    db_file.page_count = len(reader.pages)
+                    print(f"📄 Page Count: {db_file.page_count}")
+                except Exception as pe:
+                    print(f"⚠️ Page count error: {pe}")
                     
                 extracted_text = extract_text_from_pdf(content_bytes)
                 if extracted_text:
@@ -96,7 +106,8 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str):
                     print("ℹ️ No text extracted (Scanned PDF?)")
                     
             except Exception as e:
-                print(f"⚠️ OCR Warning: {e}")
+                print(f"⚠️ OCR/PageCount Warning: {e}")
+            db.commit()
         
         # 2. ENCRYPTION
         db_file.processing_stage = 'encrypting'
@@ -209,6 +220,7 @@ class FileData(BaseModel):
     filename: str
     upload_date: datetime.datetime
     file_size_mb: float
+    page_count: int = 0
     upload_status: str
 
 # Response Models
@@ -230,6 +242,11 @@ class PatientResponse(BaseModel):
     box_label: Optional[str] = None
     box_location_code: Optional[str] = None
     files: List[FileData] = []
+    
+    # Billing info (inherited from hospital)
+    price_per_file: float = 100.0
+    included_pages: int = 20
+    price_per_extra_page: float = 1.0
     
     class Config:
         from_attributes = True

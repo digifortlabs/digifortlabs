@@ -25,6 +25,11 @@ class HospitalCreate(BaseModel):
     state: Optional[str] = None
     pincode: Optional[str] = None
     phone: Optional[str] = None
+    
+    # Billing Config (INR)
+    price_per_file: float = 100.0
+    included_pages: int = 20
+    price_per_extra_page: float = 1.0
 
 class HospitalResponse(BaseModel):
     hospital_id: int
@@ -39,6 +44,10 @@ class HospitalResponse(BaseModel):
     state: Optional[str] = None
     pincode: Optional[str] = None
     phone: Optional[str] = None
+    
+    price_per_file: float
+    included_pages: int
+    price_per_extra_page: float
     is_active: bool = True
     pending_updates: Optional[str] = None # JSON String
 
@@ -60,6 +69,10 @@ class HospitalUpdate(BaseModel):
     subscription_tier: Optional[str] = None
     hospital_type: Optional[str] = None
     is_active: Optional[bool] = None
+
+    price_per_file: Optional[float] = None
+    included_pages: Optional[int] = None
+    price_per_extra_page: Optional[float] = None
 
 class AdminCreate(BaseModel):
     email: EmailStr
@@ -144,7 +157,10 @@ def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), cur
         city=hospital.city,
         state=hospital.state,
         pincode=hospital.pincode,
-        phone=hospital.phone
+        phone=hospital.phone,
+        price_per_file=hospital.price_per_file,
+        included_pages=hospital.included_pages,
+        price_per_extra_page=hospital.price_per_extra_page
     )
     db.add(db_hospital)
     db.flush() # Generate ID without committing transaction

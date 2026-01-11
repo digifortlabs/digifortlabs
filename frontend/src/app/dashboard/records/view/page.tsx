@@ -18,6 +18,7 @@ interface FileData {
     tags?: string;
     ocr_text?: string;
     is_deletion_pending?: boolean;
+    page_count?: number; // New Field
 }
 
 interface PatientDetail {
@@ -642,8 +643,21 @@ function PatientDetailContent() {
                                     </div>
                                 </div>
                                 <h3 className="font-medium text-gray-800 truncate" title={file.filename}>{file.filename}</h3>
-                                <div className="flex justify-between items-center mb-4">
+                                <div className="flex justify-between items-center mb-1">
                                     <p className="text-xs text-gray-500">{file.file_size_mb ? file.file_size_mb.toFixed(2) : 0} MB</p>
+                                    <p className="text-xs font-bold text-slate-700">{file.page_count || 0} Pages</p>
+                                </div>
+                                <div className="flex justify-between items-center mb-4">
+                                    <p className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                                        ₹{(() => {
+                                            const base = patient.price_per_file || 0;
+                                            const incl = patient.included_pages || 0; // Back in logic
+                                            const extra = patient.price_per_extra_page || 0;
+                                            const pages = file.page_count || 0;
+                                            const extraPages = Math.max(0, pages - incl);
+                                            return (base + (extraPages * extra)).toFixed(2);
+                                        })()}
+                                    </p>
                                     {file.is_searchable && (
                                         <span
                                             className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer hover:bg-green-200"

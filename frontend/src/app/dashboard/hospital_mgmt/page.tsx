@@ -32,13 +32,14 @@ export default function HospitalsPage() {
 
     const [type, setType] = useState('Private');
     const [plan, setPlan] = useState('Standard');
+    const [pricePerFile, setPricePerFile] = useState(100);
+    const [includedPages, setIncludedPages] = useState(20);
+    const [pricePerExtraPage, setPricePerExtraPage] = useState(1);
     const [submitting, setSubmitting] = useState(false);
 
     // Filter & Action State
     const [searchTerm, setSearchTerm] = useState('');
     const [activeActionId, setActiveActionId] = useState<number | null>(null);
-
-
 
     const toTitleCase = (str: string) => {
         return str.replace(/\w\S*/g, (txt) => {
@@ -108,6 +109,9 @@ export default function HospitalsPage() {
         setPincode(hospital.pincode || '');
         setType(hospital.hospital_type || 'Private');
         setPlan(hospital.subscription_tier || 'Standard');
+        setPricePerFile(hospital.price_per_file || 10);
+        setIncludedPages(hospital.included_pages || 5);
+        setPricePerExtraPage(hospital.price_per_extra_page || 2);
         setShowModal(true);
         setActiveActionId(null);
     };
@@ -166,7 +170,10 @@ export default function HospitalsPage() {
                     state,
                     pincode,
                     hospital_type: type,
-                    subscription_tier: plan
+                    subscription_tier: plan,
+                    price_per_file: pricePerFile,
+                    included_pages: includedPages,
+                    price_per_extra_page: pricePerExtraPage
                 })
             });
 
@@ -211,6 +218,7 @@ export default function HospitalsPage() {
                         setCurrentHospitalId(null);
                         setLegalName(''); setEmail(''); setCity(''); setState(''); setPincode('');
                         setType('Private'); setPlan('Standard');
+                        setPricePerFile(10); setIncludedPages(5); setPricePerExtraPage(2);
                         setShowModal(true);
                     }}
                     className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
@@ -404,6 +412,40 @@ export default function HospitalsPage() {
                                 </div>
                             </div>
 
+                            {/* Billing Config */}
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider">03. Billing Configuration (INR)</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-600">Base Price (₹/File)</label>
+                                        <input
+                                            type="number"
+                                            value={pricePerFile}
+                                            onChange={e => setPricePerFile(Number(e.target.value))}
+                                            className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-600">Included Pages</label>
+                                        <input
+                                            type="number"
+                                            value={includedPages}
+                                            onChange={e => setIncludedPages(Number(e.target.value))}
+                                            className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-600">Extra Page Fee (₹/Pg)</label>
+                                        <input
+                                            type="number"
+                                            value={pricePerExtraPage}
+                                            onChange={e => setPricePerExtraPage(Number(e.target.value))}
+                                            className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="pt-4 flex gap-4">
                                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-colors">
                                     Cancel
@@ -433,7 +475,7 @@ export default function HospitalsPage() {
                         </div>
                         <div className="p-8 space-y-6">
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-500 uppercase">Type "CONFIRM" to proceed</label>
+                                <label className="text-xs font-bold text-slate-500 uppercase">Type hospital name to proceed</label>
                                 <input
                                     value={deleteConfirmation}
                                     onChange={(e) => setDeleteConfirmation(e.target.value)}

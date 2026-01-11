@@ -43,6 +43,11 @@ class Hospital(Base):
     pincode = Column(String, nullable=True)
     phone = Column(String, nullable=True)
     
+    # Billing Configuration (INR)
+    price_per_file = Column(Float, default=100.0) # Base price per file
+    included_pages = Column(Integer, default=20) # Pages included in base price
+    price_per_extra_page = Column(Float, default=1.0) # Charge per page above limit
+    
     # Stores JSON string of changes pending approval
     pending_updates = Column(String, nullable=True)
 
@@ -103,6 +108,18 @@ class Patient(Base):
     def box_location_code(self):
         return self.box.location_code if self.box else None
 
+    @property
+    def price_per_file(self):
+        return self.hospital.price_per_file if self.hospital else 10.0
+
+    @property
+    def included_pages(self):
+        return self.hospital.included_pages if self.hospital else 5
+
+    @property
+    def price_per_extra_page(self):
+        return self.hospital.price_per_extra_page if self.hospital else 2.0
+
 class PDFFile(Base):
     __tablename__ = "pdf_files"
 
@@ -110,6 +127,7 @@ class PDFFile(Base):
     record_id = Column(Integer, ForeignKey("patients.record_id"))
     s3_key = Column(String, nullable=False)
     file_size = Column(Integer) # In bytes
+    page_count = Column(Integer, default=0) # Total pages in PDF
     filename = Column(String) # Original filename
     storage_path = Column(String) # S3 Key or Local Path
     ocr_text = Column(String, nullable=True) # Extracted text content
