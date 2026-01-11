@@ -31,7 +31,7 @@ def report_qa_issue(
 
     new_issue = QAIssue(
         hospital_id=db_file.patient.hospital_id,
-        filename=db_file.original_filename or f"File_{request.file_id}",
+        filename=db_file.filename or f"File_{request.file_id}",
         issue_type=request.issue_type,
         details=request.details,
         severity=request.severity,
