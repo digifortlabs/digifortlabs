@@ -123,32 +123,38 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str):
         db.refresh(db_file)
         if db_file.processing_stage == 'cancelled': return
 
-        # 3. UPLOAD TO S3
+        # 3. UPLOAD (Force Local for Drafts)
         db_file.processing_stage = 'uploading'
         db.commit()
         
-        # Generate Hierarchical Archival Key
+        # Structure: drafts/hospital/MRD_uuid.ext.enc
         import re
         def sanitize_name(name): return re.sub(r'[^\w\s-]', '', name).replace(' ', '_')
         
         patient = db_file.patient
         hospital_name = sanitize_name(patient.hospital.legal_name or f"Hospital_{patient.hospital_id}")
-        
-        # Use Discharge Date for Hierarchy (Year/Month)
-        # Fallback to created_at if somehow missing, though now compulsory
-        date_source = patient.discharge_date or patient.created_at or datetime.datetime.now()
-        year_str = date_source.strftime("%Y")
-        month_str = date_source.strftime("%m")
-        
         mrd_number = sanitize_name(patient.patient_u_id)
         
-        # Structure: hospital/year/month/MRD_uuid.ext
-        # UUID added to ensure multiple files for same MRD don't collide
         final_ext = os.path.splitext(processed_path)[1] # includes .enc usually
-        s3_key = f"{hospital_name}/{year_str}/{month_str}/{mrd_number}_{uuid.uuid4().hex[:8]}{final_ext}"
+        # We store as drafts/ initially
+        s3_key = f"drafts/{hospital_name}/{mrd_number}_{uuid.uuid4().hex[:8]}{final_ext}"
 
+        # We always use s3_manager.upload_file, but if it's a draft, we might want to FORCE local mode
+        # Actually, let's just use a special local prefix for drafts in the database
+        # and let the s3_manager handle the physical write to Local Storage
+        
+        # Save to Local Storage (as drafts)
         with open(processed_path, 'rb') as f:
+            # We temporarily switch s3_manager to local mode if we want to save S3 costs for drafts
+            # OR we just store it in a 'drafts/' prefix in S3. 
+            # User specifically said "move file AFTER clicking confirm to S3".
+            # So let's force local for drafts.
+            
+            # Temporary "Force Local" for drafts
+            original_mode = s3_manager.mode
+            s3_manager.mode = "local" 
             success, location = s3_manager.upload_file(f, s3_key)
+            s3_manager.mode = original_mode # Restore
             
         if success:
             db_file.s3_key = s3_key
@@ -556,9 +562,51 @@ def confirm_upload(file_id: int, db: Session = Depends(get_db), current_user: Us
     if not f: 
         raise HTTPException(status_code=404, detail="File not found")
         
+    # Migration Logic: Local Draft -> S3 Archive
+    s3_manager = S3Manager()
+    
+    # Check if currently local (draft)
+    if "drafts/" in (f.s3_key or ""):
+        # 1. Fetch encrypted bytes from local
+        encrypted_bytes = s3_manager.get_file_bytes(f.s3_key)
+        if encrypted_bytes and s3_manager.mode == "s3":
+            # 2. Generate Archival Key
+            patient = f.patient
+            date_source = patient.discharge_date or patient.created_at or datetime.datetime.now()
+            year_str = date_source.strftime("%Y")
+            month_str = date_source.strftime("%m")
+            
+            import re
+            def sanitize(n): return re.sub(r'[^\w\s-]', '', n).replace(' ', '_')
+            hospital_name = sanitize(patient.hospital.legal_name or f"Hospital_{patient.hospital_id}")
+            mrd_number = sanitize(patient.patient_u_id)
+            
+            # Keep the unique identifier from the draft key for consistency
+            unique_id = f.s3_key.split('_')[-1] if '_' in f.s3_key else uuid.uuid4().hex[:8]
+            ext = os.path.splitext(f.s3_key)[1] # includes .enc
+            
+            new_s3_key = f"{hospital_name}/{year_str}/{month_str}/{mrd_number}_{unique_id}"
+            if not new_s3_key.endswith(".enc"): new_s3_key += ext
+            
+            # 3. Upload to S3
+            import io
+            success, location = s3_manager.upload_file(io.BytesIO(encrypted_bytes), new_s3_key)
+            
+            if success:
+                # 4. Delete Local Draft
+                old_key = f.s3_key
+                f.s3_key = new_s3_key
+                f.storage_path = location
+                
+                # Delete from local disk
+                original_mode = s3_manager.mode
+                s3_manager.mode = "local"
+                s3_manager.delete_file(old_key)
+                s3_manager.mode = original_mode
+
     f.upload_status = 'confirmed'
     db.commit()
-    return {"status": "success", "message": "File confirmed and published"}
+    return {"status": "success", "message": "File confirmed and archived to S3"}
 
 @router.delete("/files/{file_id}/draft")
 def delete_draft(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
