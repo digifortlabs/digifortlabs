@@ -150,18 +150,22 @@ export default function PatientUploadPage() {
     const compressFile = async (file: File): Promise<File> => {
         if (file.type.startsWith('image/')) {
             const options = {
-                maxSizeMB: 1,
-                maxWidthOrHeight: 1920,
-                useWebWorker: true
+                maxSizeMB: 0.5, // Reduced from 1MB to 0.5MB to stay well under Nginx limits
+                maxWidthOrHeight: 1600, // Reduced slightly for better compression
+                useWebWorker: true,
+                initialQuality: 0.7
             };
             try {
-                return await imageCompression(file, options);
+                console.log(`Compresing image: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+                const compressed = await imageCompression(file, options);
+                console.log(`Compressed result: ${compressed.size / 1024 / 1024.toFixed(2)} MB`);
+                return compressed;
             } catch (error) {
                 console.error("Compression failed:", error);
                 return file; // Fallback to original
             }
         }
-        return file; // Return original for non-images
+        return file; // Return original for non-images (PDFs handled by DigitizationScanner or Backend)
     };
 
     const uploadSingleFile = (item: FileQueueItem, token: string) => {
@@ -172,7 +176,7 @@ export default function PatientUploadPage() {
             const xhr = new XMLHttpRequest();
             abortControllers.current[item.id] = xhr;
 
-            xhr.open('POST', `${API_URL}/patients/${selectedPatient.record_id}/upload`, true);
+            xhr.open('POST', `${ API_URL } /patients/${ selectedPatient.record_id }/upload`, true);
             xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
             xhr.upload.onprogress = (e) => {

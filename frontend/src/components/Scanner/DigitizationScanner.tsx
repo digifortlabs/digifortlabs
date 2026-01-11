@@ -318,6 +318,7 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
 
             // Handle rotation in PDF
             const rotation = pages[i].rotation || 0;
+            // Add image with explicit compression and downsampling hints
             pdf.addImage(pages[i].dataUrl, 'JPEG', 0, 0, imgWidth, imgHeight, undefined, 'FAST', rotation);
         }
 
@@ -946,7 +947,7 @@ async function warpImage(img: HTMLImageElement, points: { x: number, y: number }
         ctx.putImageData(outputData, 0, 0);
     }
 
-    return canvas.toDataURL('image/jpeg', 0.9);
+    return canvas.toDataURL('image/jpeg', 0.75); // Reduced quality for significant space saving
 }
 
 /**

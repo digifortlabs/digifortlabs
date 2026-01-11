@@ -10,8 +10,8 @@ def compress_pdf(file_bytes: bytes) -> bytes:
     """
     Compress PDF by:
     1. Compressing content streams
-    2. Removing duplicate objects
-    3. Downsampling images
+    2. Removing all metadata and extra objects
+    3. Ensuring cross-reference table compression
     """
     try:
         original_size = len(file_bytes)
@@ -25,8 +25,8 @@ def compress_pdf(file_bytes: bytes) -> bytes:
         for page in writer.pages:
             page.compress_content_streams()
 
-        # 2. Remove duplicate objects
-        writer.add_metadata(reader.metadata)
+        # 2. Clear Metadata (significant saving in some scanned PDFs)
+        writer.add_metadata({})
         
         # 3. Write with compression
         output_stream = io.BytesIO()
@@ -35,13 +35,11 @@ def compress_pdf(file_bytes: bytes) -> bytes:
         
         compressed_size = len(compressed_bytes)
         
-        # Only return compressed if it's smaller
         if compressed_size < original_size:
             reduction = ((original_size - compressed_size) / original_size) * 100
             print(f"✅ PDF Compressed: {original_size / 1024:.2f} KB → {compressed_size / 1024:.2f} KB ({reduction:.1f}% reduction)")
             return compressed_bytes
         else:
-            print(f"ℹ️  PDF already optimized: {original_size / 1024:.2f} KB (no compression needed)")
             return file_bytes
     except Exception as e:
         print(f"❌ PDF Compression Failed: {e}")

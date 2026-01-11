@@ -127,17 +127,25 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str):
         db_file.processing_stage = 'uploading'
         db.commit()
         
-        # Generate Key
+        # Generate Hierarchical Archival Key
         import re
         def sanitize_name(name): return re.sub(r'[^\w\s-]', '', name).replace(' ', '_')
         
         patient = db_file.patient
         hospital_name = sanitize_name(patient.hospital.legal_name or f"Hospital_{patient.hospital_id}")
-        patient_name = sanitize_name(patient.full_name)
         
-        # Append .enc to key
+        # Use Discharge Date for Hierarchy (Year/Month)
+        # Fallback to created_at if somehow missing, though now compulsory
+        date_source = patient.discharge_date or patient.created_at or datetime.datetime.now()
+        year_str = date_source.strftime("%Y")
+        month_str = date_source.strftime("%m")
+        
+        mrd_number = sanitize_name(patient.patient_u_id)
+        
+        # Structure: hospital/year/month/MRD_uuid.ext
+        # UUID added to ensure multiple files for same MRD don't collide
         final_ext = os.path.splitext(processed_path)[1] # includes .enc usually
-        s3_key = f"{hospital_name}/{patient_name}/{uuid.uuid4()}{final_ext}"
+        s3_key = f"{hospital_name}/{year_str}/{month_str}/{mrd_number}_{uuid.uuid4().hex[:8]}{final_ext}"
 
         with open(processed_path, 'rb') as f:
             success, location = s3_manager.upload_file(f, s3_key)
@@ -231,7 +239,7 @@ class PatientCreate(BaseModel):
     email_id: Optional[str] = None
     aadhaar_number: Optional[str] = None
     dob: Optional[datetime.datetime] = None
-    discharge_date: Optional[datetime.datetime] = None
+    discharge_date: datetime.datetime # Now Compulsory
     hospital_id: Optional[int] = None
 
 class PatientUpdate(BaseModel):

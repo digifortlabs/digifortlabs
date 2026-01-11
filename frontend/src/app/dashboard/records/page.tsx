@@ -180,8 +180,8 @@ export default function RecordsList() {
         const token = localStorage.getItem('token');
 
         try {
-            if (!newPatient.full_name || !newPatient.patient_u_id || !newPatient.age || !newPatient.gender || !newPatient.contact_number) {
-                alert("Please fill all required fields (*)");
+            if (!newPatient.full_name || !newPatient.patient_u_id || !newPatient.age || !newPatient.gender || !newPatient.contact_number || !newPatient.discharge_date) {
+                alert("Please fill all required fields (*) including Discharge Date.");
                 return;
             }
 
@@ -506,8 +506,8 @@ export default function RecordsList() {
                                         </div>
 
                                         <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">Discharge Date</label>
-                                            <input type="date" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-500"
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Discharge Date <span className="text-red-500">*</span></label>
+                                            <input required type="date" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-500"
                                                 value={newPatient.discharge_date} onChange={e => setNewPatient({ ...newPatient, discharge_date: e.target.value })} />
                                         </div>
                                     </div>
