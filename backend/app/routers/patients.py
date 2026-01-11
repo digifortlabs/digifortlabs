@@ -609,8 +609,10 @@ def delete_draft(file_id: int, db: Session = Depends(get_db), current_user: User
     # if current_user.role != UserRole.MRD_STAFF:
     #      raise HTTPException(status_code=403, detail="Access Denied")
          
+    is_platform = current_user.role in ["website_admin", "website_staff"]
     q = db.query(PDFFile).join(Patient).filter(PDFFile.file_id == file_id)
-    q = q.filter(Patient.hospital_id == current_user.hospital_id)
+    if not is_platform:
+        q = q.filter(Patient.hospital_id == current_user.hospital_id)
     f = q.first()
     
     if not f: 
@@ -943,7 +945,8 @@ def update_file_tags(
         raise HTTPException(status_code=404, detail="File not found")
         
     # Auth
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.WEBSITE_ADMIN, UserRole.WEBSITE_STAFF]:
+    is_platform = current_user.role in ["website_admin", "website_staff"]
+    if not is_platform:
         # Check hospital ownership
         if db_file.patient.hospital_id != current_user.hospital_id:
             raise HTTPException(status_code=403, detail="Access denied")
