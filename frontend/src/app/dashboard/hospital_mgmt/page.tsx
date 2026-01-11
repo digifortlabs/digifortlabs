@@ -109,9 +109,9 @@ export default function HospitalsPage() {
         setPincode(hospital.pincode || '');
         setType(hospital.hospital_type || 'Private');
         setPlan(hospital.subscription_tier || 'Standard');
-        setPricePerFile(hospital.price_per_file || 10);
-        setIncludedPages(hospital.included_pages || 5);
-        setPricePerExtraPage(hospital.price_per_extra_page || 2);
+        setPricePerFile(hospital.price_per_file || 100);
+        setIncludedPages(hospital.included_pages || 20);
+        setPricePerExtraPage(hospital.price_per_extra_page || 1);
         setShowModal(true);
         setActiveActionId(null);
     };
@@ -218,7 +218,7 @@ export default function HospitalsPage() {
                         setCurrentHospitalId(null);
                         setLegalName(''); setEmail(''); setCity(''); setState(''); setPincode('');
                         setType('Private'); setPlan('Standard');
-                        setPricePerFile(10); setIncludedPages(5); setPricePerExtraPage(2);
+                        setPricePerFile(100); setIncludedPages(20); setPricePerExtraPage(1);
                         setShowModal(true);
                     }}
                     className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
@@ -249,6 +249,7 @@ export default function HospitalsPage() {
                             <th className="px-8 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Type</th>
                             <th className="px-8 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Plan</th>
                             <th className="px-8 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">City</th>
+                            <th className="px-8 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Billing</th>
                             <th className="px-8 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Status</th>
                             <th className="px-8 py-4 text-xs font-black text-slate-500 uppercase tracking-wider text-right">Actions</th>
                         </tr>
@@ -282,6 +283,13 @@ export default function HospitalsPage() {
                                 </td>
                                 <td className="px-8 py-5 text-sm font-medium text-slate-600">
                                     {h.city || 'N/A'}
+                                </td>
+                                <td className="px-8 py-5">
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-bold text-slate-700">₹{h.price_per_file}/file</span>
+                                        <span className="text-[10px] text-slate-400 font-medium">{h.included_pages} pgs inc.</span>
+                                        <span className="text-[10px] text-slate-400 font-medium">₹{h.price_per_extra_page}/extra pg</span>
+                                    </div>
                                 </td>
                                 <td className="px-8 py-5">
                                     <div className="flex items-center gap-2">
