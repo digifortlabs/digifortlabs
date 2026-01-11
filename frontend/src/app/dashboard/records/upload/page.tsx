@@ -176,7 +176,7 @@ export default function PatientUploadPage() {
             const xhr = new XMLHttpRequest();
             abortControllers.current[item.id] = xhr;
 
-            xhr.open('POST', `${API_URL} /patients/${selectedPatient.record_id}/upload`, true);
+            xhr.open('POST', `${API_URL}/patients/${selectedPatient.record_id}/upload`, true);
             xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
             xhr.upload.onprogress = (e) => {
