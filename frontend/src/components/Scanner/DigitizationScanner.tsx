@@ -30,6 +30,8 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
     const [rotate180, setRotate180] = useState(false);
     const [targetResolution, setTargetResolution] = useState({ width: 4640, height: 3480 }); // Start with 16MP (Native Spec)
     const [isAutoDetect, setIsAutoDetect] = useState(false);
+    const [isFullFrame, setIsFullFrame] = useState(true); // Default to Full Frame (No cropping)
+    const [dpi, setDpi] = useState(150); // Default DPI
     const [detectedBox, setDetectedBox] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
     const [detectionConfidence, setDetectionConfidence] = useState(0);
     const [autoTimer, setAutoTimer] = useState<number | null>(null); // null means OFF, otherwise seconds
@@ -230,7 +232,13 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                 let cropWidth, cropHeight, startX, startY;
                 const box = latestBoxRef.current || detectedBox;
 
-                if (isAutoDetect && box) {
+                if (isFullFrame) {
+                    // 1:1 Sensor Capture (No force cropping)
+                    cropWidth = img.width;
+                    cropHeight = img.height;
+                    startX = 0;
+                    startY = 0;
+                } else if (isAutoDetect && box) {
                     // Use detected bounding box percentage
                     cropWidth = img.width * (box.w / 100);
                     cropHeight = img.height * (box.h / 100);
@@ -318,8 +326,9 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
 
             // Handle rotation in PDF
             const rotation = pages[i].rotation || 0;
-            // Add image with explicit compression and downsampling hints
-            pdf.addImage(pages[i].dataUrl, 'JPEG', 0, 0, imgWidth, imgHeight, undefined, 'FAST', rotation);
+            // Add image with selected DPI quality
+            const compression = dpi === 300 ? 'NONE' : 'FAST';
+            pdf.addImage(pages[i].dataUrl, 'JPEG', 0, 0, imgWidth, imgHeight, undefined, compression, rotation);
         }
 
         const pdfBlob = pdf.output('blob');
@@ -581,6 +590,17 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                             <FileText size={20} />
                             <span className="text-[8px] font-black uppercase tracking-tighter">Filter</span>
                         </button>
+
+                        <div className="h-px bg-white/10 mx-2"></div>
+
+                        <button
+                            onClick={() => setIsFullFrame(!isFullFrame)}
+                            className={`p-4 rounded-xl transition flex flex-col items-center gap-1 border ${isFullFrame ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg' : 'text-slate-400 hover:bg-white/5 border-transparent'}`}
+                            title="Full Sensor Capture (No Cropping)"
+                        >
+                            <ImageIcon size={20} className={isFullFrame ? 'text-white' : 'text-slate-400'} />
+                            <span className="text-[8px] font-black uppercase tracking-tighter">Full</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -607,6 +627,21 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                                     >
                                         {device.label || `Scanner ${key + 1}`}
                                         {selectedDeviceId === device.deviceId && <Check size={14} />}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-white/5">
+                            <p className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">Export PDF Quality (DPI)</p>
+                            <div className="grid grid-cols-3 gap-2">
+                                {[72, 150, 300].map((d) => (
+                                    <button
+                                        key={d}
+                                        onClick={() => setDpi(d)}
+                                        className={`px-3 py-2 rounded-xl text-[10px] font-black border transition ${dpi === d ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-900/50 border-white/5 text-slate-500'}`}
+                                    >
+                                        {d} DPI
                                     </button>
                                 ))}
                             </div>
