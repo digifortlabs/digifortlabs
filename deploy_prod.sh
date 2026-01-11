@@ -135,11 +135,21 @@ DATABASE_URL=postgresql://postgres:Digif0rtlab$@digifort-db.crs4e62wi3w2.ap-sout
 SECRET_KEY=production_key_digifort_redeploy_2026
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=43200
+
+# ICD-11 API (WHO)
+ICD11_CLIENT_ID=0079dc17-fdb9-4828-a400-643797eb1df0_a8a3014a-7bc9-410a-bbea-d42f56708b73
+ICD11_CLIENT_SECRET=1BAnxHk7O8f7A7xM6UAnxHk7A77Hj4e6
 EOF
 echo "✅ .env file created."
 
-# --- 5. START BACKEND WITH PM2 ---
-echo "🚀 [5/6] Launching Backend..."
+# --- 5. REPAIR DATABASE SCHEMA ---
+echo "🛠️  [5/6] Repairing Database Schema..."
+source .venv/bin/activate
+python fix_db_schema.py
+deactivate
+
+# --- 6. START BACKEND WITH PM2 ---
+echo "🚀 [6/6] Launching Backend..."
 # We use the full path to uvicorn inside venv
 # Enable proxy headers so FastAPI knows it's running behind Nginx HTTPS
 UVICORN_CMD="/home/ec2-user/digifortlabs/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'"
