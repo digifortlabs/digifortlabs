@@ -765,16 +765,16 @@ def request_deletion(file_id: int, db: Session = Depends(get_db), current_user: 
         raise HTTPException(status_code=404, detail="File not found")
 
     
-    # Logic: MRD -> 'requested', Hospital Admin -> Immediate Deletion
-    if current_user.role == UserRole.HOSPITAL_ADMIN:
-        # Strict bypass: Hospital Admin can delete immediately without Super Admin
+    # Logic: MRD -> 'requested', Hospital Admin/Super Admin -> Immediate Deletion
+    if current_user.role in [UserRole.HOSPITAL_ADMIN, UserRole.SUPER_ADMIN]:
+        # Strict bypass: Admins can delete immediately
         s3_manager = S3Manager()
         s3_manager.delete_file(pdf_file.s3_key)
         db.delete(pdf_file)
         db.commit()
         
         from ..audit import log_audit
-        log_audit(db, current_user.user_id, "FILE_DELETED", f"Hospital Admin deleted file {file_id}")
+        log_audit(db, current_user.user_id, "FILE_DELETED", f"{current_user.role} deleted file {file_id}")
         return {"message": "File permanently deleted"}
     
     # MRD or others

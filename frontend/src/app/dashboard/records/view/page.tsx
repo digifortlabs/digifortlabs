@@ -397,7 +397,7 @@ function PatientDetailContent() {
 
 
     const handleRequestDeletion = async (fileId: number) => {
-        const isDirectDelete = userRole === 'hospital_admin' || userRole === 'super_admin';
+        const isDirectDelete = userRole === 'hospital_admin' || userRole === 'website_admin';
         const confirmMsg = isDirectDelete
             ? "ARNING: This will PERMANENTLY delete the file. This action cannot be undone. Continue?"
             : "Request deletion for this file? This will require Admin approval.";
