@@ -3,7 +3,7 @@ import os
 import uuid
 from typing import List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, Response
 from pydantic import BaseModel
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
@@ -19,7 +19,7 @@ from ..services.storage_service import StorageService
 router = APIRouter(tags=["patients"])
 
 
-from ..services.encryption import encrypt_file
+from ..services.encryption import encrypt_file, decrypt_data
 
 
 def process_upload_task(file_id: int, temp_path: str, original_filename: str):
@@ -611,25 +611,56 @@ def list_drafts(db: Session = Depends(get_db), current_user: User = Depends(get_
 
 @router.get("/files/{file_id}/url")
 def get_file_url(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # 1. Get File and Verification Patient Hospital ID
-    is_platform = current_user.role in ["website_admin", "website_staff"]
-    s3_manager = S3Manager()
+    # Verify access first
+    is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
     
     query = db.query(PDFFile).join(Patient).filter(PDFFile.file_id == file_id)
     if not is_platform:
         query = query.filter(Patient.hospital_id == current_user.hospital_id)
         
     pdf_file = query.first()
-    
     if not pdf_file:
          raise HTTPException(status_code=404, detail="File not found or access denied")
     
-    # 2. Generate URL
-    url = s3_manager.generate_presigned_url(pdf_file.s3_key)
-    if not url:
-        raise HTTPException(status_code=500, detail="Could not generate URL")
-        
+    # Return proxy view URL
+    # We use BACKEND_URL from settings to ensure absolute link
+    from ..core.config import settings
+    url = f"{settings.BACKEND_URL}/patients/files/{file_id}/serve"
     return {"url": url}
+
+@router.get("/files/{file_id}/serve")
+def serve_file(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """
+    Decrypt and stream file to browser.
+    """
+    is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
+    
+    query = db.query(PDFFile).join(Patient).filter(PDFFile.file_id == file_id)
+    if not is_platform:
+        query = query.filter(Patient.hospital_id == current_user.hospital_id)
+        
+    pdf_file = query.first()
+    if not pdf_file:
+         raise HTTPException(status_code=404, detail="File not found")
+    
+    s3_manager = S3Manager()
+    encrypted_bytes = s3_manager.get_file_bytes(pdf_file.s3_key)
+    
+    if not encrypted_bytes:
+        raise HTTPException(status_code=404, detail="Physical file not found")
+        
+    try:
+        decrypted_bytes = decrypt_data(encrypted_bytes)
+        return Response(
+            content=decrypted_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'inline; filename="{pdf_file.filename}"'
+            }
+        )
+    except Exception as e:
+        print(f"❌ Decryption Failed for file {file_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to decrypt file")
 
 @router.get("/files/{file_id}/status")
 def get_file_status(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

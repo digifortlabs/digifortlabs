@@ -12,6 +12,9 @@ class S3Manager:
         self.mode = "s3"
         self.bucket_name = settings.AWS_BUCKET_NAME or "local-bucket"
         
+        self.local_root = os.path.join(os.getcwd(), "local_storage")
+        os.makedirs(self.local_root, exist_ok=True)
+        
         # Check if AWS keys are present in settings (explicit) or available via environment/profile
         try:
             if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
@@ -24,16 +27,12 @@ class S3Manager:
             else:
                 # Fallback to default session (e.g., ~/.aws/credentials)
                 self.s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
-                # Test connectivity with a HEAD request or similar if possible, 
-                # but simple bucket check is fine. If this fails, we catch it below.
                 self.s3_client.list_buckets()
             
             print(f"✅ S3 Manager initialized for bucket: {self.bucket_name} (Region: {settings.AWS_REGION})")
             self.mode = "s3"
         except Exception as e:
             self.mode = "local"
-            self.local_root = os.path.join(os.getcwd(), "local_storage")
-            os.makedirs(self.local_root, exist_ok=True)
             print(f"⚠️ S3 Manager falling back to LOCAL MODE (Error: {str(e)[:50]}...). Storage: {self.local_root}")
 
     def upload_file(self, file_content, object_name, content_type=None):
@@ -133,6 +132,26 @@ class S3Manager:
         except Exception as e:
             print(f"❌ Unexpected Download Error: {e}")
             return False
+
+    def get_file_bytes(self, object_name: str) -> bytes:
+        """
+        Retrieves raw bytes from S3 or Local.
+        """
+        # Try local first as fallback for legacy files
+        local_path = os.path.join(self.local_root, object_name)
+        if os.path.exists(local_path):
+            with open(local_path, 'rb') as f:
+                return f.read()
+
+        if self.mode == "s3":
+            try:
+                response = self.s3_client.get_object(Bucket=self.bucket_name, Key=object_name)
+                return response['Body'].read()
+            except Exception as e:
+                print(f"❌ S3 Retrieval Error: {e}")
+                return None
+        
+        return None
 
     def delete_file(self, object_name):
         """

@@ -28,8 +28,13 @@ def decrypt_file(file_path: str) -> bytes:
     """
     Decrypts a file and returns bytes.
     """
-    fernet = Fernet(KEY.encode())
     with open(file_path, 'rb') as f:
         encrypted = f.read()
-        
-    return fernet.decrypt(encrypted)
+    return decrypt_data(encrypted)
+
+def decrypt_data(encrypted_bytes: bytes) -> bytes:
+    """
+    Decrypts bytes and returns original bytes.
+    """
+    fernet = Fernet(KEY.encode())
+    return fernet.decrypt(encrypted_bytes)
