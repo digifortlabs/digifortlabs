@@ -190,7 +190,14 @@ def process_pdf_background_legacy(file_id: int, file_bytes: bytes):
         db.close()
 
 # Response Models
-    # Response Model Update
+class FileData(BaseModel):
+    file_id: int
+    filename: str
+    upload_date: datetime.datetime
+    file_size_mb: float
+    upload_status: str
+
+# Response Models
 class PatientResponse(BaseModel):
     record_id: int
     patient_u_id: str
@@ -208,11 +215,10 @@ class PatientResponse(BaseModel):
     physical_box_id: Optional[int] = None
     box_label: Optional[str] = None
     box_location_code: Optional[str] = None
+    files: List[FileData] = []
     
     class Config:
         from_attributes = True
-
-# ... (Existing FileResponse, PatientDetailResponse, UpdateTagsRequest)
 
 class PatientCreate(BaseModel):
     patient_u_id: str
@@ -241,15 +247,8 @@ class PatientUpdate(BaseModel):
     dob: Optional[datetime.datetime] = None
     discharge_date: Optional[datetime.datetime] = None
 
-class FileData(BaseModel):
-    file_id: int
-    filename: str
-    upload_date: datetime.datetime
-    file_size_mb: float
-    upload_status: str
-
 class PatientDetailResponse(PatientResponse):
-    files: List[FileData] = []
+    pass
 
 class UpdateTagsRequest(BaseModel):
     tags: str
