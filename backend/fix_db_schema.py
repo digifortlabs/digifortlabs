@@ -31,12 +31,13 @@ def run_migration():
                 except Exception as e:
                     print(f"⚠️ Warning adding pdf_files.{col}: {e}")
             
-            # 2. ICD11 Codes table updates
-            try:
-                conn.execute(text("ALTER TABLE icd11_codes ADD COLUMN IF NOT EXISTS chapter VARCHAR"))
-                print("✅ Verified icd11_codes.chapter")
-            except Exception as e:
-                print(f"⚠️ Warning adding icd11_codes.chapter: {e}")
+            # 2. ICD11 Codes tables updates
+            for table in ["icd11_codes", "icd11_procedure_codes"]:
+                try:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS chapter VARCHAR"))
+                    print(f"✅ Verified {table}.chapter")
+                except Exception as e:
+                    print(f"⚠️ Warning adding {table}.chapter: {e}")
                 
             conn.commit()
         else:
@@ -49,6 +50,9 @@ def run_migration():
                     ("page_count", "INTEGER", "0")
                 ],
                 "icd11_codes": [
+                    ("chapter", "VARCHAR", "NULL")
+                ],
+                "icd11_procedure_codes": [
                     ("chapter", "VARCHAR", "NULL")
                 ]
             }
