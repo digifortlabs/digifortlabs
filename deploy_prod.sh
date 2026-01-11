@@ -98,6 +98,17 @@ echo "✅ Frontend Running."
 
 # --- 3. BACKEND SETUP ---
 echo "⚙️  [3/6] Setting up Backend..."
+echo "Release Port 8000 to prevent conflicts..."
+sudo fuser -k 8000/tcp 2>/dev/null || true
+if command -v docker &> /dev/null; then
+    # Stop any container mapped to port 8000
+    CONTAINER_ID=$(sudo docker ps -q --filter "publish=8000")
+    if [ ! -z "$CONTAINER_ID" ]; then
+        echo "Found Docker container holding port 8000. Stopping..."
+        sudo docker stop $CONTAINER_ID
+    fi
+fi
+
 cd ~/digifortlabs/backend || exit
 
 # Setup Virtual Env
