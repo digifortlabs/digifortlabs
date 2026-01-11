@@ -260,12 +260,16 @@ export default function WarehousePage() {
         if (!token || !selectedRackForBox) return;
 
         try {
-            // Generate Location Code automatically from Rack info
-            // e.g. WH-A{aisle}-R{label}
             const locationCode = `WH-A${selectedRackForBox.aisle}-${selectedRackForBox.label}`;
 
-            const res = await fetch(`${API_URL}/storage/boxes`, {
-                method: 'POST',
+            const url = editingBox
+                ? `${API_URL}/storage/boxes/${editingBox.box_id}`
+                : `${API_URL}/storage/boxes`;
+
+            const method = editingBox ? 'PATCH' : 'POST';
+
+            const res = await fetch(url, {
+                method: method,
                 headers: {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${token}`
@@ -280,17 +284,17 @@ export default function WarehousePage() {
 
             if (res.ok) {
                 setIsCreatingBox(false);
+                setEditingBox(null);
                 setBoxForm({ label: '', capacity: 50, rack_row: '', rack_column: '' });
                 setSelectedRackForBox(null);
-                alert("Box Created Successfully!");
-                fetchBoxes(token); // Refresh box list
-                // Optionally refresh Rack stats if we showed box counts
+                alert(editingBox ? "Box Updated Successfully!" : "Box Created Successfully!");
+                fetchBoxes(token);
             } else {
                 const err = await res.json();
-                alert(err.detail || "Failed to create box");
+                alert(err.detail || "Failed to save box");
             }
         } catch (e) {
-            console.error("Create box error", e);
+            console.error("Save box error", e);
         }
     };
 
@@ -745,8 +749,8 @@ export default function WarehousePage() {
                             {isCreatingBox && selectedRackForBox && (
                                 <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                                     <div className="bg-white rounded-[2rem] p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95">
-                                        <h3 className="text-xl font-bold text-slate-800 mb-2">Add Box to {selectedRackForBox.label}</h3>
-                                        <p className="text-slate-400 text-sm mb-6">Create a new storage box in this rack.</p>
+                                        <h3 className="text-xl font-bold text-slate-800 mb-2">{editingBox ? `Edit Box in ${selectedRackForBox.label}` : `Add Box to ${selectedRackForBox.label}`}</h3>
+                                        <p className="text-slate-400 text-sm mb-6">{editingBox ? "Update current storage box details." : "Create a new storage box in this rack."}</p>
 
                                         <div className="space-y-4 mb-8">
                                             <div className="space-y-2">
@@ -765,7 +769,10 @@ export default function WarehousePage() {
                                                     type="number"
                                                     className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500"
                                                     value={boxForm.capacity}
-                                                    onChange={e => setBoxForm({ ...boxForm, capacity: parseInt(e.target.value) })}
+                                                    onChange={e => {
+                                                        const val = parseInt(e.target.value);
+                                                        setBoxForm({ ...boxForm, capacity: isNaN(val) ? 0 : val });
+                                                    }}
                                                 />
                                                 <p className="text-[10px] text-slate-400 font-bold">Standard capacity is 50 files.</p>
                                             </div>
@@ -773,7 +780,7 @@ export default function WarehousePage() {
 
                                         <div className="flex gap-3">
                                             <button
-                                                onClick={() => { setIsCreatingBox(false); setSelectedRackForBox(null); }}
+                                                onClick={() => { setIsCreatingBox(false); setSelectedRackForBox(null); setEditingBox(null); }}
                                                 className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
                                             >
                                                 Cancel
@@ -782,7 +789,7 @@ export default function WarehousePage() {
                                                 onClick={handleCreateBox}
                                                 className="flex-1 py-3 rounded-xl font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-colors"
                                             >
-                                                Create Box
+                                                {editingBox ? "Update Box" : "Create Box"}
                                             </button>
                                         </div>
                                     </div>
