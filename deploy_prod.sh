@@ -138,6 +138,15 @@ ACCESS_TOKEN_EXPIRE_MINUTES=43200
 
 ENVIRONMENT=production
 BACKEND_URL=https://digifortlabs.com/api
+ENCRYPTION_KEY=a1z-3mNXYRp0yKAcP6xVpX6pjK6O38h039zisZMjE1U=
+
+# AWS S3 Storage
+AWS_REGION=ap-south-1
+AWS_BUCKET_NAME=digifort-labs-files
+# Note: Use IAM Role on EC2 for secure access (recommended)
+# Replace these ONLY if not using an IAM Role:
+# AWS_ACCESS_KEY_ID=
+# AWS_SECRET_ACCESS_KEY=
 
 # ICD-11 API (WHO)
 ICD11_CLIENT_ID=0079dc17-fdb9-4828-a400-643797eb1df0_a8a3014a-7bc9-410a-bbea-d42f56708b73
