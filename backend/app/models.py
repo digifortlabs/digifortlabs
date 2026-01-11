@@ -141,6 +141,11 @@ class PDFFile(Base):
     # Upload Workflow: 'draft' (MRD Buffer) -> 'confirmed' (Visible)
     upload_status = Column(String, default="confirmed")
     
+    # Historical Billing (Captured at upload time)
+    price_per_file = Column(Float, default=100.0)
+    included_pages = Column(Integer, default=20)
+    price_per_extra_page = Column(Float, default=1.0)
+    
     # Progress Tracking
     processing_stage = Column(String, default="queued") # queued, compressing, encrypting, uploading, completed, failed
     processing_progress = Column(Integer, default=0) # 0-100

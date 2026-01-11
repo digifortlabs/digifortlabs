@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import ICD11ProcedureCode, Patient, PatientProcedure, User
 from ..routers.auth import get_current_user
+from ..services.icd11_service import icd_service
 
 router = APIRouter()
 
@@ -41,18 +42,33 @@ class PatientProcedureResponse(BaseModel):
 
 @router.get("/search", response_model=List[ProcedureResponse])
 def search_procedures(q: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Search for ICD-11 Procedures by code or description."""
+    """Search locally and supplement with WHO ICD-11 live API."""
     if len(q) < 2:
         return []
     
-    results = db.query(ICD11ProcedureCode).filter(
+    # 1. Local Search
+    local_results = db.query(ICD11ProcedureCode).filter(
         or_(
             ICD11ProcedureCode.code.ilike(f"%{q}%"),
             ICD11ProcedureCode.description.ilike(f"%{q}%")
         )
-    ).limit(20).all()
+    ).limit(10).all()
     
-    return results
+    # 2. WHO Live Search
+    live_results = icd_service.search_codes(q)
+    
+    # Merge Results
+    seen_codes = {r.code for r in local_results}
+    merged = [ProcedureResponse.from_orm(r) for r in local_results]
+    
+    for r in live_results:
+        # Note: WHO search might return both diagnoses and procedures, 
+        # but usually MMS contains both in a clinical context.
+        if r["code"] not in seen_codes:
+            merged.append(ProcedureResponse(**r))
+            seen_codes.add(r["code"])
+            
+    return merged[:20]
 
 @router.post("/patients/{patient_id}/procedures", response_model=PatientProcedureResponse)
 def add_patient_procedure(

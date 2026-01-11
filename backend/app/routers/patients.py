@@ -93,6 +93,7 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str):
                     import io
                     reader = PdfReader(io.BytesIO(content_bytes))
                     db_file.page_count = len(reader.pages)
+                    db.commit() # IMMEDIATE COMMIT for UI feedback
                     print(f"📄 Page Count: {db_file.page_count}")
                 except Exception as pe:
                     print(f"⚠️ Page count error: {pe}")
@@ -222,6 +223,11 @@ class FileData(BaseModel):
     file_size_mb: float
     page_count: int = 0
     upload_status: str
+    
+    # Historical Pricing captured at upload
+    price_per_file: float = 100.0
+    included_pages: int = 20
+    price_per_extra_page: float = 1.0
 
 # Response Models
 class PatientResponse(BaseModel):
@@ -418,7 +424,11 @@ async def upload_patient_file(
         file_size=os.path.getsize(tmp_path),
         upload_status="draft", # Force draft for Review Step
         processing_stage="queued",
-        processing_progress=0
+        processing_progress=0,
+        # Capture Historical Pricing
+        price_per_file=patient.price_per_file,
+        included_pages=patient.included_pages,
+        price_per_extra_page=patient.price_per_extra_page
     )
     db.add(new_file)
     db.commit()
@@ -566,18 +576,15 @@ def check_uhid_exists(uhid_no: str, db: Session = Depends(get_db), current_user:
 
 @router.post("/files/{file_id}/confirm")
 def confirm_upload(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # Only MRD needs to confirm
-    # Review Step: Allow Hospital Staff to confirm
-    # if current_user.role != UserRole.MRD_STAFF:
-    #      raise HTTPException(status_code=403, detail="Only MRD Staff needs to confirm uploads")
-    # Relaxed for universal review flow
-         
+    is_platform = current_user.role in ["website_admin", "website_staff"]
+    
     q = db.query(PDFFile).join(Patient).filter(PDFFile.file_id == file_id)
-    q = q.filter(Patient.hospital_id == current_user.hospital_id)
+    if not is_platform:
+        q = q.filter(Patient.hospital_id == current_user.hospital_id)
     f = q.first()
     
     if not f: 
-        raise HTTPException(status_code=404, detail="File not found")
+        raise HTTPException(status_code=404, detail="File not found or access denied")
         
     # Migration Logic: Local Draft -> S3 Archive via StorageService
     if "drafts/" in (f.s3_key or ""):

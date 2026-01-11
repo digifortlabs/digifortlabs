@@ -18,7 +18,10 @@ interface FileData {
     tags?: string;
     ocr_text?: string;
     is_deletion_pending?: boolean;
-    page_count?: number; // New Field
+    page_count?: number;
+    price_per_file?: number;
+    included_pages?: number;
+    price_per_extra_page?: number;
 }
 
 interface PatientDetail {
@@ -31,11 +34,18 @@ interface PatientDetail {
     contact_number?: string;
     address?: string;
     city?: string;
+    state?: string;
+    pincode?: string;
+    email_id?: string;
     aadhaar_number?: string;
     discharge_date?: string;
     files: FileData[];
+    physical_box_id?: number;
     box_label?: string;
     box_location_code?: string;
+    price_per_file: number;
+    included_pages: number;
+    price_per_extra_page: number;
 }
 
 interface Box {
@@ -486,28 +496,6 @@ function PatientDetailContent() {
         } catch (e) { console.error(e); }
     };
 
-    interface PatientDetail {
-        record_id: number;
-        patient_u_id: string;
-        uhid?: string;
-        full_name: string;
-        discharge_date?: string;
-        // New Fields
-        age?: number;
-        gender?: string;
-        contact_number?: string;
-        address?: string;
-        city?: string;
-        state?: string;
-        pincode?: string;
-        email_id?: string;
-        aadhaar_number?: string;
-
-        files: FileData[];
-        physical_box_id?: number;
-        box_label?: string;
-        box_location_code?: string;
-    }
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -649,13 +637,14 @@ function PatientDetailContent() {
                                 </div>
                                 <div className="flex justify-between items-center mb-4">
                                     <p className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
-                                        ₹{(() => {
-                                            const base = patient.price_per_file || 0;
-                                            const incl = patient.included_pages || 0; // Back in logic
-                                            const extra = patient.price_per_extra_page || 0;
+                                        {(() => {
+                                            const basePrice = file.price_per_file ?? patient.price_per_file ?? 100;
+                                            const included = file.included_pages ?? patient.included_pages ?? 20;
+                                            const extraFee = file.price_per_extra_page ?? patient.price_per_extra_page ?? 1;
                                             const pages = file.page_count || 0;
-                                            const extraPages = Math.max(0, pages - incl);
-                                            return (base + (extraPages * extra)).toFixed(2);
+                                            const extraPages = Math.max(0, pages - included);
+                                            const totalCost = basePrice + (extraPages * extraFee);
+                                            return `₹${totalCost.toFixed(2)}`;
                                         })()}
                                     </p>
                                     {file.is_searchable && (

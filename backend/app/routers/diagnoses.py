@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import ICD11Code, Patient, PatientDiagnosis, User
 from .auth import get_current_user
+from ..services.icd11_service import icd_service
 
 router = APIRouter()
 
@@ -39,18 +40,31 @@ class DiagnosisResponse(BaseModel):
 
 @router.get("/search", response_model=List[ICD11Response])
 def search_diagnoses(q: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Search for ICD-11 codes by code or description."""
+    """Search locally and fallback/supplement with WHO ICD-11 live API."""
     if len(q) < 2:
         return []
     
-    results = db.query(ICD11Code).filter(
+    # 1. Local Search
+    local_results = db.query(ICD11Code).filter(
         or_(
             ICD11Code.code.ilike(f"%{q}%"),
             ICD11Code.description.ilike(f"%{q}%")
         )
-    ).limit(20).all()
+    ).limit(10).all()
     
-    return results
+    # 2. WHO Live Search
+    live_results = icd_service.search_codes(q)
+    
+    # Merge Results
+    seen_codes = {r.code for r in local_results}
+    merged = [ICD11Response.from_orm(r) for r in local_results]
+    
+    for r in live_results:
+        if r["code"] not in seen_codes:
+            merged.append(ICD11Response(**r))
+            seen_codes.add(r["code"])
+            
+    return merged[:20]
 
 @router.get("/patients/{patient_id}/diagnoses", response_model=List[DiagnosisResponse])
 def get_patient_diagnoses(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -92,7 +106,22 @@ def add_patient_diagnosis(
     # Validate code
     icd_code = db.query(ICD11Code).filter(ICD11Code.code == diagnosis.code).first()
     if not icd_code:
-         raise HTTPException(status_code=400, detail="Invalid ICD-11 Code")
+        # Check if we can find it in live API before failing
+        # This allows "on-the-fly" registration of official codes
+        live_res = icd_service.search_codes(diagnosis.code) # Precise search if possible
+        found_live = next((item for item in live_res if item["code"] == diagnosis.code), None)
+        
+        if found_live:
+            # Auto-Register the code locally
+            icd_code = ICD11Code(
+                code=found_live["code"],
+                description=found_live["description"],
+                chapter="WHO-AUTO"
+            )
+            db.add(icd_code)
+            db.commit()
+        else:
+            raise HTTPException(status_code=400, detail="Invalid or unregistered ICD-11 Code")
 
     new_diagnosis = PatientDiagnosis(
         record_id=patient_id,
