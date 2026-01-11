@@ -6,11 +6,8 @@
 # Usage: ./deploy_prod.sh
 
 # 0. ENSURE LATEST CODE
-echo "⬇️ [0/6] Pulling latest changes..."
-git pull
-if [ $? -ne 0 ]; then
-    echo "⚠️ Git pull failed. Continuing with current code..."
-fi
+echo "⏭️ [0/6] Skipping internal pull (Manual pull/reset recommended)..."
+# (Pulling inside a running script can cause conflicts)
 
 
 # --- 1. SYSTEM PREP & CLEANUP ---
