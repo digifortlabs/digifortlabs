@@ -221,7 +221,7 @@ function PatientDetailContent() {
     // ICD-11 Helpers
     const fetchDiagnoses = async (token: string) => {
         try {
-            const res = await fetch(`${API_URL}/patients/${id}/diagnoses`, {
+            const res = await fetch(`${API_URL}/icd11/diagnoses/patients/${id}/diagnoses`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) setDiagnoses(await res.json());
@@ -242,7 +242,7 @@ function PatientDetailContent() {
         if (q.length < 2) { setDiagResults([]); return; }
         const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/icd11/search?q=${q}`, {
+            const res = await fetch(`${API_URL}/icd11/diagnoses/search?q=${q}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) setDiagResults(await res.json());
@@ -265,7 +265,7 @@ function PatientDetailContent() {
         if (!selectedCode) return;
         const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/patients/${id}/diagnoses`, {
+            const res = await fetch(`${API_URL}/icd11/diagnoses/patients/${id}/diagnoses`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ code: selectedCode.code, notes: diagNotes })
@@ -323,7 +323,7 @@ function PatientDetailContent() {
         if (!confirm("Remove this diagnosis?")) return;
         const token = localStorage.getItem('token');
         try {
-            await fetch(`${API_URL}/patients/${id}/diagnoses/${diagId}`, {
+            await fetch(`${API_URL}/icd11/diagnoses/patients/${id}/diagnoses/${diagId}`, {
                 method: 'DELETE',
                 headers: { Authorization: `Bearer ${token}` }
             });

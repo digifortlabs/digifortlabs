@@ -12,20 +12,29 @@ class S3Manager:
         self.mode = "s3"
         self.bucket_name = settings.AWS_BUCKET_NAME or "local-bucket"
         
-        # Check if AWS keys are present
-        if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
-             self.s3_client = boto3.client(
-                's3',
-                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-                region_name=settings.AWS_REGION
-            )
-             print(f"✅ S3 Manager initialized for bucket: {self.bucket_name} (Region: {settings.AWS_REGION})")
-        else:
+        # Check if AWS keys are present in settings (explicit) or available via environment/profile
+        try:
+            if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+                self.s3_client = boto3.client(
+                    's3',
+                    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                    region_name=settings.AWS_REGION
+                )
+            else:
+                # Fallback to default session (e.g., ~/.aws/credentials)
+                self.s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
+                # Test connectivity with a HEAD request or similar if possible, 
+                # but simple bucket check is fine. If this fails, we catch it below.
+                self.s3_client.list_buckets()
+            
+            print(f"✅ S3 Manager initialized for bucket: {self.bucket_name} (Region: {settings.AWS_REGION})")
+            self.mode = "s3"
+        except Exception as e:
             self.mode = "local"
             self.local_root = os.path.join(os.getcwd(), "local_storage")
             os.makedirs(self.local_root, exist_ok=True)
-            print(f"✅ S3 Manager initialized in LOCAL MODE. Storage: {self.local_root}")
+            print(f"⚠️ S3 Manager falling back to LOCAL MODE (Error: {str(e)[:50]}...). Storage: {self.local_root}")
 
     def upload_file(self, file_content, object_name, content_type=None):
         """

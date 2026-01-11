@@ -46,13 +46,26 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             {/* Super Admin Links */}
                             {userRole === 'website_admin' && (
                                 <Link
-                                    href="/dashboard/hospitals"
-                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/hospitals')
+                                    href="/dashboard/hospital_mgmt"
+                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/hospital_mgmt')
                                         ? 'bg-indigo-600 text-white'
                                         : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                         }`}
                                 >
                                     Hospitals
+                                </Link>
+                            )}
+
+                            {/* Records Link - Admins & MRD Staff */}
+                            {(userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'website_admin') && (
+                                <Link
+                                    href="/dashboard/records"
+                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/records')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        }`}
+                                >
+                                    Records
                                 </Link>
                             )}
 
@@ -86,21 +99,8 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
 
 
-                            {/* Patient Records */}
-                            {(userRole === 'hospital_admin' || userRole === 'data_uploader' || userRole === 'website_staff' || userRole === 'mrd_staff') && (
-                                <Link
-                                    href="/dashboard/records"
-                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/records')
-                                        ? 'bg-slate-800 text-white'
-                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                        }`}
-                                >
-                                    Records
-                                </Link>
-                            )}
-
                             {/* Operations */}
-                            {(userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'website_staff') && (
+                            {(userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'website_staff' || userRole === 'website_admin') && (
                                 <>
                                     {/* Staff Management - Hospital Admin Only */}
                                     {userRole === 'hospital_admin' && (
@@ -115,6 +115,19 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                         </Link>
                                     )}
 
+                                    {/* Team Management - Hospital Admin Only */}
+                                    {userRole === 'hospital_admin' && (
+                                        <Link
+                                            href="/dashboard/user_mgmt"
+                                            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/user_mgmt')
+                                                ? 'bg-slate-800 text-white'
+                                                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                                }`}
+                                        >
+                                            Team
+                                        </Link>
+                                    )}
+
                                     {/* File Retrieval Requests */}
                                     <Link
                                         href="/dashboard/requests"
@@ -125,6 +138,19 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                     >
                                         File Requests
                                     </Link>
+                                    {/* Physical Archive - Visible to MRD and Admins */}
+                                    {(userRole === 'mrd_staff' || userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'website_staff') && (
+                                        <Link
+                                            href="/dashboard/archive"
+                                            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/archive')
+                                                ? 'bg-slate-800 text-white'
+                                                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                                }`}
+                                        >
+                                            Archive
+                                        </Link>
+                                    )}
+
                                     {userRole === 'mrd_staff' && (
                                         <Link
                                             href="/dashboard/drafts"

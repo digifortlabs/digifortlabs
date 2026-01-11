@@ -37,8 +37,8 @@ class DiagnosisResponse(BaseModel):
 
 # --- Endpoints ---
 
-@router.get("/icd11/search", response_model=List[ICD11Response])
-def search_icd11(q: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+@router.get("/search", response_model=List[ICD11Response])
+def search_diagnoses(q: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Search for ICD-11 codes by code or description."""
     if len(q) < 2:
         return []

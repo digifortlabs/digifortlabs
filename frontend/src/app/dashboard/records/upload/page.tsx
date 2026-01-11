@@ -3,8 +3,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL } from '../../../../config/api';
 import { toTitleCase, toUpperCaseMRD } from '@/utils/formatters';
-import { Search, Upload, X, Plus, FileText, Trash2, CheckCircle, AlertCircle, Loader2, PlayCircle, FileType } from 'lucide-react';
+import { Search, Upload, X, Plus, FileText, Trash2, CheckCircle, AlertCircle, Loader2, PlayCircle, FileType, Building2 } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
+import DigitizationScanner from '@/components/Scanner/DigitizationScanner';
+import { Camera } from 'lucide-react';
 
 type UploadStatus = 'pending' | 'compressing' | 'uploading' | 'processing' | 'completed' | 'error';
 
@@ -27,16 +29,63 @@ export default function PatientUploadPage() {
     const [selectedPatient, setSelectedPatient] = useState<any>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
+    // Superadmin / Staff Logic
+    const [userProfile, setUserProfile] = useState<any>(null);
+    const [hospitals, setHospitals] = useState<any[]>([]);
+    const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null);
+
     // Upload Queue State
     const [fileQueue, setFileQueue] = useState<FileQueueItem[]>([]);
     const [isUploadingGlobal, setIsUploadingGlobal] = useState(false);
 
-    // Refs for cancelling/management
+    const [showScanner, setShowScanner] = useState(false);
     const abortControllers = useRef<{ [key: string]: XMLHttpRequest }>({});
 
     useEffect(() => {
-        fetchPatients();
+        fetchUserProfile();
     }, []);
+
+    useEffect(() => {
+        if (userProfile && (userProfile.role === 'website_admin' || userProfile.role === 'website_staff')) {
+            fetchHospitals();
+        } else if (userProfile) {
+            // Regular hospital staff
+            fetchPatients();
+        }
+    }, [userProfile]);
+
+    // Refetch patients when hospital selection changes (for superusers)
+    useEffect(() => {
+        if (selectedHospitalId) {
+            fetchPatients();
+        }
+    }, [selectedHospitalId]);
+
+    const fetchUserProfile = async () => {
+        const token = localStorage.getItem('token');
+        if (!token) return router.push('/login');
+        try {
+            const res = await fetch(`${API_URL}/users/me`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setUserProfile(data);
+                // If standard user, their ID is fixed
+                if (data.hospital_id) setSelectedHospitalId(data.hospital_id);
+            }
+        } catch (e) { console.error(e); }
+    };
+
+    const fetchHospitals = async () => {
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/hospitals/`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) setHospitals(await res.json());
+        } catch (e) { console.error(e); }
+    };
 
     const fetchPatients = async () => {
         const token = localStorage.getItem('token');
@@ -45,7 +94,13 @@ export default function PatientUploadPage() {
             return;
         }
         try {
-            const res = await fetch(`${API_URL}/patients/`, {
+            // Append hospital_id filter if selected (and user is privileged)
+            let url = `${API_URL}/patients/`;
+            if (selectedHospitalId && (userProfile?.role === 'website_admin' || userProfile?.role === 'website_staff')) {
+                url += `?hospital_id=${selectedHospitalId}`;
+            }
+
+            const res = await fetch(url, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) {
@@ -63,6 +118,17 @@ export default function PatientUploadPage() {
         p.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.patient_u_id?.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    const handleScannerComplete = (file: File) => {
+        const newItem: FileQueueItem = {
+            id: Math.random().toString(36).substr(2, 9),
+            originalFile: file,
+            status: 'pending',
+            progress: 0
+        };
+        setFileQueue(prev => [...prev, newItem]);
+        setShowScanner(false);
+    };
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -177,20 +243,34 @@ export default function PatientUploadPage() {
         full_name: '', patient_u_id: '', age: '', gender: '', address: '', contact_number: '', email_id: '', dob: '', discharge_date: ''
     });
     const [isExisting, setIsExisting] = useState(false);
-    const handleCreatePatient = async (e: React.FormEvent) => { /* ... existing logic ... */
+    const handleCreatePatient = async (e: React.FormEvent) => {
         e.preventDefault();
         const token = localStorage.getItem('token');
+
+        // Prepare payload, including hospital_id if manually selected
+        const payload = { ...newPatient };
+        if (selectedHospitalId) {
+            (payload as any).hospital_id = selectedHospitalId;
+        }
+
         try {
             const res = await fetch(`${API_URL}/patients/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify(newPatient)
+                body: JSON.stringify(payload)
             });
             if (res.ok) {
                 const data = await res.json();
                 setPatients(prev => [...prev, data]);
                 setSelectedPatient(data);
                 setShowPatientModal(false);
+                // Reset form
+                setNewPatient({
+                    full_name: '', patient_u_id: '', age: '', gender: '', address: '', contact_number: '', email_id: '', dob: '', discharge_date: ''
+                });
+            } else {
+                const err = await res.json();
+                alert(err.detail || "Failed to create patient");
             }
         } catch (e) { console.error(e); }
     };
@@ -210,17 +290,53 @@ export default function PatientUploadPage() {
         <div className="max-w-6xl mx-auto p-6 md:p-12">
 
             {/* Header */}
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-800 flex items-center gap-3">
                         <Upload className="text-indigo-600 w-8 h-8" /> Digitization Studio
                     </h1>
                     <p className="text-slate-500 font-medium mt-1">Efficiently digitize and organize patient records.</p>
                 </div>
-                <button onClick={() => setShowPatientModal(true)} className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-xl shadow-slate-200 transition-all active:scale-95">
-                    <Plus size={20} /> New Patient
-                </button>
+
+                <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+                    {/* Hospital Selector for Platform Users */}
+                    {(userProfile?.role === 'website_admin' || userProfile?.role === 'website_staff') && (
+                        <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-2xl shadow-sm">
+                            <Building2 size={18} className="text-slate-400" />
+                            <select
+                                className="bg-transparent text-sm font-bold text-slate-700 outline-none pr-4"
+                                value={selectedHospitalId || ''}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setSelectedHospitalId(val ? parseInt(val) : null);
+                                    setSelectedPatient(null); // Reset patient on hospital change
+                                }}
+                            >
+                                <option value="">Select Hospital</option>
+                                {hospitals.map(h => (
+                                    <option key={h.hospital_id} value={h.hospital_id}>{h.legal_name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    <button
+                        disabled={!selectedHospitalId}
+                        onClick={() => setShowPatientModal(true)}
+                        className={`px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-xl transition-all active:scale-95 ${!selectedHospitalId ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' : 'bg-slate-900 hover:bg-slate-800 text-white shadow-slate-200'}`}
+                    >
+                        <Plus size={20} /> New Patient
+                    </button>
+                </div>
             </div>
+
+            {/* Scanner Viewport */}
+            {showScanner && (
+                <DigitizationScanner
+                    onComplete={handleScannerComplete}
+                    onCancel={() => setShowScanner(false)}
+                />
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
@@ -290,7 +406,16 @@ export default function PatientUploadPage() {
                             </div>
                             <h2 className="text-2xl font-black text-slate-800 mb-2">Upload Records</h2>
                             <p className="text-slate-500 font-medium">Drag & Drop or Click to Select</p>
-                            <p className="text-xs text-slate-400 mt-4 bg-slate-50 inline-block px-3 py-1 rounded-full">Supports PDF, Images, Videos</p>
+                            <div className="flex items-center justify-center gap-3 mt-6">
+                                <p className="text-xs text-slate-400 bg-slate-50 px-3 py-1 rounded-full">Supports PDF, Images, Videos</p>
+                                <div className="h-4 w-[1px] bg-slate-200"></div>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setShowScanner(true); }}
+                                    className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full flex items-center gap-1.5 transition active:scale-95 relative z-30"
+                                >
+                                    <Camera size={12} /> Live Scan
+                                </button>
+                            </div>
                         </div>
                     </div>
 

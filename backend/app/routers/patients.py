@@ -446,6 +446,7 @@ def search_files(q: str, db: Session = Depends(get_db), current_user: User = Dep
 def get_patients(
     q: Optional[str] = None, 
     unassigned_only: bool = False,
+    hospital_id: Optional[int] = None, # New: Allow filtering by specific hospital
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
@@ -455,8 +456,16 @@ def get_patients(
     
     if unassigned_only:
         query = query.filter(Patient.physical_box_id == None)
+
     if not is_platform:
+        # Standard Staff: RESTRICT to their own hospital
         query = query.filter(Patient.hospital_id == current_user.hospital_id)
+    else:
+        # Platform Staff:
+        # If hospital_id is provided, filter by it.
+        # If NOT provided, return ALL (or maybe we should force selection for performance? logic below allows all)
+        if hospital_id:
+            query = query.filter(Patient.hospital_id == hospital_id)
     
     if q:
         query = query.filter(

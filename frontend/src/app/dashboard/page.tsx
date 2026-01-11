@@ -158,41 +158,43 @@ export default function CommandCenter() {
                                 <button className="px-4 py-2 bg-indigo-50 rounded-xl text-xs font-bold text-indigo-600 border border-indigo-100">Weekly</button>
                             </div>
                         </div>
-                        <div className="h-64 w-full bg-white rounded-2xl flex items-center justify-center border border-slate-100 p-2">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={stats?.traffic_data || []}>
-                                    <defs>
-                                        <linearGradient id="colorTraffic" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
-                                            <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis
-                                        dataKey="name"
-                                        axisLine={false}
-                                        tickLine={false}
-                                        tick={{ fontSize: 10, fill: '#94a3b8' }}
-                                        interval={3}
-                                    />
-                                    <YAxis
-                                        axisLine={false}
-                                        tickLine={false}
-                                        tick={{ fontSize: 10, fill: '#94a3b8' }}
-                                    />
-                                    <Tooltip
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                        cursor={{ stroke: '#e2e8f0', strokeWidth: 2 }}
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="value"
-                                        stroke="#4f46e5"
-                                        strokeWidth={3}
-                                        fillOpacity={1}
-                                        fill="url(#colorTraffic)"
-                                    />
-                                </AreaChart>
-                            </ResponsiveContainer>
+                        <div className="h-64 w-full bg-white rounded-2xl flex items-center justify-center border border-slate-100 p-2 min-h-[256px]">
+                            <div className="w-full h-full" style={{ minWidth: 100 }}>
+                                <ResponsiveContainer width="100%" height="100%" debounce={100}>
+                                    <AreaChart data={stats?.traffic_data || []}>
+                                        <defs>
+                                            <linearGradient id="colorTraffic" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3} />
+                                                <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <XAxis
+                                            dataKey="name"
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                            interval={3}
+                                        />
+                                        <YAxis
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                        />
+                                        <Tooltip
+                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                            cursor={{ stroke: '#e2e8f0', strokeWidth: 2 }}
+                                        />
+                                        <Area
+                                            type="monotone"
+                                            dataKey="value"
+                                            stroke="#4f46e5"
+                                            strokeWidth={3}
+                                            fillOpacity={1}
+                                            fill="url(#colorTraffic)"
+                                        />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
                         </div>
                     </div>
 
@@ -282,7 +284,7 @@ export default function CommandCenter() {
                                 <ActionButton
                                     icon={<Users size={18} />}
                                     label="User Mgmt"
-                                    onClick={() => router.push('/dashboard/users')}
+                                    onClick={() => router.push('/dashboard/user_mgmt')}
                                 />
                             </div>
                         )}

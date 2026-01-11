@@ -157,3 +157,4 @@ echo "Frontend: https://digifortlabs.com"
 echo "Backend:  https://digifortlabs.com/api/docs"
 echo "PM2 Status: (Run 'pm2 status' to view)"
 echo "---------------------------------------------------"
+pm2 status

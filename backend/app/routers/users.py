@@ -53,6 +53,13 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
+@router.get("/me", response_model=UserResponse)
+def get_current_user_profile(current_user: User = Depends(get_current_user)):
+    """Return the currently logged-in user's profile."""
+    # Hide password for security
+    current_user.plain_password = None
+    return current_user
+
 @router.get("/", response_model=List[UserResponse])
 def get_users(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Security Check

@@ -173,9 +173,8 @@ def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), cur
 
 @router.get("/", response_model=List[HospitalResponse])
 def list_hospitals(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != UserRole.SUPER_ADMIN:
-        # If not super admin, maybe return just their own? Or forbid?
-        # For now, forbid listing ALL.
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+        # If not super admin or staff, forbid listing ALL.
         raise HTTPException(status_code=403, detail="Not authorized")
     return db.query(Hospital).all()
 

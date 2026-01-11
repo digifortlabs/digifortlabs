@@ -13,22 +13,16 @@ from app.models import ICD11Code
 def seed_icd11():
     db = SessionLocal()
     
-    # Check if table has data
-    try:
-        count = db.query(ICD11Code).count()
-        if count > 0:
-            print(f"ICD-11 Codes already exist ({count} found). Skipping seed.")
-            return
-    except Exception as e:
-        print("Table might not exist yet. Ensure migrations run first.", e)
-        return
-
     json_path = os.path.join(os.path.dirname(__file__), 'icd11_sample.json')
     
+    if not os.path.exists(json_path):
+        print(f"File not found: {json_path}")
+        return
+
     with open(json_path, 'r') as f:
         data = json.load(f)
         
-    print(f"Seeding {len(data)} ICD-11 codes...")
+    print(f"Updating/Seeding {len(data)} ICD-11 codes...")
     
     for item in data:
         code = ICD11Code(
@@ -36,11 +30,11 @@ def seed_icd11():
             description=item['description'],
             chapter=item.get('chapter', '')
         )
-        db.add(code)
+        db.merge(code)
     
     try:
         db.commit()
-        print("Seeding Complete!")
+        print("✅ Diagnosis update complete!")
     except Exception as e:
         print(f"Error seeding: {e}")
         db.rollback()

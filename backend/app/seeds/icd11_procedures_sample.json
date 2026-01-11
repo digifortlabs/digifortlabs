@@ -1,62 +1,78 @@
 [
     {
-        "code": "P01A",
-        "description": "Appendectomy, open approach"
+        "code": "3010",
+        "description": "Appendectomy"
     },
     {
-        "code": "P01B",
-        "description": "Appendectomy, laparoscopic approach"
+        "code": "3020",
+        "description": "Cholecystectomy"
     },
     {
-        "code": "P02A",
-        "description": "Cesarean section, classical"
+        "code": "1010",
+        "description": "Chest X-Ray"
     },
     {
-        "code": "P02B",
-        "description": "Cesarean section, low transverse"
+        "code": "1020",
+        "description": "CT Scan Abdomen"
     },
     {
-        "code": "P03A",
-        "description": "Total knee replacement, cemented"
+        "code": "1030",
+        "description": "MRI Brain"
     },
     {
-        "code": "P03B",
-        "description": "Total knee replacement, uncemented"
+        "code": "1040",
+        "description": "Ultrasound Guided Biopsy"
     },
     {
-        "code": "P04A",
-        "description": "Coronary artery bypass graft, single vessel"
+        "code": "5010",
+        "description": "Coronary Artery Bypass Graft (CABG)"
     },
     {
-        "code": "P04B",
-        "description": "Coronary artery bypass graft, double vessel"
+        "code": "5020",
+        "description": "Angioplasty with Stenting"
     },
     {
-        "code": "P05A",
-        "description": "Cholecystectomy, total, open"
+        "code": "6010",
+        "description": "Total Hip Replacement"
     },
     {
-        "code": "P05B",
-        "description": "Cholecystectomy, total, laparoscopic"
+        "code": "6020",
+        "description": "Total Knee Replacement"
     },
     {
-        "code": "P06A",
+        "code": "7010",
+        "description": "Cataract Extraction with IOL"
+    },
+    {
+        "code": "8010",
+        "description": "Normal Vaginal Delivery"
+    },
+    {
+        "code": "8020",
+        "description": "Caesarean Section"
+    },
+    {
+        "code": "9010",
         "description": "Hemodialysis"
     },
     {
-        "code": "P07A",
-        "description": "Normal delivery"
+        "code": "9020",
+        "description": "Chemotherapy Administration"
     },
     {
-        "code": "P08A",
-        "description": "Magnetic resonance imaging (MRI) of brain"
+        "code": "9030",
+        "description": "Physical Therapy Session"
     },
     {
-        "code": "P09A",
-        "description": "Computerized tomography (CT) scan of chest"
+        "code": "9040",
+        "description": "Blood Transfusion"
     },
     {
-        "code": "P10A",
-        "description": "Vaccination against COVID-11"
+        "code": "0010",
+        "description": "General Physical Examination"
+    },
+    {
+        "code": "0020",
+        "description": "Electrocardiogram (ECG)"
     }
 ]
