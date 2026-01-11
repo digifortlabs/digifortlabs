@@ -704,7 +704,7 @@ function PatientDetailContent() {
                                                 });
                                                 if (res.ok) {
                                                     const data = await res.json();
-                                                    window.open(data.url, '_blank');
+                                                    window.open(`${data.url}?token=${token}`, '_blank');
                                                 } else {
                                                     alert("Could not access file");
                                                 }

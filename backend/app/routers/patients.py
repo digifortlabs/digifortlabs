@@ -639,17 +639,35 @@ def get_file_url(file_id: int, db: Session = Depends(get_db), current_user: User
     if not pdf_file:
          raise HTTPException(status_code=404, detail="File not found or access denied")
     
-    # Return proxy view URL
-    # We use BACKEND_URL from settings to ensure absolute link
+    # Return proxy view URL with token for authenticated browser access
     from ..core.config import settings
+    # Use the same token that was used for this request
+    # However, since we don't have the raw token here, we might need to recreate a short-lived one or just pass the current one from frontend.
+    # For now, we will return the base URL and let the frontend append the token.
     url = f"{settings.BACKEND_URL}/patients/files/{file_id}/serve"
     return {"url": url}
 
 @router.get("/files/{file_id}/serve")
-def serve_file(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def serve_file(
+    file_id: int, 
+    token: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
     """
     Decrypt and stream file to browser.
+    Allows authentication via query param 'token' for direct browser viewing.
     """
+    from ..routers.auth import get_current_user as verify_user
+    
+    # Authenticate manually since standard Depends(get_current_user) won't work for tags/embeds
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication token required in query params")
+        
+    try:
+        current_user = verify_user(token=token, db=db)
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
+
     is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
     
     query = db.query(PDFFile).join(Patient).filter(PDFFile.file_id == file_id)
