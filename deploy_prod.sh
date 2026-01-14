@@ -161,3 +161,8 @@ echo "---------------------------------------------------"
 echo "URL: https://digifortlabs.com"
 echo "---------------------------------------------------"
 pm2 status
+
+echo ""
+echo "🔍 CHECKING BACKEND STATUS..."
+sleep 5
+pm2 logs backend --lines 30 --nostream
