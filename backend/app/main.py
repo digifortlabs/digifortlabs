@@ -75,8 +75,13 @@ app.include_router(procedures.router, prefix="/icd11/procedures", tags=["procedu
 from .routers import qa
 
 app.include_router(qa.router, prefix="/qa", tags=["qa"])
-from .routers import scanner
-app.include_router(scanner.router) # Scanner Service
+try:
+    from .routers import scanner
+    app.include_router(scanner.router) # Scanner Service
+except Exception as e:
+    print(f"⚠️  WARNING: Failed to load scanner router. Error: {e}")
+    # Continue running app even if scanner fails
+    pass
 
 
 # Mount local storage for simulation mode (if no AWS keys)
