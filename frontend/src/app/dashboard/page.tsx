@@ -367,7 +367,7 @@ export default function CommandCenter() {
                                     <ActionButton
                                         icon={<Users size={18} />}
                                         label="Manage Staff"
-                                        onClick={() => router.push('/dashboard/staff')}
+                                        onClick={() => router.push('/dashboard/user_mgmt')}
                                     />
                                 )}
 

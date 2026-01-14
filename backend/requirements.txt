@@ -21,3 +21,6 @@ httpx
 pytest-asyncio
 requests
 ruff
+numpy
+opencv-python-headless
+scikit-image

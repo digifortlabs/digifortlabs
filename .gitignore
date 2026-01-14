@@ -9,7 +9,6 @@
 id_rsa
 id_rsa.pub
 credentials
-config
 aws-config.json
 client_secrets.json
 

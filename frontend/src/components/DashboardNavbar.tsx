@@ -125,18 +125,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             {/* Operations */}
                             {(userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'website_staff' || userRole === 'website_admin') && (
                                 <>
-                                    {/* Staff Management - Hospital Admin Only */}
-                                    {userRole === 'hospital_admin' && (
-                                        <Link
-                                            href="/dashboard/staff"
-                                            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/staff')
-                                                ? 'bg-slate-800 text-white'
-                                                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                                }`}
-                                        >
-                                            Staff
-                                        </Link>
-                                    )}
+
 
                                     {/* Team Management - Hospital Admin Only */}
                                     {userRole === 'hospital_admin' && (
@@ -147,7 +136,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                                 : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                                 }`}
                                         >
-                                            Team
+                                            Staff
                                         </Link>
                                     )}
 

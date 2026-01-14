@@ -108,7 +108,7 @@ export default function UsersPage() {
         <div className="flex-1 p-8">
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-800">Team Management</h1>
+                    <h1 className="text-2xl font-bold text-gray-800">Staff Management</h1>
                     {hospitalInfo && (
                         <div className="flex items-center gap-2 mt-1">
                             <span className="text-sm text-gray-500">
