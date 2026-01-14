@@ -56,12 +56,13 @@ rm -rf node_modules .next
 PUBLIC_IP=$(curl -s http://checkip.amazonaws.com)
 echo "🌍 Server Public IP: $PUBLIC_IP"
 
-# Use Public IP for API URL (fallback to domain if IP fails)
+# CRITICAL: Always use HTTPS Domain for API to prevent "Mixed Content" errors
+API_URL="https://digifortlabs.com/api"
+
+# Configure CORS to allow access from Domain AND Public IP (for testing)
 if [ -z "$PUBLIC_IP" ]; then
-    API_URL="https://digifortlabs.com/api"
     ORIGINS="[\"http://localhost:3000\",\"https://digifortlabs.com\"]"
 else
-    API_URL="http://$PUBLIC_IP/api"
     # Allow port 3000 (dev access) and port 80 (nginx access)
     ORIGINS="[\"http://localhost:3000\",\"https://digifortlabs.com\",\"http://$PUBLIC_IP:3000\",\"http://$PUBLIC_IP\"]"
 fi
