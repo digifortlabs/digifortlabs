@@ -1,0 +1,162 @@
+[
+    {
+        "code": "1A00",
+        "description": "Cholera",
+        "chapter": "01"
+    },
+    {
+        "code": "1A01",
+        "description": "Intestinal typhoid",
+        "chapter": "01"
+    },
+    {
+        "code": "1A02",
+        "description": "Paratyphoid fever",
+        "chapter": "01"
+    },
+    {
+        "code": "1A03",
+        "description": "Other salmonella infections",
+        "chapter": "01"
+    },
+    {
+        "code": "1A04",
+        "description": "Shigellosis",
+        "chapter": "01"
+    },
+    {
+        "code": "1B70",
+        "description": "Tuberculosis of the respiratory system",
+        "chapter": "01"
+    },
+    {
+        "code": "1D20",
+        "description": "Dengue",
+        "chapter": "01"
+    },
+    {
+        "code": "1F40",
+        "description": "Malaria",
+        "chapter": "01"
+    },
+    {
+        "code": "1C80",
+        "description": "Viral hepatitis A",
+        "chapter": "01"
+    },
+    {
+        "code": "2C61",
+        "description": "Malignant neoplasms of breast",
+        "chapter": "02"
+    },
+    {
+        "code": "2C25",
+        "description": "Malignant neoplasms of bronchus or lung",
+        "chapter": "02"
+    },
+    {
+        "code": "2D50",
+        "description": "Malignant neoplasms of colon",
+        "chapter": "02"
+    },
+    {
+        "code": "5A10",
+        "description": "Type 1 diabetes mellitus",
+        "chapter": "05"
+    },
+    {
+        "code": "5A11",
+        "description": "Type 2 diabetes mellitus",
+        "chapter": "05"
+    },
+    {
+        "code": "5A12",
+        "description": "Malnutrition-related diabetes mellitus",
+        "chapter": "05"
+    },
+    {
+        "code": "6A70",
+        "description": "Major depressive disorder",
+        "chapter": "06"
+    },
+    {
+        "code": "6A40",
+        "description": "Anxiety or fear-related disorders",
+        "chapter": "06"
+    },
+    {
+        "code": "6A20",
+        "description": "Schizophrenia or other primary psychotic disorders",
+        "chapter": "06"
+    },
+    {
+        "code": "BA00",
+        "description": "Essential hypertension",
+        "chapter": "11"
+    },
+    {
+        "code": "BA41",
+        "description": "Hypertensive heart disease",
+        "chapter": "11"
+    },
+    {
+        "code": "BA42",
+        "description": "Heart failure",
+        "chapter": "11"
+    },
+    {
+        "code": "BA60",
+        "description": "Ischaemic heart diseases",
+        "chapter": "11"
+    },
+    {
+        "code": "CA01",
+        "description": "Influenza",
+        "chapter": "12"
+    },
+    {
+        "code": "CA07",
+        "description": "Chronic obstructive pulmonary disease (COPD)",
+        "chapter": "12"
+    },
+    {
+        "code": "CA20",
+        "description": "Asthma",
+        "chapter": "12"
+    },
+    {
+        "code": "CA81",
+        "description": "Pneumonia",
+        "chapter": "12"
+    },
+    {
+        "code": "CA21",
+        "description": "Acute sinusitis",
+        "chapter": "12"
+    },
+    {
+        "code": "DA00",
+        "description": "Gingivitis",
+        "chapter": "13"
+    },
+    {
+        "code": "EA00",
+        "description": "Eczema",
+        "chapter": "14"
+    },
+    {
+        "code": "FB00",
+        "description": "Rheumatoid arthritis",
+        "chapter": "15"
+    },
+    {
+        "code": "GA00",
+        "description": "Female infertility",
+        "chapter": "16"
+    },
+    {
+        "code": "HA00",
+        "description": "Developmental anomalies of the eye",
+        "chapter": "20"
+    }
+]

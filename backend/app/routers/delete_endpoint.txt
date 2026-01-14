@@ -1,0 +1,51 @@
+@router.delete("/files/{file_id}")
+async def delete_file(
+    file_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a file from database and storage"""
+    print(f"🗑️ DELETE request for file_id: {file_id}")
+    
+    # Get the file
+    db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Authorization check
+    patient = db.query(Patient).filter(Patient.record_id == db_file.patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    
+    is_platform = current_user.role in ["website_admin", "website_staff"]
+    if not is_platform and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Delete from storage
+    try:
+        s3_manager = S3Manager()
+        # Extract path from location (format: "local://path" or "s3://path")
+        location = db_file.location
+        if location.startswith("local://"):
+            file_path = location.replace("local://", "")
+            s3_manager.delete_file(file_path)
+            print(f"✅ Deleted from storage: {file_path}")
+    except Exception as e:
+        print(f"⚠️ Failed to delete from storage: {e}")
+        # Continue anyway to delete from database
+    
+    # Update storage usage
+    file_size_mb = db_file.file_size_mb
+    usage = db.query(StorageUsage).filter(
+        StorageUsage.hospital_id == patient.hospital_id
+    ).first()
+    if usage:
+        usage.used_mb = max(0, usage.used_mb - file_size_mb)
+    
+    # Delete from database
+    db.delete(db_file)
+    db.commit()
+    
+    print(f"✅ File {file_id} deleted successfully")
+    
+    return {"status": "success", "message": "File deleted successfully"}
