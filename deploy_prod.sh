@@ -39,7 +39,7 @@ if [[ "$CURRENT_NODE" != v20* ]]; then
     curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
     sudo dnf install -y nodejs
 fi
-sudo dnf install -y git python3 python3-pip nginx pm2 augeas-libs unzip || true
+sudo dnf install -y git python3 python3-pip nginx pm2 augeas-libs unzip mesa-libGL || true
 if ! command -v pm2 &> /dev/null; then sudo npm install -g pm2; fi
 
 # --- 2. FRONTEND DEPLOYMENT ---
@@ -81,6 +81,15 @@ echo "✅ Frontend is Live on port 3000."
 echo "⚙️  [3/6] Setting up Backend..."
 cd $PROJECT_ROOT/backend
 
+# Preserve existing AWS Keys if configured manually
+EXISTING_ID=""
+EXISTING_SECRET=""
+if [ -f .env ]; then
+    echo "🔍 Checking for existing AWS credentials in .env..."
+    EXISTING_ID=$(grep "^AWS_ACCESS_KEY_ID=" .env | cut -d'=' -f2)
+    EXISTING_SECRET=$(grep "^AWS_SECRET_ACCESS_KEY=" .env | cut -d'=' -f2)
+fi
+
 # Kill existing process and free port 8000
 pm2 delete backend 2>/dev/null || true
 sudo fuser -k 8000/tcp 2>/dev/null || true
@@ -113,12 +122,9 @@ ENCRYPTION_KEY=a1z-3mNXYRp0yKAcP6xVpX6pjK6O38h039zisZMjE1U=
 
 AWS_REGION=ap-south-1
 AWS_BUCKET_NAME=digifort-labs-files
-# NOTE: AWS Keys are intentionally commented out to avoid checking them into git if this script is committed.
-# Set them manually on server if not using IAM roles.
-# NOTE: AWS Keys are NOT included here for security.
-# Please add them manually to the .env file on the server if needed, or use IAM Roles.
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
+# System preserves manually added keys:
+AWS_ACCESS_KEY_ID=$EXISTING_ID
+AWS_SECRET_ACCESS_KEY=$EXISTING_SECRET
 
 # ICD-11 API
 ICD11_CLIENT_ID=5d4bb6b9-a577-4892-a231-ef29c09e3711_e0a3ee4d-87be-4acd-9f0d-5d204b80a2b6
