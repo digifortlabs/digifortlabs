@@ -102,7 +102,7 @@ class EmailService:
             
             print(f"[EMAIL SERVICE] OTP Sent to {email}")
         except Exception as e:
-            print(f"[EMAIL SERVICE] Failed to send notification to {to_email}: {str(e)}")
+            print(f"[EMAIL SERVICE] Failed to send OTP to {email}: {str(e)}")
             return False
 
     @staticmethod
@@ -343,4 +343,95 @@ class EmailService:
 
         except Exception as e:
             print(f"❌ [EMAIL SERVICE] Failed to process contact form: {str(e)}")
+            return False
+
+    @staticmethod
+    def send_file_request_notification(to_email: str, subject: str, headline: str, message_content: str, box_label: str, requester: str):
+        """
+        Sends a notification email for file request status updates.
+        """
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from datetime import datetime
+        from app.core.config import settings
+
+        # SMTP Configuration
+        SMTP_SERVER = settings.SMTP_SERVER
+        SMTP_PORT = settings.SMTP_PORT
+        SMTP_USERNAME = settings.SMTP_USERNAME
+        SMTP_PASSWORD = settings.SMTP_PASSWORD
+        SENDER_EMAIL = settings.SENDER_EMAIL
+
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = f"Digifort Logistics <{SENDER_EMAIL}>"
+            msg['To'] = to_email
+            msg['Subject'] = subject
+
+            body = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f8fafc; margin: 0; padding: 0; }}
+                    .container {{ max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e2e8f0; }}
+                    .header {{ background: #4f46e5; color: #ffffff; padding: 30px; text-align: center; }}
+                    .content {{ padding: 30px; }}
+                    .card {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-top: 20px; }}
+                    .label {{ font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; font-weight: 700; }}
+                    .value {{ font-size: 15px; font-weight: 600; color: #0f172a; margin-top: 2px; margin-bottom: 12px; }}
+                    .status-badge {{ display: inline-block; padding: 6px 12px; border-radius: 20px; background: #e0e7ff; color: #4338ca; font-weight: 700; font-size: 14px; margin-bottom: 20px; }}
+                    .footer {{ background: #f1f5f9; padding: 20px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h2 style="margin:0; font-size: 24px;">File Request Update</h2>
+                    </div>
+                    <div class="content">
+                        <div class="status-badge">{headline}</div>
+                        <p>{message_content}</p>
+                        
+                        <div class="card">
+                            <div class="label">Box Label</div>
+                            <div class="value">📦 {box_label}</div>
+                            
+                            <div class="label">Requested By</div>
+                            <div class="value">👤 {requester}</div>
+                            
+                            <div class="label">Timestamp</div>
+                            <div class="value">🕒 {timestamp}</div>
+                        </div>
+                        
+                        <p style="margin-top: 20px; font-size: 14px; color: #64748b;">
+                            Please log in to the Digifort Dashboard for more details.
+                        </p>
+                    </div>
+                    <div class="footer">
+                        Digifort Labs Logistics System
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            msg.attach(MIMEText(body, 'html'))
+
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            text = msg.as_string()
+            server.sendmail(SENDER_EMAIL, to_email, text)
+            server.quit()
+            
+            print(f"[EMAIL SERVICE] File Request Notification sent to {to_email}")
+            return True
+
+        except Exception as e:
+            print(f"[EMAIL SERVICE] Failed to send notification to {to_email}: {str(e)}")
             return False

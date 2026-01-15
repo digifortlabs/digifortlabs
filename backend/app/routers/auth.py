@@ -110,7 +110,11 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     client_ip = "Unknown IP" # In real app, inject Request: Request
     device_info = "Unknown Device"
     
-    EmailService.send_login_alert(user.email, client_ip, device_info)
+    try:
+        EmailService.send_login_alert(user.email, client_ip, device_info)
+    except Exception as e:
+        print(f"[AUTH] Failed to send login alert: {e}")
+
     log_audit(db, user.user_id, "LOGIN_SUCCESS", "User logged in successfully")
     # -----------------------------
 
