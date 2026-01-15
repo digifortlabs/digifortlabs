@@ -76,8 +76,13 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                     }
                     const canvas = processingCanvasRef.current;
                     const scale = Math.min(1, 256 / videoW); // Process at low res
-                    canvas.width = videoW * scale;
-                    canvas.height = videoH * scale;
+                    const newW = Math.floor(videoW * scale);
+                    const newH = Math.floor(videoH * scale);
+
+                    if (canvas.width !== newW || canvas.height !== newH) {
+                        canvas.width = newW;
+                        canvas.height = newH;
+                    }
                     const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
                     if (ctx) {
@@ -667,6 +672,17 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                                 title="Toggle Live Auto-Crop Overlay"
                             >
                                 <Sparkles size={14} className={isLiveCrop ? "fill-white" : ""} /> Live Crop
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    setResolution(prev => ({ ...prev }));
+                                    alert("Camera reset triggered.");
+                                }}
+                                className="px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 bg-red-900/50 text-red-200 border border-red-800 hover:bg-red-800"
+                                title="Reset Camera Stream"
+                            >
+                                <X size={14} /> Reset Cam
                             </button>
                         </>
                     )}

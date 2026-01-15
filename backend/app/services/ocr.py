@@ -36,14 +36,26 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
         if len(text) < 50 and HAS_OCR:
             print("🔍 Low text density detected. Attempting OCR...")
             try:
-                images = convert_from_bytes(file_bytes)
+                # Get page count first
+                reader = PdfReader(io.BytesIO(file_bytes))
+                total_pages = len(reader.pages)
+                
                 ocr_text = ""
-                for img in images:
-                    ocr_text += pytesseract.image_to_string(img) + "\n"
+                # Process one page at a time to save memory
+                for i in range(1, total_pages + 1):
+                    print(f"📄 OCR: Processing page {i}/{total_pages}...")
+                    try:
+                        page_images = convert_from_bytes(file_bytes, first_page=i, last_page=i)
+                        if page_images:
+                            ocr_text += pytesseract.image_to_string(page_images[0]) + "\n"
+                            # Explicitly close image to free memory
+                            page_images[0].close()
+                    except Exception as pe:
+                        print(f"⚠️ Page {i} OCR failed: {pe}")
                 
                 # If OCR found significantly more text, append it
                 if len(ocr_text.strip()) > len(text):
-                    text += "\n" + ocr_text.strip()
+                    text = (text + "\n" + ocr_text.strip()).strip()
                     print(f"✅ OCR Success. Extracted {len(ocr_text)} characters.")
             except Exception as e:
                 print(f"⚠️ OCR Failed (Tesseract might be missing): {e}")
