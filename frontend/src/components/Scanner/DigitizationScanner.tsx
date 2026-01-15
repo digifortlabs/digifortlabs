@@ -680,6 +680,7 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                         <>
                             <div className="relative w-full h-full flex items-center justify-center">
                                 <Webcam
+                                    key={`${selectedDeviceId}-${resolution.width}x${resolution.height}`}
                                     ref={webcamRef}
                                     audio={false}
                                     screenshotFormat="image/jpeg"
@@ -688,7 +689,7 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                                         width: { ideal: resolution.width },
                                         height: { ideal: resolution.height }
                                     }}
-                                    className={`shadow-2xl transition-all duration-300 ${viewMode === 'fit' ? 'max-w-full max-h-full object-contain' : 'w-full h-full object-cover'}`}
+                                    className={`shadow-2xl transition-all duration-300 ${viewMode === 'fit' ? 'w-full h-full object-contain' : 'w-full h-full object-cover'}`}
                                     style={{
                                         filter: `brightness(${brightness}%) contrast(${filterMode === 'bw' ? contrast * 2 : contrast}%) grayscale(${filterMode === 'color' ? 0 : 100}%)`,
                                         transform: `rotate(${liveRotation}deg)`
