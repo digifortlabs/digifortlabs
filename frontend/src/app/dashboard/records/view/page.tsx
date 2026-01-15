@@ -372,6 +372,7 @@ function PatientDetailContent() {
         }
     }, [router, id]);
 
+
     const [error, setError] = useState<string | null>(null);
 
     const fetchPatient = async (token: string, patientId: string) => {
@@ -394,6 +395,21 @@ function PatientDetailContent() {
             setError("Failed to load patient data. Please check network connection.");
         }
     };
+
+    // Added Polling for OCR/Processing Stages - Moved here to ensure fetchPatient is defined
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (!token || !id || !patient) return;
+
+        const hasProcessing = patient.files.some(f => f.processing_stage === 'analyzing' || f.upload_status === 'draft');
+
+        if (hasProcessing) {
+            const interval = setInterval(() => {
+                fetchPatient(token, id);
+            }, 5000); // Poll every 5 seconds
+            return () => clearInterval(interval);
+        }
+    }, [patient, id]);
 
 
 
@@ -722,6 +738,11 @@ function PatientDetailContent() {
                                             title="Text Extracted & Indexed"
                                         >
                                             🔍 SEARCHABLE
+                                        </span>
+                                    )}
+                                    {file.upload_status === 'confirmed' && !file.is_searchable && file.processing_stage === 'analyzing' && (
+                                        <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
+                                            <Loader2 size={10} className="animate-spin" /> ANALYZING OCR...
                                         </span>
                                     )}
                                 </div>

@@ -77,11 +77,10 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
 
         if db_file.processing_stage == 'cancelled': return
             
-        # 1.5 OCR (Text Extraction) & Page Counting
-        # Run only for PDFs
+        # 1.5 Page Counting (Keep here for Review Step)
         if os.path.splitext(original_filename)[1].lower() == '.pdf':
             try:
-                db_file.processing_stage = 'analyzing' # customized stage for OCR
+                db_file.processing_stage = 'analyzing' 
                 db.commit()
                 
                 with open(processed_path, 'rb') as f:
@@ -93,27 +92,12 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
                     import io
                     reader = PdfReader(io.BytesIO(content_bytes))
                     db_file.page_count = len(reader.pages)
-                    db.commit() # IMMEDIATE COMMIT for UI feedback
+                    db.commit() 
                     print(f"📄 Page Count: {db_file.page_count}")
                 except Exception as pe:
                     print(f"⚠️ Page count error: {pe}")
-                    
-                extracted_text = extract_text_from_pdf(content_bytes)
-                if extracted_text:
-                    db_file.ocr_text = extracted_text
-                    db_file.is_searchable = True
-                    print(f"✅ OCR Text Extracted: {len(extracted_text)} chars")
-                    
-                    # Automated Tagging (AI Analysis)
-                    auto_tags = classify_document(extracted_text)
-                    if auto_tags:
-                        db_file.tags = ", ".join(auto_tags)
-                        print(f"🏷️ AI Tags applied: {db_file.tags}")
-                else:
-                    print("ℹ️ No text extracted (Scanned PDF?)")
-                    
             except Exception as e:
-                print(f"⚠️ OCR/PageCount Warning: {e}")
+                print(f"⚠️ PageCount Warning: {e}")
             db.commit()
         
         # 2. ENCRYPTION
@@ -202,6 +186,59 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
             db_file.processing_stage = 'failed'
             db.commit()
         except: pass
+    finally:
+        db.close()
+
+def run_post_confirmation_ocr(file_id: int):
+    """
+    Background Task to run OCR after file is confirmed.
+    """
+    db = SessionLocal()
+    s3_manager = S3Manager()
+    try:
+        db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+        if not db_file:
+            return
+
+        print(f"🔍 Post-Confirmation OCR Started: {file_id}")
+        db_file.processing_stage = 'analyzing'
+        db.commit()
+        
+        # Get and Decrypt Bytes
+        try:
+            encrypted_bytes = s3_manager.get_file_bytes(db_file.s3_key)
+            if not encrypted_bytes:
+                print(f"❌ Physical file not found for OCR: {db_file.s3_key}")
+                return
+                
+            from ..services.encryption import decrypt_data
+            decrypted_bytes = decrypt_data(encrypted_bytes)
+            
+            # Run OCR
+            extracted_text = extract_text_from_pdf(decrypted_bytes)
+            if extracted_text:
+                db_file.ocr_text = extracted_text
+                db_file.is_searchable = True
+                
+                # AI Tagging
+                auto_tags = classify_document(extracted_text)
+                if auto_tags:
+                    db_file.tags = ", ".join(auto_tags)
+                
+                print(f"✅ Post-Confirmation OCR Complete: {file_id}")
+            else:
+                print(f"ℹ️ No OCR text found for {file_id}")
+                
+            db_file.processing_stage = 'completed'
+            db.commit()
+            
+        except Exception as e:
+            print(f"❌ Post-Confirmation OCR Error during processing: {e}")
+            db_file.processing_stage = 'completed' # Still completed even if OCR fails
+            db.commit()
+            
+    except Exception as e:
+        print(f"❌ Post-Confirmation OCR Task Error: {e}")
     finally:
         db.close()
 
@@ -587,7 +624,7 @@ def check_uhid_exists(uhid_no: str, db: Session = Depends(get_db), current_user:
     return {"exists": False}
 
 @router.post("/files/{file_id}/confirm")
-def confirm_upload(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def confirm_upload(file_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     is_platform = current_user.role in ["website_admin", "website_staff"]
     
     q = db.query(PDFFile).join(Patient).filter(PDFFile.file_id == file_id)
@@ -605,16 +642,19 @@ def confirm_upload(file_id: int, db: Session = Depends(get_db), current_user: Us
             # If S3 migration failed, we still mark as confirmed locally
             f.upload_status = 'confirmed'
             db.commit()
+            background_tasks.add_task(run_post_confirmation_ocr, file_id)
             return {"status": "partial", "message": f"Confirmed locally, but archival error: {msg}"}
         
-        return {"status": "success", "message": "File confirmed and archived to S3"}
+        background_tasks.add_task(run_post_confirmation_ocr, file_id)
+        return {"status": "success", "message": "File confirmed and archived to S3. OCR is running in background."}
 
     f.upload_status = 'confirmed'
     db.commit()
+    background_tasks.add_task(run_post_confirmation_ocr, file_id)
 
     from ..audit import log_audit
     log_audit(db, current_user.user_id, "FILE_CONFIRMED", f"Confirmed: {f.filename}", hospital_id=current_user.hospital_id)
-    return {"status": "success", "message": "File confirmed and published"}
+    return {"status": "success", "message": "File confirmed and published. OCR is running in background."}
 
 @router.delete("/files/{file_id}/draft")
 def delete_draft(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
