@@ -3,7 +3,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import jsPDF from 'jspdf';
-import { Camera, Settings, X, Save, Crop, RotateCw, Trash2, Check, FileText, Image as ImageIcon, Sun, Moon, Maximize, Minimize, Sparkles } from 'lucide-react';
+import { Camera, Settings, X, Save, Crop, RotateCw, Trash2, Check, FileText, Image as ImageIcon, Sun, Moon, Maximize, Minimize, Sparkles, Loader2 } from 'lucide-react';
 import { CapturedPage, DigitizationScannerProps } from './ScannerTypes';
 import { formatBytes, getTotalSize, detectDocumentBounds, processImage, scanDocumentAPI } from './ScannerUtils';
 
@@ -21,7 +21,7 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
     const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
 
     // Scan Settings
-    const [resolution, setResolution] = useState<{ width: number, height: number }>({ width: 3840, height: 2160 }); // Default 4K
+    const [resolution, setResolution] = useState<{ width: number, height: number }>({ width: 1920, height: 1080 }); // Default 1080p for compatibility
     const [dpi, setDpi] = useState<number>(200);
     const [filterMode, setFilterMode] = useState<'color' | 'grayscale' | 'bw'>('color');
     const [brightness, setBrightness] = useState<number>(100); // %
@@ -45,6 +45,8 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
     const [rotation, setRotation] = useState(0);
     const [liveRotation, setLiveRotation] = useState(0); // For live camera feed
     const [isProcessing, setIsProcessing] = useState(false);
+    const [hasCameraError, setHasCameraError] = useState(false);
+    const [streamActive, setStreamActive] = useState(false);
 
     // --- Initialization ---
 
@@ -595,15 +597,55 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                                         height: { ideal: resolution.height }
                                     }}
                                     className={`shadow-2xl transition-all duration-300 ${viewMode === 'fit' ? 'w-full h-full object-contain' : 'w-full h-full object-cover'}`}
+                                    onUserMedia={() => {
+                                        setHasCameraError(false);
+                                        setStreamActive(true);
+                                    }}
                                     onUserMediaError={(err) => {
                                         console.error("Webcam Error:", err);
-                                        alert("Camera failed to start. Please check permissions or resolution support.");
+                                        setHasCameraError(true);
+                                        setStreamActive(false);
                                     }}
                                     style={{
                                         filter: `brightness(${brightness}%) contrast(${filterMode === 'bw' ? contrast * 2 : contrast}%) grayscale(${filterMode === 'color' ? 0 : 100}%)`,
                                         transform: `rotate(${liveRotation}deg)`
                                     }}
                                 />
+                                {hasCameraError && (
+                                    <div className="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center p-8 text-center border-2 border-dashed border-slate-700 rounded-2xl m-8">
+                                        <div className="w-16 h-16 bg-red-900/30 rounded-full flex items-center justify-center mb-4">
+                                            <Camera className="text-red-500" size={32} />
+                                        </div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Camera Connection Failed</h3>
+                                        <p className="text-slate-400 max-w-sm mb-6">
+                                            We couldn't initialize the camera at the requested resolution.
+                                            The browser might be blocking permissions or the hardware may not support high resolutions.
+                                        </p>
+                                        <div className="flex flex-wrap gap-4 justify-center">
+                                            <button
+                                                onClick={() => {
+                                                    setResolution({ width: 1280, height: 720 });
+                                                    setHasCameraError(false);
+                                                }}
+                                                className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-500 transition"
+                                            >
+                                                Try Standard Resolution (720p)
+                                            </button>
+                                            <button
+                                                onClick={() => window.location.reload()}
+                                                className="px-6 py-2 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-700 transition"
+                                            >
+                                                Reload Page
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                                {!streamActive && !hasCameraError && (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <Loader2 className="animate-spin text-indigo-500 mb-4" size={48} />
+                                        <p className="text-slate-400 font-bold tracking-widest uppercase text-xs">Initializing Feed...</p>
+                                    </div>
+                                )}
 
                                 {/* Guide Overlay for A4 */}
                                 {showGuide && (
