@@ -3,14 +3,51 @@ import React, { useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Phone, Mail, MapPin, Send, CheckCircle } from "lucide-react";
+import { API_URL } from "../../config/api";
 
 export default function ContactPage() {
     const [submitted, setSubmitted] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [formData, setFormData] = useState({
+        name: "",
+        email: "",
+        message: ""
+    });
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSubmitted(true);
-        // Simple mock submission
+        setLoading(true);
+        setError(null);
+
+        try {
+            const response = await fetch(`${API_URL}/contact`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(formData),
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.detail || "Failed to send message");
+            }
+
+            setSubmitted(true);
+            setFormData({ name: "", email: "", message: "" });
+        } catch (err: any) {
+            setError(err.message || "Something went wrong. Please try again later.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        setFormData({
+            ...formData,
+            [e.target.name]: e.target.value
+        });
     };
 
     return (
@@ -98,10 +135,18 @@ export default function ContactPage() {
                             </div>
                         ) : (
                             <form onSubmit={handleSubmit} className="space-y-6">
+                                {error && (
+                                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+                                        {error}
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-400 mb-2">Full Name</label>
                                     <input
                                         type="text"
+                                        name="name"
+                                        value={formData.name}
+                                        onChange={handleChange}
                                         required
                                         className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition placeholder-slate-700"
                                         placeholder="Anandi Joshi"
@@ -112,6 +157,9 @@ export default function ContactPage() {
                                     <label className="block text-sm font-semibold text-slate-400 mb-2">Work Email</label>
                                     <input
                                         type="email"
+                                        name="email"
+                                        value={formData.email}
+                                        onChange={handleChange}
                                         required
                                         className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition placeholder-slate-700"
                                         placeholder="name@hospital.com"
@@ -121,7 +169,11 @@ export default function ContactPage() {
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-400 mb-2">Message</label>
                                     <textarea
+                                        name="message"
                                         rows={4}
+                                        value={formData.message}
+                                        onChange={handleChange}
+                                        required
                                         className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition placeholder-slate-700"
                                         placeholder="Tell us about your requirements..."
                                     ></textarea>
@@ -129,9 +181,14 @@ export default function ContactPage() {
 
                                 <button
                                     type="submit"
-                                    className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl hover:shadow-lg hover:shadow-blue-900/40 transition transform active:scale-95 flex items-center justify-center gap-2"
+                                    disabled={loading}
+                                    className={`w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl hover:shadow-lg hover:shadow-blue-900/40 transition transform active:scale-95 flex items-center justify-center gap-2 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
                                 >
-                                    Send Message <Send className="w-4 h-4" />
+                                    {loading ? (
+                                        <>Processing...</>
+                                    ) : (
+                                        <>Send Message <Send className="w-4 h-4" /></>
+                                    )}
                                 </button>
                             </form>
                         )}

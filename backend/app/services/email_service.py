@@ -109,3 +109,151 @@ class EmailService:
             print(f"⚠️ [FALLBACK] OTP Code: {otp_code}")
             return False
 
+    @staticmethod
+    def send_contact_form(name: str, email: str, message: str):
+        """
+        Sends a contact form submission to the admin and a confirmation to the user.
+        """
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from datetime import datetime
+        from app.core.config import settings
+
+        # SMTP Configuration
+        SMTP_SERVER = settings.SMTP_SERVER
+        SMTP_PORT = settings.SMTP_PORT
+        SMTP_USERNAME = settings.SMTP_USERNAME
+        SMTP_PASSWORD = settings.SMTP_PASSWORD
+        SENDER_EMAIL = settings.SENDER_EMAIL
+
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        try:
+            # --- 1. ADMIN NOTIFICATION EMAIL ---
+            admin_msg = MIMEMultipart()
+            admin_msg['From'] = SENDER_EMAIL
+            admin_msg['To'] = SENDER_EMAIL
+            admin_msg['Subject'] = f"🔥 New Inquiry: {name}"
+
+            admin_body = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f8fafc; margin: 0; padding: 0; }}
+                    .container {{ max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e2e8f0; }}
+                    .header {{ background: #0f172a; color: #ffffff; padding: 30px; text-align: center; }}
+                    .content {{ padding: 30px; }}
+                    .field {{ margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; pb: 10px; }}
+                    .label {{ font-weight: 700; color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }}
+                    .value {{ margin-top: 5px; color: #1e293b; font-size: 16px; }}
+                    .footer {{ background: #f8fafc; padding: 20px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h2 style="margin:0; font-size: 20px;">New Website Inquiry</h2>
+                    </div>
+                    <div class="content">
+                        <div class="field">
+                            <div class="label">From</div>
+                            <div class="value">{name}</div>
+                        </div>
+                        <div class="field">
+                            <div class="label">Email Address</div>
+                            <div class="value"><a href="mailto:{email}" style="color: #2563eb; text-decoration: none;">{email}</a></div>
+                        </div>
+                        <div class="field">
+                            <div class="label">Received At</div>
+                            <div class="value">{timestamp}</div>
+                        </div>
+                        <div class="field" style="border-bottom: none;">
+                            <div class="label">Message</div>
+                            <div style="margin-top: 10px; padding: 15px; background: #f1f5f9; border-radius: 8px; font-style: italic;">
+                                "{message}"
+                            </div>
+                        </div>
+                    </div>
+                    <div class="footer">
+                        DIGIFORT LABS - INTERNAL NOTIFICATION
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            admin_msg.attach(MIMEText(admin_body, 'html'))
+
+            # --- 2. USER CONFIRMATION EMAIL ---
+            user_msg = MIMEMultipart()
+            user_msg['From'] = f"Digifort Labs <{SENDER_EMAIL}>"
+            user_msg['To'] = email
+            user_msg['Subject'] = "We've Received Your Inquiry - Digifort Labs"
+
+            user_body = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #334155; margin: 0; padding: 0; background-color: #f1f5f9; }}
+                    .wrapper {{ background-color: #f1f5f9; padding: 40px 0; }}
+                    .container {{ max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }}
+                    .header {{ background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: #ffffff; padding: 40px 30px; text-align: center; }}
+                    .content {{ padding: 40px 30px; }}
+                    .button {{ display: inline-block; padding: 12px 24px; background-color: #2563eb; color: #ffffff !important; text-decoration: none; border-radius: 8px; font-weight: 600; margin-top: 20px; }}
+                    .footer {{ text-align: center; padding: 30px; font-size: 13px; color: #64748b; }}
+                    .specs {{ margin-top: 30px; padding: 20px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; }}
+                </style>
+            </head>
+            <body>
+                <div class="wrapper">
+                    <div class="container">
+                        <div class="header">
+                            <h1 style="margin:0; font-size: 24px; letter-spacing: 1px;">DIGIFORT LABS</h1>
+                        </div>
+                        <div class="content">
+                            <h2 style="color: #0f172a; margin-top: 0;">Hello {name},</h2>
+                            <p>Thank you for reaching out to **Digifort Labs**. We have successfully received your inquiry regarding our records optimization services.</p>
+                            <p>Our expert team is currently reviewing your message and will get back to you within 24 business hours.</p>
+                            
+                            <div class="specs">
+                                <p style="margin-top: 0; font-weight: 600; color: #0f172a; font-size: 14px;">Summary of your message:</p>
+                                <p style="font-size: 14px; color: #475569; margin-bottom: 0; font-style: italic;">"{message[:150] + '...' if len(message) > 150 else message}"</p>
+                            </div>
+
+                            <p style="margin-top: 30px;">In the meantime, feel free to visit our portal to explore our latest medical record management solutions.</p>
+                            <a href="https://digifortlabs.com" class="button">Visit Our Website</a>
+                        </div>
+                        <div class="footer">
+                            <p>&copy; {datetime.now().year} Digifort Labs. All rights reserved.<br>
+                            Vapi, Valsad, Gujarat, India</p>
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            user_msg.attach(MIMEText(user_body, 'html'))
+
+            # --- SENDING ---
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            
+            # Send To Admin
+            server.sendmail(SENDER_EMAIL, SENDER_EMAIL, admin_msg.as_string())
+            
+            # Send To User
+            server.sendmail(SENDER_EMAIL, email, user_msg.as_string())
+            
+            server.quit()
+            
+            print(f"✅ [EMAIL SERVICE] Inquiry processed. Notification sent to Admin and Confirmation sent to {email}")
+            return True
+
+        except Exception as e:
+            print(f"❌ [EMAIL SERVICE] Failed to process contact form: {str(e)}")
+            return False

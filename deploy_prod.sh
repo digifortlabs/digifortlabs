@@ -39,7 +39,7 @@ if [[ "$CURRENT_NODE" != v20* ]]; then
     curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
     sudo dnf install -y nodejs
 fi
-sudo dnf install -y git python3 python3-pip nginx pm2 augeas-libs unzip mesa-libGL || true
+sudo dnf install -y git python3 python3-pip nginx pm2 augeas-libs unzip mesa-libGL tesseract || true
 if ! command -v pm2 &> /dev/null; then sudo npm install -g pm2; fi
 
 # --- 2. FRONTEND DEPLOYMENT ---
@@ -161,8 +161,3 @@ echo "---------------------------------------------------"
 echo "URL: https://digifortlabs.com"
 echo "---------------------------------------------------"
 pm2 status
-
-echo ""
-echo "🔍 CHECKING BACKEND STATUS..."
-sleep 5
-pm2 logs backend --lines 30 --nostream

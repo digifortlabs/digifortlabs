@@ -14,7 +14,7 @@ SQLALCHEMY_DATABASE_URL = os.getenv(
 )
 
 # DEBUG: Print the loaded URL (masking password)
-print(f"🔌 SQLAlchemy connecting to: {SQLALCHEMY_DATABASE_URL.split('@')[-1]}") 
+print(f"SQLAlchemy connecting to: {SQLALCHEMY_DATABASE_URL.split('@')[-1]}")
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, 

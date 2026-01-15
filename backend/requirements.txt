@@ -24,3 +24,6 @@ ruff
 numpy
 opencv-python-headless
 scikit-image
+pytesseract
+pdf2image
+Pillow

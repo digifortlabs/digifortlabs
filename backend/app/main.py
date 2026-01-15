@@ -75,6 +75,8 @@ app.include_router(procedures.router, prefix="/icd11/procedures", tags=["procedu
 from .routers import qa
 
 app.include_router(qa.router, prefix="/qa", tags=["qa"])
+from .routers import contact
+app.include_router(contact.router, prefix="/contact", tags=["contact"])
 try:
     from .routers import scanner
     app.include_router(scanner.router) # Scanner Service
