@@ -47,6 +47,7 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
     const [isProcessing, setIsProcessing] = useState(false);
     const [hasCameraError, setHasCameraError] = useState(false);
     const [streamActive, setStreamActive] = useState(false);
+    const [cameraKey, setCameraKey] = useState(0);
 
     // --- Initialization ---
 
@@ -563,13 +564,14 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
 
                             <button
                                 onClick={() => {
-                                    setResolution(prev => ({ ...prev }));
-                                    alert("Camera reset triggered.");
+                                    setCameraKey(prev => prev + 1);
+                                    setHasCameraError(false);
+                                    setStreamActive(false);
                                 }}
                                 className="px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 bg-red-900/50 text-red-200 border border-red-800 hover:bg-red-800"
-                                title="Reset Camera Stream"
+                                title="Force Camera Re-init"
                             >
-                                <X size={14} /> Reset Cam
+                                <X size={14} /> Full Restart
                             </button>
                         </>
                     )}
@@ -587,7 +589,7 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                         <>
                             <div className="relative w-full h-full flex items-center justify-center">
                                 <Webcam
-                                    key={`${selectedDeviceId}-${resolution.width}x${resolution.height}`}
+                                    key={`${selectedDeviceId}-${cameraKey}`}
                                     ref={webcamRef}
                                     audio={false}
                                     screenshotFormat="image/jpeg"
