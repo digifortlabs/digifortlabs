@@ -44,8 +44,6 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
     const [cropRect, setCropRect] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
     const [rotation, setRotation] = useState(0);
     const [liveRotation, setLiveRotation] = useState(0); // For live camera feed
-    const [isLiveCrop, setIsLiveCrop] = useState(false);
-    const [liveCropRect, setLiveCropRect] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
 
     // --- Initialization ---
@@ -59,110 +57,6 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
         });
     }, []);
 
-    // --- Live Auto Crop Loop ---
-    useEffect(() => {
-        let animationFrameId: number;
-
-        const loop = () => {
-            if (isLiveCrop && webcamRef.current && view === 'camera') {
-                const video = webcamRef.current.video;
-                if (video && video.readyState === 4) {
-                    const videoW = video.videoWidth;
-                    const videoH = video.videoHeight;
-
-                    // Create/Reuse canvas for processing
-                    if (!processingCanvasRef.current) {
-                        processingCanvasRef.current = document.createElement('canvas');
-                    }
-                    const canvas = processingCanvasRef.current;
-                    const scale = Math.min(1, 256 / videoW); // Process at low res
-                    const newW = Math.floor(videoW * scale);
-                    const newH = Math.floor(videoH * scale);
-
-                    if (canvas.width !== newW || canvas.height !== newH) {
-                        canvas.width = newW;
-                        canvas.height = newH;
-                    }
-                    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-                    if (ctx) {
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-                        const bounds = detectDocumentBounds(canvas.width, canvas.height, imageData.data);
-
-                        if (bounds) {
-                            // Map back to Display Coordinates
-                            // We need the bounding rect of the video element ON SCREEN
-                            const videoRect = video.getBoundingClientRect();
-                            // Scaling factor from ProcessingCanvas -> VideoElement
-                            // W_proc / W_vid = scale
-                            // W_disp / W_vid = displayScale
-
-                            // Let's go: Process -> Video (Natural)
-                            const pad = 5 * scale;
-                            const minX = Math.max(0, bounds.minX - pad);
-                            const minY = Math.max(0, bounds.minY - pad);
-                            const maxX = Math.min(canvas.width, bounds.maxX + pad);
-                            const maxY = Math.min(canvas.height, bounds.maxY + pad);
-
-                            if (maxX > minX && maxY > minY) {
-                                // Normalized coords (0..1)
-                                const normX = minX / canvas.width;
-                                const normY = minY / canvas.height;
-                                const normW = (maxX - minX) / canvas.width;
-                                const normH = (maxY - minY) / canvas.height;
-
-                                // Map to Display Rect (which is absolute on screen, but we want relative to container?)
-                                // No, an overlay ON TOP of the video should match videoRect
-
-                                // BUT: CSS object-fit: contain/cover changes things.
-                                // If 'fit' (contain):
-                                // The video is centered in the container.
-                                // We need to calculate the actual rendered rect of the video within the parent.
-
-                                // Simplification: Just render overlay on top of video element using Absolute.
-                                // If we put the overlay INSIDE the div that holds Webcam, and that div is flex-centered...
-                                // We can compute relative to the video element itself if we can.
-
-                                // Alternative: Calculate 'displayed' dimensions of video
-                                const ratio = videoW / videoH;
-                                const contW = videoRect.width;
-                                const contH = videoRect.height;
-
-                                // Actually, videoRect IS the element size. 
-                                // But if object-fit is contain, the 'image' might be smaller than element.
-                                // React-Webcam creates a <video> tag. 
-                                // If we style it with 'max-w-full max-h-full', it sizes itself?
-                                // Our classes: `max-w-full max-h-full object-contain`
-                                // So the <video> element ITSELF shrinks to fit? 
-                                // Yes, usually <video> with max-w-full behaves like <img>, it maintains aspect ratio and takes space.
-                                // So videoRect should match the visible image exactly!
-
-                                setLiveCropRect({
-                                    x: normX * videoRect.width,
-                                    y: normY * videoRect.height,
-                                    w: normW * videoRect.width,
-                                    h: normH * videoRect.height
-                                });
-                            }
-                        }
-                    }
-                }
-            } else {
-                setLiveCropRect(null);
-            }
-            animationFrameId = requestAnimationFrame(loop);
-        };
-
-        if (isLiveCrop) {
-            loop();
-        } else {
-            setLiveCropRect(null);
-        }
-
-        return () => cancelAnimationFrame(animationFrameId);
-    }, [isLiveCrop, view]);
 
     // --- Split Page Logic ---
     const splitPage = (pageId: string) => {
@@ -665,15 +559,6 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                                 </div> Focus
                             </button>
 
-                            {/* LIVE CROP TOGGLE */}
-                            <button
-                                onClick={() => setIsLiveCrop(!isLiveCrop)}
-                                className={`px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 border ${isLiveCrop ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-600 text-gray-300 hover:bg-slate-700'}`}
-                                title="Toggle Live Auto-Crop Overlay"
-                            >
-                                <Sparkles size={14} className={isLiveCrop ? "fill-white" : ""} /> Live Crop
-                            </button>
-
                             <button
                                 onClick={() => {
                                     setResolution(prev => ({ ...prev }));
@@ -720,22 +605,6 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                                     }}
                                 />
 
-                                {/* Live Crop Overlay */}
-                                {isLiveCrop && liveCropRect && (
-                                    <div
-                                        className="absolute border-2 border-blue-400 bg-blue-500/10 pointer-events-none transition-all duration-100 z-20"
-                                        style={{
-                                            left: liveCropRect.x,
-                                            top: liveCropRect.y,
-                                            width: liveCropRect.w,
-                                            height: liveCropRect.h
-                                        }}
-                                    >
-                                        <div className="absolute top-0 right-0 -mt-6 bg-blue-500 text-white text-[10px] px-1.5 py-0.5 rounded">
-                                            Auto Detect
-                                        </div>
-                                    </div>
-                                )}
                                 {/* Guide Overlay for A4 */}
                                 {showGuide && (
                                     <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
@@ -1059,8 +928,39 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                                     <Crop size={20} />
                                 </button>
                                 {/* Re-use filter sliders here for editing */}
-                                <div className="flex gap-4 w-64">
-                                    <input type="range" min="50" max="150" value={brightness} onChange={(e) => setBrightness(parseInt(e.target.value))} className="w-full h-1 accent-indigo-500" />
+                                <div className="flex-1 flex gap-4 w-96 ml-4">
+                                    <div className="flex-1">
+                                        <div className="flex justify-between text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">
+                                            <span>B {brightness}%</span>
+                                        </div>
+                                        <input
+                                            type="range" min="50" max="150" value={brightness}
+                                            onChange={(e) => setBrightness(parseInt(e.target.value))}
+                                            className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                        />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">
+                                            <span>C {contrast}%</span>
+                                        </div>
+                                        <input
+                                            type="range" min="50" max="150" value={contrast}
+                                            onChange={(e) => setContrast(parseInt(e.target.value))}
+                                            className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                        />
+                                    </div>
+                                    {filterMode === 'bw' && (
+                                        <div className="flex-1">
+                                            <div className="flex justify-between text-[10px] text-slate-400 mb-1 uppercase font-bold tracking-wider">
+                                                <span>T {threshold}</span>
+                                            </div>
+                                            <input
+                                                type="range" min="0" max="255" value={threshold}
+                                                onChange={(e) => setThreshold(parseInt(e.target.value))}
+                                                className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-white"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
