@@ -22,6 +22,7 @@ interface FileData {
     price_per_file?: number;
     included_pages?: number;
     price_per_extra_page?: number;
+    processing_stage?: string;
 }
 
 interface PatientDetail {
