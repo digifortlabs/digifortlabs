@@ -15,6 +15,7 @@ const A4_RATIO = 210 / 297; // 0.707
 export default function DigitizationScanner({ onComplete, onCancel }: DigitizationScannerProps) {
     // --- State ---
     const webcamRef = useRef<Webcam>(null);
+    const processingCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const editorImgRef = useRef<HTMLImageElement>(null);
     const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
     const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
@@ -69,12 +70,15 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                     const videoW = video.videoWidth;
                     const videoH = video.videoHeight;
 
-                    // Create minimal canvas for processing
+                    // Create/Reuse canvas for processing
+                    if (!processingCanvasRef.current) {
+                        processingCanvasRef.current = document.createElement('canvas');
+                    }
+                    const canvas = processingCanvasRef.current;
                     const scale = Math.min(1, 256 / videoW); // Process at low res
-                    const canvas = document.createElement('canvas');
                     canvas.width = videoW * scale;
                     canvas.height = videoH * scale;
-                    const ctx = canvas.getContext('2d');
+                    const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
                     if (ctx) {
                         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -690,6 +694,10 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                                         height: { ideal: resolution.height }
                                     }}
                                     className={`shadow-2xl transition-all duration-300 ${viewMode === 'fit' ? 'w-full h-full object-contain' : 'w-full h-full object-cover'}`}
+                                    onUserMediaError={(err) => {
+                                        console.error("Webcam Error:", err);
+                                        alert("Camera failed to start. Please check permissions or resolution support.");
+                                    }}
                                     style={{
                                         filter: `brightness(${brightness}%) contrast(${filterMode === 'bw' ? contrast * 2 : contrast}%) grayscale(${filterMode === 'color' ? 0 : 100}%)`,
                                         transform: `rotate(${liveRotation}deg)`
