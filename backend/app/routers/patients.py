@@ -304,7 +304,7 @@ def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session =
     if not db_patient:
         raise HTTPException(status_code=404, detail="Patient not found")
         
-    is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.WEBSITE_ADMIN, UserRole.WEBSITE_STAFF]
+    is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
     if not is_platform and db_patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -1028,3 +1028,35 @@ def update_file_tags(
     db_file.tags = request.tags
     db.commit()
     return {"message": "Tags updated successfully", "tags": db_file.tags}
+
+@router.delete("/{patient_id}")
+def delete_patient(
+    patient_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a patient and all associated files"""
+    # Authorization
+    is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
+    
+    patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    if not is_platform and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    try:
+        # DB Cascade should handle files, but explicit is better if we want to delete S3 objects.
+        # For now, just DB deletion as per request context (assuming S3 cleanup is secondary or handled by a batch job)
+        db.delete(patient)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"Delete Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete patient.")
+
+    from ..audit import log_audit
+    log_audit(db, current_user.user_id, "PATIENT_DELETED", f"Deleted patient: {patient.full_name}", hospital_id=current_user.hospital_id)
+
+    return {"status": "success", "message": "Patient deleted successfully"}

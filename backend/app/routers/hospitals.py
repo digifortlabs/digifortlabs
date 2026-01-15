@@ -10,6 +10,7 @@ from ..database import get_db
 from ..models import Hospital, Patient, PDFFile, User, UserRole
 from ..utils import get_password_hash
 from .auth import get_current_user
+from ..services.email_service import EmailService
 
 router = APIRouter()
 
@@ -179,6 +180,13 @@ def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), cur
         )
         db.add(new_admin)
         log_audit(db, current_user.user_id, "ADMIN_CREATED", f"Auto-created admin for {hospital.legal_name}")
+        
+        # Send Welcome Email
+        EmailService.send_welcome_email(
+            email=hospital.email,
+            name=hospital.director_name or "Hospital Admin",
+            password="Hospital@123" # One-Time Password
+        )
 
     log_audit(db, current_user.user_id, "HOSPITAL_ONBOARDED", f"Hospital {hospital.legal_name} added to platform.")
     
@@ -219,6 +227,13 @@ def create_hospital_admin(hospital_id: int, admin_data: AdminCreate, db: Session
     )
     db.add(new_admin)
     db.commit()
+    
+    # Send Welcome Email
+    EmailService.send_welcome_email(
+        email=admin_data.email,
+        name=admin_data.legal_name,
+        password=admin_data.password
+    )
     
     return {"message": f"Admin created for {hospital.legal_name}", "email": admin_data.email}
 

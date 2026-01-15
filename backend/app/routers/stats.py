@@ -139,7 +139,7 @@ def get_dashboard_stats(
     } for i in qa_issues]
 
     # 7. Storage & Trends
-    storage_query = db.query(func.sum(PDFFile.file_size)).filter(PDFFile.upload_status == 'confirmed')
+    storage_query = db.query(func.sum(PDFFile.file_size)).filter(PDFFile.upload_status.in_(['confirmed', 'draft']))
     if target_hospital_id:
         storage_query = storage_query.join(Patient).filter(Patient.hospital_id == target_hospital_id)
     
@@ -171,11 +171,11 @@ def get_dashboard_stats(
             hospital_name = hospital.legal_name
             # Simplified Revenue Calculation for Demo: price_per_file * total_files
             # In a real system, this would consider page counts
-            total_files = q_patients.join(PDFFile).filter(PDFFile.upload_status == 'confirmed').count()
+            total_files = q_patients.join(PDFFile).filter(PDFFile.upload_status.in_(['confirmed', 'draft'])).count()
             estimated_revenue = total_files * hospital.price_per_file
             billing_data = {
-                "tier": hospital.subscription_tier,
-                "base_price": hospital.price_per_file,
+                "subscription_tier": hospital.subscription_tier,
+                "price_per_file": hospital.price_per_file,
                 "total_estimated_cost": round(estimated_revenue, 2),
                 "currency": "INR",
                 "files_count": total_files

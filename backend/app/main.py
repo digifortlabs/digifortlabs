@@ -9,7 +9,7 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="THE DIGIFORT LABS - Hospital Archive",
-    description="Secure PDF Archival System for Hospitals",
+    description="Secure PDF Archival System for Hospitals ",
     version="1.0.0",
     docs_url=None if settings.ENVIRONMENT == "production" else "/docs",
     redoc_url=None if settings.ENVIRONMENT == "production" else "/redoc",
@@ -109,13 +109,13 @@ async def startup_event():
         while True:
             try:
                 db = SessionLocal()
-                print("🕒 Running Scheduled Task: Auto-Confirming Drafts...")
+                print("Running Scheduled Task: Auto-Confirming Drafts...")
                 results = StorageService.process_auto_confirmations(db)
                 if results["total"] > 0:
-                     print(f"✅ Auto-confirmed {results['success']} files ({results['failed']} failed)")
+                     print(f"Auto-confirmed {results['success']} files ({results['failed']} failed)")
                 db.close()
             except Exception as e:
-                print(f"❌ Auto-confirm Loop Error: {e}")
+                print(f"Auto-confirm Loop Error: {e}")
             
             # Run every 1 hour
             await asyncio.sleep(3600)

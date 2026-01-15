@@ -21,8 +21,9 @@ import {
     Eye,
     ScanLine,
     Building2,
-    DollarSign,
-    Package
+    IndianRupee, // Changed from DollarSign
+    Package,
+    ChevronRight // Added
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { exportDashboardMetrics, generatePDFReport } from '../utils/reportUtils';
@@ -39,6 +40,10 @@ export default function CommandCenter() {
     const [selectedIssue, setSelectedIssue] = useState<any>(null);
     const [userRole, setUserRole] = useState('');
     const [isDetailedView, setIsDetailedView] = useState(false);
+
+    // Patient List State
+    const [patients, setPatients] = useState<any[]>([]);
+    const [loadingPatients, setLoadingPatients] = useState(false);
 
     useEffect(() => {
         // Simulations and Fetching
@@ -82,8 +87,22 @@ export default function CommandCenter() {
             })
             .catch(err => console.error("Stats Fetch Error:", err));
 
-        // Removed Simulation - Now using Real Backend Data
-    }, []);
+        // Fetch Recent Patients if looking at specific hospital
+        if (hospitalId) {
+            setLoadingPatients(true);
+            fetch(`${API_URL}/patients/?hospital_id=${hospitalId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+                .then(res => res.json())
+                .then(data => {
+                    // Take top 5 recent
+                    setPatients(Array.isArray(data) ? data.slice(0, 5) : []);
+                })
+                .catch(err => console.error("Patients Fetch Error:", err))
+                .finally(() => setLoadingPatients(false));
+        }
+
+    }, [hospitalId]);
 
     return (
         <div className="p-6 max-w-[1600px] mx-auto min-h-screen pb-20">
@@ -163,7 +182,7 @@ export default function CommandCenter() {
                             trend="Normal"
                             trendUp={true}
                             icon={<Activity size={20} />}
-                            color="cyan"
+                            color="cyan" // Changed to cyan
                         />
                     </>
                 )}
@@ -213,22 +232,83 @@ export default function CommandCenter() {
                 {isDetailedView && stats?.billing && (
                     <MetricCard
                         label="Total Cost"
-                        value={`${stats.billing.currency}${stats.billing.total_estimated_cost?.toLocaleString() || '0'}`}
+                        value={`₹${stats.billing.total_estimated_cost?.toLocaleString() || '0'}`} // Changed to Rupee
                         trend={`${stats.billing.files_count || 0} files`}
                         trendUp={true}
-                        icon={<DollarSign size={20} />}
-                        color="purple"
-                        sub={`${stats.billing.subscription_tier} Plan • ${stats.billing.currency}${stats.billing.price_per_file}/file`}
+                        icon={<IndianRupee size={20} />} // Changed Icon
+                        color="purple" // Changed to purple
+                        sub={`${stats.billing.subscription_tier} Plan • ₹${stats.billing.price_per_file}/file`} // Changed to Rupee
                     />
                 )}
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+            {/* Patient List (New Section) */}
+            {hospitalId && (
+                <div className="mb-8">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-bold text-slate-800">Recent Patients</h2>
+                        <button
+                            onClick={() => router.push(`/dashboard/records?hospital_id=${hospitalId}`)}
+                            className="text-sm font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                        >
+                            View All <ChevronRight size={16} />
+                        </button>
+                    </div>
 
+                    <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 border-b border-slate-100">
+                                <tr>
+                                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Patient Name</th>
+                                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">MRD / UHID</th>
+                                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Discharged</th>
+                                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {loadingPatients ? (
+                                    <tr><td colSpan={4} className="p-8 text-center text-slate-400">Loading patients...</td></tr>
+                                ) : patients.length === 0 ? (
+                                    <tr><td colSpan={4} className="p-8 text-center text-slate-400 italic">No recent patients found.</td></tr>
+                                ) : (
+                                    patients.map((p) => (
+                                        <tr key={p.record_id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => router.push(`/dashboard/records/view?id=${p.record_id}`)}>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">
+                                                        {p.full_name?.charAt(0)}
+                                                    </div>
+                                                    <span className="font-bold text-slate-700">{p.full_name}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="font-mono text-sm text-slate-600">{p.patient_u_id}</div>
+                                                {p.uhid && <div className="text-[10px] text-slate-400 font-bold">UHID: {p.uhid}</div>}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm font-medium text-slate-600">
+                                                {p.discharge_date ? new Date(p.discharge_date).toLocaleDateString('en-IN') : '-'}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {p.physical_box_id ? (
+                                                    <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded uppercase">Archived</span>
+                                                ) : (
+                                                    <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded uppercase">Digital</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                {/* ... (Rest of the existing layout: Main Activity Feed & QA) ... */}
                 {/* Main Activity Feed */}
                 <div className="xl:col-span-2 space-y-8">
-
-
                     {/* Recent Alerts (Real) */}
                     <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
                         <div className="flex justify-between items-center mb-4">
@@ -251,7 +331,6 @@ export default function CommandCenter() {
                             )}
                         </div>
                     </div>
-
                 </div>
 
                 {/* Right Column: QA & Quick Actions */}
@@ -326,8 +405,39 @@ export default function CommandCenter() {
                         )}
 
                         {/* Hospital Actions */}
-                        {(userRole === 'hospital_admin' || userRole === 'mrd_staff') && (
+                        {(userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'website_admin') && (
                             <div className="grid grid-cols-2 gap-4">
+
+                                {/* Universal Admin Action: Confirm Uploads */}
+                                {(userRole === 'hospital_admin' || userRole === 'website_admin') && (
+                                    <button
+                                        onClick={async () => {
+                                            if (!confirm("Are you sure you want to confirm all pending uploads immediately? This will finalize their storage locations.")) return;
+                                            try {
+                                                const token = localStorage.getItem('token');
+                                                const res = await fetch(`${API_URL}/storage/confirm-all${hospitalId ? `?hospital_id=${hospitalId}` : ''}`, {
+                                                    method: 'POST',
+                                                    headers: { Authorization: `Bearer ${token}` }
+                                                });
+                                                const data = await res.json();
+
+                                                if (!res.ok) {
+                                                    throw new Error(data.detail || data.message || "Request failed");
+                                                }
+
+                                                alert(data.message || "Operation successful");
+                                                window.location.reload();
+                                            } catch (e: any) {
+                                                alert(e.message || "Failed to confirm uploads");
+                                            }
+                                        }}
+                                        className="col-span-2 bg-indigo-600 text-white p-4 rounded-xl flex items-center justify-center gap-2 font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100"
+                                    >
+                                        <CheckCircle2 size={20} />
+                                        Confirm Pending Uploads
+                                    </button>
+                                )}
+
                                 {/* MRD Custom Actions */}
                                 {userRole === 'mrd_staff' ? (
                                     <>
@@ -464,13 +574,15 @@ const MetricCard = ({ label, value, sub, trend, trendUp, icon, color }: any) => 
         blue: 'bg-blue-50 text-blue-600',
         indigo: 'bg-indigo-50 text-indigo-600',
         amber: 'bg-amber-50 text-amber-600',
-        emerald: 'bg-emerald-50 text-emerald-600'
+        emerald: 'bg-emerald-50 text-emerald-600',
+        cyan: 'bg-cyan-50 text-cyan-600', // Added
+        purple: 'bg-purple-50 text-purple-600' // Added
     };
 
     return (
         <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
-                <div className={`p-3 rounded-2xl ${bgColors[color]}`}>
+                <div className={`p-3 rounded-2xl ${bgColors[color] || bgColors.indigo}`}>
                     {icon}
                 </div>
                 <div className={`text-xs font-bold px-2 py-1 rounded-lg flex items-center gap-1 ${trendUp ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>

@@ -499,6 +499,71 @@ function PatientDetailContent() {
         } catch (e) { console.error(e); }
     };
 
+    const handleRequestPhysicalFile = async () => {
+        if (!patient?.physical_box_id) {
+            alert("This patient is not assigned to any physical box.");
+            return;
+        }
+        if (!confirm("Request the physical box containing this file?")) return;
+
+        const token = localStorage.getItem('token');
+        const apiUrl = API_URL;
+
+        try {
+            const res = await fetch(`${apiUrl}/storage/requests`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    box_id: patient.physical_box_id,
+                    requester_name: "Auto"
+                })
+            });
+
+            if (res.ok) {
+                alert("Request sent successfully! Check the 'File Requests' page.");
+            } else {
+                const data = await res.json();
+                alert(`Failed: ${data.detail || "Could not send request"}`);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Network error");
+        }
+    };
+
+
+
+    const handleDeletePatient = async () => {
+        const input = prompt(`DANGER ZONE \n\nTo PERMANENTLY delete this patient and ALL their files, type "delete" below:`);
+        if (input !== "delete") {
+            if (input !== null) alert("Deletion cancelled. You must type 'delete' exactly.");
+            return;
+        }
+
+        const token = localStorage.getItem('token');
+        const apiUrl = API_URL;
+
+        try {
+            const res = await fetch(`${apiUrl}/patients/${id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                alert("Patient record deleted successfully.");
+                router.replace('/dashboard/records');
+            } else {
+                const data = await res.json();
+                alert(`Failed: ${data.detail || "Unknown error"}`);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Network error.");
+        }
+    };
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -742,6 +807,16 @@ function PatientDetailContent() {
                                     >
                                         View Document
                                     </button>
+
+                                    {/* Request Physical File Button */}
+                                    {patient.physical_box_id && (
+                                        <button
+                                            onClick={handleRequestPhysicalFile}
+                                            className="w-full py-2 bg-purple-50 text-purple-600 rounded-md text-sm font-medium hover:bg-purple-100 flex items-center justify-center gap-2"
+                                        >
+                                            Request Physical File
+                                        </button>
+                                    )}
 
                                     {file.upload_status === 'draft' ? (
                                         <div className="flex gap-2">
@@ -1088,216 +1163,231 @@ function PatientDetailContent() {
             }
 
             {/* Add Diagnosis Modal */}
-            {showDiagModal && (
-                <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center p-4 z-[80] backdrop-blur-sm">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        <div className="px-6 py-4 border-b bg-slate-50 flex justify-between items-center">
-                            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                                <Stethoscope size={18} className="text-indigo-600" /> Add Clinical Diagnosis (ICD-11)
-                            </h3>
-                            <button onClick={() => setShowDiagModal(false)} className="text-slate-400 hover:text-slate-600">
-                                <X size={20} />
-                            </button>
-                        </div>
+            {
+                showDiagModal && (
+                    <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center p-4 z-[80] backdrop-blur-sm">
+                        <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                            <div className="px-6 py-4 border-b bg-slate-50 flex justify-between items-center">
+                                <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                                    <Stethoscope size={18} className="text-indigo-600" /> Add Clinical Diagnosis (ICD-11)
+                                </h3>
+                                <button onClick={() => setShowDiagModal(false)} className="text-slate-400 hover:text-slate-600">
+                                    <X size={20} />
+                                </button>
+                            </div>
 
-                        <div className="p-6 space-y-4">
-                            {!selectedCode ? (
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">Search Code / Disease</label>
-                                    <div className="relative">
-                                        <input
-                                            autoFocus
-                                            type="text"
-                                            placeholder="e.g. Cholera, 1A00..."
-                                            className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
-                                            value={diagSearch}
-                                            onChange={(e) => searchDiagnoses(e.target.value)}
-                                        />
-                                        <Search className="absolute left-3 top-3.5 text-slate-400" size={18} />
-                                    </div>
+                            <div className="p-6 space-y-4">
+                                {!selectedCode ? (
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">Search Code / Disease</label>
+                                        <div className="relative">
+                                            <input
+                                                autoFocus
+                                                type="text"
+                                                placeholder="e.g. Cholera, 1A00..."
+                                                className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+                                                value={diagSearch}
+                                                onChange={(e) => searchDiagnoses(e.target.value)}
+                                            />
+                                            <Search className="absolute left-3 top-3.5 text-slate-400" size={18} />
+                                        </div>
 
-                                    {/* Results List */}
-                                    <div className="mt-2 max-h-60 overflow-y-auto border border-slate-100 rounded-lg">
-                                        {diagResults.length > 0 ? (
-                                            diagResults.map(code => (
-                                                <div
-                                                    key={code.code}
-                                                    onClick={() => setSelectedCode(code)}
-                                                    className="p-3 border-b border-slate-50 hover:bg-indigo-50 cursor-pointer flex items-center justify-between group transition-colors"
-                                                >
-                                                    <div>
-                                                        <span className="font-mono font-bold text-indigo-600 text-sm block">{code.code}</span>
-                                                        <span className="text-sm text-slate-700">{code.description}</span>
+                                        {/* Results List */}
+                                        <div className="mt-2 max-h-60 overflow-y-auto border border-slate-100 rounded-lg">
+                                            {diagResults.length > 0 ? (
+                                                diagResults.map(code => (
+                                                    <div
+                                                        key={code.code}
+                                                        onClick={() => setSelectedCode(code)}
+                                                        className="p-3 border-b border-slate-50 hover:bg-indigo-50 cursor-pointer flex items-center justify-between group transition-colors"
+                                                    >
+                                                        <div>
+                                                            <span className="font-mono font-bold text-indigo-600 text-sm block">{code.code}</span>
+                                                            <span className="text-sm text-slate-700">{code.description}</span>
+                                                        </div>
+                                                        <Plus size={16} className="text-indigo-400 group-hover:text-indigo-600" />
                                                     </div>
-                                                    <Plus size={16} className="text-indigo-400 group-hover:text-indigo-600" />
-                                                </div>
-                                            ))
-                                        ) : (
-                                            diagSearch.length > 1 && (
-                                                <div className="p-4 text-center text-slate-400 text-sm">
-                                                    No matching codes found.
-                                                </div>
-                                            )
-                                        )}
+                                                ))
+                                            ) : (
+                                                diagSearch.length > 1 && (
+                                                    <div className="p-4 text-center text-slate-400 text-sm">
+                                                        No matching codes found.
+                                                    </div>
+                                                )
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            ) : (
-                                <div className="animate-in slide-in-from-right-4 duration-300">
-                                    <div className="bg-indigo-50 p-4 rounded-lg mb-4 flex items-start gap-3 border border-indigo-100">
-                                        <div className="bg-white p-2 rounded text-indigo-600 shadow-sm">
-                                            <Activity size={20} />
+                                ) : (
+                                    <div className="animate-in slide-in-from-right-4 duration-300">
+                                        <div className="bg-indigo-50 p-4 rounded-lg mb-4 flex items-start gap-3 border border-indigo-100">
+                                            <div className="bg-white p-2 rounded text-indigo-600 shadow-sm">
+                                                <Activity size={20} />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-indigo-900">{selectedCode.code}</h4>
+                                                <p className="text-sm text-indigo-700">{selectedCode.description}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => setSelectedCode(null)}
+                                                className="ml-auto text-indigo-400 hover:text-indigo-600"
+                                            >
+                                                <X size={16} />
+                                            </button>
                                         </div>
+
                                         <div>
-                                            <h4 className="font-bold text-indigo-900">{selectedCode.code}</h4>
-                                            <p className="text-sm text-indigo-700">{selectedCode.description}</p>
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Clinical Notes (Optional)</label>
+                                            <textarea
+                                                className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none min-h-[100px]"
+                                                placeholder="Add specific details, severity, or observations..."
+                                                value={diagNotes}
+                                                onChange={(e) => setDiagNotes(e.target.value)}
+                                            ></textarea>
                                         </div>
+
                                         <button
-                                            onClick={() => setSelectedCode(null)}
-                                            className="ml-auto text-indigo-400 hover:text-indigo-600"
+                                            onClick={addDiagnosis}
+                                            className="w-full mt-4 bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2"
                                         >
-                                            <X size={16} />
+                                            <Plus size={18} /> Confirm Diagnosis
                                         </button>
                                     </div>
-
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">Clinical Notes (Optional)</label>
-                                        <textarea
-                                            className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none min-h-[100px]"
-                                            placeholder="Add specific details, severity, or observations..."
-                                            value={diagNotes}
-                                            onChange={(e) => setDiagNotes(e.target.value)}
-                                        ></textarea>
-                                    </div>
-
-                                    <button
-                                        onClick={addDiagnosis}
-                                        className="w-full mt-4 bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2"
-                                    >
-                                        <Plus size={18} /> Confirm Diagnosis
-                                    </button>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Add Procedure Modal */}
-            {showProcModal && (
-                <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center p-4 z-[90] backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
-                        <div className="px-6 py-4 border-b bg-emerald-50 flex justify-between items-center">
-                            <h3 className="font-bold text-lg text-emerald-900 flex items-center gap-2">
-                                <Syringe size={18} className="text-emerald-600" /> Add Procedure (ICD-11)
-                            </h3>
-                            <button onClick={() => setShowProcModal(false)} className="text-slate-400 hover:text-slate-600">
-                                <X size={20} />
-                            </button>
-                        </div>
+            {
+                showProcModal && (
+                    <div className="fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center p-4 z-[90] backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+                            <div className="px-6 py-4 border-b bg-emerald-50 flex justify-between items-center">
+                                <h3 className="font-bold text-lg text-emerald-900 flex items-center gap-2">
+                                    <Syringe size={18} className="text-emerald-600" /> Add Procedure (ICD-11)
+                                </h3>
+                                <button onClick={() => setShowProcModal(false)} className="text-slate-400 hover:text-slate-600">
+                                    <X size={20} />
+                                </button>
+                            </div>
 
-                        <div className="p-6 space-y-4">
-                            {!selectedProcCode ? (
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">Search Procedure</label>
-                                    <div className="relative">
-                                        <input
-                                            autoFocus
-                                            type="text"
-                                            placeholder="e.g. Appendectomy, P01A..."
-                                            className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
-                                            value={procSearch}
-                                            onChange={(e) => searchProcedures(e.target.value)}
-                                        />
-                                        <Search className="absolute left-3 top-3.5 text-slate-400" size={18} />
-                                    </div>
+                            <div className="p-6 space-y-4">
+                                {!selectedProcCode ? (
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">Search Procedure</label>
+                                        <div className="relative">
+                                            <input
+                                                autoFocus
+                                                type="text"
+                                                placeholder="e.g. Appendectomy, P01A..."
+                                                className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
+                                                value={procSearch}
+                                                onChange={(e) => searchProcedures(e.target.value)}
+                                            />
+                                            <Search className="absolute left-3 top-3.5 text-slate-400" size={18} />
+                                        </div>
 
-                                    <div className="mt-2 max-h-60 overflow-y-auto border border-slate-100 rounded-lg">
-                                        {procResults.length > 0 ? (
-                                            procResults.map((proc, i) => (
-                                                <div
-                                                    key={i}
-                                                    onClick={() => setSelectedProcCode(proc)}
-                                                    className="p-3 border-b border-slate-50 hover:bg-emerald-50 cursor-pointer flex items-center justify-between group transition-colors"
-                                                >
-                                                    <div>
-                                                        <span className="font-mono font-bold text-emerald-600 text-sm block">{proc.code}</span>
-                                                        <span className="text-sm text-slate-700">{proc.description}</span>
+                                        <div className="mt-2 max-h-60 overflow-y-auto border border-slate-100 rounded-lg">
+                                            {procResults.length > 0 ? (
+                                                procResults.map((proc, i) => (
+                                                    <div
+                                                        key={i}
+                                                        onClick={() => setSelectedProcCode(proc)}
+                                                        className="p-3 border-b border-slate-50 hover:bg-emerald-50 cursor-pointer flex items-center justify-between group transition-colors"
+                                                    >
+                                                        <div>
+                                                            <span className="font-mono font-bold text-emerald-600 text-sm block">{proc.code}</span>
+                                                            <span className="text-sm text-slate-700">{proc.description}</span>
+                                                        </div>
+                                                        <Plus size={16} className="text-emerald-400 group-hover:text-emerald-600" />
                                                     </div>
-                                                    <Plus size={16} className="text-emerald-400 group-hover:text-emerald-600" />
-                                                </div>
-                                            ))
-                                        ) : (
-                                            procSearch.length > 1 && (
-                                                <div className="p-4 text-center text-slate-400 text-sm">
-                                                    No matching procedures found.
-                                                </div>
-                                            )
-                                        )}
+                                                ))
+                                            ) : (
+                                                procSearch.length > 1 && (
+                                                    <div className="p-4 text-center text-slate-400 text-sm">
+                                                        No matching procedures found.
+                                                    </div>
+                                                )
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            ) : (
-                                <div className="animate-in slide-in-from-right-4 duration-300">
-                                    <div className="bg-emerald-50 p-4 rounded-lg mb-4 flex items-start gap-3 border border-emerald-100">
-                                        <div className="bg-white p-2 rounded text-emerald-600 shadow-sm">
-                                            <Syringe size={20} />
+                                ) : (
+                                    <div className="animate-in slide-in-from-right-4 duration-300">
+                                        <div className="bg-emerald-50 p-4 rounded-lg mb-4 flex items-start gap-3 border border-emerald-100">
+                                            <div className="bg-white p-2 rounded text-emerald-600 shadow-sm">
+                                                <Syringe size={20} />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-emerald-900">{selectedProcCode.code}</h4>
+                                                <p className="text-sm text-emerald-700">{selectedProcCode.description}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => setSelectedProcCode(null)}
+                                                className="ml-auto text-emerald-400 hover:text-emerald-600"
+                                            >
+                                                <X size={16} />
+                                            </button>
                                         </div>
+
                                         <div>
-                                            <h4 className="font-bold text-emerald-900">{selectedProcCode.code}</h4>
-                                            <p className="text-sm text-emerald-700">{selectedProcCode.description}</p>
+                                            <label className="block text-sm font-bold text-slate-700 mb-2">Procedure Notes (Optional)</label>
+                                            <textarea
+                                                className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none min-h-[100px]"
+                                                placeholder="Outcome, complications, etc..."
+                                                value={procNotes}
+                                                onChange={(e) => setProcNotes(e.target.value)}
+                                            ></textarea>
                                         </div>
+
                                         <button
-                                            onClick={() => setSelectedProcCode(null)}
-                                            className="ml-auto text-emerald-400 hover:text-emerald-600"
+                                            onClick={addProcedure}
+                                            className="w-full mt-4 bg-emerald-600 text-white py-3 rounded-lg font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2"
                                         >
-                                            <X size={16} />
+                                            <Plus size={18} /> Record Procedure
                                         </button>
                                     </div>
-
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">Procedure Notes (Optional)</label>
-                                        <textarea
-                                            className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none min-h-[100px]"
-                                            placeholder="Outcome, complications, etc..."
-                                            value={procNotes}
-                                            onChange={(e) => setProcNotes(e.target.value)}
-                                        ></textarea>
-                                    </div>
-
-                                    <button
-                                        onClick={addProcedure}
-                                        className="w-full mt-4 bg-emerald-600 text-white py-3 rounded-lg font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2"
-                                    >
-                                        <Plus size={18} /> Record Procedure
-                                    </button>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Live Scanner Modal */}
-            {showScanner && (
-                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-                    <div className="w-full h-full max-w-7xl max-h-[95vh] bg-white rounded-2xl overflow-hidden shadow-2xl">
-                        <DigitizationScanner
-                            onComplete={async (pdfFile) => {
-                                // Add PDF to queue
-                                const queueItem: FileQueueItem = {
-                                    id: Math.random().toString(36).substr(2, 9),
-                                    originalFile: pdfFile,
-                                    status: 'pending',
-                                    progress: 0
-                                };
-                                setFileQueue(prev => [...prev, queueItem]);
-                                setShowScanner(false);
-                                alert(`Scanned PDF added to queue! Click "Start Batch" to upload.`);
-                            }}
-                            onCancel={() => setShowScanner(false)}
-                        />
+            {
+                showScanner && (
+                    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                        <div className="w-full h-full max-w-7xl max-h-[95vh] bg-white rounded-2xl overflow-hidden shadow-2xl">
+                            <DigitizationScanner
+                                onComplete={async (pdfFile) => {
+                                    // Add PDF to queue
+                                    const queueItem: FileQueueItem = {
+                                        id: Math.random().toString(36).substr(2, 9),
+                                        originalFile: pdfFile,
+                                        status: 'pending',
+                                        progress: 0
+                                    };
+                                    setFileQueue(prev => [...prev, queueItem]);
+                                    setShowScanner(false);
+                                    alert(`Scanned PDF added to queue! Click "Start Batch" to upload.`);
+                                }}
+                                onCancel={() => setShowScanner(false)}
+                            />
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
+
+            <div className="mt-12 pt-8 border-t border-red-100 flex justify-center">
+                <button
+                    onClick={handleDeletePatient}
+                    className="px-6 py-3 bg-red-50 text-red-600 font-bold rounded-xl border border-red-200 hover:bg-red-100 hover:border-red-300 transition-all flex items-center gap-2"
+                >
+                    <Trash2 size={18} /> Delete Patient Record
+                </button>
+            </div>
         </div >
     );
 }

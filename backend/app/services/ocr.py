@@ -9,7 +9,7 @@ try:
     HAS_OCR = True
 except ImportError:
     HAS_OCR = False
-    print("⚠️ OCR Dependencies missing. Falling back to text-only mode.")
+    print("Warning: OCR Dependencies missing. Falling back to text-only mode.")
 
 from pypdf import PdfReader
 

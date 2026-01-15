@@ -29,11 +29,11 @@ class S3Manager:
                 self.s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
                 self.s3_client.list_buckets()
             
-            print(f"✅ S3 Manager initialized for bucket: {self.bucket_name} (Region: {settings.AWS_REGION})")
+            print(f"[INFO] S3 Manager initialized for bucket: {self.bucket_name} (Region: {settings.AWS_REGION})")
             self.mode = "s3"
         except Exception as e:
             self.mode = "local"
-            print(f"⚠️ S3 Manager falling back to LOCAL MODE (Error: {str(e)[:50]}...). Storage: {self.local_root}")
+            print(f"[WARN] S3 Manager falling back to LOCAL MODE (Error: {str(e)[:50]}...). Storage: {self.local_root}")
 
     def upload_file(self, file_content, object_name, content_type=None):
         """
@@ -51,7 +51,7 @@ class S3Manager:
                     
                 return True, full_path
             except Exception as e:
-                print(f"❌ Local Upload Error: {e}")
+                print(f"[ERROR] Local Upload Error: {e}")
                 return False, str(e)
         
         try:
@@ -69,10 +69,10 @@ class S3Manager:
             )
             return True, f"s3://{self.bucket_name}/{object_name}"
         except ClientError as e:
-            print(f"❌ S3 Upload Error: {e}")
+            print(f"[ERROR] S3 Upload Error: {e}")
             return False, str(e)
         except Exception as e:
-            print(f"❌ Unexpected Upload Error: {e}")
+            print(f"[ERROR] Unexpected Upload Error: {e}")
             return False, str(e)
 
     def generate_presigned_url(self, object_name, expiration=3600):
@@ -100,7 +100,7 @@ class S3Manager:
             )
             return response
         except ClientError as e:
-            print(f"❌ Presign Error: {e}")
+            print(f"[ERROR] Presign Error: {e}")
             return None
 
     def download_to_temp_cache(self, object_name, local_path):
@@ -117,7 +117,7 @@ class S3Manager:
                 shutil.copy2(source_path, local_path)
                 return True
             except Exception as e:
-                print(f"❌ Local Download Error: {e}")
+                print(f"[ERROR] Local Download Error: {e}")
                 return False
 
         try:
@@ -129,10 +129,10 @@ class S3Manager:
             self.s3_client.download_file(self.bucket_name, object_name, local_path)
             return True
         except ClientError as e:
-            print(f"❌ Download Error: {e}")
+            print(f"[ERROR] Download Error: {e}")
             return False
         except Exception as e:
-            print(f"❌ Unexpected Download Error: {e}")
+            print(f"[ERROR] Unexpected Download Error: {e}")
             return False
 
     def get_file_bytes(self, object_name: str) -> bytes:
@@ -150,7 +150,7 @@ class S3Manager:
                 response = self.s3_client.get_object(Bucket=self.bucket_name, Key=object_name)
                 return response['Body'].read()
             except Exception as e:
-                print(f"❌ S3 Retrieval Error: {e}")
+                print(f"[ERROR] S3 Retrieval Error: {e}")
                 return None
         
         return None
@@ -166,12 +166,12 @@ class S3Manager:
                     os.remove(full_path)
                 return True
             except Exception as e:
-                print(f"❌ Local Delete Error: {e}")
+                print(f"[ERROR] Local Delete Error: {e}")
                 return False
 
         try:
             self.s3_client.delete_object(Bucket=self.bucket_name, Key=object_name)
             return True
         except ClientError as e:
-            print(f"❌ Delete Error: {e}")
+            print(f"[ERROR] Delete Error: {e}")
             return False

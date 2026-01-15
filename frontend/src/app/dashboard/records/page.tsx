@@ -9,6 +9,7 @@ import { toTitleCase, toUpperCaseMRD } from '@/utils/formatters';
 export default function RecordsList() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const hospitalIdParam = searchParams.get('hospital_id');
     const action = searchParams.get('action'); // ?action=new
 
     const [patients, setPatients] = useState<any[]>([]);
@@ -163,6 +164,9 @@ export default function RecordsList() {
         if (userProfile) {
             if (userProfile.role === 'website_admin' || userProfile.role === 'website_staff') {
                 fetchHospitals();
+                if (hospitalIdParam) {
+                    setSelectedHospitalId(parseInt(hospitalIdParam));
+                }
             } else {
                 // Regular hospital staff - set their hospital ID
                 if (userProfile.hospital_id) {
@@ -285,7 +289,7 @@ export default function RecordsList() {
                     setPatients(patients.map(p => p.record_id === selectedPatientId ? data : p));
                 } else {
                     setPatients([data, ...patients]);
-                    router.push(`/dashboard/records/upload?patient_id=${data.record_id}`);
+                    router.push(`/dashboard/records/view?id=${data.record_id}`);
                 }
             }
         } catch (err: any) {
@@ -410,9 +414,7 @@ export default function RecordsList() {
                                         )}
                                     </td>
                                     <td className="p-6 text-right space-x-2">
-                                        <button onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/records/upload?patient_id=${p.record_id}`); }} className="text-slate-400 hover:text-indigo-600 transition p-2 hover:bg-indigo-50 rounded-lg" title="Upload Files">
-                                            <Upload size={18} />
-                                        </button>
+
                                         <button onClick={(e) => {
                                             e.stopPropagation();
                                             setNewPatient({

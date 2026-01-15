@@ -10,7 +10,7 @@ try:
     HAS_IMG_TOOLS = True
 except ImportError:
     HAS_IMG_TOOLS = False
-    print("⚠️ PDF Compression Tools missing (pdf2image/Pillow). Using lossless only.")
+    print("Warning: PDF Compression Tools missing (pdf2image/Pillow). Using lossless only.")
 
 from moviepy import VideoFileClip
 from pypdf import PdfReader, PdfWriter

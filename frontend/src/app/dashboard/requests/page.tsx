@@ -9,9 +9,18 @@ export default function FileRequests() {
     const [view, setView] = useState('list'); // 'list' | 'new'
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [userRole, setUserRole] = useState<string>('');
 
     useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                setUserRole(payload.role);
+            } catch (e) {
+                console.error("Token decode failed", e);
+            }
+        }
         fetchRequests();
     }, []);
 
@@ -26,6 +35,12 @@ export default function FileRequests() {
             console.error(err);
         }
     };
+
+    const activeRequests = requests.filter(r => ['Pending', 'In Transit', 'Approved', 'Pending Approval', 'Return Requested'].includes(r.status));
+    const historyRequests = requests.filter(r => ['Delivered', 'Rejected', 'Cancelled', 'Returned'].includes(r.status));
+
+    // super_admin is mapped to 'website_admin' string usually, but let's check both
+    const canManageRequests = ['website_admin', 'super_admin', 'mrd_staff', 'platform_staff'].includes(userRole);
 
     const searchPatients = async (query: string) => {
         if (!query) { setSearchResults([]); return; }
@@ -67,8 +82,8 @@ export default function FileRequests() {
                     Authorization: `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    box_id: patient.physical_box_id, // Requesting the BOX the file is in
-                    requester_name: "Staff Request" // Backend should ideally pick user name
+                    box_id: patient.physical_box_id,
+                    requester_name: "Auto" // Backend will populate this with user email
                 })
             });
 
@@ -82,6 +97,42 @@ export default function FileRequests() {
             }
         } catch (err) {
             console.error(err);
+        }
+    };
+
+    const updateStatus = async (id: number, status: string) => {
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/storage/requests/${id}/status?status=${status}`, {
+                method: 'PATCH',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                alert(`Request ${status}`);
+                fetchRequests();
+            } else {
+                alert("Action Failed");
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const deleteRequest = async (id: number) => {
+        if (!confirm("Are you sure you want to delete this request?")) return;
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/storage/requests/${id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                fetchRequests();
+            } else {
+                alert("Failed to delete request.");
+            }
+        } catch (e) {
+            console.error(e);
         }
     };
 
@@ -123,44 +174,168 @@ export default function FileRequests() {
             </div>
 
             {view === 'list' ? (
-                <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
-                    <table className="w-full text-left">
-                        <thead className="bg-slate-50 border-b border-slate-100">
-                            <tr>
-                                <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Status</th>
-                                <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Box Label</th>
-                                <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Requester</th>
-                                <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Date</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {requests.map(req => (
-                                <tr key={req.request_id} className="hover:bg-slate-50/50 transition">
-                                    <td className="p-6">
-                                        <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${req.status === 'Pending' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                                req.status === 'Approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                <div className="space-y-12">
+                    {/* ACTIVE REQUESTS */}
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <Clock className="text-indigo-600" size={20} /> Active Requests
+                        </h3>
+                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 border-b border-slate-100">
+                                    <tr>
+                                        <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Status</th>
+                                        <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Location</th>
+                                        <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Box Label</th>
+                                        <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Requester</th>
+                                        <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Date</th>
+                                        <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {activeRequests.map(req => (
+                                        <tr key={req.request_id} className="hover:bg-slate-50/50 transition">
+                                            <td className="p-6">
+                                                <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${req.status === 'Pending' ? 'bg-amber-50 text-amber-600 border-amber-100' :
                                                     'bg-slate-100 text-slate-500 border-slate-200'
-                                            }`}>
-                                            {req.status === 'Pending' && <Clock size={12} />}
-                                            {req.status === 'Approved' && <CheckCircle2 size={12} />}
-                                            {req.status}
-                                        </span>
-                                    </td>
-                                    <td className="p-6 font-bold text-slate-700 flex items-center gap-2">
-                                        <Box size={16} className="text-indigo-400" />
-                                        {req.box_label}
-                                    </td>
-                                    <td className="p-6 text-sm font-medium text-slate-600">{req.requester_name}</td>
-                                    <td className="p-6 text-sm text-slate-400">{new Date(req.request_date).toLocaleDateString()}</td>
-                                </tr>
-                            ))}
-                            {requests.length === 0 && (
-                                <tr>
-                                    <td colSpan={4} className="p-12 text-center text-slate-400 italic">No active file requests properly.</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+                                                    }`}>
+                                                    <Clock size={12} /> {req.status}
+                                                </span>
+                                            </td>
+                                            <td className="p-6">
+                                                <span className={`text-xs font-bold px-2 py-1 rounded ${req.status === 'Delivered' ? 'bg-indigo-100 text-indigo-700' :
+                                                    req.status === 'In Transit' ? 'bg-orange-100 text-orange-700' :
+                                                        'bg-slate-100 text-slate-600'
+                                                    }`}>
+                                                    {req.status === 'Delivered' ? '🏥 At Hospital' :
+                                                        req.status === 'In Transit' ? '🚚 In Transit' :
+                                                            '🏢 Warehouse'}
+                                                </span>
+                                            </td>
+                                            <td className="p-6 font-bold text-slate-700 flex items-center gap-2">
+                                                <Box size={16} className="text-indigo-400" />
+                                                {req.box_label}
+                                            </td>
+                                            <td className="p-6 text-sm font-medium text-slate-600">{req.requester_name}</td>
+                                            <td className="p-6 text-sm text-slate-400">{new Date(req.request_date).toLocaleDateString()}</td>
+                                            <td className="p-6 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {canManageRequests && req.status === 'Pending' && (
+                                                        <>
+                                                            <button
+                                                                onClick={() => updateStatus(req.request_id, 'In Transit')}
+                                                                className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition"
+                                                            >
+                                                                Accept
+                                                            </button>
+                                                            <button
+                                                                onClick={() => updateStatus(req.request_id, 'Rejected')}
+                                                                className="px-3 py-1 bg-amber-50 text-amber-600 rounded-lg text-xs font-bold hover:bg-amber-100 transition"
+                                                            >
+                                                                Reject
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    {canManageRequests && req.status === 'In Transit' && (
+                                                        <button
+                                                            onClick={() => updateStatus(req.request_id, 'Delivered')}
+                                                            className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-bold hover:bg-emerald-100 transition"
+                                                        >
+                                                            Deliver
+                                                        </button>
+                                                    )}
+                                                    {canManageRequests && req.status === 'Return Requested' && (
+                                                        <button
+                                                            onClick={() => updateStatus(req.request_id, 'Returned')}
+                                                            className="px-3 py-1 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100 transition"
+                                                        >
+                                                            Confirm Return
+                                                        </button>
+                                                    )}
+
+                                                    {/* EVERYONE can delete/cancel their own request */}
+                                                    <button
+                                                        onClick={() => deleteRequest(req.request_id)}
+                                                        className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {activeRequests.length === 0 && (
+                                        <tr>
+                                            <td colSpan={6} className="p-12 text-center text-slate-400 italic">No active requests.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* HISTORY OF FILE REQUESTS */}
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <CheckCircle2 className="text-emerald-600" size={20} /> Request History
+                        </h3>
+                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden opacity-80 hover:opacity-100 transition">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 border-b border-slate-100">
+                                    <tr>
+                                        <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Status</th>
+                                        <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Location</th>
+                                        <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Box Label</th>
+                                        <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Requester</th>
+                                        <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Date</th>
+                                        <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {historyRequests.map(req => (
+                                        <tr key={req.request_id} className="hover:bg-slate-50/50 transition">
+                                            <td className="p-6">
+                                                <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${req.status === 'Delivered' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                    'bg-slate-100 text-slate-500 border-slate-200'
+                                                    }`}>
+                                                    {req.status === 'Delivered' ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
+                                                    {req.status}
+                                                </span>
+                                            </td>
+                                            <td className="p-6">
+                                                <span className={`text-xs font-bold px-2 py-1 rounded ${req.status === 'Delivered' ? 'bg-indigo-100 text-indigo-700' :
+                                                    'bg-slate-100 text-slate-600'
+                                                    }`}>
+                                                    {req.status === 'Delivered' ? '🏥 At Hospital' : '🏢 Warehouse'}
+                                                </span>
+                                            </td>
+                                            <td className="p-6 font-bold text-slate-700 flex items-center gap-2">
+                                                <Box size={16} className="text-indigo-400" />
+                                                {req.box_label}
+                                            </td>
+                                            <td className="p-6 text-sm font-medium text-slate-600">{req.requester_name}</td>
+                                            <td className="p-6 text-sm text-slate-400">{new Date(req.request_date).toLocaleDateString()}</td>
+                                            <td className="p-6 text-right">
+                                                {req.status === 'Delivered' && (
+                                                    <button
+                                                        onClick={() => updateStatus(req.request_id, 'Return Requested')}
+                                                        className="px-3 py-1 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100 transition"
+                                                    >
+                                                        Return to Warehouse
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {historyRequests.length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="p-12 text-center text-slate-400 italic">No history available.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             ) : (
                 <div className="max-w-2xl mx-auto">

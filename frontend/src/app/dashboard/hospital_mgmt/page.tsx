@@ -317,12 +317,16 @@ export default function HospitalsPage() {
                                             <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                                                 <button
                                                     className="w-full text-left px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
-                                                    onClick={() => openEditModal(h)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openEditModal(h);
+                                                    }}
                                                 >
                                                     Edit Details
                                                 </button>
                                                 <button
-                                                    onClick={() => {
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
                                                         setHospitalToDelete(h);
                                                         setDeleteConfirmation('');
                                                         setShowDeleteModal(true);
