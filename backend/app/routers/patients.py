@@ -12,7 +12,7 @@ from ..database import SessionLocal, get_db
 from ..models import BandwidthUsage, Patient, PDFFile, User, UserRole
 from ..routers.auth import get_current_user
 from ..services.compression import compress_pdf, compress_video_to_mp4
-from ..services.ocr import extract_text_from_pdf
+from ..services.ocr import extract_text_from_pdf, classify_document
 from ..services.s3_handler import S3Manager
 from ..services.storage_service import StorageService
 
@@ -103,6 +103,12 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
                     db_file.ocr_text = extracted_text
                     db_file.is_searchable = True
                     print(f"✅ OCR Text Extracted: {len(extracted_text)} chars")
+                    
+                    # Automated Tagging (AI Analysis)
+                    auto_tags = classify_document(extracted_text)
+                    if auto_tags:
+                        db_file.tags = ", ".join(auto_tags)
+                        print(f"🏷️ AI Tags applied: {db_file.tags}")
                 else:
                     print("ℹ️ No text extracted (Scanned PDF?)")
                     
@@ -227,6 +233,8 @@ class FileData(BaseModel):
     file_size_mb: float
     page_count: int = 0
     upload_status: str
+    tags: Optional[str] = None
+    is_searchable: bool = False
     
     # Historical Pricing captured at upload
     price_per_file: float = 100.0

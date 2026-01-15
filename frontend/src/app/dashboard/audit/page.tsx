@@ -51,18 +51,18 @@ export default function AuditPage() {
     };
 
     return (
-        <div className="flex-1 p-8">
-            <div className="flex justify-between items-center mb-6">
+        <div className="flex-1 p-4 sm:p-8">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800">📋 System Audit Trail</h1>
-                    <p className="text-sm text-gray-500">Every action taken by users across the platform is recorded here.</p>
+                    <h1 className="text-xl sm:text-2xl font-bold text-slate-800">📋 System Audit Trail</h1>
+                    <p className="text-xs sm:text-sm text-gray-500 mt-1">Every action taken by users across the platform is recorded here.</p>
                 </div>
-                <div className="bg-white px-4 py-2 rounded shadow-sm border border-slate-200">
+                <div className="bg-white px-4 py-2 rounded shadow-sm border border-slate-200 w-full sm:w-auto text-center">
                     <span className="text-sm font-bold text-slate-600">{total} Total Events</span>
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
                 <table className="w-full text-left">
                     <thead className="bg-slate-50 border-b border-slate-200">
                         <tr className="text-xs uppercase font-bold text-slate-500">

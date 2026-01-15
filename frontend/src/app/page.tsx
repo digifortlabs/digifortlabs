@@ -40,12 +40,12 @@ export default function Home() {
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-full mb-8 animate-fade-in-up backdrop-blur-sm">
           </div>
 
-          <h1 className="text-6xl md:text-7xl font-extrabold text-white tracking-tight mb-8 leading-[1.1]">
-            The Future of <br />
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold text-white tracking-tight mb-8 leading-[1.1]">
+            The Future of <br className="hidden sm:block" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400 drop-shadow-[0_0_30px_rgba(59,130,246,0.5)]">Medical Records</span> is Hybrid.
           </h1>
 
-          <p className="text-xl md:text-2xl text-slate-400 max-w-3xl mx-auto mb-12 leading-relaxed font-medium">
+          <p className="text-lg md:text-2xl text-slate-400 max-w-3xl mx-auto mb-12 leading-relaxed font-medium">
             Seamlessly manage massive physical archives and secure digital assets.
             <span className="text-slate-100 font-semibold"> One Platform. Zero Friction.</span>
           </p>
@@ -142,7 +142,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
 
             {/* Feature 1: Efficiency (Was Transparency) */}
             <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl p-6 border border-slate-800 hover:border-blue-500/50 hover:bg-slate-800 transition-all duration-300 group">

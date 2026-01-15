@@ -53,3 +53,32 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
         return ""
 
     return text.strip()
+
+
+def classify_document(text: str) -> list[str]:
+    """
+    Analyzes text to find matching medical categories.
+    Returns a list of tags.
+    """
+    if not text:
+        return []
+
+    text_lower = text.lower()
+    categories = {
+        "Discharge Summary": ["discharge summary", "condition on discharge", "advice on discharge", "date of discharge"],
+        "Lab Report": ["laboratory report", "lab report", "blood test", "biochemistry", "hematology", "pathology"],
+        "Imaging Report": ["radiology", "imaging report", "x-ray", "ct scan", "mri report", "ultrasound", "sonography"],
+        "Prescription": ["prescription", "rx", "medications", "dosage", "twice daily", "daily dose"],
+        "Medical Certificate": ["medical certificate", "fit to work", "sick leave", "illness"],
+        "Inpatient Record": ["admission note", "ward visit", "vitals chart", "inpatient record"],
+        "Consultation": ["consultation note", "opd visit", "follow up", "chief complaint"]
+    }
+
+    tags = []
+    for category, keywords in categories.items():
+        # Scored matching
+        score = sum(1 for kw in keywords if kw in text_lower)
+        if score > 0:
+            tags.append(category)
+
+    return tags

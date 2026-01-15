@@ -147,26 +147,26 @@ export default function FileRequests() {
 
 
     return (
-        <div className="max-w-7xl mx-auto p-6">
-            <div className="flex justify-between items-center mb-8">
+        <div className="max-w-7xl mx-auto p-4 sm:p-6 text-slate-900">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
+                    <h1 className="text-2xl sm:text-3xl font-black text-slate-900 flex items-center gap-3">
                         <FileText className="text-indigo-600" /> File Requests
                     </h1>
-                    <p className="text-slate-500 mt-2">Request physical files from the warehouse.</p>
+                    <p className="text-sm sm:text-base text-slate-500 mt-1 sm:mt-2">Request physical files from the warehouse.</p>
                 </div>
 
                 {view === 'list' ? (
                     <button
                         onClick={() => setView('new')}
-                        className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition"
+                        className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-700 transition"
                     >
                         <Plus size={20} /> New Request
                     </button>
                 ) : (
                     <button
                         onClick={() => setView('list')}
-                        className="bg-slate-100 text-slate-600 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 transition"
+                        className="w-full sm:w-auto bg-slate-100 text-slate-600 px-6 py-3 rounded-xl font-bold hover:bg-slate-200 transition"
                     >
                         Cancel
                     </button>
@@ -180,7 +180,7 @@ export default function FileRequests() {
                         <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
                             <Clock className="text-indigo-600" size={20} /> Active Requests
                         </h3>
-                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 border-b border-slate-100">
                                     <tr>
@@ -279,7 +279,7 @@ export default function FileRequests() {
                         <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
                             <CheckCircle2 className="text-emerald-600" size={20} /> Request History
                         </h3>
-                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden opacity-80 hover:opacity-100 transition">
+                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-x-auto opacity-80 hover:opacity-100 transition">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 border-b border-slate-100">
                                     <tr>

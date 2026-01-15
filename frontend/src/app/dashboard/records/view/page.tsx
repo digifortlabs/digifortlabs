@@ -3,7 +3,7 @@
 import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import imageCompression from 'browser-image-compression';
-import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera } from 'lucide-react';
+import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles } from 'lucide-react';
 import DigitizationScanner from '@/components/Scanner/DigitizationScanner';
 
 import { API_URL } from '@/config/api';
@@ -730,11 +730,12 @@ function PatientDetailContent() {
                                 <div className="mb-3">
                                     <div className="flex flex-wrap gap-1 mb-1">
                                         {file.tags ? file.tags.split(',').map(t => (
-                                            <span key={t} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded-lg border border-indigo-100">
+                                            <span key={t} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded-lg border border-indigo-100 flex items-center gap-1">
+                                                {file.is_searchable && <Sparkles size={8} className="text-indigo-400" />}
                                                 #{t.trim()}
                                             </span>
                                         )) : (
-                                            <span className="text-[10px] text-gray-300 italic">No tags</span>
+                                            <span className="text-[10px] text-gray-300 italic">No tags identified</span>
                                         )}
                                     </div>
                                     <div className="flex justify-between items-center w-full">

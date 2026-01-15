@@ -105,7 +105,7 @@ export default function CommandCenter() {
     }, [hospitalId]);
 
     return (
-        <div className="p-6 max-w-[1600px] mx-auto min-h-screen pb-20">
+        <div className="p-4 sm:p-6 max-w-[1600px] mx-auto min-h-screen pb-20">
 
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -128,7 +128,7 @@ export default function CommandCenter() {
                             : "Real-time system monitoring and integrity oversight."}
                     </p>
                 </div>
-                <div className="flex gap-4">
+                <div className="flex flex-wrap gap-2 sm:gap-4">
                     <div className="bg-indigo-50 px-4 py-2 rounded-xl flex items-center gap-2 border border-indigo-100">
                         <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse"></div>
                         <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Live Stream</span>
@@ -255,7 +255,7 @@ export default function CommandCenter() {
                         </button>
                     </div>
 
-                    <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-x-auto">
                         <table className="w-full text-left">
                             <thead className="bg-slate-50 border-b border-slate-100">
                                 <tr>
