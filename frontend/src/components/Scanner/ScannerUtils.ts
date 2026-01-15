@@ -145,20 +145,26 @@ export const processImage = async (
                 const cutCtx = cutCanvas.getContext('2d');
                 if (cutCtx) {
                     cutCtx.drawImage(canvas, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h);
-                    const finalData = cutCanvas.toDataURL('image/jpeg', 0.85); // 0.85 quality
-                    // Estimate size
-                    const head = 'data:image/jpeg;base64,';
-                    const size = Math.round((finalData.length - head.length) * 3 / 4);
-                    resolve({ url: finalData, size, w: crop.w, h: crop.h });
+                    cutCanvas.toBlob((blob) => {
+                        if (blob) {
+                            const finalUrl = URL.createObjectURL(blob);
+                            resolve({ url: finalUrl, size: blob.size, w: crop.w, h: crop.h });
+                        } else {
+                            resolve({ url: imageUrl, size: 0, w: 0, h: 0 });
+                        }
+                    }, 'image/jpeg', 0.85);
                     return;
                 }
             }
 
-            const finalData = canvas.toDataURL('image/jpeg', 0.85);
-            const head = 'data:image/jpeg;base64,';
-            const size = Math.round((finalData.length - head.length) * 3 / 4);
-
-            resolve({ url: finalData, size, w: canvas.width, h: canvas.height });
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    const finalUrl = URL.createObjectURL(blob);
+                    resolve({ url: finalUrl, size: blob.size, w: canvas.width, h: canvas.height });
+                } else {
+                    resolve({ url: imageUrl, size: 0, w: 0, h: 0 });
+                }
+            }, 'image/jpeg', 0.85);
         };
         img.src = imageUrl;
     });

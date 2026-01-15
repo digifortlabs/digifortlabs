@@ -127,11 +127,17 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         "force_password_change": user.force_password_change or False
     }
 
+    # Custom expiration for Super Admin
+    expires_delta = None
+    if user.role == UserRole.SUPER_ADMIN:
+        expires_delta = timedelta(days=30)
+        print(f"[AUTH] granting long-lived session (30 days) to superadmin: {user.email}")
+
     # Add Hospital Name if available
     if user.hospital:
         token_data["hospital_name"] = user.hospital.legal_name
 
-    access_token = create_access_token(data=token_data)
+    access_token = create_access_token(data=token_data, expires_delta=expires_delta)
     return {"access_token": access_token, "token_type": "bearer"}
 
 
@@ -220,13 +226,15 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         raise credentials_exception
     
-    # Single Session Verification - ENABLED
-    if user.current_session_id and session_id != user.current_session_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session Expired: You have logged in from another device.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    # Single Session Verification - ENABLED (Bypassed for Super Admin)
+    # This allows superadmins to log in from multiple devices/browsers simultaneously.
+    if user.role != UserRole.SUPER_ADMIN:
+        if user.current_session_id and session_id != user.current_session_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session Expired: You have logged in from another device.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
     
     # Global Maintenance Mode Check
     maintenance = db.query(SystemSetting).filter(SystemSetting.key == "maintenance_mode").first()

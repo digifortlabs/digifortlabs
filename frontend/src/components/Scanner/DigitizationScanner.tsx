@@ -48,6 +48,8 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
     const [hasCameraError, setHasCameraError] = useState(false);
     const [streamActive, setStreamActive] = useState(false);
     const [cameraKey, setCameraKey] = useState(0);
+    const [isStreamLoading, setIsStreamLoading] = useState(false);
+    const [lastError, setLastError] = useState<string | null>(null);
 
     // --- Initialization ---
 
@@ -58,7 +60,43 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
             setDevices(videoDevices);
             if (videoDevices.length > 0) setSelectedDeviceId(videoDevices[0].deviceId);
         });
+
+        // Cleanup: Stop all tracks on unmount
+        return () => {
+            if (webcamRef.current && webcamRef.current.stream) {
+                webcamRef.current.stream.getTracks().forEach(track => track.stop());
+            }
+        };
     }, []);
+
+    // Explicitly release camera when resolution or device changes to prevent AbortError
+    useEffect(() => {
+        setIsStreamLoading(true);
+        setHasCameraError(false);
+        setStreamActive(false);
+        setLastError(null);
+
+        // Cleanup function to stop tracks BEFORE the next mount
+        return () => {
+            if (webcamRef.current && webcamRef.current.stream) {
+                console.log("[Scanner] Stopping tracks on unmount/change...");
+                webcamRef.current.stream.getTracks().forEach(track => {
+                    track.stop();
+                    console.log(`[Scanner] Stopped track: ${track.label}`);
+                });
+            }
+        };
+    }, [selectedDeviceId, resolution.width, resolution.height, cameraKey]);
+
+    // Second effect to handle the loader delay
+    useEffect(() => {
+        if (isStreamLoading) {
+            const timer = setTimeout(() => {
+                setIsStreamLoading(false);
+            }, 800); // Reduced delay to 800ms
+            return () => clearTimeout(timer);
+        }
+    }, [isStreamLoading]);
 
 
     // --- Split Page Logic ---
@@ -341,24 +379,43 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
     const generatePDF = () => {
         if (pages.length === 0) return;
 
-        // Use the first page to initialize the doc (dimensions in points)
-        // jsPDF unit 'px' treats 1 unit = 1 pixel
-        const firstPage = pages[0];
+        // Use A4 as standard format (in points: 595.28 x 841.89)
         const doc = new jsPDF({
-            orientation: firstPage.width > firstPage.height ? 'landscape' : 'portrait',
-            unit: 'px',
-            format: [firstPage.width, firstPage.height]
+            orientation: 'portrait',
+            unit: 'pt',
+            format: 'a4'
         });
 
-        // Add first image
-        doc.addImage(firstPage.processedUrl, 'JPEG', 0, 0, firstPage.width, firstPage.height);
+        pages.forEach((page, index) => {
+            const isLandscape = page.width > page.height;
+            const pdfW = isLandscape ? 841.89 : 595.28;
+            const pdfH = isLandscape ? 595.28 : 841.89;
 
-        // Add subsequent pages
-        for (let i = 1; i < pages.length; i++) {
-            const p = pages[i];
-            doc.addPage([p.width, p.height], p.width > p.height ? 'landscape' : 'portrait');
-            doc.addImage(p.processedUrl, 'JPEG', 0, 0, p.width, p.height);
-        }
+            if (index > 0) {
+                doc.addPage([pdfW, pdfH], isLandscape ? 'landscape' : 'portrait');
+            } else {
+                // If the first page is landscape, we need to adjust the initial A4 page
+                if (isLandscape) {
+                    doc.addPage([841.89, 595.28], 'landscape');
+                    doc.deletePage(1); // Remove the default empty first portrait page
+                }
+            }
+
+            // Fit image to A4 while preserving aspect ratio
+            const ratio = page.width / page.height;
+            let drawW = pdfW;
+            let drawH = pdfW / ratio;
+
+            if (drawH > pdfH) {
+                drawH = pdfH;
+                drawW = pdfH * ratio;
+            }
+
+            const x = (pdfW - drawW) / 2;
+            const y = (pdfH - drawH) / 2;
+
+            doc.addImage(page.processedUrl, 'JPEG', x, y, drawW, drawH);
+        });
 
         const pdfBlob = doc.output('blob');
         const file = new File([pdfBlob], `scan_${new Date().getTime()}.pdf`, { type: 'application/pdf' });
@@ -403,22 +460,28 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                                 onChange={(e) => {
                                     const w = parseInt(e.target.value);
                                     let h = 0;
-                                    // Aspect Ratio handling
+                                    // Optimized for Document Scanning (Favor 4:3)
                                     if (w === 4608) h = 3456; // 16MP (4:3)
                                     else if (w === 4032) h = 3024; // 12MP (4:3)
                                     else if (w === 3264) h = 2448; // 8MP (4:3)
+                                    else if (w === 2592) h = 1944; // 5MP (4:3)
+                                    else if (w === 2048) h = 1536; // 3MP (4:3)
+                                    else if (w === 1600) h = 1200; // 2MP (4:3)
                                     else if (w === 3840) h = 2160; // 4K (16:9)
+                                    else if (w === 1920) h = 1080; // 1080p
                                     else h = Math.round(w * 0.75); // Automatic 4:3 fallbacks
 
                                     setResolution({ width: w, height: h });
                                 }}
                             >
-                                <option value="4608">16MP - CZUR Lens Pro (Ultimate)</option>
-                                <option value="4032">12MP - CZUR Lens 1200 Pro</option>
-                                <option value="3264">8MP - CZUR Lens 800 Pro</option>
+                                <option value="4608">16MP - CZUR Lens Pro (4:3)</option>
+                                <option value="4032">12MP - Professional (4:3)</option>
+                                <option value="3264">8MP - Standard Document (4:3)</option>
+                                <option value="2592">5MP - Compact (4:3)</option>
+                                <option value="2048">3MP - Fast Scan (4:3)</option>
+                                <option value="1600">2MP - UXGA (4:3)</option>
                                 <option value="3840">4K Ultra HD (16:9)</option>
-                                <option value="1920">1080p Full HD</option>
-                                <option value="1280">720p HD (Fast)</option>
+                                <option value="1920">1080p Full HD (16:9)</option>
                             </select>
                         </div>
                         <div>
@@ -527,30 +590,25 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                                 onClick={async () => {
                                     if (webcamRef.current && webcamRef.current.stream) {
                                         const track = webcamRef.current.stream.getVideoTracks()[0];
-                                        const capabilities = track.getCapabilities();
-                                        // @ts-ignore - TS might likely complain about focusMode
-                                        if (capabilities.focusMode) {
-                                            try {
-                                                await track.applyConstraints({
-                                                    // @ts-ignore
-                                                    advanced: [{ focusMode: 'continuous' }]
-                                                });
-                                                // Trigger a manual focus sweep if possible or just re-assert continuous
-                                                // Some cameras need a toggle
-                                                await track.applyConstraints({
-                                                    // @ts-ignore
-                                                    advanced: [{ focusMode: 'manual', focusDistance: 0.5 }]
-                                                });
-                                                setTimeout(async () => {
-                                                    await track.applyConstraints({
-                                                        // @ts-ignore
-                                                        advanced: [{ focusMode: 'continuous' }]
-                                                    });
-                                                }, 200);
+                                        const capabilities: any = track.getCapabilities();
+                                        const constraints: any = { advanced: [] };
 
-                                            } catch (e) {
-                                                console.error("Focus failed", e);
+                                        try {
+                                            if (capabilities.focusMode?.includes('continuous')) {
+                                                constraints.advanced.push({ focusMode: 'continuous' });
+                                            } else if (capabilities.focusMode?.includes('auto')) {
+                                                constraints.advanced.push({ focusMode: 'auto' });
                                             }
+
+                                            // Only try manual focus if specifically supported and requested
+                                            // For a simple 'Focus' button, we usually want to trigger an autofocus sweep
+                                            if (constraints.advanced.length > 0) {
+                                                await track.applyConstraints(constraints);
+                                            }
+
+                                            console.log("Applied focus constraints:", constraints);
+                                        } catch (e) {
+                                            console.error("Focus failed", e);
                                         }
                                     }
                                 }}
@@ -588,40 +646,64 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                     {view === 'camera' ? (
                         <>
                             <div className="relative w-full h-full flex items-center justify-center">
-                                <Webcam
-                                    key={`${selectedDeviceId}-${cameraKey}`}
-                                    ref={webcamRef}
-                                    audio={false}
-                                    screenshotFormat="image/jpeg"
-                                    videoConstraints={{
-                                        deviceId: selectedDeviceId,
-                                        width: { ideal: resolution.width },
-                                        height: { ideal: resolution.height }
-                                    }}
-                                    className={`shadow-2xl transition-all duration-300 ${viewMode === 'fit' ? 'w-full h-full object-contain' : 'w-full h-full object-cover'}`}
-                                    onUserMedia={() => {
-                                        setHasCameraError(false);
-                                        setStreamActive(true);
-                                    }}
-                                    onUserMediaError={(err) => {
-                                        console.error("Webcam Error:", err);
-                                        setHasCameraError(true);
-                                        setStreamActive(false);
-                                    }}
-                                    style={{
-                                        filter: `brightness(${brightness}%) contrast(${filterMode === 'bw' ? contrast * 2 : contrast}%) grayscale(${filterMode === 'color' ? 0 : 100}%)`,
-                                        transform: `rotate(${liveRotation}deg)`
-                                    }}
-                                />
+                                {isStreamLoading ? (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/40 backdrop-blur-sm z-10 rounded-2xl">
+                                        <Loader2 className="animate-spin text-indigo-500 mb-4" size={48} />
+                                        <p className="text-slate-200 font-bold tracking-widest uppercase text-xs">Preparing Hardware...</p>
+                                    </div>
+                                ) : (
+                                    <Webcam
+                                        key={`${selectedDeviceId}-${resolution.width}-${resolution.height}-${cameraKey}`}
+                                        ref={webcamRef}
+                                        audio={false}
+                                        screenshotFormat="image/jpeg"
+                                        videoConstraints={{
+                                            deviceId: selectedDeviceId,
+                                            width: { ideal: resolution.width },
+                                            height: { ideal: resolution.height },
+                                            // Reduce frameRate for 16MP+ (4000px+) to save USB bandwidth in Chrome
+                                            frameRate: resolution.width >= 4000 ? { ideal: 5 } : { ideal: 30 }
+                                        }}
+                                        className={`shadow-2xl transition-all duration-300 ${viewMode === 'fit' ? 'w-full h-full object-contain' : 'w-full h-full object-cover'}`}
+                                        onUserMedia={() => {
+                                            setHasCameraError(false);
+                                            setStreamActive(true);
+                                            setLastError(null);
+                                        }}
+                                        onUserMediaError={(err: any) => {
+                                            console.error("Webcam Error Details:", {
+                                                name: err.name,
+                                                message: err.message,
+                                                constraint: err.constraint,
+                                                stack: err.stack
+                                            });
+                                            setHasCameraError(true);
+                                            setStreamActive(false);
+
+                                            if (err.name === 'OverconstrainedError') {
+                                                setLastError(`Resolution not supported: ${err.constraint}`);
+                                            } else {
+                                                setLastError(err.name === 'AbortError' ? 'Hardware Timeout' : err.message);
+                                            }
+                                        }}
+                                        style={{
+                                            filter: `brightness(${brightness}%) contrast(${filterMode === 'bw' ? contrast * 2 : contrast}%) grayscale(${filterMode === 'color' ? 0 : 100}%)`,
+                                            transform: `rotate(${liveRotation}deg)`
+                                        }}
+                                    />
+                                )}
                                 {hasCameraError && (
                                     <div className="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center p-8 text-center border-2 border-dashed border-slate-700 rounded-2xl m-8">
                                         <div className="w-16 h-16 bg-red-900/30 rounded-full flex items-center justify-center mb-4">
                                             <Camera className="text-red-500" size={32} />
                                         </div>
-                                        <h3 className="text-xl font-bold text-white mb-2">Camera Connection Failed</h3>
+                                        <h3 className="text-xl font-bold text-white mb-2">
+                                            {lastError === 'Hardware Timeout' ? 'Camera Hardware Busy' : 'Camera Connection Failed'}
+                                        </h3>
                                         <p className="text-slate-400 max-w-sm mb-6">
-                                            We couldn't initialize the camera at the requested resolution.
-                                            The browser might be blocking permissions or the hardware may not support high resolutions.
+                                            {lastError === 'Hardware Timeout'
+                                                ? "The camera hardware timed out while switching to high resolution. This is common when the resolution is extreme (16MP+) or another app is using the camera."
+                                                : "We couldn't initialize the camera. The browser might be blocking permissions or the hardware is busy."}
                                         </p>
                                         <div className="flex flex-wrap gap-4 justify-center">
                                             <button

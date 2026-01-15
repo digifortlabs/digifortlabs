@@ -45,7 +45,7 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
                 for i in range(1, total_pages + 1):
                     print(f"📄 OCR: Processing page {i}/{total_pages}...")
                     try:
-                        page_images = convert_from_bytes(file_bytes, first_page=i, last_page=i)
+                        page_images = convert_from_bytes(file_bytes, first_page=i, last_page=i, size=(1600, None))
                         if page_images:
                             ocr_text += pytesseract.image_to_string(page_images[0]) + "\n"
                             # Explicitly close image to free memory

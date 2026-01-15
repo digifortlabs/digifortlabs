@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
@@ -136,7 +137,7 @@ class PDFFile(Base):
     page_count = Column(Integer, default=0) # Total pages in PDF
     filename = Column(String) # Original filename
     storage_path = Column(String) # S3 Key or Local Path
-    ocr_text = Column(String, nullable=True) # Extracted text content
+    ocr_text = Column(Text, nullable=True) # Full extracted text
     tags = Column(String, nullable=True) # Manual keywords (comma separated)
     is_searchable = Column(Boolean, default=False)
     

@@ -185,25 +185,36 @@ class DocScanner(object):
         """
         Process an image numpy array (BGR) and return the scanned result
         """
+        MAX_DIMENSION = 5000.0
+        h, w = image_array.shape[:2]
+        
+        # If image is giant, downscale to a safe maximum while keeping aspect ratio
+        if max(h, w) > MAX_DIMENSION:
+            scale = MAX_DIMENSION / float(max(h, w))
+            new_w = int(w * scale)
+            new_h = int(h * scale)
+            image_array = cv2.resize(image_array, (new_w, new_h), interpolation=cv2.INTER_AREA)
+            print(f"📉 Scanner: Downscaled input from {w}x{h} to {new_w}x{new_h} for stability.")
+
         RESCALED_HEIGHT = 500.0
-
         ratio = image_array.shape[0] / RESCALED_HEIGHT
-        orig = image_array.copy()
+        
+        # 1. Get contours on a small BGR image
         rescaled_image = imutils.resize(image_array, height = int(RESCALED_HEIGHT))
-
         screenCnt = self.get_contour(rescaled_image)
         
-        # apply the perspective transformation
-        warped = transform.four_point_transform(orig, screenCnt * ratio)
+        # 2. Optimization: Convert to Grayscale BEFORE warping to save memory (3 channels -> 1 channel)
+        # 16MP BGR is ~48MB, Grayscale is ~16MB. Warp buffers can double this.
+        gray_orig = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
+        
+        # 3. Apply the perspective transformation on grayscale
+        warped = transform.four_point_transform(gray_orig, screenCnt * ratio)
 
-        # convert the warped image to grayscale
-        gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
+        # 4. Sharpen image
+        sharpen = cv2.GaussianBlur(warped, (0,0), 3)
+        sharpen = cv2.addWeighted(warped, 1.5, sharpen, -0.5, 0)
 
-        # sharpen image
-        sharpen = cv2.GaussianBlur(gray, (0,0), 3)
-        sharpen = cv2.addWeighted(gray, 1.5, sharpen, -0.5, 0)
-
-        # apply adaptive threshold to get black and white effect
+        # 5. Apply adaptive threshold to get black and white effect
         thresh = cv2.adaptiveThreshold(sharpen, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, 15)
 
         return thresh

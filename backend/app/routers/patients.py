@@ -271,8 +271,13 @@ class FileData(BaseModel):
     page_count: int = 0
     upload_status: str
     tags: Optional[str] = None
+    ocr_text: Optional[str] = None
     is_searchable: bool = False
     
+    # Progress Tracking
+    processing_stage: Optional[str] = None
+    processing_progress: Optional[int] = 0
+
     # Historical Pricing captured at upload
     price_per_file: float = 100.0
     included_pages: int = 20

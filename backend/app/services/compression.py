@@ -29,7 +29,7 @@ def compress_pdf(file_bytes: bytes) -> bytes:
         try:
             print("📉 Attempting Aggressive Image Compression...")
             # Convert to images
-            images = convert_from_bytes(file_bytes, dpi=150, fmt='jpeg', grayscale=False)
+            images = convert_from_bytes(file_bytes, dpi=150, fmt='jpeg', grayscale=False, size=(1600, None))
             
             output_pdf_stream = io.BytesIO()
             
@@ -66,9 +66,9 @@ def compress_pdf(file_bytes: bytes) -> bytes:
         writer = PdfWriter()
 
         for page in reader.pages:
-            writer.add_page(page)
+            new_page = writer.add_page(page)
             # 1. Compress Content Streams
-            page.compress_content_streams()
+            new_page.compress_content_streams()
 
         # 2. Clear Metadata
         writer.add_metadata({})
