@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# DIGIFORT LABS - FULL STACK CLOUD DEPLOYMENT (Unified & Safe)
+# DIGIFORT LABS - FULL STACK CLOUD DEPLOYMENT (Amazon Linux Compatible)
 # ==============================================================================
 
 # ----------------- CONFIGURATION -----------------
@@ -19,12 +19,36 @@ echo "=========================================="
 echo "   DIGIFORT LABS - PRODUCTION DEPLOY"
 echo "=========================================="
 
-# 1. SYSTEM DEPENDENCIES (Scanner/OCR Support)
+# 1. SYSTEM DEPENDENCIES (OS Detection)
 echo ""
-echo "[1/7] Installing System Dependencies (OCR, PDF, Video)..."
-# This requires sudo. If run as root, sudo is redundant but harmless.
-sudo apt-get update -y
-sudo apt-get install -y tesseract-ocr poppler-utils ffmpeg libsm6 libxext6 python3-pip
+echo "[1/7] Installing System Dependencies..."
+
+if command -v apt-get &> /dev/null; then
+    # Ubuntu / Debian
+    echo "Detected: apt-get (Ubuntu/Debian)"
+    sudo apt-get update -y
+    sudo apt-get install -y tesseract-ocr poppler-utils ffmpeg libsm6 libxext6 python3-pip
+    
+elif command -v yum &> /dev/null; then
+    # Amazon Linux / CentOS
+    echo "Detected: yum (Amazon Linux)"
+    sudo yum update -y
+    
+    # Enable EPEL (Extra Packages for Enterprise Linux) if available
+    sudo amazon-linux-extras install epel -y 2>/dev/null || echo "EPEL skipped (not available or already enabled)"
+    
+    # Install dependencies
+    # Note: ffmpeg is often hard to get on vanilla Amazon Linux, so we skip it if missing to prevent failure
+    sudo yum install -y tesseract poppler-utils python3-pip || echo "Warning: Some packages failed to install. Continuing..."
+
+elif command -v dnf &> /dev/null; then
+     # Amazon Linux 2023 / Fedora
+    echo "Detected: dnf (Amazon Linux 2023)"
+    sudo dnf update -y
+    sudo dnf install -y tesseract poppler-utils python3-pip || echo "Warning: Some packages failed to install. Continuing..."
+else
+    echo "⚠️  Unknown Package Manager. Skipping system dependency install."
+fi
 
 # 2. INTERACTIVE CREDENTIALS
 echo ""
@@ -120,5 +144,5 @@ echo "   ✅ FULL DEPLOYMENT COMPLETE"
 echo "   - Web: ${WEB_URL}"
 echo "   - API: ${API_URL}"
 echo "   - DB:  AWS RDS (Connected)"
-echo "   - OCR: Enabled (Tesseract Installed)"
+echo "   - OCR: Tesseract (if supported by OS)"
 echo "=========================================="
