@@ -24,5 +24,10 @@ if (typeof window !== 'undefined') {
 }
 
 export const API_URL = apiUrl;
-console.log('[Config] API_URL resolved to:', API_URL);
-console.log('[Config] VERSION: v3-Final-HTTPS-Fix (Live)');
+// console.log('[Config] API_URL resolved to:', API_URL);
+// console.log('[Config] VERSION: v3-Final-HTTPS-Fix (Live)');
+
+console.log('%c[SYSTEM] %cMainframe Connection Established...', 'color:red; font-weight:bold', 'color:green; font-family:monospace');
+console.log('%c[ACCESS] %cOverride auth sequence: SUCCESS', 'color:red; font-weight:bold', 'color:green; font-family:monospace');
+console.log('%c[STATUS] %cStealth Mode: ENGAGED', 'color:cyan; font-weight:bold', 'color:green; font-family:monospace');
+console.log('%c[TARGET] %cDigifort Secure Vault', 'color:yellow; font-weight:bold', 'color:green; font-family:monospace');

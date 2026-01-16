@@ -405,11 +405,11 @@ export default function CommandCenter() {
                         )}
 
                         {/* Hospital Actions */}
-                        {(userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'website_admin') && (
+                        {(userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'website_admin' || userRole === 'website_staff') && (
                             <div className="grid grid-cols-2 gap-4">
 
                                 {/* Universal Admin Action: Confirm Uploads */}
-                                {(userRole === 'hospital_admin' || userRole === 'website_admin') && (
+                                {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'website_staff') && (
                                     <button
                                         onClick={async () => {
                                             if (!confirm("Are you sure you want to confirm all pending uploads immediately? This will finalize their storage locations.")) return;
@@ -481,7 +481,7 @@ export default function CommandCenter() {
                                     />
                                 )}
 
-                                {userRole === 'hospital_admin' && (
+                                {(userRole === 'hospital_admin' || userRole === 'website_staff') && (
                                     <ActionButton
                                         icon={<FileText size={18} />}
                                         label="Digitize Records"

@@ -1,4 +1,5 @@
 import { CapturedPage } from './ScannerTypes';
+import { API_URL } from '../../config/api';
 
 export const formatBytes = (bytes: number, decimals = 2) => {
     if (bytes === 0) return '0 Bytes';
@@ -174,7 +175,7 @@ export const scanDocumentAPI = async (blob: Blob): Promise<Blob> => {
     const formData = new FormData();
     formData.append('file', blob);
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const apiUrl = API_URL;
     const response = await fetch(`${apiUrl}/scanner/process`, {
         method: 'POST',
         body: formData,

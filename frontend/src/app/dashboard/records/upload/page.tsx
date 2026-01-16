@@ -118,6 +118,18 @@ export default function PatientUploadPage() {
         p.patient_u_id?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const handleOpenNativeScanner = () => {
+        const token = localStorage.getItem('token') || '';
+        const patientId = selectedPatient?.record_id || '';
+        const patientName = selectedPatient?.full_name || '';
+        const mrd = selectedPatient?.patient_u_id || '';
+
+        // Protocol: digifort://upload?token=...&patient_id=...&patient_name=...&mrd=...
+        const url = `digifort://upload?token=${token}&patient_id=${patientId}&patient_name=${encodeURIComponent(patientName)}&mrd=${encodeURIComponent(mrd)}&api_url=${encodeURIComponent(API_URL)}`;
+
+        window.location.href = url;
+    };
+
     const handleScannerComplete = (file: File) => {
         const newItem: FileQueueItem = {
             id: Math.random().toString(36).substr(2, 9),
@@ -456,7 +468,14 @@ export default function PatientUploadPage() {
                                     onClick={(e) => { e.stopPropagation(); setShowScanner(true); }}
                                     className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full flex items-center gap-1.5 transition active:scale-95 relative z-30"
                                 >
-                                    <Camera size={12} /> Live Scan
+                                    <Camera size={12} /> Browser Scan
+                                </button>
+                                <div className="h-4 w-[1px] bg-slate-200"></div>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleOpenNativeScanner(); }}
+                                    className="text-xs font-bold text-purple-600 hover:text-purple-700 bg-purple-50 px-3 py-1 rounded-full flex items-center gap-1.5 transition active:scale-95 relative z-30"
+                                >
+                                    <PlayCircle size={12} /> Desktop App
                                 </button>
                             </div>
                         </div>
