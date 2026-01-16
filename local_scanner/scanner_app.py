@@ -12,6 +12,7 @@ import threading
 import time
 import platform
 import logging
+import numpy as np
 from typing import List, Optional, Tuple, Any
 
 # =============================================================================
@@ -54,16 +55,47 @@ class CameraManager:
 
     def start(self, index: int, width: int, height: int) -> bool:
         if self.cap: self.stop()
-        self.cap = cv2.VideoCapture(index, self.backend)
-        if not self.cap.isOpened(): return False
         
+        # Try to force camera access with retry
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.cap = cv2.VideoCapture(index, self.backend)
+                if not self.cap.isOpened():
+                    if attempt < max_retries - 1:
+                        time.sleep(0.5)
+                        continue
+                    return False
+                break
+            except:
+                if attempt < max_retries - 1:
+                    time.sleep(0.5)
+                    continue
+                return False
+
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
         self.cap.set(cv2.CAP_PROP_FPS, 30)
+        
+        # Set minimum FPS to 5 (OpenCV sometimes struggles with 16MP)
         self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
         
         self.is_running = True
         return True
+
+    def set_light(self, level: int):
+        """Cycle through 4 light levels: 0=Off, 1=Low, 2=Medium, 3=High"""
+        if not self.cap: return
+        light_values = [0, 33, 66, 100]
+        try:
+            self.cap.set(cv2.CAP_PROP_BRIGHTNESS, light_values[level % 4])
+        except: pass
+
+    def set_focus(self, auto: bool):
+        if not self.cap: return
+        try:
+            self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1 if auto else 0)
+        except: pass
 
     def get_frame(self):
         if self.cap and self.is_running:
@@ -87,18 +119,89 @@ class ImageProcessor:
         return cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
 
     @staticmethod
-    def get_document_rect(frame):
-        try:
+    def apply_color_mode(frame, mode):
+        if mode == "Gray":
+            return cv2.cvtColor(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
+        elif mode == "B&W":
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            blur = cv2.GaussianBlur(gray, (5, 5), 0)
-            edges = cv2.Canny(blur, 50, 150)
-            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            if contours:
-                largest = max(contours, key=cv2.contourArea)
-                if cv2.contourArea(largest) > (frame.shape[0] * frame.shape[1] * 0.1):
-                    return cv2.boundingRect(largest)
+            _, bw = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY)
+            return cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
+        return frame
+
+    @staticmethod
+    def get_document_rect(frame):
+        """Advanced document detection using OpenCV"""
+        try:
+            # 1. Preprocessing
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            # Bilateral filter to reduce noise while keeping edges sharp
+            blur = cv2.bilateralFilter(gray, 9, 75, 75)
+            
+            # 2. Edge Detection
+            # Using adaptive threshold for better handling of lighting across A3 area
+            thresh = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                          cv2.THRESH_BINARY, 11, 2)
+            
+            # Dilate to close gaps in edges
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
+            dilated = cv2.dilate(thresh, kernel, iterations=1)
+            
+            # 3. Contour Detection
+            contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            if not contours:
+                return None
+                
+            # Sort by area and check the largest ones
+            contours = sorted(contours, key=cv2.contourArea, reverse=True)[:10]
+            
+            h, w = frame.shape[:2]
+            frame_area = w * h
+            
+            for contour in contours:
+                area = cv2.contourArea(contour)
+                # Must be at least 10% of the frame to be a document
+                if area < (frame_area * 0.1):
+                    continue
+                
+                # Approximate the contour to a polygon
+                peri = cv2.arcLength(contour, True)
+                approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
+                
+                # If we found a quadrilateral, that's likely our document
+                if len(approx) == 4:
+                    return approx
+                
+                # Fallback to bounding box if it's very large and roughly rectangular
+                # if approx has between 4 and 8 points, it might be a slightly distorted rect
+                if 4 <= len(approx) <= 8:
+                    x, y, bw, bh = cv2.boundingRect(contour)
+                    if bw * bh > (frame_area * 0.2):
+                        box = np.array([[x, y], [x+bw, y], [x+bw, y+bh], [x, y+bh]], dtype=np.int32)
+                        return box
+
             return None
         except: return None
+
+    @staticmethod
+    def transform_quad(frame, quad):
+        """Perform perspective transform or simple crop depending on quad shape"""
+        try:
+            # Reshape quad to (4, 2)
+            pts = quad.reshape(4, 2)
+            
+            # Simple bounding box crop for now (more robust than perspective for live view)
+            x, y, w, h = cv2.boundingRect(pts)
+            
+            # Add small margin
+            pad = 20
+            H, W = frame.shape[:2]
+            x1, y1 = max(0, x - pad), max(0, y - pad)
+            x2, y2 = min(W, x + w + pad), min(H, h + pad)
+            
+            return frame[y1:y2, x1:x2]
+        except:
+            return frame
 
     @staticmethod
     def apply_pil_filters(img, mode="Color", brightness=1.0, contrast=1.0):
@@ -193,6 +296,11 @@ class ScannerApp:
         self.auto_crop = tk.BooleanVar(value=True)
         self.view_mode = "fit"
         self.live_rotation = 180
+        self.light_level = 0
+        self.is_autofocus = True
+        self.color_mode = tk.StringVar(value="Color")
+        self.live_brightness = tk.DoubleVar(value=1.0)
+        self.live_contrast = tk.DoubleVar(value=1.0)
         
         params = self.parse_args(args)
         self.token = params.get('token', '')
@@ -236,6 +344,15 @@ class ScannerApp:
 
         tk.Checkbutton(sb, text="Auto-Crop", variable=self.auto_crop, bg=COLORS["panel"], fg="white", selectcolor="#333").pack(anchor="w", padx=10)
         
+        # Live Enhancements Sliders
+        tk.Label(sb, text="Brightness", fg="white", bg=COLORS["panel"], font=("Arial", 9)).pack(anchor="w", padx=10, pady=(10,0))
+        tk.Scale(sb, from_=0.5, to=2.0, resolution=0.1, orient=tk.HORIZONTAL, 
+                 variable=self.live_brightness, bg=COLORS["panel"], fg="white", highlightthickness=0).pack(fill=tk.X, padx=10)
+                 
+        tk.Label(sb, text="Contrast", fg="white", bg=COLORS["panel"], font=("Arial", 9)).pack(anchor="w", padx=10, pady=(5,0))
+        tk.Scale(sb, from_=0.5, to=2.0, resolution=0.1, orient=tk.HORIZONTAL, 
+                 variable=self.live_contrast, bg=COLORS["panel"], fg="white", highlightthickness=0).pack(fill=tk.X, padx=10)
+        
         self.size_lbl = tk.Label(sb, text="PDF Size: 0 MB", fg="white", bg=COLORS["panel"])
         self.size_lbl.pack(pady=10)
 
@@ -248,13 +365,43 @@ class ScannerApp:
         cnt = tk.Frame(self.root, bg="black")
         cnt.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         
+        # Upper Toolbar
+        top_bar = tk.Frame(cnt, bg=COLORS["panel"], height=40)
+        top_bar.pack(side=tk.TOP, fill=tk.X)
+        top_bar.pack_propagate(False)
+
+        # Color Modes
+        for m in ["Color", "Gray", "B&W"]:
+            tk.Radiobutton(top_bar, text=m, variable=self.color_mode, value=m, 
+                          bg=COLORS["panel"], fg="white", selectcolor="#444", font=("Arial", 9)).pack(side=tk.LEFT, padx=5)
+
+        tk.Frame(top_bar, width=2, bg=COLORS["border"]).pack(side=tk.LEFT, fill=tk.Y, padx=10)
+
+        self.btn_rot = tk.Button(top_bar, text="⟳ Rot", command=self.rotate_live, bg=COLORS["panel"], fg="white", bd=0, font=("Arial", 9))
+        self.btn_rot.pack(side=tk.LEFT, padx=5)
+
+        self.btn_fit = tk.Button(top_bar, text="⛶ Fit", command=self.toggle_fit, bg=COLORS["panel"], fg="white", bd=0, font=("Arial", 9))
+        self.btn_fit.pack(side=tk.LEFT, padx=5)
+
+        tk.Frame(top_bar, width=2, bg=COLORS["border"]).pack(side=tk.LEFT, fill=tk.Y, padx=10)
+
+        self.btn_focus = tk.Button(top_bar, text="🎯 Focus", command=self.toggle_focus, bg=COLORS["panel"], fg="white", bd=0, font=("Arial", 9))
+        self.btn_focus.pack(side=tk.LEFT, padx=5)
+
+        self.btn_light = tk.Button(top_bar, text="💡 Light", command=self.toggle_light, bg=COLORS["panel"], fg="white", bd=0, font=("Arial", 9))
+        self.btn_light.pack(side=tk.LEFT, padx=5)
+
+        self.btn_restart = tk.Button(top_bar, text="Full Restart", bg=COLORS["danger"], fg="white", bd=0, font=("Arial", 9, "bold"), command=self.restart_app)
+        self.btn_restart.pack(side=tk.RIGHT, padx=10)
+
         self.canvas = tk.Canvas(cnt, bg="black", highlightthickness=0)
         self.canvas.pack(fill=tk.BOTH, expand=True)
 
-        btn_cap = tk.Button(cnt, text="CAPTURE", bg="white", fg="black", font=("Arial", 14, "bold"), command=self.capture, height=2, width=20)
+        btn_cap = tk.Button(cnt, text="CAPTURE (Space)", bg="white", fg="black", font=("Arial", 14, "bold"), command=self.capture, height=2, width=20)
         btn_cap.place(relx=0.5, rely=0.9, anchor=tk.CENTER)
         
         self.root.bind("<space>", lambda e: self.capture())
+        self.root.bind("<Escape>", lambda e: self.restart_app())
 
     def start_live(self):
         idx = int(self.cb_cam.get().split()[-1]) if self.cb_cam.get() else 0
@@ -268,35 +415,83 @@ class ScannerApp:
         if not self.camera.is_running: return
         ret, frame = self.camera.get_frame()
         if ret:
-            if self.live_rotation == 180: frame = cv2.rotate(frame, cv2.ROTATE_180)
+            # 1. Rotation
+            if self.live_rotation == 90: frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+            elif self.live_rotation == 180: frame = cv2.rotate(frame, cv2.ROTATE_180)
+            elif self.live_rotation == 270: frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
             
+            # 2. Color Mode
+            frame = ImageProcessor.apply_color_mode(frame, self.color_mode.get())
+            
+            # 3. Live Adjustments
+            frame = ImageProcessor.adjust_cv2(frame, self.live_brightness.get(), self.live_contrast.get())
+            
+            # 4. Auto-Crop Guide
             if self.auto_crop.get():
-                rect = ImageProcessor.get_document_rect(frame)
-                if rect:
-                    x, y, w, h = rect
-                    cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 3)
+                approx = ImageProcessor.get_document_rect(frame)
+                if approx is not None:
+                    # Draw Green Quadrilateral/Box
+                    cv2.drawContours(frame, [approx], -1, (0, 255, 0), 4)
 
             img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             cw, ch = self.canvas.winfo_width(), self.canvas.winfo_height()
             if cw > 10:
-                ratio = min(cw/img.width, ch/img.height)
-                img = img.resize((int(img.width*ratio), int(img.height*ratio)), Image.Resampling.LANCZOS)
+                img_w, img_h = img.size
+                if self.view_mode == "raw":
+                    # Raw mode: show center portion
+                    if img_w > cw or img_h > ch:
+                        left = max(0, (img_w - cw) // 2)
+                        top = max(0, (img_h - ch) // 2)
+                        img = img.crop((left, top, left + cw, top + ch))
+                else:
+                    # Fit mode: aspect-ratio scaling
+                    ratio = min(cw/img_w, ch/img_h)
+                    img = img.resize((int(img_w*ratio), int(img_h*ratio)), Image.Resampling.LANCZOS)
+                
                 self.photo = ImageTk.PhotoImage(img)
                 self.canvas.delete("all")
                 self.canvas.create_image(cw//2, ch//2, image=self.photo)
         
         self.root.after(30, self.loop)
 
+    def rotate_live(self):
+        self.live_rotation = (self.live_rotation + 90) % 360
+
+    def toggle_fit(self):
+        self.view_mode = "raw" if self.view_mode == "fit" else "fit"
+
+    def toggle_focus(self):
+        self.is_autofocus = not self.is_autofocus
+        self.camera.set_focus(self.is_autofocus)
+        self.btn_focus.config(text=f"🎯 {'Auto' if self.is_autofocus else 'Manual'}")
+
+    def toggle_light(self):
+        self.light_level = (self.light_level + 1) % 4
+        self.camera.set_light(self.light_level)
+        levels = ["Off", "Low", "Med", "High"]
+        self.btn_light.config(text=f"💡 {levels[self.light_level]}")
+
+    def restart_app(self):
+        self.camera.stop()
+        os.execl(sys.executable, sys.executable, *sys.argv)
+
     def capture(self):
         ret, frame = self.camera.get_frame()
         if not ret: return
         
-        if self.live_rotation == 180: frame = cv2.rotate(frame, cv2.ROTATE_180)
+        # Internal processing based on live settings
+        if self.live_rotation == 90: frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        elif self.live_rotation == 180: frame = cv2.rotate(frame, cv2.ROTATE_180)
+        elif self.live_rotation == 270: frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        
         if self.auto_crop.get():
-            rect = ImageProcessor.get_document_rect(frame)
-            if rect:
-                x, y, w, h = rect
-                frame = frame[y:y+h, x:x+w]
+            approx = ImageProcessor.get_document_rect(frame)
+            if approx is not None:
+                frame = ImageProcessor.transform_quad(frame, approx)
+        
+        # Apply color mode and adjustments even to captured frame
+        frame = ImageProcessor.apply_color_mode(frame, self.color_mode.get())
+        frame = ImageProcessor.adjust_cv2(frame, self.live_brightness.get(), self.live_contrast.get())
         
         img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         # Internal compression
