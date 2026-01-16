@@ -57,6 +57,7 @@ class ScannerApp:
         self.live_rotation = 180  # Default 180° rotation for overhead scanners
         self.last_button_action = None  # Track last button pressed for space key repeat
         self.light_level = 0  # 0=Off, 1=Low, 2=Medium, 3=High
+        self.view_mode = "fit"  # "fit" or "raw" - toggle with Fit button
         
         if not self.token or not self.patient_id:
              messagebox.showerror("Auth Error", "Please launch using the 'Desktop App' button on the Website.")
@@ -140,6 +141,10 @@ class ScannerApp:
         # Auto-crop toggle
         self.chk_autocrop = ttk.Checkbutton(settings_frame, text="Auto-Crop Documents", variable=self.auto_crop)
         self.chk_autocrop.pack(anchor="w")
+
+        # PDF Size Indicator
+        self.pdf_size_label = ttk.Label(sidebar, text="PDF Size: 0 MB", font=("Arial", 10, "bold"))
+        self.pdf_size_label.pack(anchor="w", padx=10, pady=5)
 
         # Thumbnails List (Custom Listbox look)
         self.list_frame = tk.Frame(sidebar, bg="#181818")
@@ -351,11 +356,27 @@ class ScannerApp:
             elif mode == "B&W":
                 img = img.convert("L").point(lambda p: 255 if p > 128 else 0)
             
-            # Resize to fit canvas
+            # Display camera feed based on view mode
             cw = self.canvas.winfo_width()
             ch = self.canvas.winfo_height()
             if cw > 10 and ch > 10:
-                img.thumbnail((cw, ch))
+                img_w, img_h = img.size
+                
+                if self.view_mode == "raw":
+                    # Raw mode: Show center portion at 1:1 scale
+                    if img_w > cw or img_h > ch:
+                        left = max(0, (img_w - cw) // 2)
+                        top = max(0, (img_h - ch) // 2)
+                        right = min(img_w, left + cw)
+                        bottom = min(img_h, top + ch)
+                        img = img.crop((left, top, right, bottom))
+                else:
+                    # Fit mode: Scale to fit canvas while maintaining aspect ratio
+                    scale = min(cw / img_w, ch / img_h)
+                    new_w = int(img_w * scale)
+                    new_h = int(img_h * scale)
+                    img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                
                 self.photo = ImageTk.PhotoImage(image=img)
                 self.canvas.delete("all")
                 self.canvas.create_image(cw//2, ch//2, image=self.photo, anchor=tk.CENTER)
@@ -465,9 +486,20 @@ class ScannerApp:
         self.root.after(50, lambda: self.canvas.configure(bg="black"))
 
     def refresh_sidebar(self):
-        # Update count
+        # Update count and PDF size
         count = len(self.captured_images)
         self.pages_count_lbl.configure(text=f"📄 Pages ({count})")
+        
+        # Calculate estimated PDF size
+        total_size_mb = 0
+        for img in self.captured_images:
+            # Estimate: JPEG compression ~100-200 KB per page at high quality
+            # For 16MP images, estimate ~500 KB per page
+            img_bytes = img.size[0] * img.size[1] * 3  # RGB
+            estimated_compressed = img_bytes * 0.1  # ~10% compression ratio
+            total_size_mb += estimated_compressed / (1024 * 1024)
+        
+        self.pdf_size_label.configure(text=f"PDF Size: ~{total_size_mb:.1f} MB")
         
         # Clear list
         for w in self.list_frame.winfo_children(): w.destroy()
@@ -529,9 +561,11 @@ class ScannerApp:
             self.refresh_sidebar()
         
     def reset_zoom(self):
-        """Reset camera view / refresh feed"""
-        # Simply refresh the camera feed
-        pass  # Live feed auto-updates
+        """Toggle between Fit (scaled) and Raw (1:1) view modes"""
+        if self.view_mode == "fit":
+            self.view_mode = "raw"
+        else:
+            self.view_mode = "fit"
     
     def toggle_focus(self):
         """Toggle between auto-focus and manual focus"""
