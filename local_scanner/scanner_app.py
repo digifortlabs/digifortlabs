@@ -91,11 +91,17 @@ class CameraManager:
             self.cap.set(cv2.CAP_PROP_BRIGHTNESS, light_values[level % 4])
         except: pass
 
-    def set_focus(self, auto: bool):
-        if not self.cap: return
-        try:
-            self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1 if auto else 0)
-        except: pass
+    def trigger_focus(self):
+        """Manually triggers autofocus by toggling it off and on."""
+        if self.cap and self.is_running:
+            try:
+                self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) # Off
+                time.sleep(0.1)
+                self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1) # On (Triggers search)
+                return True
+            except:
+                return False
+        return False
 
     def get_frame(self):
         if self.cap and self.is_running:
@@ -113,19 +119,31 @@ class CameraManager:
 # =============================================================================
 class ImageProcessor:
     @staticmethod
-    def adjust_cv2(frame, brightness=1.0, contrast=1.0):
-        alpha = contrast
-        beta = (brightness - 1.0) * 127
-        return cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
+    def adjust_cv2(frame, brightness=1.0, contrast=1.0, mode="Color"):
+        """Applies Brightness, Contrast and Color Mode to CV2 Frame."""
+        try:
+            # 1. Apply Brightness/Contrast
+            alpha = contrast
+            beta = (brightness - 1.0) * 127
+            adjusted = cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
+            
+            # 2. Apply Color Mode
+            if mode == "Gray":
+                adjusted = cv2.cvtColor(cv2.cvtColor(adjusted, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
+            elif mode == "B&W":
+                gray = cv2.cvtColor(adjusted, cv2.COLOR_BGR2GRAY)
+                # Professional Adaptive Thresholding for crisp text
+                adjusted = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                               cv2.THRESH_BINARY, 15, 8)
+                adjusted = cv2.cvtColor(adjusted, cv2.COLOR_GRAY2BGR)
+                
+            return adjusted
+        except:
+            return frame
 
     @staticmethod
     def apply_color_mode(frame, mode):
-        if mode == "Gray":
-            return cv2.cvtColor(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
-        elif mode == "B&W":
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            _, bw = cv2.threshold(gray, 128, 255, cv2.THRESH_BINARY)
-            return cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
+        # Deprecated: Merged into adjust_cv2 for performance
         return frame
 
     @staticmethod
@@ -318,14 +336,17 @@ class ScannerApp:
         self.live_rotation = 180
         self.light_level = 0
         self.is_autofocus = True
-        self.color_mode = tk.StringVar(value="Color")
-        self.live_brightness = tk.DoubleVar(value=1.0)
-        self.live_contrast = tk.DoubleVar(value=1.0)
         
+        # --- FIX: Define params before usage ---
         params = self.parse_args(args)
+        
         self.token = params.get('token', '')
         self.patient_id = params.get('patient_id', 'demo')
         self.api_url = params.get('api_url', 'http://localhost:8000')
+        
+        self.live_brightness = tk.DoubleVar(value=1.0)
+        self.live_contrast = tk.DoubleVar(value=1.0)
+        self.color_mode = tk.StringVar(value="Color")
 
         self.setup_ui()
         
@@ -346,40 +367,56 @@ class ScannerApp:
         return p
 
     def setup_ui(self):
+        s = ttk.Style()
+        s.theme_use('clam')
+        s.configure(".", background=COLORS["panel"], foreground=COLORS["fg"])
+        s.configure("TLabel", background=COLORS["panel"], foreground=COLORS["fg"], font=("Segoe UI", 9))
+        s.configure("TCombobox", fieldbackground="#333", background=COLORS["panel"])
+        s.configure("Accent.TButton", background=COLORS["accent"], foreground="white", font=("Segoe UI", 10, "bold"))
+        
         # Sidebar
-        sb = tk.Frame(self.root, width=300, bg=COLORS["panel"])
+        sb = tk.Frame(self.root, width=320, bg=COLORS["panel"])
         sb.pack(side=tk.LEFT, fill=tk.Y)
         sb.pack_propagate(False)
 
-        tk.Label(sb, text="SETTINGS", fg="white", bg=COLORS["panel"], font=("Arial", 12, "bold")).pack(pady=10)
+        ttk.Label(sb, text="DOCUMENT SCANNER", font=("Segoe UI", 14, "bold"), foreground="white").pack(pady=15)
         
-        self.cb_cam = ttk.Combobox(sb, state="readonly")
-        self.cb_cam.pack(fill=tk.X, padx=10, pady=5)
+        # Camera Control Group
+        lf_cam = ttk.LabelFrame(sb, text="Hardware", padding=10)
+        lf_cam.pack(fill=tk.X, padx=10, pady=5)
+        
+        self.cb_cam = ttk.Combobox(lf_cam, state="readonly")
+        self.cb_cam.pack(fill=tk.X, pady=2)
         self.cb_cam.bind("<<ComboboxSelected>>", lambda e: self.start_live())
 
-        self.cb_res = ttk.Combobox(sb, values=["16MP (4:3)", "4K (16:9)", "1080p"], state="readonly")
+        self.cb_res = ttk.Combobox(lf_cam, values=["16MP (4:3)", "4K (16:9)", "1080p"], state="readonly")
         self.cb_res.current(0)
-        self.cb_res.pack(fill=tk.X, padx=10, pady=5)
+        self.cb_res.pack(fill=tk.X, pady=2)
         self.cb_res.bind("<<ComboboxSelected>>", lambda e: self.start_live())
+        
+        ttk.Button(lf_cam, text="🎯 Trigger Focus", command=self.trigger_focus).pack(fill=tk.X, pady=5)
 
-        tk.Checkbutton(sb, text="Auto-Crop", variable=self.auto_crop, bg=COLORS["panel"], fg="white", selectcolor="#333").pack(anchor="w", padx=10)
+        # Image Control Group
+        lf_img = ttk.LabelFrame(sb, text="Enhancements", padding=10)
+        lf_img.pack(fill=tk.X, padx=10, pady=5)
         
-        # Live Enhancements Sliders
-        tk.Label(sb, text="Brightness", fg="white", bg=COLORS["panel"], font=("Arial", 9)).pack(anchor="w", padx=10, pady=(10,0))
-        tk.Scale(sb, from_=0.5, to=2.0, resolution=0.1, orient=tk.HORIZONTAL, 
-                 variable=self.live_brightness, bg=COLORS["panel"], fg="white", highlightthickness=0).pack(fill=tk.X, padx=10)
+        ttk.Checkbutton(lf_img, text="Live Crop Guide (Green)", variable=self.auto_crop).pack(anchor="w")
+        
+        ttk.Label(lf_img, text="Brightness").pack(anchor="w", pady=(10,0))
+        tk.Scale(lf_img, from_=0.5, to=2.0, resolution=0.1, orient=tk.HORIZONTAL, 
+                 variable=self.live_brightness, bg=COLORS["panel"], fg="white", highlightthickness=0).pack(fill=tk.X)
                  
-        tk.Label(sb, text="Contrast", fg="white", bg=COLORS["panel"], font=("Arial", 9)).pack(anchor="w", padx=10, pady=(5,0))
-        tk.Scale(sb, from_=0.5, to=2.0, resolution=0.1, orient=tk.HORIZONTAL, 
-                 variable=self.live_contrast, bg=COLORS["panel"], fg="white", highlightthickness=0).pack(fill=tk.X, padx=10)
-        
-        self.size_lbl = tk.Label(sb, text="PDF Size: 0 MB", fg="white", bg=COLORS["panel"])
-        self.size_lbl.pack(pady=10)
+        ttk.Label(lf_img, text="Contrast").pack(anchor="w", pady=(5,0))
+        tk.Scale(lf_img, from_=0.5, to=2.0, resolution=0.1, orient=tk.HORIZONTAL, 
+                 variable=self.live_contrast, bg=COLORS["panel"], fg="white", highlightthickness=0).pack(fill=tk.X)
+
+        self.size_lbl = ttk.Label(sb, text="PDF Size: 0.0 MB", font=("Segoe UI", 10, "bold"))
+        self.size_lbl.pack(pady=5)
 
         self.list_frame = tk.Frame(sb, bg="#111")
-        self.list_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-        ttk.Button(sb, text="UPLOAD PDF", command=self.upload).pack(fill=tk.X, padx=10, pady=10)
+        ttk.Button(sb, text="UPLOAD PDF", style="Accent.TButton", command=self.upload).pack(fill=tk.X, padx=15, pady=20)
 
         # Center
         cnt = tk.Frame(self.root, bg="black")
@@ -405,13 +442,13 @@ class ScannerApp:
 
         tk.Frame(top_bar, width=2, bg=COLORS["border"]).pack(side=tk.LEFT, fill=tk.Y, padx=10)
 
-        self.btn_focus = tk.Button(top_bar, text="🎯 Focus", command=self.toggle_focus, bg=COLORS["panel"], fg="white", bd=0, font=("Arial", 9))
+        self.btn_focus = tk.Button(top_bar, text="🎯 AF: ON", command=self.toggle_focus, bg=COLORS["panel"], fg="white", bd=0, font=("Segoe UI", 9))
         self.btn_focus.pack(side=tk.LEFT, padx=5)
 
-        self.btn_light = tk.Button(top_bar, text="💡 Light", command=self.toggle_light, bg=COLORS["panel"], fg="white", bd=0, font=("Arial", 9))
+        self.btn_light = tk.Button(top_bar, text="💡 Light", command=self.toggle_light, bg=COLORS["panel"], fg="white", bd=0, font=("Segoe UI", 9))
         self.btn_light.pack(side=tk.LEFT, padx=5)
 
-        self.btn_restart = tk.Button(top_bar, text="Full Restart", bg=COLORS["danger"], fg="white", bd=0, font=("Arial", 9, "bold"), command=self.restart_app)
+        self.btn_restart = tk.Button(top_bar, text="Full Restart", bg=COLORS["danger"], fg="white", bd=0, font=("Segoe UI", 9, "bold"), command=self.restart_app)
         self.btn_restart.pack(side=tk.RIGHT, padx=10)
 
         self.canvas = tk.Canvas(cnt, bg="black", highlightthickness=0)
@@ -440,17 +477,14 @@ class ScannerApp:
             elif self.live_rotation == 180: frame = cv2.rotate(frame, cv2.ROTATE_180)
             elif self.live_rotation == 270: frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
             
-            # 2. Color Mode
-            frame = ImageProcessor.apply_color_mode(frame, self.color_mode.get())
+            # 2. Adjustments & Color Mode (Merged)
+            frame = ImageProcessor.adjust_cv2(frame, self.live_brightness.get(), self.live_contrast.get(), self.color_mode.get())
             
-            # 3. Live Adjustments
-            frame = ImageProcessor.adjust_cv2(frame, self.live_brightness.get(), self.live_contrast.get())
-            
-            # 4. Live Guide - DISABLED as per user request
-            # if self.auto_crop.get():
-            #     approx = ImageProcessor.get_document_rect(frame)
-            #     if approx is not None:
-            #         cv2.drawContours(frame, [approx], -1, (0, 255, 0), 4)
+            # 3. Live Guide - RESTORED BUT OPTIONAL
+            if self.auto_crop.get():
+                approx = ImageProcessor.get_document_rect(frame)
+                if approx is not None:
+                    cv2.drawContours(frame, [approx], -1, (0, 255, 0), 4)
 
             img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             cw, ch = self.canvas.winfo_width(), self.canvas.winfo_height()
@@ -481,8 +515,17 @@ class ScannerApp:
 
     def toggle_focus(self):
         self.is_autofocus = not self.is_autofocus
-        self.camera.set_focus(self.is_autofocus)
-        self.btn_focus.config(text=f"🎯 {'Auto' if self.is_autofocus else 'Manual'}")
+        if not self.is_autofocus:
+            if self.camera.cap: self.camera.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+        else:
+            if self.camera.cap: self.camera.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+        self.btn_focus.config(text=f"🎯 AF: {'ON' if self.is_autofocus else 'OFF'}")
+
+    def trigger_focus(self):
+        if self.camera.trigger_focus():
+            orig_bg = self.canvas.cget("bg")
+            self.canvas.configure(bg="#222")
+            self.root.after(200, lambda: self.canvas.configure(bg=orig_bg))
 
     def toggle_light(self):
         self.light_level = (self.light_level + 1) % 4
@@ -506,11 +549,11 @@ class ScannerApp:
         if self.auto_crop.get():
             approx = ImageProcessor.get_document_rect(frame)
             if approx is not None:
+                # Use Perspective Transform for professional straighten
                 frame = ImageProcessor.transform_quad(frame, approx)
         
-        # Apply color mode and adjustments even to captured frame
-        frame = ImageProcessor.apply_color_mode(frame, self.color_mode.get())
-        frame = ImageProcessor.adjust_cv2(frame, self.live_brightness.get(), self.live_contrast.get())
+        # Apply enhancements (Mode + Brightness + Contrast)
+        frame = ImageProcessor.adjust_cv2(frame, self.live_brightness.get(), self.live_contrast.get(), self.color_mode.get())
         
         img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         
@@ -581,6 +624,7 @@ class ScannerApp:
                 messagebox.showinfo("Success", "Professional Scan Uploaded Successfully")
                 self.captured_images = []
                 self.root.after(0, self.refresh_sidebar)
+                self.root.after(0, self.root.destroy)
             else:
                 messagebox.showerror("Error", f"Upload failed: {response.text}")
         except Exception as e:
