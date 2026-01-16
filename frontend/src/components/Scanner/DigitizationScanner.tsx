@@ -21,7 +21,7 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
     const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
 
     // Scan Settings
-    const [resolution, setResolution] = useState<{ width: number, height: number }>({ width: 1920, height: 1080 }); // Default 1080p for compatibility
+    const [resolution, setResolution] = useState<{ width: number, height: number }>({ width: 3840, height: 2160 }); // Default 4K (16MP) to match desktop scanner
     const [dpi, setDpi] = useState<number>(200);
     const [filterMode, setFilterMode] = useState<'color' | 'grayscale' | 'bw'>('color');
     const [brightness, setBrightness] = useState<number>(100); // %

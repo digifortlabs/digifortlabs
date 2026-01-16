@@ -3,687 +3,364 @@ import os
 import cv2
 import requests
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox
 from PIL import Image, ImageTk, ImageEnhance
 import urllib.parse
 from io import BytesIO
 import ctypes
 import threading
 import time
+import platform
+import logging
+from typing import List, Optional, Tuple, Any
 
 # =============================================================================
-# DIGIFORT SCANNER PRO - DARK THEME UI
+# CONFIGURATION & LOGGING
 # =============================================================================
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("DigifortScanner")
+
 COLORS = {
-    "bg": "#1e1e1e",           # Main Background (Darkest)
-    "panel": "#252526",        # Sidebars/Toolbars
-    "fg": "#cccccc",           # Standard Text
-    "accent": "#007acc",       # Blue Highlight
+    "bg": "#1e1e1e",
+    "panel": "#252526",
+    "fg": "#cccccc",
+    "accent": "#007acc",
     "accent_hover": "#0098ff",
     "danger": "#d9534f",
     "success": "#5cb85c",
     "border": "#3e3e42"
 }
 
+# =============================================================================
+# HARDWARE LAYER: CAMERA MANAGER
+# =============================================================================
+class CameraManager:
+    def __init__(self):
+        self.cap: Optional[cv2.VideoCapture] = None
+        self.is_running = False
+        self.backend = cv2.CAP_DSHOW if platform.system() == "Windows" else cv2.CAP_ANY
+
+    def get_available_cameras(self) -> List[int]:
+        available = []
+        for i in range(3):
+            try:
+                temp_cap = cv2.VideoCapture(i, self.backend)
+                if temp_cap.isOpened():
+                    available.append(i)
+                    temp_cap.release()
+            except: pass
+        return available
+
+    def start(self, index: int, width: int, height: int) -> bool:
+        if self.cap: self.stop()
+        self.cap = cv2.VideoCapture(index, self.backend)
+        if not self.cap.isOpened(): return False
+        
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        self.cap.set(cv2.CAP_PROP_FPS, 30)
+        self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+        
+        self.is_running = True
+        return True
+
+    def get_frame(self):
+        if self.cap and self.is_running:
+            return self.cap.read()
+        return False, None
+
+    def stop(self):
+        if self.cap:
+            self.cap.release()
+            self.cap = None
+        self.is_running = False
+
+# =============================================================================
+# LOGIC LAYER: IMAGE PROCESSOR
+# =============================================================================
+class ImageProcessor:
+    @staticmethod
+    def adjust_cv2(frame, brightness=1.0, contrast=1.0):
+        alpha = contrast
+        beta = (brightness - 1.0) * 127
+        return cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
+
+    @staticmethod
+    def get_document_rect(frame):
+        try:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            blur = cv2.GaussianBlur(gray, (5, 5), 0)
+            edges = cv2.Canny(blur, 50, 150)
+            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if contours:
+                largest = max(contours, key=cv2.contourArea)
+                if cv2.contourArea(largest) > (frame.shape[0] * frame.shape[1] * 0.1):
+                    return cv2.boundingRect(largest)
+            return None
+        except: return None
+
+    @staticmethod
+    def apply_pil_filters(img, mode="Color", brightness=1.0, contrast=1.0):
+        if mode == "Gray": img = img.convert("L")
+        elif mode == "B&W": img = img.convert("L").point(lambda p: 255 if p > 128 else 0)
+        
+        if mode != "B&W":
+            if brightness != 1.0: img = ImageEnhance.Brightness(img).enhance(brightness)
+            if contrast != 1.0: img = ImageEnhance.Contrast(img).enhance(contrast)
+        return img
+
+# =============================================================================
+# EDITOR WINDOW
+# =============================================================================
+class EditorWindow(tk.Toplevel):
+    def __init__(self, parent, pil_img, callback):
+        super().__init__(parent)
+        self.title("Edit Page")
+        self.state('zoomed')
+        self.configure(bg=COLORS["bg"])
+        self.original = pil_img
+        self.current = pil_img
+        self.callback = callback
+        
+        self.brightness = tk.DoubleVar(value=1.0)
+        self.contrast = tk.DoubleVar(value=1.0)
+        self.mode = tk.StringVar(value="Color")
+        self.rotation = 0
+        
+        self.setup_ui()
+        self.update_preview()
+
+    def setup_ui(self):
+        tools = tk.Frame(self, width=250, bg=COLORS["panel"])
+        tools.pack(side=tk.LEFT, fill=tk.Y)
+        tools.pack_propagate(False)
+
+        tk.Label(tools, text="ADJUSTMENTS", fg="white", bg=COLORS["panel"], font=("Arial", 10, "bold")).pack(pady=20)
+        
+        tk.Label(tools, text="Brightness", fg="white", bg=COLORS["panel"]).pack()
+        tk.Scale(tools, from_=0.5, to=1.5, resolution=0.1, orient=tk.HORIZONTAL, variable=self.brightness, command=lambda x: self.update_preview(), bg=COLORS["panel"], fg="white", highlightthickness=0).pack(fill=tk.X, padx=20)
+        
+        tk.Label(tools, text="Contrast", fg="white", bg=COLORS["panel"]).pack(pady=(10,0))
+        tk.Scale(tools, from_=0.5, to=1.5, resolution=0.1, orient=tk.HORIZONTAL, variable=self.contrast, command=lambda x: self.update_preview(), bg=COLORS["panel"], fg="white", highlightthickness=0).pack(fill=tk.X, padx=20)
+
+        for m in ["Color", "Gray", "B&W"]:
+            tk.Radiobutton(tools, text=m, variable=self.mode, value=m, command=self.update_preview, bg=COLORS["panel"], fg="white", selectcolor="#444").pack(anchor="w", padx=30, pady=5)
+
+        tk.Button(tools, text="Rotate ⟳", command=lambda: self.rotate(90)).pack(fill=tk.X, padx=20, pady=10)
+        tk.Button(tools, text="SAVE", bg=COLORS["accent"], fg="white", command=self.save).pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=10)
+
+        self.canvas = tk.Canvas(self, bg="black", highlightthickness=0)
+        self.canvas.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+    def rotate(self, angle):
+        self.rotation = (self.rotation + angle) % 360
+        self.update_preview()
+
+    def update_preview(self):
+        img = self.original.rotate(-self.rotation, expand=True)
+        img = ImageProcessor.apply_pil_filters(img, self.mode.get(), self.brightness.get(), self.contrast.get())
+        self.current = img
+        
+        cw, ch = self.canvas.winfo_width(), self.canvas.winfo_height()
+        if cw < 10: cw, ch = 800, 600
+        
+        ratio = min(cw/img.width, ch/img.height)
+        nw, nh = int(img.width*ratio), int(img.height*ratio)
+        disp = img.resize((nw, nh), Image.Resampling.LANCZOS)
+        
+        self.photo = ImageTk.PhotoImage(disp)
+        self.canvas.delete("all")
+        self.canvas.create_image(cw//2, ch//2, image=self.photo)
+
+    def save(self):
+        self.callback(self.current)
+        self.destroy()
+
+# =============================================================================
+# MAIN SCANNER APP
+# =============================================================================
 class ScannerApp:
     def __init__(self, root, args):
         self.root = root
         self.root.title("Digifort Scanner Pro")
-        # Maximize window to show full A3 camera view
-        self.root.state('zoomed')  # Maximize on Windows
+        self.root.state('zoomed')
         self.root.configure(bg=COLORS["bg"])
         
-        # State Variables
-        self.params = self.parse_arguments(args)
-        self.token = self.params.get('token')
-        self.api_url = self.params.get('api_url', 'http://localhost:8000')
-        self.patient_id = self.params.get('patient_id')
+        self.camera = CameraManager()
+        self.captured_images = []
         
-        self.cap = None
-        self.camera_active = False
-        self.captured_images = []     # List of PIL Images
-        self.original_images = []     # Keep originals for non-destructive edits
-        self.selected_camera_index = 0
-        self.available_cameras = self.get_available_cameras()
-        self.current_preview_index = -1 # -1 is live camera, >=0 is captured image
+        self.auto_crop = tk.BooleanVar(value=True)
+        self.view_mode = "fit"
+        self.live_rotation = 180
         
-        # Image Adjustments
-        self.brightness_val = tk.DoubleVar(value=1.0)
-        self.contrast_val = tk.DoubleVar(value=1.0)
-        self.color_mode = tk.StringVar(value="Color") # Color, Gray, B&W
-        self.auto_crop = tk.BooleanVar(value=True) # Auto-crop documents
-        self.resolution_mode = tk.StringVar(value="4K (16MP)") # Resolution setting
-        self.flash_enabled = False  # Flash/torch state
-        self.focus_mode = "auto"  # auto or manual
-        self.live_rotation = 180  # Default 180° rotation for overhead scanners
-        self.last_button_action = None  # Track last button pressed for space key repeat
-        self.light_level = 0  # 0=Off, 1=Low, 2=Medium, 3=High
-        self.view_mode = "fit"  # "fit" or "raw" - toggle with Fit button
-        
-        if not self.token or not self.patient_id:
-             messagebox.showerror("Auth Error", "Please launch using the 'Desktop App' button on the Website.")
-        
-        self.setup_styles()
+        params = self.parse_args(args)
+        self.token = params.get('token', '')
+        self.patient_id = params.get('patient_id', 'demo')
+        self.api_url = params.get('api_url', 'http://localhost:8000')
+
         self.setup_ui()
-        self.start_camera()
+        
+        cams = self.camera.get_available_cameras()
+        if cams:
+            self.cb_cam['values'] = [f"Camera {i}" for i in cams]
+            self.cb_cam.current(0)
+            self.start_live()
 
-    # -------------------------------------------------------------------------
-    # UI SETUP
-    # -------------------------------------------------------------------------
-    def setup_styles(self):
-        style = ttk.Style()
-        style.theme_use('clam')
-        
-        # Default Look
-        style.configure(".", background=COLORS["panel"], foreground=COLORS["fg"], borderwidth=0)
-        style.configure("TFrame", background=COLORS["panel"])
-        style.configure("Main.TFrame", background=COLORS["bg"])
-        
-        # Labels
-        style.configure("TLabel", background=COLORS["panel"], foreground=COLORS["fg"], font=("Segoe UI", 10))
-        style.configure("Header.TLabel", font=("Segoe UI", 12, "bold"), foreground="white")
-        
-        # Buttons
-        style.configure("TButton", background="#3c3c3c", foreground="white", borderwidth=0, padding=6)
-        style.map("TButton", background=[('active', '#505050')])
-        
-        # Accent Button (Blue)
-        style.configure("Accent.TButton", background=COLORS["accent"], foreground="white", font=("Segoe UI", 10, "bold"))
-        style.map("Accent.TButton", background=[('active', COLORS["accent_hover"])])
-        
-        # Danger Button (Red)
-        style.configure("Danger.TButton", background=COLORS["danger"], foreground="white")
-        style.map("Danger.TButton", background=[('active', "#c9302c")])
-
-        # Combobox
-        style.configure("TCombobox", fieldbackground="#333", background="#333", foreground="white", arrowcolor="white")
-        style.map("TCombobox", fieldbackground=[('readonly', '#333')])
+    def parse_args(self, args):
+        p = {}
+        if len(args) > 1:
+            try:
+                uri = args[1].replace("digifort://", "http://d/")
+                qs = urllib.parse.parse_qs(urllib.parse.urlparse(uri).query)
+                p = {k: v[0] for k, v in qs.items()}
+            except: pass
+        return p
 
     def setup_ui(self):
-        # MAIN LAYOUT: Left (Sidebar) | Center (Preview) | Bottom (Toolbar) is inside Center
-        
-        # 1. TOP HEADER (Optional, strictly functionality first)
-        
-        # 2. LEFT SIDEBAR
-        sidebar = ttk.Frame(self.root, width=300)
-        sidebar.pack(side=tk.LEFT, fill=tk.Y, padx=0, pady=0)
-        sidebar.pack_propagate(False) # Fixed width
-        
-        # Pages List Header
-        header_frame = ttk.Frame(sidebar)
-        header_frame.pack(fill=tk.X, padx=10, pady=10)
-        ttk.Label(header_frame, text="📄 Pages (0)", style="Header.TLabel").pack(side=tk.LEFT)
-        self.pages_count_lbl = header_frame.winfo_children()[0]
-        
-        # Settings Group
-        settings_frame = ttk.LabelFrame(sidebar, text="SETTINGS", padding=10)
-        settings_frame.pack(fill=tk.X, padx=10, pady=5)
-        settings_frame.pack(fill=tk.X, padx=10, pady=5)
-        # settings_frame.configure(fg="gray") # Not supported in TTK
-        
-        ttk.Label(settings_frame, text="Camera Source").pack(anchor="w")
-        cam_values = [f"Camera {i}" for i in self.available_cameras] if self.available_cameras else ["No Camera"]
-        self.cb_camera = ttk.Combobox(settings_frame, values=cam_values, state="readonly")
-        if self.available_cameras: self.cb_camera.current(0)
-        self.cb_camera.pack(fill=tk.X, pady=(0, 10))
-        self.cb_camera.bind("<<ComboboxSelected>>", self.change_camera)
-        
-        ttk.Label(settings_frame, text="Resolution").pack(anchor="w")
-        self.cb_res = ttk.Combobox(settings_frame, values=["4K (16MP)", "4:3 (2048x1536)", "1080p (FHD)", "720p (HD)"], state="readonly", textvariable=self.resolution_mode)
-        self.cb_res.current(0)  # Default to 16MP
-        self.cb_res.pack(fill=tk.X, pady=(0, 10))
-        self.cb_res.bind("<<ComboboxSelected>>", self.change_resolution)
-        
-        ttk.Label(settings_frame, text="Document Type").pack(anchor="w")
-        self.cb_dpi = ttk.Combobox(settings_frame, values=["Document (A4)", "ID Card", "Receipt"], state="readonly")
-        self.cb_dpi.current(0)
-        self.cb_dpi.pack(fill=tk.X, pady=(0, 10))
-        
-        # Auto-crop toggle
-        self.chk_autocrop = ttk.Checkbutton(settings_frame, text="Auto-Crop Documents", variable=self.auto_crop)
-        self.chk_autocrop.pack(anchor="w")
+        # Sidebar
+        sb = tk.Frame(self.root, width=300, bg=COLORS["panel"])
+        sb.pack(side=tk.LEFT, fill=tk.Y)
+        sb.pack_propagate(False)
 
-        # PDF Size Indicator
-        self.pdf_size_label = ttk.Label(sidebar, text="PDF Size: 0 MB", font=("Arial", 10, "bold"))
-        self.pdf_size_label.pack(anchor="w", padx=10, pady=5)
+        tk.Label(sb, text="SETTINGS", fg="white", bg=COLORS["panel"], font=("Arial", 12, "bold")).pack(pady=10)
+        
+        self.cb_cam = ttk.Combobox(sb, state="readonly")
+        self.cb_cam.pack(fill=tk.X, padx=10, pady=5)
+        self.cb_cam.bind("<<ComboboxSelected>>", lambda e: self.start_live())
 
-        # Thumbnails List (Custom Listbox look)
-        self.list_frame = tk.Frame(sidebar, bg="#181818")
-        self.list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Delete All Button at Bottom
-        ttk.Button(sidebar, text="Delete ALL", style="Danger.TButton", command=self.clear_all).pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
+        self.cb_res = ttk.Combobox(sb, values=["16MP (4:3)", "4K (16:9)", "1080p"], state="readonly")
+        self.cb_res.current(0)
+        self.cb_res.pack(fill=tk.X, padx=10, pady=5)
+        self.cb_res.bind("<<ComboboxSelected>>", lambda e: self.start_live())
 
+        tk.Checkbutton(sb, text="Auto-Crop", variable=self.auto_crop, bg=COLORS["panel"], fg="white", selectcolor="#333").pack(anchor="w", padx=10)
+        
+        self.size_lbl = tk.Label(sb, text="PDF Size: 0 MB", fg="white", bg=COLORS["panel"])
+        self.size_lbl.pack(pady=10)
 
-        # 3. RIGHT MAIN AREA
-        main_area = ttk.Frame(self.root, style="Main.TFrame")
-        main_area.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
-        
-        # Top Toolbar (Image Tools)
-        top_tools = ttk.Frame(main_area)
-        top_tools.pack(fill=tk.X, padx=10, pady=10)
-        
-        # Mode Toggles
-        self.btn_color = ttk.Button(top_tools, text="Color", command=lambda: self.set_mode("Color"))
-        self.btn_color.pack(side=tk.LEFT, padx=2)
-        
-        self.btn_gray = ttk.Button(top_tools, text="Gray", command=lambda: self.set_mode("Gray"))
-        self.btn_gray.pack(side=tk.LEFT, padx=2)
-        
-        self.btn_bw = ttk.Button(top_tools, text="B&W", command=lambda: self.set_mode("B&W"))
-        self.btn_bw.pack(side=tk.LEFT, padx=2)
-        
-        ttk.Separator(top_tools, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
-        
-        ttk.Button(top_tools, text="⟳ Rot", command=self.rotate_last_image).pack(side=tk.LEFT, padx=2)
-        ttk.Button(top_tools, text="⛶ Fit", command=self.reset_zoom).pack(side=tk.LEFT, padx=2)
-        
-        ttk.Separator(top_tools, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
-        
-        self.btn_focus = ttk.Button(top_tools, text="🎯 Focus", command=self.toggle_focus)
-        self.btn_focus.pack(side=tk.LEFT, padx=2)
-        
-        self.btn_flash = ttk.Button(top_tools, text="💡 Light", command=self.toggle_flash)
-        self.btn_flash.pack(side=tk.LEFT, padx=2)
-        
-        ttk.Button(top_tools, text="Full Restart", style="Danger.TButton", command=self.restart_app).pack(side=tk.RIGHT)
+        self.list_frame = tk.Frame(sb, bg="#111")
+        self.list_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
+        ttk.Button(sb, text="UPLOAD PDF", command=self.upload).pack(fill=tk.X, padx=10, pady=10)
 
-        # Canvas Area (Black Background)
-        self.canvas_container = tk.Frame(main_area, bg="black")
-        self.canvas_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        # Center
+        cnt = tk.Frame(self.root, bg="black")
+        cnt.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         
-        self.canvas = tk.Canvas(self.canvas_container, bg="black", highlightthickness=0)
+        self.canvas = tk.Canvas(cnt, bg="black", highlightthickness=0)
         self.canvas.pack(fill=tk.BOTH, expand=True)
 
-        # Bottom Control Bar
-        bot_bar = ttk.Frame(main_area, padding=10)
-        bot_bar.pack(fill=tk.X, side=tk.BOTTOM)
+        btn_cap = tk.Button(cnt, text="CAPTURE", bg="white", fg="black", font=("Arial", 14, "bold"), command=self.capture, height=2, width=20)
+        btn_cap.place(relx=0.5, rely=0.9, anchor=tk.CENTER)
         
-        # Sliders
-        sliders_frame = ttk.Frame(bot_bar)
-        sliders_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.root.bind("<space>", lambda e: self.capture())
+
+    def start_live(self):
+        idx = int(self.cb_cam.get().split()[-1]) if self.cb_cam.get() else 0
+        res = self.cb_res.get()
+        w, h = (4608, 3456) if "4:3" in res else (3840, 2160) if "4K" in res else (1920, 1080)
         
-        ttk.Label(sliders_frame, text="Brightness").grid(row=0, column=0, padx=5)
-        tk.Scale(sliders_frame, from_=0.5, to=2.0, resolution=0.1, orient=tk.HORIZONTAL, 
-                 variable=self.brightness_val, bg=COLORS["panel"], fg="white", 
-                 highlightthickness=0).grid(row=0, column=1, sticky="ew")
-                 
-        ttk.Label(sliders_frame, text="Contrast").grid(row=1, column=0, padx=5)
-        tk.Scale(sliders_frame, from_=0.5, to=2.0, resolution=0.1, orient=tk.HORIZONTAL, 
-                 variable=self.contrast_val, bg=COLORS["panel"], fg="white", 
-                 highlightthickness=0).grid(row=1, column=1, sticky="ew")
+        if self.camera.start(idx, w, h):
+            self.loop()
 
-        # Capture Button (Big White Circle)
-        self.btn_capture = tk.Button(bot_bar, text="⚫", font=("Arial", 24), bg="white", fg="black", 
-                                     activebackground="#ddd", activeforeground="black",
-                                     relief="flat", bd=0, command=self.capture_frame)
-        self.btn_capture.config(height=1, width=3) # rough circle shape hack
-        # Actually simple text button is safer for sizing
-        self.btn_capture.config(text="CAPTURE", font=("Segoe UI", 12, "bold"))
-        self.btn_capture.pack(side=tk.LEFT, padx=40)
-        
-        # Upload / Convert Button
-        self.btn_upload = ttk.Button(bot_bar, text="✓ Convert to PDF", style="Accent.TButton", command=self.upload_all)
-        self.btn_upload.pack(side=tk.RIGHT)
-
-        # Keyboard
-        self.root.bind('<space>', lambda e: self.repeat_last_action())
-        self.root.bind('<Escape>', lambda e: self.restart_app())
-
-
-    # -------------------------------------------------------------------------
-    # LOGIC
-    # -------------------------------------------------------------------------
-    def parse_arguments(self, args):
-        params = {}
-        if len(args) > 1:
-            uri = args[1]
-            try:
-                # remove "digifort://"
-                if uri.startswith("digifort://"):
-                    # it might be digifort://upload?token=...
-                    # standard urlparse might fail if scheme is weird, strip it manual
-                    uri = uri.replace("digifort://", "http://dummy/")
-                    
-                parsed = urllib.parse.urlparse(uri)
-                qs = urllib.parse.parse_qs(parsed.query)
-                for k, v in qs.items():
-                    params[k] = v[0]
-            except: pass
-        return params
-
-    def get_available_cameras(self):
-        arr = []
-        for i in range(3):
-            cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
-            if cap.isOpened():
-                arr.append(i)
-                cap.release()
-        return arr
-
-    def start_camera(self):
-        if self.camera_active: return
-        
-        # Try to force camera access with retry
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                self.cap = cv2.VideoCapture(self.selected_camera_index, cv2.CAP_DSHOW)
-                
-                if not self.cap.isOpened():
-                    if attempt < max_retries - 1:
-                        time.sleep(0.5)
-                        continue
-                    else:
-                        messagebox.showerror("Camera Error", "Could not access camera. Please close other apps using the camera.")
-                        return
-                
-                # Set resolution based on user selection
-                res_mode = self.resolution_mode.get()
-                if "4K" in res_mode or "16MP" in res_mode:
-                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
-                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
-                elif "4:3" in res_mode:
-                    # 4:3 aspect ratio for document scanners
-                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 2048)
-                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1536)
-                elif "1080p" in res_mode:
-                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-                else:  # 720p
-                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-                
-                # Set minimum FPS to 5
-                self.cap.set(cv2.CAP_PROP_FPS, 30)  # Request 30, accept minimum 5
-                
-                # Enable autofocus by default
-                try:
-                    self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
-                except:
-                    pass  # Not all cameras support this
-                    
-                self.camera_active = True
-                self.update_feed()
-                break
-                
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    time.sleep(0.5)
-                    continue
-                else:
-                    messagebox.showerror("Camera Error", f"Failed to start camera: {str(e)}")
-                    return
-
-    def change_camera(self, event):
-        idx = self.cb_camera.current()
-        new = self.available_cameras[idx]
-        if new != self.selected_camera_index:
-            self.selected_camera_index = new
-            if self.cap:
-                self.cap.release()
-            self.camera_active = False
-            self.start_camera()
-    
-    def change_resolution(self, event):
-        # Restart camera with new resolution
-        if self.cap:
-            self.cap.release()
-        self.camera_active = False
-        self.start_camera()
-
-    def update_feed(self):
-        if not self.camera_active: return
-        
-        ret, frame = self.cap.read()
+    def loop(self):
+        if not self.camera.is_running: return
+        ret, frame = self.camera.get_frame()
         if ret:
-            # Apply rotation to live feed if needed
-            if self.live_rotation == 90:
-                frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
-            elif self.live_rotation == 180:
-                frame = cv2.rotate(frame, cv2.ROTATE_180)
-            elif self.live_rotation == 270:
-                frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            if self.live_rotation == 180: frame = cv2.rotate(frame, cv2.ROTATE_180)
             
-            # Apply processing to Live View
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            img = Image.fromarray(frame)
-            
-            # Apply color mode to live preview
-            mode = self.color_mode.get()
-            if mode == "Gray":
-                img = img.convert("L")
-            elif mode == "B&W":
-                img = img.convert("L").point(lambda p: 255 if p > 128 else 0)
-            
-            # Display camera feed based on view mode
-            cw = self.canvas.winfo_width()
-            ch = self.canvas.winfo_height()
-            if cw > 10 and ch > 10:
-                img_w, img_h = img.size
-                
-                if self.view_mode == "raw":
-                    # Raw mode: Show center portion at 1:1 scale
-                    if img_w > cw or img_h > ch:
-                        left = max(0, (img_w - cw) // 2)
-                        top = max(0, (img_h - ch) // 2)
-                        right = min(img_w, left + cw)
-                        bottom = min(img_h, top + ch)
-                        img = img.crop((left, top, right, bottom))
-                else:
-                    # Fit mode: Scale to fit canvas while maintaining aspect ratio
-                    scale = min(cw / img_w, ch / img_h)
-                    new_w = int(img_w * scale)
-                    new_h = int(img_h * scale)
-                    img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-                
-                self.photo = ImageTk.PhotoImage(image=img)
-                self.canvas.delete("all")
-                self.canvas.create_image(cw//2, ch//2, image=self.photo, anchor=tk.CENTER)
-        
-        self.root.after(30, self.update_feed)
-
-    def set_mode(self, mode):
-        self.color_mode.set(mode)
-        # Update UI feedback (highlight button)
-        self.btn_color.configure(style="TButton" if mode != "Color" else "Accent.TButton")
-        self.btn_gray.configure(style="TButton" if mode != "Gray" else "Accent.TButton")
-        self.btn_bw.configure(style="TButton" if mode != "B&W" else "Accent.TButton")
-
-    def capture_frame(self):
-        if not self.cap: return
-        ret, frame = self.cap.read()
-        if ret:
-            # Auto-crop if enabled
             if self.auto_crop.get():
-                frame = self.auto_crop_document(frame)
-            
-            # Apply rotation if needed
-            if self.live_rotation == 90:
-                frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
-            elif self.live_rotation == 180:
-                frame = cv2.rotate(frame, cv2.ROTATE_180)
-            elif self.live_rotation == 270:
-                frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-            
-            # Process: Convert to RGB
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            pil_img = Image.fromarray(rgb_frame)
-            self.captured_images.append(pil_img)
-            self.original_images.append(pil_img)
-            
-            self.refresh_sidebar()
-            self.flash_effect()
-            self.last_button_action = 'capture'
-    
-    def auto_crop_document(self, frame):
-        """Detect document edges and crop automatically using OpenCV - optimized for overhead scanners"""
-        try:
-            # Create a copy for processing
-            orig = frame.copy()
-            height, width = frame.shape[:2]
-            
-            # Convert to grayscale and apply adaptive thresholding
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            
-            # Use bilateral filter to reduce noise while keeping edges sharp
-            blur = cv2.bilateralFilter(gray, 9, 75, 75)
-            
-            # Apply adaptive threshold for better edge detection
-            thresh = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                          cv2.THRESH_BINARY, 11, 2)
-            
-            # Detect edges using Canny with lower thresholds for better detection
-            edges = cv2.Canny(thresh, 50, 150)
-            
-            # Dilate edges to close gaps
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-            edges = cv2.dilate(edges, kernel, iterations=1)
-            
-            # Find contours
-            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            
-            if not contours:
-                return orig
-            
-            # Sort by area and get the largest
-            contours = sorted(contours, key=cv2.contourArea, reverse=True)
-            
-            # Find the largest rectangular contour
-            for contour in contours[:10]:  # Check top 10 largest
-                area = cv2.contourArea(contour)
-                
-                # Must be at least 10% of frame
-                if area < (width * height * 0.1):
-                    continue
-                
-                # Approximate the contour to a polygon
-                peri = cv2.arcLength(contour, True)
-                approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
-                
-                # If it's a quadrilateral (4 points), it's likely the document
-                if len(approx) == 4:
-                    # Get bounding rectangle
-                    x, y, w, h = cv2.boundingRect(approx)
-                    
-                    # Crop with small margin
-                    margin = 10
-                    x = max(0, x - margin)
-                    y = max(0, y - margin)
-                    w = min(width - x, w + 2*margin)
-                    h = min(height - y, h + 2*margin)
-                    
-                    return orig[y:y+h, x:x+w]
-            
-            # If no good rectangle found, return original
-            return orig
-        except Exception as e:
-            # On any error, return original frame
-            return frame
+                rect = ImageProcessor.get_document_rect(frame)
+                if rect:
+                    x, y, w, h = rect
+                    cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 3)
 
-    def flash_effect(self):
-        self.canvas.configure(bg="white")
-        self.root.after(50, lambda: self.canvas.configure(bg="black"))
+            img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            cw, ch = self.canvas.winfo_width(), self.canvas.winfo_height()
+            if cw > 10:
+                ratio = min(cw/img.width, ch/img.height)
+                img = img.resize((int(img.width*ratio), int(img.height*ratio)), Image.Resampling.LANCZOS)
+                self.photo = ImageTk.PhotoImage(img)
+                self.canvas.delete("all")
+                self.canvas.create_image(cw//2, ch//2, image=self.photo)
+        
+        self.root.after(30, self.loop)
+
+    def capture(self):
+        ret, frame = self.camera.get_frame()
+        if not ret: return
+        
+        if self.live_rotation == 180: frame = cv2.rotate(frame, cv2.ROTATE_180)
+        if self.auto_crop.get():
+            rect = ImageProcessor.get_document_rect(frame)
+            if rect:
+                x, y, w, h = rect
+                frame = frame[y:y+h, x:x+w]
+        
+        img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        # Internal compression
+        buf = BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+        self.captured_images.append(Image.open(buf))
+        self.refresh_sidebar()
 
     def refresh_sidebar(self):
-        # Update count and PDF size
-        count = len(self.captured_images)
-        self.pages_count_lbl.configure(text=f"📄 Pages ({count})")
-        
-        # Calculate estimated PDF size
-        total_size_mb = 0
-        for img in self.captured_images:
-            # Estimate: JPEG compression ~100-200 KB per page at high quality
-            # For 16MP images, estimate ~500 KB per page
-            img_bytes = img.size[0] * img.size[1] * 3  # RGB
-            estimated_compressed = img_bytes * 0.1  # ~10% compression ratio
-            total_size_mb += estimated_compressed / (1024 * 1024)
-        
-        self.pdf_size_label.configure(text=f"PDF Size: ~{total_size_mb:.1f} MB")
-        
-        # Clear list
         for w in self.list_frame.winfo_children(): w.destroy()
-        
-        # Rebuild List (Thumbnails)
+        total_mb = 0
         for i, img in enumerate(self.captured_images):
-            # Thumb
-            thumb = img.copy()
-            thumb.thumbnail((260, 200))
-            
-            # Apply B&W / Gray visual to thumbnail to match output
-            mode = self.color_mode.get()
-            if mode == "Gray":
-                thumb = thumb.convert("L")
-            elif mode == "B&W":
-                thumb = thumb.convert("L").point(lambda p: 255 if p > 128 else 0)
-            
-            ph = ImageTk.PhotoImage(thumb)
-            
-            row = tk.Frame(self.list_frame, bg=COLORS["panel"], pady=2)
+            row = tk.Frame(self.list_frame, bg=COLORS["panel"])
             row.pack(fill=tk.X, pady=2)
             
-            lbl = tk.Label(row, image=ph, bg="#333")
-            lbl.image = ph
-            lbl.pack(side=tk.LEFT)
+            thumb = img.copy()
+            thumb.thumbnail((60, 60))
+            ph = ImageTk.PhotoImage(thumb)
+            l = tk.Label(row, image=ph, bg="black")
+            l.image = ph
+            l.pack(side=tk.LEFT)
             
-            # Info
-            info = tk.Label(row, text=f"Page {i+1}", fg="white", bg=COLORS["panel"], font=("Arial", 9))
-            info.pack(side=tk.LEFT, padx=10)
+            tk.Label(row, text=f"P{i+1}", fg="white", bg=COLORS["panel"]).pack(side=tk.LEFT, padx=5)
             
-            # Delete X
-            btn_del = tk.Button(row, text="✖", bg=COLORS["panel"], fg="red", bd=0, 
-                                command=lambda idx=i: self.delete_page(idx))
-            btn_del.pack(side=tk.RIGHT, padx=5)
+            tk.Button(row, text="✕", fg="red", bg=COLORS["panel"], bd=0, command=lambda idx=i: self.delete(idx)).pack(side=tk.RIGHT)
+            tk.Button(row, text="✏️", fg="white", bg=COLORS["panel"], bd=0, command=lambda idx=i: self.edit(idx)).pack(side=tk.RIGHT)
+            
+            total_mb += (img.size[0] * img.size[1] * 3 * 0.1) / (1024*1024)
+            
+        self.size_lbl.config(text=f"PDF Size: ~{total_mb:.1f} MB")
 
-    def delete_page(self, index):
-        del self.captured_images[index]
-        del self.original_images[index]
+    def delete(self, idx):
+        del self.captured_images[idx]
         self.refresh_sidebar()
 
-    def clear_all(self):
-        self.captured_images = []
-        self.original_images = []
+    def edit(self, idx):
+        EditorWindow(self.root, self.captured_images[idx], lambda img: self.update_img(idx, img))
+
+    def update_img(self, idx, img):
+        self.captured_images[idx] = img
         self.refresh_sidebar()
-    
-    def rotate_last_image(self):
-        """Rotate the live camera feed by 90 degrees clockwise"""
-        # Rotate live feed
-        self.live_rotation = (self.live_rotation + 90) % 360
-        
-        # Also rotate last captured image if any
-        if self.captured_images:
-            last_idx = len(self.captured_images) - 1
-            img = self.captured_images[last_idx]
-            rotated = img.rotate(-90, expand=True)  # -90 for clockwise
-            
-            self.captured_images[last_idx] = rotated
-            self.original_images[last_idx] = rotated
-            self.refresh_sidebar()
-        
-    def reset_zoom(self):
-        """Toggle between Fit (scaled) and Raw (1:1) view modes"""
-        if self.view_mode == "fit":
-            self.view_mode = "raw"
-        else:
-            self.view_mode = "fit"
-    
-    def toggle_focus(self):
-        """Toggle between auto-focus and manual focus"""
-        if not self.cap:
-            return
-        
-        try:
-            if self.focus_mode == "auto":
-                self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
-                self.focus_mode = "manual"
-                self.btn_focus.configure(text="🎯 Manual")
-            else:
-                self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
-                self.focus_mode = "auto"
-                self.btn_focus.configure(text="🎯 Focus")
-        except:
-            messagebox.showinfo("Focus", "Your camera doesn't support focus control")
-    
-    def toggle_flash(self):
-        """Toggle camera light with 4 intensity levels: Off/Low/Medium/High"""
-        if not self.cap:
-            return
-        
-        try:
-            # Cycle through 4 light levels
-            self.light_level = (self.light_level + 1) % 4
-            
-            light_names = ["Off", "Low", "Medium", "High"]
-            light_values = [0, 33, 66, 100]  # Percentage values
-            
-            # Try to set brightness/exposure as proxy for light
-            try:
-                self.cap.set(cv2.CAP_PROP_BRIGHTNESS, light_values[self.light_level])
-            except:
-                pass
-            
-            self.btn_flash.configure(text=f"💡 {light_names[self.light_level]}")
-        except:
-            messagebox.showinfo("Flash", "Your camera doesn't have controllable light")
-    
-    def repeat_last_action(self):
-        """Repeat the last button action (space key handler)"""
-        if self.last_button_action == 'capture':
-            self.capture_frame()
-        elif self.last_button_action == 'upload':
-            self.upload_all()
-        else:
-            # Default to capture if no action yet
-            self.capture_frame()
 
-    def restart_app(self):
-        self.clear_all()
-        # Reset settings
-        self.brightness_val.set(1.0)
-        self.contrast_val.set(1.0)
-        
-    def process_and_upload(self):
-         pass
-
-    def upload_all(self):
+    def upload(self):
         if not self.captured_images: return
-        threading.Thread(target=self._upload_thread).start()
+        threading.Thread(target=self._upload_worker, daemon=True).start()
 
-    def _upload_thread(self):
-        total = len(self.captured_images)
-        success = 0
+    def _upload_worker(self):
+        buf = BytesIO()
+        self.captured_images[0].save(buf, format="PDF", save_all=True, append_images=self.captured_images[1:], quality=75, optimize=True)
+        buf.seek(0)
         
-        # Mode settings
-        mode = self.color_mode.get()
-        bri = self.brightness_val.get()
-        con = self.contrast_val.get()
-        
-        for i, img in enumerate(self.captured_images):
-            # 1. Apply Filters
-            proc_img = img.copy()
-            
-            if mode == "Gray":
-                proc_img = proc_img.convert("L")
-            elif mode == "B&W":
-                proc_img = proc_img.convert("L").point( lambda p: 255 if p > 128 else 0 )
-                
-            enhancer = ImageEnhance.Brightness(proc_img)
-            proc_img = enhancer.enhance(bri)
-            enhancer = ImageEnhance.Contrast(proc_img)
-            proc_img = enhancer.enhance(con)
-            
-            # 2. Compress to JPEG
-            buffer = BytesIO()
-            # If B&W, save as 1-bit PNG might be smaller, but JPEG universal
-            proc_img = proc_img.convert("RGB") 
-            proc_img.save(buffer, format="JPEG", quality=85, optimize=True)
-            buffer.seek(0)
-            
-            # 3. Upload
-            filename = f"scan_{self.patient_id}_{i+1}.jpg"
-            files = {'file': (filename, buffer, 'image/jpeg')}
-            headers = {'Authorization': f"Bearer {self.token}"}
-            url = f"{self.api_url}/patients/{self.patient_id}/upload"
-            
-            try:
-                res = requests.post(url, headers=headers, files=files)
-                if res.status_code == 200: success += 1
-            except Exception as e:
-                print(e)
-                
-        self.root.after(0, lambda: messagebox.showinfo("Done", f"Uploaded {success}/{total} pages."))
-        if success == total:
+        url = f"{self.api_url}/patients/{self.patient_id}/upload"
+        headers = {'Authorization': f"Bearer {self.token}"}
+        try:
+            requests.post(url, headers=headers, files={'file': ('scan.pdf', buf)}, timeout=60)
+            messagebox.showinfo("Success", "Upload complete")
             self.captured_images = []
-            self.original_images = []
             self.root.after(0, self.refresh_sidebar)
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
 
 if __name__ == "__main__":
-    try:
-        if hasattr(ctypes.windll.shcore, 'SetProcessDpiAwareness'):
-            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    try: ctypes.windll.shcore.SetProcessDpiAwareness(1)
     except: pass
-        
     root = tk.Tk()
-    app = ScannerApp(root, sys.argv)
+    ScannerApp(root, sys.argv)
     root.mainloop()
