@@ -29,7 +29,8 @@ class ScannerApp:
     def __init__(self, root, args):
         self.root = root
         self.root.title("Digifort Scanner Pro")
-        self.root.geometry("1400x900")
+        # Maximize window to show full A3 camera view
+        self.root.state('zoomed')  # Maximize on Windows
         self.root.configure(bg=COLORS["bg"])
         
         # State Variables
