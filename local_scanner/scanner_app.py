@@ -459,6 +459,7 @@ class ScannerApp:
         
         self.root.bind("<space>", lambda e: self.capture())
         self.root.bind("<Escape>", lambda e: self.restart_app())
+        self.root.bind("<Return>", lambda e: self.upload())
 
     def start_live(self):
         idx = int(self.cb_cam.get().split()[-1]) if self.cb_cam.get() else 0

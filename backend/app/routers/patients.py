@@ -425,13 +425,6 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
     return db_patient
 
 @router.post("/{patient_id}/upload")
-# async def upload_patient_file(
-#     patient_id: int, 
-#     background_tasks: BackgroundTasks,
-#     file: UploadFile = File(...), 
-#     db: Session = Depends(get_db),
-#     current_user: User = Depends(get_current_user)
-# ):
 async def upload_patient_file(
     patient_id: int, 
     background_tasks: BackgroundTasks,
@@ -439,63 +432,73 @@ async def upload_patient_file(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    print(f"🔵 UPLOAD REQUEST: {file.filename}")
-    
-    # 0. Authorization
-    is_platform = current_user.role in ["website_admin", "website_staff"]
-    patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
-        
-    if not is_platform and patient.hospital_id != current_user.hospital_id:
-        raise HTTPException(status_code=403, detail="Not authorized to upload for this patient")
-
-    allowed_extensions = {'.pdf', '.mp4', '.mov', '.avi', '.mkv'}
-    ext = os.path.splitext(file.filename)[1].lower()
-    
-    if ext not in allowed_extensions:
-        raise HTTPException(status_code=400, detail="Only PDF and Video files are allowed")
-
-    # 1. Save to Temp File (Stream to disk to avoid Memory Crash)
-    import tempfile
     try:
-        tmp_fd, tmp_path = tempfile.mkstemp(suffix=ext)
-        os.close(tmp_fd)
+        print(f"🔵 UPLOAD REQUEST: {file.filename}")
         
-        with open(tmp_path, "wb") as buffer:
-            while content := await file.read(1024 * 1024): # 1MB chunks
-                buffer.write(content)
-                
-    except Exception as e:
-        print(f"Disk Write Error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save upload to server temp")
+        # 0. Authorization
+        is_platform = current_user.role in ["website_admin", "website_staff"]
+        patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+            
+        if not is_platform and patient.hospital_id != current_user.hospital_id:
+            raise HTTPException(status_code=403, detail="Not authorized to upload for this patient")
 
-    # 2. Create Initial DB Record
-    new_file = PDFFile(
-        record_id=patient_id,
-        filename=file.filename,
-        s3_key="pending", # Placeholder
-        file_size=os.path.getsize(tmp_path),
-        upload_status="draft", # Force draft for Review Step
-        processing_stage="queued",
-        processing_progress=0,
-        # Capture Historical Pricing
-        price_per_file=patient.price_per_file,
-        included_pages=patient.included_pages,
-        price_per_extra_page=patient.price_per_extra_page
-    )
-    db.add(new_file)
-    db.commit()
-    db.refresh(new_file)
-    
-    # 3. Trigger Background Task
-    background_tasks.add_task(process_upload_task, new_file.file_id, tmp_path, file.filename, current_user.user_id, current_user.hospital_id)
-    
-    return {
-        "status": "processing",
-        "file_id": new_file.file_id,
-        "message": "Upload accepted, processing in background."
-    }
+        allowed_extensions = {'.pdf', '.mp4', '.mov', '.avi', '.mkv'}
+        ext = os.path.splitext(file.filename)[1].lower()
+        
+        if ext not in allowed_extensions:
+            raise HTTPException(status_code=400, detail="Only PDF and Video files are allowed")
+
+        # 1. Save to Temp File (Stream to disk to avoid Memory Crash)
+        import tempfile
+        try:
+            tmp_fd, tmp_path = tempfile.mkstemp(suffix=ext)
+            os.close(tmp_fd)
+            
+            with open(tmp_path, "wb") as buffer:
+                while content := await file.read(1024 * 1024): # 1MB chunks
+                    buffer.write(content)
+                    
+        except Exception as e:
+            print(f"Disk Write Error: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to save upload to server temp: {str(e)}")
+
+        # 2. Create Initial DB Record
+        new_file = PDFFile(
+            record_id=patient_id,
+            filename=file.filename,
+            s3_key="pending", # Placeholder
+            file_size=os.path.getsize(tmp_path),
+            upload_status="draft", # Force draft for Review Step
+            processing_stage="queued",
+            processing_progress=0,
+            # Capture Historical Pricing
+            price_per_file=patient.price_per_file,
+            included_pages=patient.included_pages,
+            price_per_extra_page=patient.price_per_extra_page
+        )
+        db.add(new_file)
+        db.commit()
+        db.refresh(new_file)
+        
+        # 3. Trigger Background Task
+        background_tasks.add_task(process_upload_task, new_file.file_id, tmp_path, file.filename, current_user.user_id, current_user.hospital_id)
+        
+        return {
+            "status": "processing",
+            "file_id": new_file.file_id,
+            "message": "Upload accepted, processing in background."
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        # Using 422 Unprocessable Entity to ensure the error message passes through Nginx
+        # (Nginx often intercepts 500 errors and shows a generic HTML page)
+        raise HTTPException(status_code=422, detail=f"Upload Error: {str(e)}")
 
 @router.get("/search/", response_model=List[dict])
 def search_files(q: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
