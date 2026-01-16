@@ -3,7 +3,7 @@
 import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import imageCompression from 'browser-image-compression';
-import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles } from 'lucide-react';
+import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download } from 'lucide-react';
 import DigitizationScanner from '@/components/Scanner/DigitizationScanner';
 
 import { API_URL } from '@/config/api';
@@ -896,6 +896,23 @@ function PatientDetailContent() {
                                 >
                                     <Camera size={14} /> Live Scanner
                                 </button>
+                                <button
+                                    onClick={() => {
+                                        const token = localStorage.getItem('token');
+                                        const protocolUrl = `digifort://upload?token=${token}&patient_id=${patient.record_id}&patient_name=${encodeURIComponent(patient.full_name)}&mrd=${patient.patient_u_id}&api_url=${API_URL}`;
+                                        window.open(protocolUrl, '_self');
+                                    }}
+                                    className="bg-blue-600 text-white px-4 py-1.5 rounded-full text-xs font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-500/30 flex items-center gap-2"
+                                >
+                                    <Monitor size={14} /> Desktop App
+                                </button>
+                                <a
+                                    href="/scanner_app.zip"
+                                    download="DigifortScanner_Install.zip"
+                                    className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-slate-200 transition flex items-center gap-2"
+                                >
+                                    <Download size={14} /> Install App
+                                </a>
                                 {fileQueue.length > 0 && !isUploading && (
                                     <button
                                         onClick={startProcessing}
