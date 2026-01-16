@@ -49,6 +49,8 @@ class ScannerApp:
         self.brightness_val = tk.DoubleVar(value=1.0)
         self.contrast_val = tk.DoubleVar(value=1.0)
         self.color_mode = tk.StringVar(value="Color") # Color, Gray, B&W
+        self.auto_crop = tk.BooleanVar(value=True) # Auto-crop documents
+        self.resolution_mode = tk.StringVar(value="1080p") # Resolution setting
         
         if not self.token or not self.patient_id:
              messagebox.showerror("Auth Error", "Please launch using the 'Desktop App' button on the Website.")
@@ -108,7 +110,8 @@ class ScannerApp:
         # Settings Group
         settings_frame = ttk.LabelFrame(sidebar, text="SETTINGS", padding=10)
         settings_frame.pack(fill=tk.X, padx=10, pady=5)
-        settings_frame.configure(fg="gray")
+        settings_frame.pack(fill=tk.X, padx=10, pady=5)
+        # settings_frame.configure(fg="gray") # Not supported in TTK
         
         ttk.Label(settings_frame, text="Camera Source").pack(anchor="w")
         cam_values = [f"Camera {i}" for i in self.available_cameras] if self.available_cameras else ["No Camera"]
@@ -118,14 +121,19 @@ class ScannerApp:
         self.cb_camera.bind("<<ComboboxSelected>>", self.change_camera)
         
         ttk.Label(settings_frame, text="Resolution").pack(anchor="w")
-        self.cb_res = ttk.Combobox(settings_frame, values=["1080p (FHD)", "720p (HD)"], state="readonly")
-        self.cb_res.current(0)
+        self.cb_res = ttk.Combobox(settings_frame, values=["4K (16MP)", "1080p (FHD)", "720p (HD)"], state="readonly", textvariable=self.resolution_mode)
+        self.cb_res.current(1)  # Default to 1080p
         self.cb_res.pack(fill=tk.X, pady=(0, 10))
+        self.cb_res.bind("<<ComboboxSelected>>", self.change_resolution)
         
         ttk.Label(settings_frame, text="Document Type").pack(anchor="w")
         self.cb_dpi = ttk.Combobox(settings_frame, values=["Document (A4)", "ID Card", "Receipt"], state="readonly")
         self.cb_dpi.current(0)
-        self.cb_dpi.pack(fill=tk.X)
+        self.cb_dpi.pack(fill=tk.X, pady=(0, 10))
+        
+        # Auto-crop toggle
+        self.chk_autocrop = ttk.Checkbutton(settings_frame, text="Auto-Crop Documents", variable=self.auto_crop)
+        self.chk_autocrop.pack(anchor="w")
 
         # Thumbnails List (Custom Listbox look)
         self.list_frame = tk.Frame(sidebar, bg="#181818")
@@ -236,8 +244,19 @@ class ScannerApp:
     def start_camera(self):
         if self.camera_active: return
         self.cap = cv2.VideoCapture(self.selected_camera_index, cv2.CAP_DSHOW)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        
+        # Set resolution based on user selection
+        res_mode = self.resolution_mode.get()
+        if "4K" in res_mode or "16MP" in res_mode:
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+        elif "1080p" in res_mode:
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        else:  # 720p
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            
         self.camera_active = True
         self.update_feed()
 
@@ -246,9 +265,17 @@ class ScannerApp:
         new = self.available_cameras[idx]
         if new != self.selected_camera_index:
             self.selected_camera_index = new
-            if self.cap: self.cap.release()
+            if self.cap:
+                self.cap.release()
             self.camera_active = False
             self.start_camera()
+    
+    def change_resolution(self, event):
+        # Restart camera with new resolution
+        if self.cap:
+            self.cap.release()
+        self.camera_active = False
+        self.start_camera()
 
     def update_feed(self):
         if not self.camera_active: return
@@ -282,17 +309,52 @@ class ScannerApp:
         if not self.cap: return
         ret, frame = self.cap.read()
         if ret:
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            img = Image.fromarray(frame)
+            # Auto-crop if enabled
+            if self.auto_crop.get():
+                frame = self.auto_crop_document(frame)
             
-            # Apply current settings PERMANENTLY to the capture? 
-            # Or store original? Store original is better for "Pro" app.
-            self.captured_images.append(img) # Storing original for now
-            self.original_images.append(img)
+            # Process: Convert to RGB
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            pil_img = Image.fromarray(rgb_frame)
+            self.captured_images.append(pil_img)
+            self.original_images.append(pil_img)
             
             self.refresh_sidebar()
             self.flash_effect()
+    
+    def auto_crop_document(self, frame):
+        """Detect document edges and crop automatically using OpenCV"""
+        try:
+            # Create a copy for processing
+            orig = frame.copy()
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            blur = cv2.GaussianBlur(gray, (5, 5), 0)
+            edges = cv2.Canny(blur, 75, 200)
             
+            # Find contours
+            contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+            contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
+            
+            # Find the largest rectangular contour
+            for contour in contours:
+                peri = cv2.arcLength(contour, True)
+                approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
+                
+                if len(approx) == 4:
+                    # Found a quadrilateral - likely the document
+                    # Get bounding rectangle
+                    x, y, w, h = cv2.boundingRect(approx)
+                    
+                    # Only crop if the detected area is significant (> 20% of frame)
+                    if w * h > (frame.shape[0] * frame.shape[1] * 0.2):
+                        return orig[y:y+h, x:x+w]
+            
+            # If no document found, return original
+            return orig
+        except:
+            # On any error, return original frame
+            return frame
+
     def flash_effect(self):
         self.canvas.configure(bg="white")
         self.root.after(50, lambda: self.canvas.configure(bg="black"))
@@ -311,8 +373,12 @@ class ScannerApp:
             thumb = img.copy()
             thumb.thumbnail((260, 200))
             
-            # Apply B&W / Gray visual to thumbnail
-            # (Simplification: just show color thumb for speed)
+            # Apply B&W / Gray visual to thumbnail to match output
+            mode = self.color_mode.get()
+            if mode == "Gray":
+                thumb = thumb.convert("L")
+            elif mode == "B&W":
+                thumb = thumb.convert("L").point(lambda p: 255 if p > 128 else 0)
             
             ph = ImageTk.PhotoImage(thumb)
             
