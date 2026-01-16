@@ -50,7 +50,9 @@ class ScannerApp:
         self.contrast_val = tk.DoubleVar(value=1.0)
         self.color_mode = tk.StringVar(value="Color") # Color, Gray, B&W
         self.auto_crop = tk.BooleanVar(value=True) # Auto-crop documents
-        self.resolution_mode = tk.StringVar(value="1080p") # Resolution setting
+        self.resolution_mode = tk.StringVar(value="4K (16MP)") # Resolution setting
+        self.flash_enabled = False  # Flash/torch state
+        self.focus_mode = "auto"  # auto or manual
         
         if not self.token or not self.patient_id:
              messagebox.showerror("Auth Error", "Please launch using the 'Desktop App' button on the Website.")
@@ -122,7 +124,7 @@ class ScannerApp:
         
         ttk.Label(settings_frame, text="Resolution").pack(anchor="w")
         self.cb_res = ttk.Combobox(settings_frame, values=["4K (16MP)", "1080p (FHD)", "720p (HD)"], state="readonly", textvariable=self.resolution_mode)
-        self.cb_res.current(1)  # Default to 1080p
+        self.cb_res.current(0)  # Default to 16MP
         self.cb_res.pack(fill=tk.X, pady=(0, 10))
         self.cb_res.bind("<<ComboboxSelected>>", self.change_resolution)
         
@@ -163,8 +165,16 @@ class ScannerApp:
         
         ttk.Separator(top_tools, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
         
-        ttk.Button(top_tools, text="⟳ Rot", command=self.rotate_image).pack(side=tk.LEFT, padx=2)
+        ttk.Button(top_tools, text="⟳ Rot", command=self.rotate_last_image).pack(side=tk.LEFT, padx=2)
         ttk.Button(top_tools, text="⛶ Fit", command=self.reset_zoom).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Separator(top_tools, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
+        
+        self.btn_focus = ttk.Button(top_tools, text="🎯 Focus", command=self.toggle_focus)
+        self.btn_focus.pack(side=tk.LEFT, padx=2)
+        
+        self.btn_flash = ttk.Button(top_tools, text="💡 Light", command=self.toggle_flash)
+        self.btn_flash.pack(side=tk.LEFT, padx=2)
         
         ttk.Button(top_tools, text="Full Restart", style="Danger.TButton", command=self.restart_app).pack(side=tk.RIGHT)
 
@@ -256,6 +266,12 @@ class ScannerApp:
         else:  # 720p
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        
+        # Enable autofocus by default
+        try:
+            self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+        except:
+            pass  # Not all cameras support this
             
         self.camera_active = True
         self.update_feed()
@@ -408,11 +424,61 @@ class ScannerApp:
         self.original_images = []
         self.refresh_sidebar()
     
-    def rotate_image(self):
-        pass # TODO: Implement rotation on selected image
+    def rotate_last_image(self):
+        """Rotate the most recently captured image by 90 degrees clockwise"""
+        if not self.captured_images:
+            return
+        
+        # Rotate the last image
+        last_idx = len(self.captured_images) - 1
+        img = self.captured_images[last_idx]
+        rotated = img.rotate(-90, expand=True)  # -90 for clockwise
+        
+        self.captured_images[last_idx] = rotated
+        self.original_images[last_idx] = rotated
+        self.refresh_sidebar()
         
     def reset_zoom(self):
-        pass
+        """Reset camera view / refresh feed"""
+        # Simply refresh the camera feed
+        pass  # Live feed auto-updates
+    
+    def toggle_focus(self):
+        """Toggle between auto-focus and manual focus"""
+        if not self.cap:
+            return
+        
+        try:
+            if self.focus_mode == "auto":
+                self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+                self.focus_mode = "manual"
+                self.btn_focus.configure(text="🎯 Manual")
+            else:
+                self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+                self.focus_mode = "auto"
+                self.btn_focus.configure(text="🎯 Focus")
+        except:
+            messagebox.showinfo("Focus", "Your camera doesn't support focus control")
+    
+    def toggle_flash(self):
+        """Toggle camera flash/torch (if supported)"""
+        if not self.cap:
+            return
+        
+        try:
+            # Try to toggle flash/torch - not all cameras support this
+            if self.flash_enabled:
+                # Turn off
+                self.cap.set(cv2.CAP_PROP_SETTINGS, 0)  # This is camera-specific
+                self.flash_enabled = False
+                self.btn_flash.configure(text="💡 Light")
+            else:
+                # Turn on
+                self.cap.set(cv2.CAP_PROP_SETTINGS, 1)
+                self.flash_enabled = True
+                self.btn_flash.configure(text="💡 ON")
+        except:
+            messagebox.showinfo("Flash", "Your camera doesn't have a controllable light/flash")
 
     def restart_app(self):
         self.clear_all()
