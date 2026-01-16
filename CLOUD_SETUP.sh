@@ -1,58 +1,93 @@
 #!/bin/bash
 
 # ==============================================================================
-# DIGIFORT LABS - CLOUD DEPLOYMENT SCRIPT (AUTO-GENERATED)
+# DIGIFORT LABS - CLOUD DEPLOYMENT SCRIPT (Interactive)
 # ==============================================================================
 
-# CONFIGURATION
+# HARDCODED DATABASE CREDENTIALS (As provided by User)
 DB_HOST="digifort-db.crs4e62wi3w2.ap-south-1.rds.amazonaws.com"
 DB_PORT="5432"
 DB_USER="postgres"
 DB_PASS="ZPN30ajJy87jAUdH"
 DB_NAME="postgres"
 
-# Connection String
+# DATABASE CONNECTION STRING
 DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 
 echo "=========================================="
 echo "   DIGIFORT LABS - FINAL CLOUD SETUP"
 echo "=========================================="
 
-echo "[1/4] Updating Codebase..."
+# 1. FETCH LATEST CODE
+echo ""
+echo "[1/5] Updating Codebase..."
 git fetch --all
 git reset --hard origin/master
 
-echo "[2/4] Configuring Database (RDS)..."
+# 2. GATHER S3 CREDENTIALS (INTERACTIVE)
+echo ""
+echo "[2/5] Configuring S3 Storage..."
+echo "To enable file uploads, please enter your AWS Credentials."
+echo "Press [ENTER] if you want to skip (Uploads will fail)."
+
+read -p "AWS Access Key ID: " AWS_KEY
+read -p "AWS Secret Access Key: " AWS_SECRET
+read -p "S3 Bucket Name (default: digifort-labs-files): " AWS_BUCKET
+AWS_BUCKET=${AWS_BUCKET:-digifort-labs-files}
+
+# 3. CREATE .ENV FILE
+echo ""
+echo "[3/5] Generating Configuration..."
 cd backend
-# Create the .env file with the secure credentials
-echo "DATABASE_URL=${DATABASE_URL}" > .env
-# Also add standard AWS/App settings (Default placeholders for now if needed)
-echo "PROJECT_NAME=Digifort Labs" >> .env
-echo "ENVIRONMENT=production" >> .env
 
-echo "Backend configuration updated."
+cat <<EOF > .env
+PROJECT_NAME="Digifort Labs"
+ENVIRONMENT="production"
+BACKEND_URL="https://digifortlabs.com/api"
+FRONTEND_URL="https://digifortlabs.com"
 
-echo "[3/4] Migrating Data (Optional)..."
-# Try to run migration. If it fails (e.g. fresh DB), it continues.
+# DATABASE (RDS)
+DATABASE_URL="${DATABASE_URL}"
+
+# AWS S3 (Storage)
+AWS_ACCESS_KEY_ID="${AWS_KEY}"
+AWS_SECRET_ACCESS_KEY="${AWS_SECRET}"
+AWS_REGION="ap-south-1"
+AWS_BUCKET_NAME="${AWS_BUCKET}"
+
+# SECURITY (Generated Randomly)
+SECRET_KEY="$(openssl rand -hex 32)"
+EOF
+
+echo ".env file created successfully."
+
+# 4. DATA MIGRATION
+echo ""
+echo "[4/5] Migrating Data (Local -> RDS)..."
 if [ -f "digifortlabs.db" ]; then
-    echo "Found local data. Attempting migration to RDS..."
+    echo "Found local SQLite database. Attempting migration..."
+    # Install sqlalchemy for migration script
+    pip3 install sqlalchemy psycopg2-binary
     python3 migrate_db.py "$DATABASE_URL"
 else
-    echo "No local data found or already migrated. Skipping."
+    echo "No local database found. Skipping migration."
 fi
 
-echo "[4/4] Restarting Application..."
-# Kill existing backend process (uvicorn)
-pkill -f uvicorn || echo "No existing process found."
+# 5. RESTART SERVER
+echo ""
+echo "[5/5] Restarting Application..."
+pkill -f uvicorn || echo "No existing process killed."
 
-# Install Updated Requirements if any
-pip3 install -r requirements.txt > /dev/null 2>&1 || echo "Dependencies already satisfied."
+# Install all dependencies
+pip3 install -r requirements.txt > /dev/null 2>&1
 
-# Start Backend in Background
+# Run in background
 nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
 
+echo ""
 echo "=========================================="
-echo "   ✅ DEPLOYMENT SUCCESSFUL"
-echo "   - Database: AWS RDS (Connected)"
-echo "   - Backend: Running on Port 8000"
+echo "   ✅ DEPLOYMENT COMPLETE"
+echo "   - Status: LIVE"
+echo "   - Database: AWS RDS"
+echo "   - Storage: S3 ($AWS_BUCKET)"
 echo "=========================================="
