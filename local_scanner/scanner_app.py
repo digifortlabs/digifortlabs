@@ -130,7 +130,7 @@ class ImageProcessor:
 
     @staticmethod
     def get_document_rect(frame):
-        """Advanced document detection using OpenCV"""
+        """Advanced document detection using OpenCV - optimized for A3 scanners"""
         try:
             # 1. Preprocessing
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -138,13 +138,16 @@ class ImageProcessor:
             blur = cv2.bilateralFilter(gray, 9, 75, 75)
             
             # 2. Edge Detection
-            # Using adaptive threshold for better handling of lighting across A3 area
+            # Using adaptive threshold to handle lighting peaks
             thresh = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
                                           cv2.THRESH_BINARY, 11, 2)
             
-            # Dilate to close gaps in edges
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
-            dilated = cv2.dilate(thresh, kernel, iterations=1)
+            # Detect edges using Canny on the thresholded image
+            edges = cv2.Canny(thresh, 75, 200)
+            
+            # Dilate to close gaps in edges (stronger dilation for overhead scanners)
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5,5))
+            dilated = cv2.dilate(edges, kernel, iterations=1)
             
             # 3. Contour Detection
             contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -160,25 +163,23 @@ class ImageProcessor:
             
             for contour in contours:
                 area = cv2.contourArea(contour)
-                # Must be at least 10% of the frame to be a document
-                if area < (frame_area * 0.1):
+                # Must be at least 15% of the frame to be a document
+                if area < (frame_area * 0.15):
                     continue
                 
                 # Approximate the contour to a polygon
                 peri = cv2.arcLength(contour, True)
-                approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
+                approx = cv2.approxPolyDP(contour, 0.015 * peri, True)
                 
                 # If we found a quadrilateral, that's likely our document
                 if len(approx) == 4:
                     return approx
                 
-                # Fallback to bounding box if it's very large and roughly rectangular
-                # if approx has between 4 and 8 points, it might be a slightly distorted rect
-                if 4 <= len(approx) <= 8:
+                # If between 4 and 10 points, try to get the bounding box as fallback
+                if 4 <= len(approx) <= 10:
                     x, y, bw, bh = cv2.boundingRect(contour)
-                    if bw * bh > (frame_area * 0.2):
-                        box = np.array([[x, y], [x+bw, y], [x+bw, y+bh], [x, y+bh]], dtype=np.int32)
-                        return box
+                    if (bw * bh) > (frame_area * 0.2):
+                        return np.array([[x, y], [x+bw, y], [x+bw, y+bh], [x, y+bh]], dtype=np.int32)
 
             return None
         except: return None
@@ -426,12 +427,11 @@ class ScannerApp:
             # 3. Live Adjustments
             frame = ImageProcessor.adjust_cv2(frame, self.live_brightness.get(), self.live_contrast.get())
             
-            # 4. Auto-Crop Guide
-            if self.auto_crop.get():
-                approx = ImageProcessor.get_document_rect(frame)
-                if approx is not None:
-                    # Draw Green Quadrilateral/Box
-                    cv2.drawContours(frame, [approx], -1, (0, 255, 0), 4)
+            # 4. Live Guide - DISABLED as per user request
+            # if self.auto_crop.get():
+            #     approx = ImageProcessor.get_document_rect(frame)
+            #     if approx is not None:
+            #         cv2.drawContours(frame, [approx], -1, (0, 255, 0), 4)
 
             img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
             cw, ch = self.canvas.winfo_width(), self.canvas.winfo_height()
@@ -494,9 +494,9 @@ class ScannerApp:
         frame = ImageProcessor.adjust_cv2(frame, self.live_brightness.get(), self.live_contrast.get())
         
         img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        # Internal compression
+        # Aggressive internal compression for 16MP images
         buf = BytesIO()
-        img.save(buf, format="JPEG", quality=85)
+        img.save(buf, format="JPEG", quality=60, optimize=True)
         self.captured_images.append(Image.open(buf))
         self.refresh_sidebar()
 
@@ -540,7 +540,8 @@ class ScannerApp:
 
     def _upload_worker(self):
         buf = BytesIO()
-        self.captured_images[0].save(buf, format="PDF", save_all=True, append_images=self.captured_images[1:], quality=75, optimize=True)
+        # High compression for the PDF to ensure fast transmission
+        self.captured_images[0].save(buf, format="PDF", save_all=True, append_images=self.captured_images[1:], quality=50, optimize=True)
         buf.seek(0)
         
         url = f"{self.api_url}/patients/{self.patient_id}/upload"
