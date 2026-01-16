@@ -60,6 +60,18 @@ export default function PatientUploadPage() {
         }
     }, [selectedHospitalId]);
 
+    // Auto-refresh when user returns to tab (for Desktop Scanner visibility)
+    useEffect(() => {
+        const onFocus = () => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                fetchPatients();
+            }
+        };
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
+    }, [selectedHospitalId]);
+
     const fetchUserProfile = async () => {
         const token = localStorage.getItem('token');
         if (!token) return router.push('/login');

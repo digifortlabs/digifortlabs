@@ -412,6 +412,19 @@ function PatientDetailContent() {
         }
     }, [patient, id]);
 
+    // Auto-refresh when user returns to tab (for Desktop Scanner visibility)
+    useEffect(() => {
+        const onFocus = () => {
+            const token = localStorage.getItem('token');
+            if (token && id) {
+                console.log("Tab focused, refreshing patient data...");
+                fetchPatient(token, id);
+            }
+        };
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
+    }, [id]);
+
 
 
 
