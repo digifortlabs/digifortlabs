@@ -9,6 +9,7 @@ import urllib.parse
 from io import BytesIO
 import ctypes
 import threading
+import time
 
 # =============================================================================
 # DIGIFORT SCANNER PRO - DARK THEME UI
@@ -53,6 +54,9 @@ class ScannerApp:
         self.resolution_mode = tk.StringVar(value="4K (16MP)") # Resolution setting
         self.flash_enabled = False  # Flash/torch state
         self.focus_mode = "auto"  # auto or manual
+        self.live_rotation = 180  # Default 180° rotation for overhead scanners
+        self.last_button_action = None  # Track last button pressed for space key repeat
+        self.light_level = 0  # 0=Off, 1=Low, 2=Medium, 3=High
         
         if not self.token or not self.patient_id:
              messagebox.showerror("Auth Error", "Please launch using the 'Desktop App' button on the Website.")
@@ -123,7 +127,7 @@ class ScannerApp:
         self.cb_camera.bind("<<ComboboxSelected>>", self.change_camera)
         
         ttk.Label(settings_frame, text="Resolution").pack(anchor="w")
-        self.cb_res = ttk.Combobox(settings_frame, values=["4K (16MP)", "1080p (FHD)", "720p (HD)"], state="readonly", textvariable=self.resolution_mode)
+        self.cb_res = ttk.Combobox(settings_frame, values=["4K (16MP)", "4:3 (2048x1536)", "1080p (FHD)", "720p (HD)"], state="readonly", textvariable=self.resolution_mode)
         self.cb_res.current(0)  # Default to 16MP
         self.cb_res.pack(fill=tk.X, pady=(0, 10))
         self.cb_res.bind("<<ComboboxSelected>>", self.change_resolution)
@@ -218,7 +222,8 @@ class ScannerApp:
         self.btn_upload.pack(side=tk.RIGHT)
 
         # Keyboard
-        self.root.bind('<space>', lambda e: self.capture_frame())
+        self.root.bind('<space>', lambda e: self.repeat_last_action())
+        self.root.bind('<Escape>', lambda e: self.restart_app())
 
 
     # -------------------------------------------------------------------------
@@ -253,28 +258,57 @@ class ScannerApp:
 
     def start_camera(self):
         if self.camera_active: return
-        self.cap = cv2.VideoCapture(self.selected_camera_index, cv2.CAP_DSHOW)
         
-        # Set resolution based on user selection
-        res_mode = self.resolution_mode.get()
-        if "4K" in res_mode or "16MP" in res_mode:
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
-        elif "1080p" in res_mode:
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-        else:  # 720p
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        
-        # Enable autofocus by default
-        try:
-            self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
-        except:
-            pass  # Not all cameras support this
-            
-        self.camera_active = True
-        self.update_feed()
+        # Try to force camera access with retry
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.cap = cv2.VideoCapture(self.selected_camera_index, cv2.CAP_DSHOW)
+                
+                if not self.cap.isOpened():
+                    if attempt < max_retries - 1:
+                        time.sleep(0.5)
+                        continue
+                    else:
+                        messagebox.showerror("Camera Error", "Could not access camera. Please close other apps using the camera.")
+                        return
+                
+                # Set resolution based on user selection
+                res_mode = self.resolution_mode.get()
+                if "4K" in res_mode or "16MP" in res_mode:
+                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
+                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+                elif "4:3" in res_mode:
+                    # 4:3 aspect ratio for document scanners
+                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 2048)
+                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1536)
+                elif "1080p" in res_mode:
+                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+                else:  # 720p
+                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+                
+                # Set minimum FPS to 5
+                self.cap.set(cv2.CAP_PROP_FPS, 30)  # Request 30, accept minimum 5
+                
+                # Enable autofocus by default
+                try:
+                    self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+                except:
+                    pass  # Not all cameras support this
+                    
+                self.camera_active = True
+                self.update_feed()
+                break
+                
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    time.sleep(0.5)
+                    continue
+                else:
+                    messagebox.showerror("Camera Error", f"Failed to start camera: {str(e)}")
+                    return
 
     def change_camera(self, event):
         idx = self.cb_camera.current()
@@ -295,15 +329,29 @@ class ScannerApp:
 
     def update_feed(self):
         if not self.camera_active: return
+        
         ret, frame = self.cap.read()
         if ret:
-            # Apply processing to Live View (Brightness/Contrast only)
-            # Doing extensive processing in Python loop is slow, keep it simple
+            # Apply rotation to live feed if needed
+            if self.live_rotation == 90:
+                frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+            elif self.live_rotation == 180:
+                frame = cv2.rotate(frame, cv2.ROTATE_180)
+            elif self.live_rotation == 270:
+                frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            
+            # Apply processing to Live View
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(frame)
             
-            # Apply Filters (Fast)
-            # 1. Resize to fit canvas
+            # Apply color mode to live preview
+            mode = self.color_mode.get()
+            if mode == "Gray":
+                img = img.convert("L")
+            elif mode == "B&W":
+                img = img.convert("L").point(lambda p: 255 if p > 128 else 0)
+            
+            # Resize to fit canvas
             cw = self.canvas.winfo_width()
             ch = self.canvas.winfo_height()
             if cw > 10 and ch > 10:
@@ -329,6 +377,14 @@ class ScannerApp:
             if self.auto_crop.get():
                 frame = self.auto_crop_document(frame)
             
+            # Apply rotation if needed
+            if self.live_rotation == 90:
+                frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+            elif self.live_rotation == 180:
+                frame = cv2.rotate(frame, cv2.ROTATE_180)
+            elif self.live_rotation == 270:
+                frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            
             # Process: Convert to RGB
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             pil_img = Image.fromarray(rgb_frame)
@@ -337,37 +393,70 @@ class ScannerApp:
             
             self.refresh_sidebar()
             self.flash_effect()
+            self.last_button_action = 'capture'
     
     def auto_crop_document(self, frame):
-        """Detect document edges and crop automatically using OpenCV"""
+        """Detect document edges and crop automatically using OpenCV - optimized for overhead scanners"""
         try:
             # Create a copy for processing
             orig = frame.copy()
+            height, width = frame.shape[:2]
+            
+            # Convert to grayscale and apply adaptive thresholding
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            blur = cv2.GaussianBlur(gray, (5, 5), 0)
-            edges = cv2.Canny(blur, 75, 200)
+            
+            # Use bilateral filter to reduce noise while keeping edges sharp
+            blur = cv2.bilateralFilter(gray, 9, 75, 75)
+            
+            # Apply adaptive threshold for better edge detection
+            thresh = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                          cv2.THRESH_BINARY, 11, 2)
+            
+            # Detect edges using Canny with lower thresholds for better detection
+            edges = cv2.Canny(thresh, 50, 150)
+            
+            # Dilate edges to close gaps
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+            edges = cv2.dilate(edges, kernel, iterations=1)
             
             # Find contours
-            contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-            contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
+            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            if not contours:
+                return orig
+            
+            # Sort by area and get the largest
+            contours = sorted(contours, key=cv2.contourArea, reverse=True)
             
             # Find the largest rectangular contour
-            for contour in contours:
+            for contour in contours[:10]:  # Check top 10 largest
+                area = cv2.contourArea(contour)
+                
+                # Must be at least 10% of frame
+                if area < (width * height * 0.1):
+                    continue
+                
+                # Approximate the contour to a polygon
                 peri = cv2.arcLength(contour, True)
                 approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
                 
+                # If it's a quadrilateral (4 points), it's likely the document
                 if len(approx) == 4:
-                    # Found a quadrilateral - likely the document
                     # Get bounding rectangle
                     x, y, w, h = cv2.boundingRect(approx)
                     
-                    # Only crop if the detected area is significant (> 20% of frame)
-                    if w * h > (frame.shape[0] * frame.shape[1] * 0.2):
-                        return orig[y:y+h, x:x+w]
+                    # Crop with small margin
+                    margin = 10
+                    x = max(0, x - margin)
+                    y = max(0, y - margin)
+                    w = min(width - x, w + 2*margin)
+                    h = min(height - y, h + 2*margin)
+                    
+                    return orig[y:y+h, x:x+w]
             
-            # If no document found, return original
+            # If no good rectangle found, return original
             return orig
-        except:
+        except Exception as e:
             # On any error, return original frame
             return frame
 
@@ -425,18 +514,19 @@ class ScannerApp:
         self.refresh_sidebar()
     
     def rotate_last_image(self):
-        """Rotate the most recently captured image by 90 degrees clockwise"""
-        if not self.captured_images:
-            return
+        """Rotate the live camera feed by 90 degrees clockwise"""
+        # Rotate live feed
+        self.live_rotation = (self.live_rotation + 90) % 360
         
-        # Rotate the last image
-        last_idx = len(self.captured_images) - 1
-        img = self.captured_images[last_idx]
-        rotated = img.rotate(-90, expand=True)  # -90 for clockwise
-        
-        self.captured_images[last_idx] = rotated
-        self.original_images[last_idx] = rotated
-        self.refresh_sidebar()
+        # Also rotate last captured image if any
+        if self.captured_images:
+            last_idx = len(self.captured_images) - 1
+            img = self.captured_images[last_idx]
+            rotated = img.rotate(-90, expand=True)  # -90 for clockwise
+            
+            self.captured_images[last_idx] = rotated
+            self.original_images[last_idx] = rotated
+            self.refresh_sidebar()
         
     def reset_zoom(self):
         """Reset camera view / refresh feed"""
@@ -461,24 +551,36 @@ class ScannerApp:
             messagebox.showinfo("Focus", "Your camera doesn't support focus control")
     
     def toggle_flash(self):
-        """Toggle camera flash/torch (if supported)"""
+        """Toggle camera light with 4 intensity levels: Off/Low/Medium/High"""
         if not self.cap:
             return
         
         try:
-            # Try to toggle flash/torch - not all cameras support this
-            if self.flash_enabled:
-                # Turn off
-                self.cap.set(cv2.CAP_PROP_SETTINGS, 0)  # This is camera-specific
-                self.flash_enabled = False
-                self.btn_flash.configure(text="💡 Light")
-            else:
-                # Turn on
-                self.cap.set(cv2.CAP_PROP_SETTINGS, 1)
-                self.flash_enabled = True
-                self.btn_flash.configure(text="💡 ON")
+            # Cycle through 4 light levels
+            self.light_level = (self.light_level + 1) % 4
+            
+            light_names = ["Off", "Low", "Medium", "High"]
+            light_values = [0, 33, 66, 100]  # Percentage values
+            
+            # Try to set brightness/exposure as proxy for light
+            try:
+                self.cap.set(cv2.CAP_PROP_BRIGHTNESS, light_values[self.light_level])
+            except:
+                pass
+            
+            self.btn_flash.configure(text=f"💡 {light_names[self.light_level]}")
         except:
-            messagebox.showinfo("Flash", "Your camera doesn't have a controllable light/flash")
+            messagebox.showinfo("Flash", "Your camera doesn't have controllable light")
+    
+    def repeat_last_action(self):
+        """Repeat the last button action (space key handler)"""
+        if self.last_button_action == 'capture':
+            self.capture_frame()
+        elif self.last_button_action == 'upload':
+            self.upload_all()
+        else:
+            # Default to capture if no action yet
+            self.capture_frame()
 
     def restart_app(self):
         self.clear_all()
