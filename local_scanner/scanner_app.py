@@ -185,24 +185,43 @@ class ImageProcessor:
         except: return None
 
     @staticmethod
-    def transform_quad(frame, quad):
-        """Perform perspective transform or simple crop depending on quad shape"""
+    def order_points(pts):
+        rect = np.zeros((4, 2), dtype="float32")
+        s = pts.sum(axis=1)
+        rect[0] = pts[np.argmin(s)]
+        rect[2] = pts[np.argmax(s)]
+        diff = np.diff(pts, axis=1)
+        rect[1] = pts[np.argmin(diff)]
+        rect[3] = pts[np.argmax(diff)]
+        return rect
+
+    @staticmethod
+    def transform_quad(image, quad):
+        """Perform bird's-eye perspective transform (Dewarping)"""
         try:
-            # Reshape quad to (4, 2)
             pts = quad.reshape(4, 2)
-            
-            # Simple bounding box crop for now (more robust than perspective for live view)
-            x, y, w, h = cv2.boundingRect(pts)
-            
-            # Add small margin
-            pad = 20
-            H, W = frame.shape[:2]
-            x1, y1 = max(0, x - pad), max(0, y - pad)
-            x2, y2 = min(W, x + w + pad), min(H, h + pad)
-            
-            return frame[y1:y2, x1:x2]
+            rect = ImageProcessor.order_points(pts)
+            (tl, tr, br, bl) = rect
+
+            widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+            widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+            maxWidth = max(int(widthA), int(widthB))
+
+            heightA = np.sqrt(((tr[1] - br[1]) ** 2) + ((tr[0] - br[0]) ** 2))
+            heightB = np.sqrt(((tl[1] - bl[1]) ** 2) + ((tl[0] - bl[0]) ** 2))
+            maxHeight = max(int(heightA), int(heightB))
+
+            dst = np.array([
+                [0, 0],
+                [maxWidth - 1, 0],
+                [maxWidth - 1, maxHeight - 1],
+                [0, maxHeight - 1]], dtype="float32")
+
+            M = cv2.getPerspectiveTransform(rect, dst)
+            warped = cv2.warpPerspective(image, M, (maxWidth, maxHeight))
+            return warped
         except:
-            return frame
+            return image
 
     @staticmethod
     def apply_pil_filters(img, mode="Color", brightness=1.0, contrast=1.0):
@@ -494,19 +513,24 @@ class ScannerApp:
         frame = ImageProcessor.adjust_cv2(frame, self.live_brightness.get(), self.live_contrast.get())
         
         img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        
         # Aggressive internal compression for 16MP images
         buf = BytesIO()
-        img.save(buf, format="JPEG", quality=60, optimize=True)
-        self.captured_images.append(Image.open(buf))
+        img.save(buf, format="JPEG", quality=55, optimize=True)
+        # Store as bytes for accurate size tracking and persistence
+        self.captured_images.append(buf.getvalue())
         self.refresh_sidebar()
 
     def refresh_sidebar(self):
         for w in self.list_frame.winfo_children(): w.destroy()
-        total_mb = 0
-        for i, img in enumerate(self.captured_images):
+        total_bytes = 0
+        for i, img_data in enumerate(self.captured_images):
+            total_bytes += len(img_data)
+            
             row = tk.Frame(self.list_frame, bg=COLORS["panel"])
             row.pack(fill=tk.X, pady=2)
             
+            img = Image.open(BytesIO(img_data))
             thumb = img.copy()
             thumb.thumbnail((60, 60))
             ph = ImageTk.PhotoImage(thumb)
@@ -514,24 +538,25 @@ class ScannerApp:
             l.image = ph
             l.pack(side=tk.LEFT)
             
-            tk.Label(row, text=f"P{i+1}", fg="white", bg=COLORS["panel"]).pack(side=tk.LEFT, padx=5)
+            tk.Label(row, text=f"P{i+1}", fg="white", bg=COLORS["panel"], font=("Arial", 8)).pack(side=tk.LEFT, padx=5)
             
-            tk.Button(row, text="✕", fg="red", bg=COLORS["panel"], bd=0, command=lambda idx=i: self.delete(idx)).pack(side=tk.RIGHT)
-            tk.Button(row, text="✏️", fg="white", bg=COLORS["panel"], bd=0, command=lambda idx=i: self.edit(idx)).pack(side=tk.RIGHT)
+            tk.Button(row, text="✕", fg="#ff4444", bg=COLORS["panel"], bd=0, command=lambda idx=i: self.delete(idx)).pack(side=tk.RIGHT, padx=2)
+            tk.Button(row, text="✏️", fg="white", bg=COLORS["panel"], bd=0, command=lambda idx=i: self.edit(idx)).pack(side=tk.RIGHT, padx=2)
             
-            total_mb += (img.size[0] * img.size[1] * 3 * 0.1) / (1024*1024)
-            
-        self.size_lbl.config(text=f"PDF Size: ~{total_mb:.1f} MB")
+        self.size_lbl.config(text=f"PDF Size: ~{total_bytes / (1024*1024):.1f} MB")
 
     def delete(self, idx):
         del self.captured_images[idx]
         self.refresh_sidebar()
 
     def edit(self, idx):
-        EditorWindow(self.root, self.captured_images[idx], lambda img: self.update_img(idx, img))
+        img = Image.open(BytesIO(self.captured_images[idx]))
+        EditorWindow(self.root, img, lambda new_img: self.update_img(idx, new_img))
 
     def update_img(self, idx, img):
-        self.captured_images[idx] = img
+        buf = BytesIO()
+        img.save(buf, format="JPEG", quality=55, optimize=True)
+        self.captured_images[idx] = buf.getvalue()
         self.refresh_sidebar()
 
     def upload(self):
@@ -539,18 +564,25 @@ class ScannerApp:
         threading.Thread(target=self._upload_worker, daemon=True).start()
 
     def _upload_worker(self):
-        buf = BytesIO()
-        # High compression for the PDF to ensure fast transmission
-        self.captured_images[0].save(buf, format="PDF", save_all=True, append_images=self.captured_images[1:], quality=50, optimize=True)
-        buf.seek(0)
-        
-        url = f"{self.api_url}/patients/{self.patient_id}/upload"
-        headers = {'Authorization': f"Bearer {self.token}"}
         try:
-            requests.post(url, headers=headers, files={'file': ('scan.pdf', buf)}, timeout=60)
-            messagebox.showinfo("Success", "Upload complete")
-            self.captured_images = []
-            self.root.after(0, self.refresh_sidebar)
+            buf = BytesIO()
+            # Convert stored byte images back to PIL for PDF assembly
+            pil_images = [Image.open(BytesIO(data)) for data in self.captured_images]
+            
+            # High compression for the PDF to ensure fast transmission
+            pil_images[0].save(buf, format="PDF", save_all=True, append_images=pil_images[1:], quality=45, optimize=True)
+            buf.seek(0)
+            
+            url = f"{self.api_url}/patients/{self.patient_id}/upload"
+            headers = {'Authorization': f"Bearer {self.token}"}
+            
+            response = requests.post(url, headers=headers, files={'file': ('scan.pdf', buf)}, timeout=60)
+            if response.status_code in [200, 201]:
+                messagebox.showinfo("Success", "Professional Scan Uploaded Successfully")
+                self.captured_images = []
+                self.root.after(0, self.refresh_sidebar)
+            else:
+                messagebox.showerror("Error", f"Upload failed: {response.text}")
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
