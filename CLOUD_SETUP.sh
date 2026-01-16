@@ -130,6 +130,8 @@ NEXT_PUBLIC_API_URL=${API_URL}
 EOF
 
 echo "[7/7] Building Frontend (This may take time)..."
+# Clean previous build to prevent caching issues (Fixes 404s)
+rm -rf .next
 npm install --legacy-peer-deps > /dev/null 2>&1
 npm run build
 
