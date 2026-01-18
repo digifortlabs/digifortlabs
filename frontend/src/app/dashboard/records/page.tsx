@@ -302,8 +302,8 @@ export default function RecordsList() {
             }
 
             const body: any = { ...newPatient };
-            body.dob = newPatient.dob ? new Date(newPatient.dob).toISOString() : null;
-            body.discharge_date = newPatient.discharge_date ? new Date(newPatient.discharge_date).toISOString() : null;
+            body.dob = newPatient.dob || null;
+            body.discharge_date = newPatient.discharge_date || null;
             // Append Unit to Age
             body.age = `${newPatient.age} ${ageUnit}`;
 
