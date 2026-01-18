@@ -41,15 +41,52 @@ def calculate_age_string(dob_str):
             final_months = 1 
         return f"{final_months} Months"
 
+def get_db_path():
+    # 1. Check .env
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if os.path.exists(env_path):
+        with open(env_path, "r") as f:
+            for line in f:
+                if line.startswith("DATABASE_URL="):
+                    url = line.strip().split("=")[1]
+                    if "sqlite" in url:
+                        return url.replace("sqlite:///", "")
+    
+    # 2. Check common names
+    candidates = ["digifortlabs.db", "sql_app.db", "app.db", "database.db"]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+            
+    # 3. Find any .db file
+    files = [f for f in os.listdir(".") if f.endswith(".db")]
+    if files:
+        return files[0]
+        
+    return "digifortlabs.db"
+
 def repair_db():
-    if not os.path.exists(DB_PATH):
-        print(f"Error: {DB_PATH} not found in current directory.")
+    db_path = get_db_path()
+    print(f"Targeting Database: {db_path}")
+
+    if not os.path.exists(db_path):
+        print(f"Error: {db_path} not found in current directory.")
+        print(f"Current Directory contains: {os.listdir('.')}")
         return
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     try:
+        # Check tables first
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = [r[0] for r in cursor.fetchall()]
+        print(f"Found Tables: {tables}")
+        
+        if 'patients' not in tables:
+            print("ERROR: 'patients' table not found in this database!")
+            return
+
         print("Reading patients...")
         cursor.execute("SELECT record_id, dob, age FROM patients")
         rows = cursor.fetchall()
