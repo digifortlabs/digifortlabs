@@ -30,7 +30,7 @@ interface PatientDetail {
     patient_u_id: string; // MRD
     uhid?: string;
     full_name: string;
-    age?: number;
+    age?: string | number;
     gender?: string;
     contact_number?: string;
     address?: string;
@@ -647,7 +647,7 @@ function PatientDetailContent() {
                             <div>
                                 <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Demographics</span>
                                 <p className="font-semibold text-gray-700">
-                                    {patient.age ? `${patient.age} Y` : ''}
+                                    {patient.age ? (typeof patient.age === 'number' || !isNaN(Number(patient.age)) ? `${patient.age} Y` : patient.age) : ''}
                                     {patient.age && patient.gender ? ' / ' : ''}
                                     {patient.gender || ''}
                                 </p>
