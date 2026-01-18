@@ -483,8 +483,9 @@ export default function RecordsList() {
                                                 contact_number: p.contact_number || '',
                                                 email_id: p.email_id || '',
                                                 aadhaar_number: p.aadhaar_number || '',
-                                                dob: p.dob ? new Date(p.dob).toISOString().split('T')[0] : '',
-                                                discharge_date: p.discharge_date ? new Date(p.discharge_date).toISOString().split('T')[0] : ''
+                                                aadhaar_number: p.aadhaar_number || '',
+                                                dob: p.dob ? (p.dob.includes('T') ? p.dob.split('T')[0] : p.dob) : '',
+                                                discharge_date: p.discharge_date ? (p.discharge_date.includes('T') ? p.discharge_date.split('T')[0] : p.discharge_date) : ''
                                             });
                                             setAgeUnit(unit);
                                             setSelectedPatientId(p.record_id);
