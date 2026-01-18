@@ -920,11 +920,11 @@ function PatientDetailContent() {
                                     <Monitor size={14} /> Desktop App
                                 </button>
                                 <a
-                                    href="/scanner_app.zip"
-                                    download="DigifortScanner_Install.zip"
+                                    href="/DigifortScanner_Setup.exe"
+                                    download="DigifortScanner_Setup.exe"
                                     className="bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-slate-200 transition flex items-center gap-2"
                                 >
-                                    <Download size={14} /> Install App
+                                    <Download size={14} /> Download Installer
                                 </a>
                                 {fileQueue.length > 0 && !isUploading && (
                                     <button
