@@ -76,8 +76,11 @@ export default function RecordsList() {
         setIsMRDDuplicate(false);
         setIsEditing(false);
         setSelectedPatientId(null);
+        setLastMRD(null);
     };
 
+
+    const [lastMRD, setLastMRD] = useState<string | null>(null);
 
     // Check if UHID exists and auto-fill
     const checkExistingUHID = async (uhid: string) => {
@@ -106,8 +109,10 @@ export default function RecordsList() {
                         dob: p.dob ? new Date(p.dob).toISOString().split('T')[0] : ''
                     }));
                     setIsExistingPatient(true);
+                    if (p.last_mrd) setLastMRD(p.last_mrd);
                 } else {
                     setIsExistingPatient(false);
+                    setLastMRD(null);
                 }
             }
         } catch (err) {
@@ -511,6 +516,11 @@ export default function RecordsList() {
                                                 <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-indigo-400 font-bold pointer-events-none">
                                                     {isExistingPatient ? "FOUND" : "NEW"}
                                                 </div>
+                                                {lastMRD && (
+                                                    <div className="absolute -bottom-5 left-1 text-[10px] font-bold text-slate-500">
+                                                        Last MRD: <span className="text-indigo-600">{lastMRD}</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 

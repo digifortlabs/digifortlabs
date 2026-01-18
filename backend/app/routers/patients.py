@@ -626,7 +626,8 @@ def check_uhid_exists(uhid_no: str, db: Session = Depends(get_db), current_user:
                 "contact_number": patient.contact_number,
                 "email_id": patient.email_id,
                 "aadhaar_number": patient.aadhaar_number,
-                "dob": patient.dob
+                "dob": patient.dob,
+                "last_mrd": patient.patient_u_id # Return the most recent MRD
             }
         }
     return {"exists": False}
