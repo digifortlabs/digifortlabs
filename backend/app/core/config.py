@@ -39,7 +39,9 @@ class Settings:
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
+        "http://localhost:8000",
         "https://digifortlabs.com",
+        "https://www.digifortlabs.com",
     ]
 
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
