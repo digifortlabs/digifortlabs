@@ -45,16 +45,50 @@ export default function RecordsList() {
         discharge_date: ''
     });
 
+    const [ageUnit, setAgeUnit] = useState<string>('Years'); // Years, Months, Days
+
     const calculateAge = (dob: string) => {
         if (!dob) return;
         const birthDate = new Date(dob);
         const today = new Date();
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const m = today.getMonth() - birthDate.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-            age--;
+
+        // Calculate difference in months and years
+        let years = today.getFullYear() - birthDate.getFullYear();
+        let months = today.getMonth() - birthDate.getMonth();
+        const days = today.getDate() - birthDate.getDate();
+
+        // Adjust for negative months (meaning birth month hasn't happened yet this year)
+        if (months < 0 || (months === 0 && days < 0)) {
+            years--;
+            months += 12;
         }
-        setNewPatient(prev => ({ ...prev, dob: dob, age: age.toString() }));
+
+        if (days < 0) {
+            months--;
+            // If months becomes negative after day adjustment, wrap around
+            if (months < 0) {
+                months += 12;
+                years--;
+            }
+        }
+
+        // Logic: < 1 Year -> Use Months. >= 1 Year -> Use Years
+        if (years >= 1) {
+            setNewPatient(prev => ({ ...prev, dob: dob, age: years.toString() }));
+            setAgeUnit('Years');
+        } else {
+            // Baby Case
+            // If month is 0 (less than a month old), maybe Days? But user asked for Month.
+            // Let's default to Months. If 0 months, show 1 Month or Days?
+            // Let's stick to user request "baby also in month"
+            let finalMonths = Math.max(0, months);
+            if (finalMonths === 0 && years === 0) {
+                // Very new born, maybe days? But standardizing to Months for now unless requested.
+                finalMonths = 1; // Default to 1 month or 0? 0 Months looks weird.
+            }
+            setNewPatient(prev => ({ ...prev, dob: dob, age: finalMonths.toString() }));
+            setAgeUnit('Months');
+        }
     };
 
     const checkDuplicateMRD = (mrd: string) => {
@@ -82,13 +116,20 @@ export default function RecordsList() {
 
     const [lastMRD, setLastMRD] = useState<string | null>(null);
 
+    const parseAgeString = (ageStr: string | number) => {
+        if (!ageStr) return { val: '', unit: 'Years' };
+        const s = ageStr.toString();
+        if (s.toLowerCase().includes('month')) return { val: s.replace(/\D/g, ''), unit: 'Months' };
+        if (s.toLowerCase().includes('day')) return { val: s.replace(/\D/g, ''), unit: 'Days' };
+        return { val: s.replace(/\D/g, ''), unit: 'Years' }; // Default to Years or strip 'Years' text
+    };
+
     // Check if UHID exists and auto-fill
     const checkExistingUHID = async (uhid: string) => {
         if (!uhid || uhid.length < 3) return;
 
         try {
             const token = localStorage.getItem('token');
-            // Use the centralized API_URL which handles HTTPS automatically
             const res = await fetch(`${API_URL}/patients/check/uhid/${uhid}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -97,10 +138,11 @@ export default function RecordsList() {
                 const data = await res.json();
                 if (data.exists) {
                     const p = data.patient;
+                    const { val, unit } = parseAgeString(p.age);
                     setNewPatient(prev => ({
                         ...prev,
                         full_name: p.full_name || '',
-                        age: p.age?.toString() || '',
+                        age: val,
                         gender: p.gender || '',
                         address: p.address || '',
                         contact_number: p.contact_number || '',
@@ -108,6 +150,7 @@ export default function RecordsList() {
                         aadhaar_number: p.aadhaar_number || '',
                         dob: p.dob ? new Date(p.dob).toISOString().split('T')[0] : ''
                     }));
+                    setAgeUnit(unit);
                     setIsExistingPatient(true);
                     if (p.last_mrd) setLastMRD(p.last_mrd);
                 } else {
@@ -121,11 +164,12 @@ export default function RecordsList() {
     };
 
     const handleSelectPatient = (p: any) => {
+        const { val, unit } = parseAgeString(p.age);
         setNewPatient({
             full_name: p.full_name || '',
             patient_u_id: '', // Must be new
             uhid: p.uhid || '',
-            age: p.age?.toString() || '',
+            age: val,
             gender: p.gender || '',
             address: p.address || '',
             contact_number: p.contact_number || '',
@@ -134,6 +178,7 @@ export default function RecordsList() {
             dob: p.dob ? new Date(p.dob).toISOString().split('T')[0] : '',
             discharge_date: '' // New admission
         });
+        setAgeUnit(unit);
         setIsExistingPatient(true);
         setShowSuggestions(false);
     };
@@ -259,6 +304,8 @@ export default function RecordsList() {
             const body: any = { ...newPatient };
             body.dob = newPatient.dob ? new Date(newPatient.dob).toISOString() : null;
             body.discharge_date = newPatient.discharge_date ? new Date(newPatient.discharge_date).toISOString() : null;
+            // Append Unit to Age
+            body.age = `${newPatient.age} ${ageUnit}`;
 
             // Include hospital_id for super admins
             if (selectedHospitalId && (userProfile?.role === 'website_admin' || userProfile?.role === 'website_staff')) {
@@ -558,8 +605,25 @@ export default function RecordsList() {
 
                                         <div>
                                             <label className="block text-sm font-bold text-slate-700 mb-2">Age <span className="text-red-500">*</span></label>
-                                            <input required type="number" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
-                                                value={newPatient.age} onChange={e => setNewPatient({ ...newPatient, age: e.target.value })} placeholder="Years" />
+                                            <div className="flex gap-2">
+                                                <input
+                                                    required
+                                                    type="number"
+                                                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
+                                                    value={newPatient.age}
+                                                    onChange={e => setNewPatient({ ...newPatient, age: e.target.value })}
+                                                    placeholder="Val"
+                                                />
+                                                <select
+                                                    className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-sm font-bold text-slate-700"
+                                                    value={ageUnit}
+                                                    onChange={e => setAgeUnit(e.target.value)}
+                                                >
+                                                    <option value="Years">Years</option>
+                                                    <option value="Months">Months</option>
+                                                    <option value="Days">Days</option>
+                                                </select>
+                                            </div>
                                         </div>
 
                                         <div>

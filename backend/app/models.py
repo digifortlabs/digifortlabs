@@ -91,7 +91,7 @@ class Patient(Base):
     uhid = Column(String, index=True, nullable=True) # Patient Permanent ID
     full_name = Column(String)
     dob = Column(DateTime, nullable=True)
-    age = Column(Integer, nullable=True)
+    age = Column(String, nullable=True)
     gender = Column(String, nullable=True)
     address = Column(String, nullable=True)
     contact_number = Column(String, nullable=True)

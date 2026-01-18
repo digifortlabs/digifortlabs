@@ -290,7 +290,7 @@ class PatientResponse(BaseModel):
     hospital_id: int
     full_name: str
     uhid: Optional[str] = None
-    age: Optional[int] = None
+    age: Optional[str] = None
     gender: Optional[str] = None
     address: Optional[str] = None
     contact_number: Optional[str] = None
@@ -315,7 +315,7 @@ class PatientCreate(BaseModel):
     patient_u_id: str
     uhid: Optional[str] = None
     full_name: str
-    age: Optional[int] = None
+    age: Optional[str] = None
     gender: Optional[str] = None
     address: Optional[str] = None
     contact_number: Optional[str] = None
@@ -329,7 +329,7 @@ class PatientUpdate(BaseModel):
     patient_u_id: Optional[str] = None
     uhid: Optional[str] = None
     full_name: Optional[str] = None
-    age: Optional[int] = None
+    age: Optional[str] = None
     gender: Optional[str] = None
     address: Optional[str] = None
     contact_number: Optional[str] = None
