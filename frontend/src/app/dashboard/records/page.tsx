@@ -471,6 +471,26 @@ export default function RecordsList() {
                             </div>
 
                             <form onSubmit={handleCreate} className="space-y-6">
+                                {/* Hospital Selection for Super Admins */}
+                                {(userProfile?.role === 'website_admin' || userProfile?.role === 'website_staff') && (
+                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">Select Hospital <span className="text-red-500">*</span></label>
+                                        <div className="relative">
+                                            <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                            <select
+                                                required
+                                                className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold text-slate-700"
+                                                value={selectedHospitalId || ''}
+                                                onChange={(e) => setSelectedHospitalId(Number(e.target.value))}
+                                            >
+                                                <option value="">-- Choose Hospital --</option>
+                                                {hospitals.map(h => (
+                                                    <option key={h.hospital_id} value={h.hospital_id}>{h.legal_name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                )}
                                 {/* Section 1: Patient Identity */}
                                 <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
                                     <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
