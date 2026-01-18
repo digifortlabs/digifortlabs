@@ -339,6 +339,9 @@ export default function RecordsList() {
                 const data = await res.json();
                 if (isEditing) {
                     setPatients(patients.map(p => p.record_id === selectedPatientId ? data : p));
+                    alert("Patient Details Updated Successfully!");
+                    setShowCreateModal(false);
+                    resetForm();
                 } else {
                     setPatients([data, ...patients]);
                     router.push(`/dashboard/records/view?id=${data.record_id}`);
@@ -469,11 +472,12 @@ export default function RecordsList() {
 
                                         <button onClick={(e) => {
                                             e.stopPropagation();
+                                            const { val, unit } = parseAgeString(p.age);
                                             setNewPatient({
                                                 full_name: p.full_name,
                                                 patient_u_id: p.patient_u_id,
                                                 uhid: p.uhid || '',
-                                                age: p.age?.toString() || '',
+                                                age: val,
                                                 gender: p.gender || '',
                                                 address: p.address || '',
                                                 contact_number: p.contact_number || '',
@@ -482,6 +486,7 @@ export default function RecordsList() {
                                                 dob: p.dob ? new Date(p.dob).toISOString().split('T')[0] : '',
                                                 discharge_date: p.discharge_date ? new Date(p.discharge_date).toISOString().split('T')[0] : ''
                                             });
+                                            setAgeUnit(unit);
                                             setSelectedPatientId(p.record_id);
                                             setIsEditing(true);
                                             setShowCreateModal(true);
