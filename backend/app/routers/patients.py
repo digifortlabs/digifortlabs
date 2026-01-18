@@ -284,13 +284,17 @@ class FileData(BaseModel):
     price_per_extra_page: float = 1.0
 
 # Response Models
+from typing import List, Optional, Union
+
+# ...
+
 class PatientResponse(BaseModel):
     record_id: int
     patient_u_id: str
     hospital_id: int
     full_name: str
     uhid: Optional[str] = None
-    age: Optional[str] = None
+    age: Optional[Union[str, int]] = None
     gender: Optional[str] = None
     address: Optional[str] = None
     contact_number: Optional[str] = None
