@@ -10,8 +10,8 @@ def fix_cors():
     with open(env_path, "r") as f:
         lines = f.readlines()
 
-    # Prepare new CORS line
-    new_cors = 'BACKEND_CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000","https://digifortlabs.com","https://www.digifortlabs.com","http://digifortlabs.com"]\n'
+    # Updated to allow ALL origins to prevent device-specific blocking
+    new_cors = 'BACKEND_CORS_ORIGINS=["*"]\n'
     
     # Check if CORS key exists
     updated_lines = []
