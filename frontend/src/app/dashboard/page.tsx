@@ -23,7 +23,8 @@ import {
     Building2,
     IndianRupee, // Changed from DollarSign
     Package,
-    ChevronRight // Added
+    ChevronRight,
+    AppWindow // Replacement
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { exportDashboardMetrics, generatePDFReport } from '../utils/reportUtils';
@@ -162,84 +163,178 @@ export default function CommandCenter() {
                 </div>
             </div>
 
-            {/* Top Metrics Grid */}
-            <div className={`grid grid-cols-1 md:grid-cols-2 ${(userRole === 'website_admin' || userRole === 'hospital_admin') ? 'lg:grid-cols-4' : 'lg:grid-cols-2'} gap-6 mb-8`}>
-
-                {/* Super Admin Only Metrics */}
-                {userRole === 'website_admin' && (
-                    <>
-                        <MetricCard
-                            label="API Latency"
-                            value={stats?.system?.latency || "0 ms"}
-                            trend="Optimal"
-                            trendUp={true}
-                            icon={<Server size={20} />}
-                            color="blue"
-                        />
-                        <MetricCard
-                            label="Network Load"
-                            value={stats?.system?.network_load || "0 MB/s"}
-                            trend="Normal"
-                            trendUp={true}
-                            icon={<Activity size={20} />}
-                            color="cyan" // Changed to cyan
-                        />
-                    </>
-                )}
+            {/* Top Metrics Grid - Comprehensive 8 Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
 
                 <MetricCard
-                    label={userRole === 'website_admin' ? "Active Users" : userRole === 'mrd_staff' ? "Pending Requests" : "Total Patients"}
-                    value={userRole === 'mrd_staff' ? (stats?.requests?.pending || 0) : userRole === 'website_admin' ? (stats?.users?.active || 0) : (stats?.patients?.total || 0)}
-                    trend={userRole === 'mrd_staff' ? (stats?.requests?.pending > 0 ? "Urgent" : "Normal") : (stats?.patients?.trend || "+0%")}
-                    trendUp={userRole === 'mrd_staff' ? (stats?.requests?.pending > 0) : (stats?.patients?.trend?.startsWith('+') && stats?.patients?.trend !== "+0%")}
-                    icon={userRole === 'mrd_staff' ? <FileText size={20} /> : <Users size={20} />}
-                    color={userRole === 'mrd_staff' ? 'amber' : 'indigo'}
-                    sub={userRole === 'website_admin' ? `Total Users: ${stats?.users?.total || 0}` : undefined}
+                    label="Total Patients"
+                    value={stats?.patients?.total || 0}
+                    trend={stats?.patients?.trend || "+0%"}
+                    trendUp={stats?.patients?.trend?.startsWith('+') && stats?.patients?.trend !== "+0%"}
+                    icon={<Users size={18} />}
+                    color="indigo"
                 />
 
-                {userRole === 'hospital_admin' && (
-                    <MetricCard
-                        label="Staff Members"
-                        value={stats?.users?.total || 0}
-                        trend={stats?.users?.trend || "+0%"}
-                        trendUp={stats?.users?.trend?.startsWith('+') && stats?.users?.trend !== "+0%"}
-                        icon={<Users size={20} />}
-                        color="indigo"
-                    />
-                )}
+                <MetricCard
+                    label="Active Requests"
+                    value={stats?.requests?.pending || 0}
+                    trend={stats?.requests?.pending > 0 ? "Urgent" : "Normal"}
+                    trendUp={stats?.requests?.pending > 0}
+                    icon={<FileText size={18} />}
+                    color="amber"
+                />
 
                 <MetricCard
-                    label={(userRole === 'mrd_staff' || userRole === 'hospital_admin') ? "Today's Scans" : "Storage Usage"}
-                    value={(userRole === 'mrd_staff' || userRole === 'hospital_admin') ? (stats?.requests?.todays_scans || 0) : (stats?.storage?.usage || "0 GB")}
-                    trend={(userRole === 'mrd_staff' || userRole === 'hospital_admin') ? (stats?.requests?.todays_scans > 0 ? "Active" : "+0%") : (stats?.storage?.trend || "+0%")}
-                    trendUp={true}
-                    icon={(userRole === 'mrd_staff' || userRole === 'hospital_admin') ? <ScanLine size={20} /> : <HardDrive size={20} />}
+                    label="Scanned Today"
+                    value={stats?.requests?.todays_scans || 0}
+                    trend={stats?.requests?.todays_scans > 0 ? "Active" : "+0"}
+                    trendUp={stats?.requests?.todays_scans > 0}
+                    icon={<ScanLine size={18} />}
                     color="emerald"
                 />
 
-                {userRole === 'hospital_admin' && (
-                    <MetricCard
-                        label="Storage Usage"
-                        value={stats?.storage?.usage || "0 GB"}
-                        trend={stats?.storage?.trend || "+0%"}
-                        trendUp={stats?.storage?.trend?.startsWith('+') && stats?.storage?.trend !== "+0%"}
-                        icon={<HardDrive size={20} />}
-                        color="emerald"
-                    />
-                )}
+                <MetricCard
+                    label="Open Boxes"
+                    value={stats?.warehouse?.open_boxes || 0}
+                    trend={stats?.warehouse?.open_boxes > 0 ? "Active" : "None"}
+                    trendUp={stats?.warehouse?.open_boxes > 0}
+                    icon={<Package size={18} />}
+                    color="cyan"
+                />
 
-                {/* Billing Card - Show for detailed view (Hospital Admin or Super Admin drill-down) */}
-                {isDetailedView && stats?.billing && (
-                    <MetricCard
-                        label="Total Cost"
-                        value={`₹${stats.billing.total_estimated_cost?.toLocaleString() || '0'}`} // Changed to Rupee
-                        trend={`${stats.billing.files_count || 0} files`}
-                        trendUp={true}
-                        icon={<IndianRupee size={20} />} // Changed Icon
-                        color="purple" // Changed to purple
-                        sub={`${stats.billing.subscription_tier} Plan • ₹${stats.billing.price_per_file}/file`} // Changed to Rupee
-                    />
-                )}
+                <MetricCard
+                    label="Pending QA"
+                    value={stats?.qa?.pending || 0}
+                    trend={stats?.qa?.pending > 0 ? "Review" : "Clear"}
+                    trendUp={false}
+                    icon={<AlertTriangle size={18} />}
+                    color="purple"
+                />
+
+                <MetricCard
+                    label="Storage Used"
+                    value={stats?.storage?.usage || "0 GB"}
+                    trend={`${stats?.storage?.capacity_pct || 0}%`}
+                    trendUp={true}
+                    icon={<HardDrive size={18} />}
+                    color="blue"
+                    sub={`Capacity: ${stats?.storage?.capacity_pct || 0}%`}
+                />
+
+                <MetricCard
+                    label="Recent Uploads"
+                    value={stats?.recent_uploads || 0}
+                    trend="Last 24h"
+                    trendUp={stats?.recent_uploads > 0}
+                    icon={<ArrowUpRight size={18} />}
+                    color="emerald"
+                />
+
+                <MetricCard
+                    label="System Health"
+                    value={stats?.system?.health || "Good"}
+                    trend={stats?.system?.uptime || "..."}
+                    trendUp={true}
+                    icon={<ShieldCheck size={18} />}
+                    color="emerald"
+                />
+            </div>
+
+            {/* Charts Section - 2 Visual Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                {/* Activity Trend Chart */}
+                <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200">
+                    <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <TrendingUp size={16} className="text-indigo-600" />
+                        Activity Trend (Last 7 Days)
+                    </h3>
+                    {stats?.activity_trend && stats.activity_trend.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={180}>
+                            <AreaChart data={stats.activity_trend}>
+                                <defs>
+                                    <linearGradient id="colorActivity" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <XAxis
+                                    dataKey="day"
+                                    tick={{ fontSize: 11, fill: '#94a3b8' }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                />
+                                <YAxis hide={true} />
+                                <Tooltip
+                                    contentStyle={{
+                                        background: '#1e293b',
+                                        border: 'none',
+                                        borderRadius: '12px',
+                                        fontSize: '12px',
+                                        fontWeight: 'bold',
+                                        color: '#fff'
+                                    }}
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="count"
+                                    stroke="#6366f1"
+                                    strokeWidth={2}
+                                    fill="url(#colorActivity)"
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="h-[180px] flex items-center justify-center text-slate-400 text-sm">
+                            No activity data available
+                        </div>
+                    )}
+                </div>
+
+                {/* Category Breakdown Chart */}
+                <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200">
+                    <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <FileText size={16} className="text-indigo-600" />
+                        File Category Distribution
+                    </h3>
+                    {stats?.category_breakdown && stats.category_breakdown.length > 0 ? (
+                        <div className="flex items-center justify-center h-[180px]">
+                            <div className="grid grid-cols-2 gap-3 w-full">
+                                {stats.category_breakdown.map((cat: any, idx: number) => {
+                                    const colors = {
+                                        'STANDARD': 'bg-blue-500',
+                                        'MLC': 'bg-red-500',
+                                        'BIRTH': 'bg-green-500',
+                                        'DEATH': 'bg-slate-700'
+                                    };
+                                    const total = stats.category_breakdown.reduce((sum: number, c: any) => sum + c.value, 0);
+                                    const percentage = Math.round((cat.value / total) * 100);
+
+                                    return (
+                                        <div key={idx} className="flex items-center gap-2">
+                                            <div className={`w-3 h-3 rounded-full ${colors[cat.name as keyof typeof colors] || 'bg-gray-500'}`}></div>
+                                            <div className="flex-1">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-xs font-bold text-slate-700">{cat.name}</span>
+                                                    <span className="text-xs font-bold text-slate-500">{percentage}%</span>
+                                                </div>
+                                                <div className="w-full bg-slate-100 rounded-full h-1.5">
+                                                    <div
+                                                        className={`h-1.5 rounded-full ${colors[cat.name as keyof typeof colors] || 'bg-gray-500'}`}
+                                                        style={{ width: `${percentage}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="h-[180px] flex items-center justify-center text-slate-400 text-sm">
+                            No category data available
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Patient List (New Section) */}
@@ -324,6 +419,8 @@ export default function CommandCenter() {
                                         title={log.action.replace('_', ' ')}
                                         time={log.time}
                                         desc={log.details}
+                                        patient={log.patient}
+                                        user={log.user}
                                     />
                                 ))
                             ) : (
@@ -379,37 +476,62 @@ export default function CommandCenter() {
                         <h3 className="text-lg font-bold text-slate-800 mb-6">Quick Actions</h3>
 
                         {/* Admin Only Actions */}
-                        {userRole === 'website_admin' && (
+                        {(userRole === 'website_admin' || userRole === 'superadmin') && (
                             <div className="grid grid-cols-2 gap-4">
+                                <ActionButton
+                                    icon={<ScanLine size={18} />}
+                                    label="OCR / Digitize"
+                                    onClick={() => router.push('/dashboard/records/upload')}
+                                />
+                                <ActionButton
+                                    icon={<FileText size={18} />}
+                                    label="Pending Outstanding"
+                                    onClick={() => router.push('/dashboard/requests')}
+                                />
                                 <ActionButton
                                     icon={<RefreshCcw size={18} />}
                                     label="Clear Cache"
                                     onClick={() => alert("Cache Cleared")}
                                 />
                                 <ActionButton
-                                    icon={<Database size={18} />}
-                                    label="Backup DB"
-                                    onClick={() => alert("Backup Started")}
+                                    icon={<IndianRupee size={18} />}
+                                    label="Accounting"
+                                    onClick={() => router.push('/dashboard/reports')}
                                 />
                                 <ActionButton
-                                    icon={<ShieldCheck size={18} />}
-                                    label="Audit Logs"
-                                    onClick={() => router.push('/dashboard/audit')}
-                                />
-                                <ActionButton
-                                    icon={<Users size={18} />}
-                                    label="User Mgmt"
-                                    onClick={() => router.push('/dashboard/user_mgmt')}
+                                    icon={<CheckCircle2 size={18} />}
+                                    label="Confirm Pending Uploads"
+                                    className="col-span-2 bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-100"
+                                    onClick={async () => {
+                                        if (!confirm("Are you sure you want to confirm all pending uploads immediately? This will finalize their storage locations.")) return;
+                                        try {
+                                            const token = localStorage.getItem('token');
+                                            const res = await fetch(`${API_URL}/storage/confirm-all${hospitalId ? `?hospital_id=${hospitalId}` : ''}`, {
+                                                method: 'POST',
+                                                headers: { Authorization: `Bearer ${token}` }
+                                            });
+                                            const data = await res.json();
+
+                                            if (!res.ok) {
+                                                throw new Error(data.detail || data.message || "Request failed");
+                                            }
+
+                                            alert(data.message || "Operation successful");
+                                            window.location.reload();
+                                        } catch (e: any) {
+                                            alert(e.message || "Failed to confirm uploads");
+                                        }
+                                    }}
                                 />
                             </div>
                         )}
 
                         {/* Hospital Actions */}
-                        {(userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'website_admin' || userRole === 'website_staff') && (
+                        {(userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'website_staff') && (
                             <div className="grid grid-cols-2 gap-4">
 
                                 {/* Universal Admin Action: Confirm Uploads */}
-                                {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'website_staff') && (
+                                {(userRole === 'hospital_admin' || userRole === 'website_staff') && (
                                     <button
                                         onClick={async () => {
                                             if (!confirm("Are you sure you want to confirm all pending uploads immediately? This will finalize their storage locations.")) return;
@@ -445,6 +567,11 @@ export default function CommandCenter() {
                                             icon={<ScanLine size={18} />}
                                             label="Digitize Records"
                                             onClick={() => router.push('/dashboard/records/upload')}
+                                        />
+                                        <ActionButton
+                                            icon={<AppWindow size={18} />}
+                                            label="Scanner App"
+                                            onClick={() => window.open('digifort://quick_launch', '_self')}
                                         />
                                         <ActionButton
                                             icon={<Users size={18} />}
@@ -575,30 +702,30 @@ const MetricCard = ({ label, value, sub, trend, trendUp, icon, color }: any) => 
         indigo: 'bg-indigo-50 text-indigo-600',
         amber: 'bg-amber-50 text-amber-600',
         emerald: 'bg-emerald-50 text-emerald-600',
-        cyan: 'bg-cyan-50 text-cyan-600', // Added
-        purple: 'bg-purple-50 text-purple-600' // Added
+        cyan: 'bg-cyan-50 text-cyan-600',
+        purple: 'bg-purple-50 text-purple-600'
     };
 
     return (
-        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start mb-4">
-                <div className={`p-3 rounded-2xl ${bgColors[color] || bgColors.indigo}`}>
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start mb-3">
+                <div className={`p-2.5 rounded-xl ${bgColors[color] || bgColors.indigo}`}>
                     {icon}
                 </div>
-                <div className={`text-xs font-bold px-2 py-1 rounded-lg flex items-center gap-1 ${trendUp ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {trend} {trendUp && <TrendingUp size={12} />}
+                <div className={`text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 ${trendUp ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                    {trend} {trendUp && <TrendingUp size={10} />}
                 </div>
             </div>
             <div>
-                <p className="text-2xl font-black text-slate-800 tracking-tight">{value}</p>
-                <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mt-1">{label}</p>
-                {sub && <p className="text-slate-400 text-[10px] font-medium mt-0.5">{sub}</p>}
+                <p className="text-xl font-black text-slate-800 tracking-tight">{value}</p>
+                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider mt-0.5">{label}</p>
+                {sub && <p className="text-slate-400 text-[9px] font-medium mt-0.5">{sub}</p>}
             </div>
         </div>
     );
 };
 
-const AlertItem = ({ type, title, time, desc }: any) => {
+const AlertItem = ({ type, title, time, desc, patient, user }: any) => {
     const icons: any = {
         UPLOADED: <ArrowUpRight size={14} className="text-indigo-600" />,
         CONFIRMED: <CheckCircle2 size={14} className="text-emerald-600" />,
@@ -612,25 +739,26 @@ const AlertItem = ({ type, title, time, desc }: any) => {
     const icon = icons[actionType] || icons.INFO;
 
     return (
-        <div className="flex gap-3 py-2 px-4 rounded-xl hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0 items-center">
+        <div className="flex gap-3 py-2 px-3 rounded-xl hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0 items-center">
             <div className="p-2 rounded-lg bg-white border border-slate-100 shadow-sm shrink-0">
                 {icon}
             </div>
             <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-center bg-white/0">
+                <div className="flex justify-between items-center bg-white/0 mb-0.5">
                     <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight truncate">{title}</h4>
-                    <span className="text-[9px] font-bold text-slate-400 shrink-0">{time}</span>
+                    <span className="text-[9px] font-bold text-slate-400 shrink-0 ml-2">{time}</span>
                 </div>
-                <p className="text-[10px] text-slate-500 font-medium truncate opacity-80">{desc}</p>
+                {patient && <p className="text-[10px] text-indigo-600 font-bold truncate">{patient}</p>}
+                {user && <p className="text-[9px] text-slate-400 font-medium truncate">by {user}</p>}
             </div>
         </div>
     );
 };
 
-const ActionButton = ({ icon, label, onClick }: any) => (
+const ActionButton = ({ icon, label, onClick, className = "" }: any) => (
     <button
         onClick={onClick}
-        className="flex flex-col items-center justify-center p-4 rounded-2xl bg-slate-50 border border-slate-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-100 transition-all font-bold text-xs gap-2 active:scale-95"
+        className={`flex flex-col items-center justify-center p-4 rounded-2xl bg-slate-50 border border-slate-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-100 transition-all font-bold text-xs gap-2 active:scale-95 ${className}`}
     >
         {icon}
         {label}

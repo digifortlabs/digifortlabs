@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Plus, FileText, ChevronRight, Upload, User, ArrowRight, Pencil, Trash2, Building2 } from 'lucide-react';
+import { Search, Filter, Plus, FileText, ChevronRight, Upload, User, ArrowRight, Pencil, Trash2, Building2, Layout, Tag } from 'lucide-react';
+import PatientDetailView from './components/PatientDetailView';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL } from '@/config/api';
 import { toTitleCase, toUpperCaseMRD } from '@/utils/formatters';
@@ -41,7 +42,9 @@ export default function RecordsList() {
         contact_number: '', // Required
         email_id: '',
         aadhaar_number: '',
+        patient_category: 'STANDARD', // STANDARD, MLC, BIRTH, DEATH
         dob: '',
+        admission_date: '',
         discharge_date: ''
     });
 
@@ -104,7 +107,7 @@ export default function RecordsList() {
 
     const resetForm = () => {
         setNewPatient({
-            full_name: '', patient_u_id: '', uhid: '', age: '', gender: '', address: '', contact_number: '', email_id: '', aadhaar_number: '', dob: '', discharge_date: ''
+            full_name: '', patient_u_id: '', uhid: '', age: '', gender: '', address: '', contact_number: '', email_id: '', aadhaar_number: '', patient_category: 'STANDARD', dob: '', admission_date: '', discharge_date: ''
         });
         setIsExistingPatient(false);
         setIsMRDDuplicate(false);
@@ -148,6 +151,7 @@ export default function RecordsList() {
                         contact_number: p.contact_number || '',
                         email_id: p.email_id || '',
                         aadhaar_number: p.aadhaar_number || '',
+                        patient_category: p.patient_category || 'STANDARD',
                         dob: p.dob ? new Date(p.dob).toISOString().split('T')[0] : ''
                     }));
                     setAgeUnit(unit);
@@ -175,7 +179,9 @@ export default function RecordsList() {
             contact_number: p.contact_number || '',
             email_id: p.email_id || '',
             aadhaar_number: p.aadhaar_number || '',
+            patient_category: 'STANDARD', // New admission default
             dob: p.dob ? new Date(p.dob).toISOString().split('T')[0] : '',
+            admission_date: '', // New admission
             discharge_date: '' // New admission
         });
         setAgeUnit(unit);
@@ -212,7 +218,7 @@ export default function RecordsList() {
 
     useEffect(() => {
         if (userProfile) {
-            if (userProfile.role === 'website_admin' || userProfile.role === 'website_staff') {
+            if (['website_admin', 'website_staff', 'superadmin', 'superadmin_staff'].includes(userProfile.role)) {
                 fetchHospitals();
                 if (hospitalIdParam) {
                     setSelectedHospitalId(parseInt(hospitalIdParam));
@@ -231,8 +237,10 @@ export default function RecordsList() {
     useEffect(() => {
         if (selectedHospitalId) {
             fetchPatients();
+        } else if (userProfile && ['website_admin', 'website_staff', 'superadmin', 'superadmin_staff'].includes(userProfile.role)) {
+            setPatients([]); // Clear list if deselecting
         }
-    }, [selectedHospitalId]);
+    }, [selectedHospitalId, userProfile]);
 
     const fetchUserProfile = async () => {
         const token = localStorage.getItem('token');
@@ -263,7 +271,7 @@ export default function RecordsList() {
         try {
             // Append hospital_id filter if selected (and user is privileged)
             let url = `${API_URL}/patients/`;
-            if (selectedHospitalId && (userProfile?.role === 'website_admin' || userProfile?.role === 'website_staff')) {
+            if (selectedHospitalId && (userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff')) {
                 url += `?hospital_id=${selectedHospitalId}`;
             }
 
@@ -296,19 +304,20 @@ export default function RecordsList() {
             }
 
             // Check if super admin has selected a hospital
-            if ((userProfile?.role === 'website_admin' || userProfile?.role === 'website_staff') && !selectedHospitalId) {
+            if ((userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff') && !selectedHospitalId) {
                 alert("Please select a hospital first.");
                 return;
             }
 
             const body: any = { ...newPatient };
             body.dob = newPatient.dob || null;
+            body.admission_date = newPatient.admission_date || null;
             body.discharge_date = newPatient.discharge_date || null;
             // Append Unit to Age
             body.age = `${newPatient.age} ${ageUnit}`;
 
             // Include hospital_id for super admins
-            if (selectedHospitalId && (userProfile?.role === 'website_admin' || userProfile?.role === 'website_staff')) {
+            if (selectedHospitalId && (userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff')) {
                 body.hospital_id = selectedHospitalId;
             }
 
@@ -371,7 +380,7 @@ export default function RecordsList() {
 
                 <div className="flex gap-3 w-full md:w-auto flex-wrap items-center">
                     {/* Hospital Selector for Platform Admins */}
-                    {(userProfile?.role === 'website_admin' || userProfile?.role === 'website_staff') && (
+                    {(userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff') && (
                         <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-3 rounded-xl shadow-sm">
                             <Building2 size={18} className="text-indigo-600" />
                             <select
@@ -411,133 +420,205 @@ export default function RecordsList() {
                 </div>
             </div>
 
-            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-x-auto">
-                <table className="w-full text-left">
-                    <thead className="bg-gradient-to-r from-slate-50 to-slate-100 border-b-2 border-slate-200">
-                        <tr>
-                            <th className="p-6 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Patient Name</th>
-                            <th className="p-6 text-left text-xs font-black text-slate-500 uppercase tracking-wider">MRD / UHID</th>
-                            <th className="p-6 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Contact</th>
-                            <th className="p-6 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Discharge Date</th>
-                            <th className="p-6 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Files</th>
-                            <th className="p-6 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Status</th>
-                            <th className="p-6 text-right text-xs font-black text-slate-500 uppercase tracking-wider">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {loading ? (
-                            <tr><td colSpan={7} className="p-12 text-center">Loading Records...</td></tr>
-                        ) : filteredPatients.length === 0 ? (
-                            <tr><td colSpan={7} className="p-12 text-center text-slate-400 italic">No patients found. Create one to get started.</td></tr>
-                        ) : (
-                            filteredPatients.map(p => (
-                                <tr key={p.record_id} className="hover:bg-slate-50/50 transition cursor-pointer" onClick={() => router.push('/dashboard/records/view?id=' + p.record_id)}>
-                                    <td className="p-6 font-bold text-slate-900 flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs">
-                                            {p.full_name?.[0]}
-                                        </div>
-                                        {p.full_name}
-                                    </td>
-                                    <td className="p-6 font-mono text-sm text-slate-600">
-                                        <div>{p.patient_u_id}</div>
-                                        {p.uhid && <div className="text-xs text-slate-400 mt-1">UHID: {p.uhid}</div>}
-                                    </td>
-                                    <td className="p-6">
-                                        {p.contact_number ? (
-                                            <div className="text-sm font-semibold text-slate-700">{p.contact_number}</div>
-                                        ) : (
-                                            <span className="text-xs text-slate-300 italic">Not provided</span>
-                                        )}
-                                    </td>
-                                    <td className="p-6">
-                                        {p.discharge_date ? (
-                                            <div className="text-sm font-medium text-slate-700">{new Date(p.discharge_date).toLocaleDateString('en-IN')}</div>
-                                        ) : (
-                                            <span className="text-xs text-slate-300 italic">—</span>
-                                        )}
-                                    </td>
-                                    <td className="p-6">
-                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold">
-                                            <FileText size={12} /> {p.files?.length || 0}
-                                        </span>
-                                    </td>
-                                    <td className="p-6">
-                                        {p.physical_box_id ? (
-                                            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100">Archived</span>
-                                        ) : (
-                                            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100">Digital Only</span>
-                                        )}
-                                    </td>
-                                    <td className="p-6 text-right space-x-2">
 
-                                        <button onClick={(e) => {
-                                            e.stopPropagation();
-                                            const { val, unit } = parseAgeString(p.age);
-                                            setNewPatient({
-                                                full_name: p.full_name,
-                                                patient_u_id: p.patient_u_id,
-                                                uhid: p.uhid || '',
-                                                age: val,
-                                                gender: p.gender || '',
-                                                address: p.address || '',
-                                                contact_number: p.contact_number || '',
-                                                email_id: p.email_id || '',
-                                                aadhaar_number: p.aadhaar_number || '',
-                                                aadhaar_number: p.aadhaar_number || '',
-                                                dob: p.dob ? (p.dob.includes('T') ? p.dob.split('T')[0] : p.dob) : '',
-                                                discharge_date: p.discharge_date ? (p.discharge_date.includes('T') ? p.discharge_date.split('T')[0] : p.discharge_date) : ''
-                                            });
-                                            setAgeUnit(unit);
-                                            setSelectedPatientId(p.record_id);
-                                            setIsEditing(true);
-                                            setShowCreateModal(true);
-                                        }} className="text-slate-400 hover:text-blue-600 transition p-2 hover:bg-blue-50 rounded-lg" title="Edit Patient">
-                                            <Pencil size={18} />
-                                        </button>
-                                        <ArrowRight size={18} className="text-slate-300 inline-block" />
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
+
+            {(!selectedHospitalId && (userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff')) ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {hospitals.map(h => (
+                        <button
+                            key={h.hospital_id}
+                            onClick={() => setSelectedHospitalId(h.hospital_id)}
+                            className="bg-white p-8 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all text-left group"
+                        >
+                            <div className="h-14 w-14 bg-indigo-50 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-indigo-600 transition-colors">
+                                <Building2 className="text-indigo-600 group-hover:text-white transition-colors" size={28} />
+                            </div>
+                            <h3 className="text-xl font-black text-slate-900 mb-2">{h.legal_name}</h3>
+                            <p className="text-slate-500 text-sm font-medium">{h.city}, {h.state}</p>
+                            <div className="mt-6 flex items-center gap-2 text-indigo-600 font-bold text-sm group-hover:gap-3 transition-all">
+                                View Records <ArrowRight size={16} />
+                            </div>
+                        </button>
+                    ))}
+                    {hospitals.length === 0 && (
+                        <div className="col-span-full text-center py-20 text-slate-400">
+                            No hospitals found.
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <div className="flex gap-6 items-start">
+                    {/* Master List */}
+                    <div className={`${selectedPatientId ? 'hidden lg:block lg:w-1/3' : 'w-full'} transition-all`}>
+                        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[calc(100vh-200px)]">
+                            <div className="overflow-x-auto h-full">
+                                <table className="w-full text-left">
+                                    <thead className="bg-gradient-to-r from-slate-50 to-slate-100 border-b-2 border-slate-200 sticky top-0 z-10">
+                                        <tr>
+                                            <th className="p-4 md:p-6 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Patient Details</th>
+                                            {!selectedPatientId && (
+                                                <>
+                                                    <th className="p-6 text-left text-xs font-black text-slate-500 uppercase tracking-wider hidden md:table-cell">Contact</th>
+                                                    <th className="p-6 text-left text-xs font-black text-slate-500 uppercase tracking-wider hidden md:table-cell">Dates</th>
+                                                    <th className="p-6 text-left text-xs font-black text-slate-500 uppercase tracking-wider hidden md:table-cell">Status</th>
+                                                </>
+                                            )}
+                                            <th className="p-6 text-right text-xs font-black text-slate-500 uppercase tracking-wider">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {loading ? (
+                                            <tr><td colSpan={selectedPatientId ? 2 : 5} className="p-12 text-center">Loading Records...</td></tr>
+                                        ) : filteredPatients.length === 0 ? (
+                                            <tr><td colSpan={selectedPatientId ? 2 : 5} className="p-12 text-center text-slate-400 italic">No patients found.</td></tr>
+                                        ) : (
+                                            filteredPatients.map(p => (
+                                                <tr
+                                                    key={p.record_id}
+                                                    className={`hover:bg-slate-50/80 transition cursor-pointer ${selectedPatientId === p.record_id ? 'bg-indigo-50/50 border-l-4 border-indigo-500' : ''}`}
+                                                    onClick={() => setSelectedPatientId(p.record_id)}
+                                                >
+                                                    <td className="p-4 md:p-6">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-black border
+                                                        ${p.patient_category === 'MLC' ? 'bg-red-50 text-red-600 border-red-200 shadow-sm shadow-red-100' :
+                                                                    p.patient_category === 'BIRTH' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                                                                        p.patient_category === 'DEATH' ? 'bg-slate-900 text-white border-slate-700' :
+                                                                            'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>
+                                                                {p.patient_category === 'MLC' ? 'MLC' :
+                                                                    p.patient_category === 'BIRTH' ? 'B' :
+                                                                        p.patient_category === 'DEATH' ? '†' :
+                                                                            p.full_name?.[0]}
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-bold text-slate-900">{p.full_name}</div>
+                                                                <div className="text-xs text-slate-500 font-mono mt-0.5">{p.patient_u_id}</div>
+                                                                <div className="flex gap-2 mt-1">
+                                                                    {p.uhid && <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-mono">{p.uhid}</span>}
+                                                                    {p.files?.length > 0 && (
+                                                                        <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
+                                                                            <FileText size={8} /> {p.files.length}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+
+                                                    {!selectedPatientId && (
+                                                        <>
+                                                            <td className="p-6 hidden md:table-cell align-top text-sm text-slate-600">
+                                                                {p.contact_number || <span className="text-slate-300 italic">—</span>}
+                                                            </td>
+                                                            <td className="p-6 hidden md:table-cell align-top text-sm text-slate-600">
+                                                                <div className="flex flex-col gap-1">
+                                                                    {p.discharge_date && <span className="text-xs">Out: {new Date(p.discharge_date).toLocaleDateString('en-IN')}</span>}
+                                                                    {p.admission_date && <span className="text-xs text-slate-400">In: {new Date(p.admission_date).toLocaleDateString('en-IN')}</span>}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-6 hidden md:table-cell align-top">
+                                                                {p.physical_box_id ? (
+                                                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100">Archived</span>
+                                                                ) : (
+                                                                    <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100">Digital Only</span>
+                                                                )}
+                                                            </td>
+                                                        </>
+                                                    )}
+
+                                                    <td className="p-6 text-right align-top">
+                                                        <button onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const { val, unit } = parseAgeString(p.age);
+                                                            setNewPatient({
+                                                                full_name: p.full_name,
+                                                                patient_u_id: p.patient_u_id,
+                                                                uhid: p.uhid || '',
+                                                                age: val,
+                                                                gender: p.gender || '',
+                                                                address: p.address || '',
+                                                                contact_number: p.contact_number || '',
+                                                                email_id: p.email_id || '',
+                                                                aadhaar_number: p.aadhaar_number || '',
+                                                                patient_category: p.patient_category || 'STANDARD',
+                                                                dob: p.dob ? (p.dob.includes('T') ? p.dob.split('T')[0] : p.dob) : '',
+                                                                admission_date: p.admission_date ? (p.admission_date.includes('T') ? p.admission_date.split('T')[0] : p.admission_date) : '',
+                                                                discharge_date: p.discharge_date ? (p.discharge_date.includes('T') ? p.discharge_date.split('T')[0] : p.discharge_date) : ''
+                                                            });
+                                                            setAgeUnit(unit);
+                                                            setSelectedPatientId(p.record_id);
+                                                            setIsEditing(true);
+                                                            setShowCreateModal(true);
+                                                        }} className="text-slate-400 hover:text-blue-600 transition p-2 hover:bg-blue-50 rounded-lg" title="Edit Patient">
+                                                            <Pencil size={16} />
+                                                        </button>
+
+                                                        <div className="md:hidden mt-2">
+                                                            <ChevronRight size={20} className="text-slate-300 ml-auto" />
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Detail View Pane */}
+                    {selectedPatientId && (
+                        <div className="w-full lg:w-2/3 h-[calc(100vh-200px)] flex flex-col animate-in slide-in-from-right-10 duration-300">
+                            <div className="bg-white rounded-[2rem] shadow-xl border border-slate-200 overflow-hidden h-full flex flex-col">
+                                <PatientDetailView
+                                    patientId={selectedPatientId}
+                                    onBack={() => setSelectedPatientId(null)}
+                                    onDeleteSuccess={() => {
+                                        setSelectedPatientId(null);
+                                        fetchPatients();
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Create Patient Modal */}
-            {showCreateModal && (
-                <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm">
-                    <div className="flex min-h-full items-center justify-center p-4">
-                        <div className="bg-white rounded-[2rem] max-w-lg w-full p-8 shadow-2xl animate-in zoom-in-95 duration-200 relative">
-                            <div className="flex justify-between items-center mb-8">
-                                <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-                                    <User className="text-indigo-600" /> {isEditing ? 'Edit Patient Details' : 'Register New Patient'}
+            {
+                showCreateModal && (
+                    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div className="bg-white rounded-[1.5rem] max-w-2xl w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200 relative max-h-[95vh] overflow-y-auto custom-scrollbar">
+                            <div className="flex justify-between items-center mb-5 sticky top-0 bg-white z-10 pb-2 border-b border-slate-100">
+                                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                                    <User className="text-indigo-600" size={20} /> {isEditing ? 'Edit Patient' : 'Register New Patient'}
                                 </h2>
                                 <div className="flex gap-2">
                                     <button
                                         onClick={resetForm}
-                                        className="px-3 py-1 text-xs font-bold text-slate-400 hover:text-indigo-600 border border-slate-200 rounded-lg hover:border-indigo-200 transition"
+                                        className="px-3 py-1 text-[10px] font-bold text-slate-400 hover:text-indigo-600 border border-slate-200 rounded-lg hover:border-indigo-200 transition"
                                     >
-                                        Reset Form
+                                        Reset
                                     </button>
                                     <button
                                         onClick={() => { setShowCreateModal(false); resetForm(); router.replace('/dashboard/records'); }}
-                                        className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition"
+                                        className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition"
                                     >
                                         ✕
                                     </button>
                                 </div>
                             </div>
 
-                            <form onSubmit={handleCreate} className="space-y-6">
+                            <form onSubmit={handleCreate} className="space-y-4">
                                 {/* Hospital Selection for Super Admins */}
-                                {(userProfile?.role === 'website_admin' || userProfile?.role === 'website_staff') && (
-                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                        <label className="block text-sm font-bold text-slate-700 mb-2">Select Hospital <span className="text-red-500">*</span></label>
+                                {(userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff') && (
+                                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                        <label className="block text-xs font-bold text-slate-700 mb-1">Select Hospital <span className="text-red-500">*</span></label>
                                         <div className="relative">
-                                            <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                             <select
                                                 required
-                                                className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold text-slate-700"
+                                                className="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-700 text-sm"
                                                 value={selectedHospitalId || ''}
                                                 onChange={(e) => setSelectedHospitalId(Number(e.target.value))}
                                             >
@@ -551,38 +632,33 @@ export default function RecordsList() {
                                 )}
                                 {/* Section 1: Patient Identity */}
                                 <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-                                    <h3 className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                        <User size={14} /> Patient Identity (UHID)
+                                    <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <User size={12} /> Patient Identity (UHID)
                                     </h3>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="col-span-2">
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">UHID (Permanent Patient ID)</label>
+                                    <div className="grid grid-cols-12 gap-3">
+                                        <div className="col-span-4">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">UHID</label>
                                             <div className="relative">
-                                                <input type="text" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono text-indigo-700 font-bold"
+                                                <input type="text" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-mono text-indigo-700 font-bold text-sm"
                                                     value={newPatient.uhid}
                                                     onChange={e => {
                                                         const val = toUpperCaseMRD(e.target.value);
                                                         setNewPatient({ ...newPatient, uhid: val });
                                                     }}
                                                     onBlur={(e) => checkExistingUHID(e.target.value)}
-                                                    placeholder="Enter UHID to auto-fill..." />
-                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-indigo-400 font-bold pointer-events-none">
+                                                    placeholder="Auto-fill..." />
+                                                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-indigo-400 font-bold pointer-events-none">
                                                     {isExistingPatient ? "FOUND" : "NEW"}
                                                 </div>
-                                                {lastMRD && (
-                                                    <div className="absolute -bottom-5 left-1 text-[10px] font-bold text-slate-500">
-                                                        Last MRD: <span className="text-indigo-600">{lastMRD}</span>
-                                                    </div>
-                                                )}
                                             </div>
                                         </div>
 
-                                        <div className="col-span-2 relative">
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">Full Name <span className="text-red-500">*</span></label>
+                                        <div className="col-span-8 relative">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Full Name <span className="text-red-500">*</span></label>
                                             <input
                                                 type="text"
                                                 required
-                                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-900 transition"
+                                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-900 text-sm"
                                                 placeholder="Patient Name"
                                                 value={newPatient.full_name}
                                                 onChange={e => handleNameSearch(e.target.value)}
@@ -590,18 +666,18 @@ export default function RecordsList() {
                                                 autoComplete="off"
                                             />
                                             {showSuggestions && suggestions.length > 0 && (
-                                                <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-60 overflow-y-auto">
+                                                <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-40 overflow-y-auto">
                                                     {suggestions.map((p, idx) => (
                                                         <button
                                                             key={idx}
                                                             type="button"
                                                             onClick={() => handleSelectPatient(p)}
-                                                            className="w-full text-left px-4 py-3 hover:bg-indigo-50 transition border-b border-slate-50 last:border-0"
+                                                            className="w-full text-left px-3 py-2 hover:bg-indigo-50 transition border-b border-slate-50 last:border-0"
                                                         >
-                                                            <p className="font-bold text-slate-800 text-sm">{p.full_name}</p>
-                                                            <p className="text-xs text-slate-500 flex gap-2">
-                                                                <span>{p.uhid ? `UHID: ${p.uhid}` : `mrd: ${p.patient_u_id}`}</span>
-                                                                <span>• {p.gender}, {p.age}y</span>
+                                                            <p className="font-bold text-slate-800 text-xs">{p.full_name}</p>
+                                                            <p className="text-[10px] text-slate-500 flex gap-2">
+                                                                <span>{p.uhid ? `UHID:${p.uhid}` : `mrd:${p.patient_u_id}`}</span>
+                                                                <span>• {p.gender}, {p.age}</span>
                                                             </p>
                                                         </button>
                                                     ))}
@@ -609,90 +685,71 @@ export default function RecordsList() {
                                             )}
                                         </div>
 
-                                        <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">Age <span className="text-red-500">*</span></label>
-                                            <div className="flex gap-2">
+                                        <div className="col-span-3">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Age <span className="text-red-500">*</span></label>
+                                            <div className="flex gap-1">
                                                 <input
                                                     required
                                                     type="number"
-                                                    className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
+                                                    className="w-full px-2 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm"
                                                     value={newPatient.age}
                                                     onChange={e => setNewPatient({ ...newPatient, age: e.target.value })}
-                                                    placeholder="Val"
+                                                    placeholder="00"
                                                 />
                                                 <select
-                                                    className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-sm font-bold text-slate-700"
+                                                    className="px-1 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-xs font-bold text-slate-700"
                                                     value={ageUnit}
                                                     onChange={e => setAgeUnit(e.target.value)}
                                                 >
-                                                    <option value="Years">Years</option>
-                                                    <option value="Months">Months</option>
-                                                    <option value="Days">Days</option>
+                                                    <option value="Years">Yr</option>
+                                                    <option value="Months">Mo</option>
+                                                    <option value="Days">Dy</option>
                                                 </select>
                                             </div>
                                         </div>
 
-                                        <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">Gender <span className="text-red-500">*</span></label>
-                                            <select required className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
+                                        <div className="col-span-4">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Gender <span className="text-red-500">*</span></label>
+                                            <select required className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm"
                                                 value={newPatient.gender} onChange={e => setNewPatient({ ...newPatient, gender: e.target.value })}>
-                                                <option value="">Select Gender</option>
+                                                <option value="">Select</option>
                                                 <option value="Male">Male</option>
                                                 <option value="Female">Female</option>
                                                 <option value="Other">Other</option>
                                             </select>
                                         </div>
 
-                                        <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">Date of Birth</label>
-                                            <input type="date" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
+                                        <div className="col-span-5">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">DOB</label>
+                                            <input type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm"
                                                 value={newPatient.dob} onChange={e => calculateAge(e.target.value)} />
                                         </div>
 
-                                        <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">Aadhaar Number <span className="text-gray-400 font-normal">(Optional)</span></label>
-                                            <input type="text" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-mono tracking-widest"
-                                                value={newPatient.aadhaar_number}
-                                                onChange={e => {
-                                                    const val = e.target.value.replace(/\D/g, '').slice(0, 12);
-                                                    setNewPatient({ ...newPatient, aadhaar_number: val });
-                                                }}
-                                                placeholder="0000 0000 0000"
-                                                pattern="\d{12}"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">Contact Number <span className="text-red-500">*</span></label>
-                                            <input required type="tel" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
+                                        <div className="col-span-6">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Mobile <span className="text-red-500">*</span></label>
+                                            <input required type="tel" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm font-mono"
                                                 value={newPatient.contact_number} onChange={e => setNewPatient({ ...newPatient, contact_number: e.target.value })} placeholder="Mobile Number" />
                                         </div>
 
-                                        <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">Email ID</label>
-                                            <input type="email" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
-                                                value={newPatient.email_id} onChange={e => setNewPatient({ ...newPatient, email_id: e.target.value })} placeholder="Optional" />
-                                        </div>
-
-                                        <div className="col-span-2">
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">Address</label>
-                                            <input type="text" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
+                                        <div className="col-span-6">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Address</label>
+                                            <input type="text" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm"
                                                 value={newPatient.address}
                                                 onChange={e => setNewPatient({ ...newPatient, address: toTitleCase(e.target.value) })}
-                                                placeholder="Address..." />
+                                                placeholder="City / Area" />
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Section 2: Admission / File Details */}
                                 <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100">
-                                    <h3 className="text-xs font-black text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                        <FileText size={14} /> Visit / File Details (MRD)
+                                    <h3 className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <FileText size={12} /> Visit Details
                                     </h3>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="col-span-2">
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">MRD No. (Unique File ID) <span className="text-red-500">*</span></label>
-                                            <input required type="text" className={`w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-500 font-mono font-black text-slate-800 ${isMRDDuplicate ? 'border-red-500' : 'border-slate-200'}`}
+                                    <div className="grid grid-cols-12 gap-3">
+                                        <div className="col-span-6">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">MRD No. <span className="text-red-500">*</span></label>
+                                            <input required type="text" className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 font-mono font-black text-slate-800 text-sm ${isMRDDuplicate ? 'border-red-500' : 'border-slate-200'}`}
                                                 value={newPatient.patient_u_id}
                                                 onChange={e => {
                                                     const val = toUpperCaseMRD(e.target.value);
@@ -700,31 +757,51 @@ export default function RecordsList() {
                                                     if (val.length >= 3) checkDuplicateMRD(val);
                                                     else setIsMRDDuplicate(false);
                                                 }}
-                                                placeholder="Enter New MRD Number" />
-                                            {isMRDDuplicate && <p className="text-red-500 text-xs mt-1">⚠️ This MRD Number already exists!</p>}
+                                                placeholder="New MRD" />
+                                            {isMRDDuplicate && <p className="text-red-500 text-[10px] mt-0.5">⚠️ Exists!</p>}
                                         </div>
 
-                                        <div>
-                                            <label className="block text-sm font-bold text-slate-700 mb-2">Discharge Date <span className="text-red-500">*</span></label>
-                                            <input required type="date" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-500"
+                                        <div className="col-span-6">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Category <span className="text-red-500">*</span></label>
+                                            <select
+                                                required
+                                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 font-bold text-slate-700 text-sm"
+                                                value={newPatient.patient_category}
+                                                onChange={e => setNewPatient({ ...newPatient, patient_category: e.target.value })}
+                                            >
+                                                <option value="STANDARD">Normal</option>
+                                                <option value="MLC">MLC</option>
+                                                <option value="BIRTH">Birth</option>
+                                                <option value="DEATH">Death</option>
+                                            </select>
+                                        </div>
+                                        <div className="col-span-6">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Admission</label>
+                                            <input type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
+                                                value={newPatient.admission_date} onChange={e => setNewPatient({ ...newPatient, admission_date: e.target.value })} />
+                                        </div>
+
+                                        <div className="col-span-6">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Discharge <span className="text-red-500">*</span></label>
+                                            <input required type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
                                                 value={newPatient.discharge_date} onChange={e => setNewPatient({ ...newPatient, discharge_date: e.target.value })} />
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="pt-4 flex gap-3">
-                                    <button type="button" onClick={() => { setShowCreateModal(false); router.replace('/dashboard/records'); }} className="flex-1 py-3.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition">
+                                <div className="pt-2 flex gap-3 sticky bottom-0 bg-white z-10 pb-2">
+                                    <button type="button" onClick={() => { setShowCreateModal(false); router.replace('/dashboard/records'); }} className="flex-1 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition text-sm">
                                         Cancel
                                     </button>
-                                    <button type="submit" className="flex-1 py-3.5 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2">
-                                        <Upload size={18} /> Register & Upload
+                                    <button type="submit" className="flex-1 py-3 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 text-sm">
+                                        <Upload size={16} /> Save & Upload
                                     </button>
                                 </div>
                             </form>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
         </div>
     );
 }

@@ -18,11 +18,11 @@ from .database import Base
 
 
 class UserRole(str, enum.Enum):
-    SUPER_ADMIN = "website_admin"
-    PLATFORM_STAFF = "website_staff"
+    SUPER_ADMIN = "superadmin"
+    PLATFORM_STAFF = "superadmin_staff"
+    WAREHOUSE_MANAGER = "warehouse_manager"
     HOSPITAL_ADMIN = "hospital_admin"
-    MRD_STAFF = "mrd_staff"
-    DATA_UPLOADER = "data_uploader"
+    HOSPITAL_STAFF = "hospital_staff"
 
 class Hospital(Base):
     __tablename__ = "hospitals"
@@ -97,7 +97,11 @@ class Patient(Base):
     contact_number = Column(String, nullable=True)
     email_id = Column(String, nullable=True)
     aadhaar_number = Column(String, nullable=True) # New Field
+    # Categories: STANDARD, MLC, BIRTH, DEATH
+    patient_category = Column(String, default="STANDARD", index=True)
+    admission_date = Column(DateTime, nullable=True)
     discharge_date = Column(DateTime, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     hospital = relationship("Hospital", back_populates="patients")
@@ -156,6 +160,10 @@ class PDFFile(Base):
     # Progress Tracking
     processing_stage = Column(String, default="queued") # queued, compressing, encrypting, uploading, completed, failed
     processing_progress = Column(Integer, default=0) # 0-100
+
+    # Payment Status
+    is_paid = Column(Boolean, default=False)
+    payment_date = Column(DateTime, nullable=True)
     
     upload_date = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -192,26 +200,7 @@ class BandwidthUsage(Base):
     
     __table_args__ = (UniqueConstraint('hospital_id', 'month_year', name='_hospital_month_uc'),)
 
-class PhysicalBox(Base):
-    __tablename__ = "physical_boxes"
 
-    box_id = Column(Integer, primary_key=True, index=True)
-    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"))
-    label = Column(String, unique=True, index=True) # e.g. "BOX-2024-A001"
-    location_code = Column(String) # e.g. "WH-1-RACK-4-SHELF-2"
-    status = Column(String, default="In Storage") # In Storage, Checked Out, Destroyed
-    capacity = Column(Integer, default=50) # Average 50 files per box (User Request)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    # Link to Rack (Optional initially for backward compatibility)
-    rack_id = Column(Integer, ForeignKey("physical_racks.rack_id"), nullable=True) 
-    rack_row = Column(Integer, nullable=True) # Row position (1-indexed)
-    rack_column = Column(Integer, nullable=True) # Column position (1-indexed)
-    rack = relationship("PhysicalRack", back_populates="boxes")
-
-    hospital = relationship("Hospital", back_populates="boxes")
-    patients = relationship("Patient", back_populates="box")
-    requests = relationship("FileRequest", back_populates="box")
 
 class FileRequest(Base):
     __tablename__ = "file_requests"
@@ -289,12 +278,36 @@ class PhysicalRack(Base):
     total_rows = Column(Integer, default=5)
     total_columns = Column(Integer, default=10)
     
+    # Auto-Naming Sequence Tracker
+    last_box_seq = Column(Integer, default=0)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     boxes = relationship("PhysicalBox", back_populates="rack")
 
     hospital = relationship("Hospital")
-    boxes = relationship("PhysicalBox", back_populates="rack")
+
+class PhysicalBox(Base):
+    __tablename__ = "physical_boxes"
+
+    box_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"))
+    label = Column(String, unique=True, index=True) # e.g. "BOX-2024-A001"
+    location_code = Column(String) # e.g. "WH-1-RACK-4-SHELF-2"
+    status = Column(String, default="OPEN") # OPEN, CLOSED, ARCHIVED, DESTROYED
+    is_open = Column(Boolean, default=True) # True = Accepting files
+    capacity = Column(Integer, default=50) 
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Link to Rack
+    rack_id = Column(Integer, ForeignKey("physical_racks.rack_id"), nullable=True) 
+    rack_row = Column(Integer, nullable=True) # Row position (1-indexed)
+    rack_column = Column(Integer, nullable=True) # Column position (1-indexed)
+    rack = relationship("PhysicalRack", back_populates="boxes")
+
+    hospital = relationship("Hospital", back_populates="boxes")
+    patients = relationship("Patient", back_populates="box")
+    requests = relationship("FileRequest", back_populates="box")
 
 
 

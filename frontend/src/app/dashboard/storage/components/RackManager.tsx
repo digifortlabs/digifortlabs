@@ -1,0 +1,508 @@
+
+import React, { useState } from 'react';
+import { Building2, Package, ScanLine, Trash2, Printer, X } from 'lucide-react';
+import { API_URL } from '../../../../config/api';
+
+interface RackManagerProps {
+    racks: any[];
+    boxes: any[];
+    refreshData: () => void;
+}
+
+const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) => {
+    const [rackForm, setRackForm] = useState({ label: '', aisle: 1, capacity: 100 });
+    const [isCreatingRack, setIsCreatingRack] = useState(false);
+
+    // Box Create State (Restored)
+    const [selectedRackForBox, setSelectedRackForBox] = useState<any>(null);
+    const [boxForm, setBoxForm] = useState({ label: '', capacity: 100 });
+    const [isCreatingBox, setIsCreatingBox] = useState(false);
+
+    // Box View State
+    const [viewingBox, setViewingBox] = useState<any>(null);
+    const [boxFiles, setBoxFiles] = useState<any[]>([]);
+    const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+    const [selectedFiles, setSelectedFiles] = useState<string[]>([]); // New state for selection
+
+    const handleBulkUnassign = async () => {
+        if (!confirm(`Are you sure you want to remove ${selectedFiles.length} files from this box?`)) return;
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/storage/files/bulk-unassign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ identifiers: selectedFiles })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                alert(data.message);
+                setSelectedFiles([]);
+                handleViewBox(viewingBox); // Refresh list
+                refreshData(); // Refresh global stats
+            } else {
+                alert("Failed to unassign files.");
+            }
+        } catch (e) { console.error(e); }
+    };
+
+    const toggleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedFiles(boxFiles.map(f => f.patient_u_id || f.uhid || String(f.record_id)));
+        } else {
+            setSelectedFiles([]);
+        }
+    };
+
+    const toggleFileSelection = (id: string) => {
+        setSelectedFiles(prev =>
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        );
+    };
+
+    const handleCreateRack = async () => {
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/storage/racks`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify(rackForm)
+            });
+            if (res.ok) {
+                setIsCreatingRack(false);
+                setRackForm({ label: '', aisle: 1, capacity: 100 });
+                refreshData();
+            }
+        } catch (e) { console.error(e); }
+    };
+
+    const handleDeleteRack = async (id: number) => {
+        if (!confirm("Are you sure you want to DELETE this Rack? This cannot be undone.")) return;
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/storage/racks/${id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) refreshData();
+            else alert("Failed to delete rack. Ensure it is empty first.");
+        } catch (e) { console.error(e); }
+    };
+
+    const handleCreateBox = async () => {
+        const token = localStorage.getItem('token');
+        if (!selectedRackForBox) return;
+        const locationCode = `WH-A${selectedRackForBox.aisle}-${selectedRackForBox.label}`;
+
+        try {
+            const res = await fetch(`${API_URL}/storage/boxes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    label: boxForm.label,
+                    capacity: boxForm.capacity,
+                    rack_id: selectedRackForBox.rack_id,
+                    location_code: locationCode
+                })
+            });
+            if (res.ok) {
+                setIsCreatingBox(false);
+                setSelectedRackForBox(null);
+                setBoxForm({ label: '', capacity: 100 });
+                refreshData();
+            }
+        } catch (e) { console.error(e); }
+    };
+
+    const handleDeleteBox = async (id: number) => {
+        if (!confirm("Delete this Box?")) return;
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/storage/boxes/${id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                refreshData();
+            } else {
+                const data = await res.json();
+                alert(data.detail || "Failed to delete box.");
+            }
+        } catch (e) { console.error(e); }
+    };
+
+    const handleViewBox = async (box: any) => {
+        setViewingBox(box);
+        setIsLoadingFiles(true);
+        setSelectedFiles([]); // Reset selection
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/storage/boxes/${box.box_id}/patients`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                setBoxFiles(await res.json());
+            } else {
+                setBoxFiles([]);
+            }
+        } catch (e) {
+            console.error(e);
+            setBoxFiles([]);
+        } finally {
+            setIsLoadingFiles(false);
+        }
+    };
+
+    const [addInput, setAddInput] = useState(''); // State for adding file
+    const [isAddingString, setIsAddingString] = useState(false);
+
+    const handleAddFile = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!addInput.trim()) return;
+
+        setIsAddingString(true);
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/storage/files/bulk-assign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    box_id: viewingBox?.box_id,
+                    identifiers: [addInput.trim()]
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                if (data.assigned > 0) {
+                    setAddInput('');
+                    if (viewingBox) handleViewBox(viewingBox); // Refresh list
+                    refreshData(); // Refresh global stats
+
+                    // Show message if box is full
+                    if (data.box_full) {
+                        alert(data.message);
+                        setViewingBox(null); // Close modal since box is now closed
+                    }
+                } else {
+                    alert(`Failed: ${data.errors.join(', ')}`);
+                }
+            } else {
+                alert(data.detail || "Failed to assign file.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error assigning file");
+        } finally {
+            setIsAddingString(false);
+        }
+    };
+
+    return (
+        <div className="space-y-8 animate-in fade-in duration-500">
+            {/* ... other component UI ... */}
+            <div className="flex justify-between items-center">
+                <div>
+                    <h2 className="text-2xl font-black text-slate-800">Rack Management</h2>
+                    <p className="text-slate-400 font-medium">Configure warehouse layout and aisles</p>
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => { setSelectedRackForBox(null); setIsCreatingBox(true); }}
+                        className="bg-white text-indigo-600 border border-indigo-100 px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-50 transition-colors"
+                    >
+                        <Package size={20} /> Add New Box
+                    </button>
+                    <button
+                        onClick={() => setIsCreatingRack(!isCreatingRack)}
+                        className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
+                    >
+                        {isCreatingRack ? "Cancel" : "Add New Rack"}
+                    </button>
+                </div>
+            </div>
+
+            {isCreatingRack && (
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-indigo-100">
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                        <input type="text" placeholder="Rack Label (Empty = Auto)" className="p-3 border rounded-xl" value={rackForm.label} onChange={e => setRackForm({ ...rackForm, label: e.target.value })} />
+                        <select className="p-3 border rounded-xl" value={rackForm.aisle} onChange={e => setRackForm({ ...rackForm, aisle: parseInt(e.target.value) })}>
+                            {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>Aisle {n}</option>)}
+                        </select>
+                        <input type="number" placeholder="Capacity" className="p-3 border rounded-xl" value={rackForm.capacity} onChange={e => setRackForm({ ...rackForm, capacity: parseInt(e.target.value) })} />
+                    </div>
+                    <button onClick={handleCreateRack} className="bg-emerald-500 text-white px-6 py-2 rounded-xl font-bold w-full">Create Rack</button>
+                </div>
+            )}
+
+            {isCreatingBox && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-[1.5rem] p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">Create New Box</h3>
+                        <div className="space-y-3 mb-6">
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Select Rack</label>
+                                <select
+                                    className="w-full p-2.5 border rounded-lg bg-slate-50 font-medium text-sm"
+                                    value={selectedRackForBox?.rack_id || ''}
+                                    onChange={async (e) => {
+                                        const rack = racks.find(r => r.rack_id === parseInt(e.target.value));
+                                        setSelectedRackForBox(rack);
+
+                                        // Fetch auto-generated label
+                                        if (rack) {
+                                            const token = localStorage.getItem('token');
+                                            const now = new Date();
+                                            const year = now.getFullYear();
+                                            const month = String(now.getMonth() + 1).padStart(2, '0');
+
+                                            try {
+                                                const res = await fetch(
+                                                    `${API_URL}/storage/next-sequence?hospital_id=${rack.hospital_id}&year=${year}&month=${month}`,
+                                                    { headers: { Authorization: `Bearer ${token}` } }
+                                                );
+                                                if (res.ok) {
+                                                    const data = await res.json();
+                                                    setBoxForm({ ...boxForm, label: data.full_label });
+                                                }
+                                            } catch (e) {
+                                                console.error(e);
+                                            }
+                                        }
+                                    }}
+                                >
+                                    <option value="">-- Choose a Rack --</option>
+                                    {racks.map(r => (
+                                        <option key={r.rack_id} value={r.rack_id}>{r.label} (Aisle {r.aisle})</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <input type="text" placeholder="Box Label (Empty = Auto)" className="w-full p-2.5 border rounded-lg text-sm" value={boxForm.label} onChange={e => setBoxForm({ ...boxForm, label: e.target.value })} />
+                            <input type="number" placeholder="Capacity" className="w-full p-2.5 border rounded-lg text-sm" value={boxForm.capacity} onChange={e => setBoxForm({ ...boxForm, capacity: parseInt(e.target.value) })} />
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={() => setIsCreatingBox(false)} className="flex-1 py-2.5 rounded-lg font-bold text-slate-500 bg-slate-100 text-xs">Cancel</button>
+                            <button
+                                onClick={handleCreateBox}
+                                disabled={!selectedRackForBox}
+                                className="flex-1 py-2.5 rounded-lg font-bold bg-indigo-600 text-white disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                            >
+                                Create
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Box Viewer Modal */}
+            {viewingBox && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-[1.5rem] p-0 max-w-xl w-full shadow-2xl animate-in zoom-in-95 overflow-hidden flex flex-col max-h-[85vh]">
+                        <div className="p-4 border-b border-slate-100 flex flex-col gap-4 bg-slate-50">
+                            <div className="flex justify-between items-start">
+                                <div className="flex items-center gap-4">
+                                    <div>
+                                        <h3 className="text-lg font-black text-slate-800">{viewingBox.label}</h3>
+                                        <p className="text-[10px] font-bold text-slate-400">{viewingBox.location_code}</p>
+                                    </div>
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${viewingBox.status === 'OPEN' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
+                                        {viewingBox.status}
+                                    </span>
+                                </div>
+                                <button onClick={() => setViewingBox(null)} className="p-1.5 bg-white rounded-full text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition border border-slate-200">
+                                    <X size={16} />
+                                </button>
+                            </div>
+
+                            {/* Actions Bar */}
+                            <div className="flex justify-between items-center gap-4">
+                                {/* Add File Form */}
+                                <form onSubmit={handleAddFile} className="flex-1 flex gap-2">
+                                    <input
+                                        type="text"
+                                        placeholder="Scan MRD ID / UHID..."
+                                        className="flex-1 p-2 text-xs border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                        value={addInput}
+                                        onChange={e => setAddInput(e.target.value)}
+                                        disabled={viewingBox.status !== 'OPEN'}
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={viewingBox.status !== 'OPEN' || !addInput.trim() || isAddingString}
+                                        className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50 hover:bg-indigo-700"
+                                    >
+                                        {isAddingString ? '...' : 'Add'}
+                                    </button>
+                                </form>
+
+                                {/* Bulk Remove Button */}
+                                {selectedFiles.length > 0 && (
+                                    <button
+                                        onClick={handleBulkUnassign}
+                                        className="flex items-center gap-2 bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold border border-red-100 animate-in zoom-in shrink-0"
+                                    >
+                                        <Trash2 size={14} /> Remove ({selectedFiles.length})
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="p-0 overflow-y-auto flex-1 custom-scrollbar">
+                            {isLoadingFiles ? (
+                                <div className="p-8 text-center text-slate-400 font-bold text-xs">Loading Files...</div>
+                            ) : boxFiles.length === 0 ? (
+                                <div className="p-8 text-center text-slate-400 font-bold text-xs">Box is Empty</div>
+                            ) : (
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest sticky top-0 z-10">
+                                        <tr>
+                                            <th className="px-5 py-2 w-10">
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                    onChange={e => toggleSelectAll(e.target.checked)}
+                                                    checked={boxFiles.length > 0 && selectedFiles.length === boxFiles.length}
+                                                />
+                                            </th>
+                                            <th className="px-2 py-2">Record ID</th>
+                                            <th className="px-2 py-2">Patient Name</th>
+                                            <th className="px-2 py-2">UHID</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {boxFiles.map((file, idx) => {
+                                            const fid = file.patient_u_id || file.uhid || String(file.record_id);
+                                            const isSelected = selectedFiles.includes(fid);
+                                            return (
+                                                <tr
+                                                    key={idx}
+                                                    className={`hover:bg-slate-50/50 cursor-pointer ${isSelected ? 'bg-indigo-50/30' : ''}`}
+                                                    onClick={() => toggleFileSelection(fid)}
+                                                >
+                                                    <td className="px-5 py-3 w-10" onClick={e => e.stopPropagation()}>
+                                                        <input
+                                                            type="checkbox"
+                                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                            checked={isSelected}
+                                                            onChange={() => toggleFileSelection(fid)}
+                                                        />
+                                                    </td>
+                                                    <td className="px-2 py-3 font-mono font-bold text-slate-600 text-xs">{file.record_id}</td>
+                                                    <td className="px-2 py-3 font-bold text-slate-800 text-xs">{file.full_name}</td>
+                                                    <td className="px-2 py-3 text-[10px] font-mono text-slate-400">{file.patient_u_id}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                        <div className="p-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+                            <span className="text-[10px] text-slate-400 font-medium">Select items to remove</span>
+                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{boxFiles.length} Files Total</div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
+                <table className="w-full text-left">
+                    <thead className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase">
+                        <tr>
+                            <th className="px-5 py-3">Rack</th>
+                            <th className="px-5 py-3">Location</th>
+                            <th className="px-5 py-3">Stats</th>
+                            <th className="px-5 py-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {racks.map(rack => {
+                            const rackBoxes = boxes.filter(b => b.rack_id === rack.rack_id);
+                            return (
+                                <tr key={rack.rack_id} className="hover:bg-slate-50">
+                                    <td className="px-5 py-3 font-bold text-slate-800 text-sm">{rack.label}</td>
+                                    <td className="px-5 py-3 text-xs text-slate-500">Aisle {rack.aisle}</td>
+                                    <td className="px-5 py-3 text-[10px] font-bold text-slate-500">{rackBoxes.length} Boxes / {rack.capacity} Capacity</td>
+                                    <td className="px-5 py-3 flex gap-2">
+                                        <button
+                                            onClick={() => alert(`Printing Label for ${rack.label}...`)}
+                                            className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg" title="Print Label"
+                                        >
+                                            <Printer size={16} />
+                                        </button>
+                                        <button
+                                            onClick={() => { setSelectedRackForBox(rack); setIsCreatingBox(true); }}
+                                            className="text-emerald-600 hover:bg-emerald-50 p-1.5 rounded-lg" title="Add Box"
+                                        >
+                                            <Package size={16} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteRack(rack.rack_id)}
+                                            className="text-red-400 hover:bg-red-50 p-1.5 rounded-lg" title="Delete Rack"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            )
+                        })}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Boxes List (Simplified for brevity, can expand if needed) */}
+            <h3 className="text-lg font-black text-slate-800 mt-6 mb-4">All Boxes</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {boxes.map(box => (
+                    <div
+                        key={box.box_id}
+                        className={`p-3 rounded-xl border flex justify-between items-center group transition-all cursor-pointer hover:shadow-md ${box.status === 'OPEN' ? 'bg-white border-slate-100' : 'bg-slate-50 border-slate-200 opacity-75'}`}
+                        onClick={() => handleViewBox(box)}
+                    >
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <h4 className="font-bold text-slate-700">{box.label}</h4>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${box.status === 'OPEN' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
+                                    {box.status}
+                                </span>
+                            </div>
+                            <p className="text-xs text-slate-400 font-mono mb-1">{box.location_code}</p>
+                            <p className="text-xs font-bold text-indigo-600">{box.patient_count} Files Assigned</p>
+                        </div>
+                        <div className="flex flex-col gap-2 relative z-10" onClick={e => e.stopPropagation()}>
+                            <button
+                                onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (!confirm(`Mark box ${box.label} as ${box.status === 'OPEN' ? 'CLOSED' : 'OPEN'}?`)) return;
+                                    const token = localStorage.getItem('token');
+                                    try {
+                                        await fetch(`${API_URL}/storage/boxes/${box.box_id}/status`, {
+                                            method: 'PATCH',
+                                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                            body: JSON.stringify({ is_open: box.status !== 'OPEN' })
+                                        });
+                                        refreshData();
+                                    } catch (e) { console.error(e); }
+                                }}
+                                className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border transition ${box.status === 'OPEN' ? 'border-amber-200 text-amber-600 hover:bg-amber-50' : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'}`}
+                            >
+                                {box.status === 'OPEN' ? 'Close Box' : 'Re-Open'}
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleDeleteBox(box.box_id); }}
+                                disabled={box.patient_count > 0}
+                                className={`p-1.5 rounded-lg transition text-right bg-white/50 ${box.patient_count > 0 ? 'text-slate-300 cursor-not-allowed' : 'text-red-400 hover:text-red-600 hover:bg-red-50'}`}
+                                title={box.patient_count > 0 ? "Cannot delete non-empty box" : "Delete Box"}
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+        </div >
+    );
+};
+
+export default RackManager;

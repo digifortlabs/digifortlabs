@@ -21,11 +21,8 @@ export default function Sidebar({ userRole }: SidebarProps) {
         <div className="w-72 bg-slate-900 border-r border-slate-800 hidden md:flex flex-col flex-shrink-0 text-slate-300">
             {/* Brand Header */}
             <div className="h-20 flex items-center px-8 border-b border-slate-800 bg-slate-950">
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-indigo-500/30">
-                        D
-                    </div>
-                    <span className="text-lg font-bold text-white tracking-tight">DIGIFORT LABS</span>
+                <div className="bg-white rounded-lg px-3 py-2 w-full flex justify-center">
+                    <img src="/logo/longlogo.png" alt="Digifort Labs" className="h-8 w-auto object-contain" />
                 </div>
             </div>
 

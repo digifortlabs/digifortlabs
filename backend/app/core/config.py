@@ -1,4 +1,5 @@
 import os
+import json
 
 from dotenv import load_dotenv
 
@@ -36,16 +37,20 @@ class Settings:
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
-    # CORS
-    BACKEND_CORS_ORIGINS: list[str] = [
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "https://digifortlabs.com",
-        "https://www.digifortlabs.com",
-    ]
+    # CORS - Read from environment or use defaults
+    def __init__(self):
+        cors_env = os.getenv("BACKEND_CORS_ORIGINS")
+        if cors_env:
+            try:
+                self.BACKEND_CORS_ORIGINS = json.loads(cors_env)
+            except json.JSONDecodeError:
+                self.BACKEND_CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "*"]
+        else:
+            self.BACKEND_CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "*"]
 
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     BACKEND_URL: str = os.getenv("BACKEND_URL", "http://localhost:8000")
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 settings = Settings()
+

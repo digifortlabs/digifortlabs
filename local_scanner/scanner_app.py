@@ -227,34 +227,41 @@ class ImageProcessor:
                         found_approx = np.array([[[x, y]], [[x+bw, y]], [[x+bw, y+bh]], [[x, y+bh]]], dtype=np.int32)
                         break
 
+                
             # Scale back up to original resolution
-            if found_approx is not None and scale != 1.0:
-                found_approx = (found_approx.astype(float) / scale).astype(np.int32)
+            if found_approx is not None:
+                if scale != 1.0:
+                    found_approx = (found_approx.astype(float) / scale).astype(np.int32)
                 
-            return found_approx
-            
-            for contour in contours:
-                area = cv2.contourArea(contour)
-                # Must be at least 15% of the frame to be a document
-                if area < (frame_area * 0.15):
-                    continue
-                
-                # Approximate the contour to a polygon
-                peri = cv2.arcLength(contour, True)
-                approx = cv2.approxPolyDP(contour, 0.015 * peri, True)
-                
-                # If we found a quadrilateral, that's likely our document
-                if len(approx) == 4:
-                    return approx
-                
-                # If between 4 and 10 points, try to get the bounding box as fallback
-                if 4 <= len(approx) <= 10:
-                    x, y, bw, bh = cv2.boundingRect(contour)
-                    if (bw * bh) > (frame_area * 0.2):
-                        return np.array([[x, y], [x+bw, y], [x+bw, y+bh], [x, y+bh]], dtype=np.int32)
+                # EXPAND: Add 2% padding per user request
+                found_approx = ImageProcessor.scale_contour(found_approx, 1.02, h, w)
 
+            return found_approx
+        except:
             return None
-        except: return None
+
+    @staticmethod
+    def scale_contour(cnt, scale, max_h, max_w):
+        """Expands the contour from its center by scale factor"""
+        try:
+            M = cv2.moments(cnt)
+            if M['m00'] == 0: return cnt
+            
+            cx = int(M['m10'] / M['m00'])
+            cy = int(M['m01'] / M['m00'])
+
+            cnt_norm = cnt - [cx, cy]
+            cnt_scaled = cnt_norm * scale
+            cnt_final = cnt_scaled + [cx, cy]
+            
+            # Clamp to image bounds
+            cnt_final = np.clip(cnt_final, 0, [max_w, max_h])
+            
+            return cnt_final.astype(np.int32)
+        except:
+            return cnt
+            
+
 
     @staticmethod
     def order_points(pts):
@@ -571,6 +578,13 @@ class ScannerApp:
         self.root.geometry("1400x900")
         self.root.state('zoomed')
         self.root.configure(bg=COLORS["bg"])
+
+        # Set Window Icon
+        try:
+            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.ico")
+            if os.path.exists(icon_path):
+                self.root.iconbitmap(icon_path)
+        except: pass
         
         # Disk-Based Storage (Unlimited Scanning)
         self.session_id = f"scan_session_{int(time.time())}"
@@ -1212,7 +1226,17 @@ class ScannerApp:
             try:
                 output_dir = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "output")
                 os.makedirs(output_dir, exist_ok=True)
-                local_path = os.path.join(output_dir, "scan.pdf")
+                
+                # Check for existing file and rename to prevent overwrite
+                base_name = "scan"
+                ext = ".pdf"
+                counter = 0
+                
+                local_path = os.path.join(output_dir, f"{base_name}{ext}")
+                while os.path.exists(local_path):
+                    counter += 1
+                    local_path = os.path.join(output_dir, f"{base_name}_{counter:02d}{ext}")
+
                 with open(local_path, "wb") as f:
                     f.write(buf.getvalue())
                 logger.info(f"PDF saved locally to: {local_path}")
@@ -1227,7 +1251,8 @@ class ScannerApp:
             response = requests.post(url, headers=headers, files={'file': ('scan.pdf', buf)}, timeout=300) # Increased timeout for large files
             
             if response.status_code in [200, 201]:
-                messagebox.showinfo("Success", f"Scan Uploaded & Saved Locally")
+                # Success message removed for auto-close
+                logger.info("Upload successful, closing app...")
                 
                 # Cleanup Session
                 try:

@@ -14,7 +14,7 @@ export default function Navbar() {
           <Link href="/" className="flex items-center gap-3 group">
             <div className="relative w-48 h-12 bg-white rounded-lg px-2 overflow-hidden group-hover:scale-105 transition-transform flex items-center justify-center">
               <Image
-                src="/logo/logo.png"
+                src="/logo/longlogo.png"
                 alt="Digifort Labs Logo"
                 fill
                 className="object-contain p-1"

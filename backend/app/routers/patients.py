@@ -299,8 +299,11 @@ class PatientResponse(BaseModel):
     address: Optional[str] = None
     contact_number: Optional[str] = None
     email_id: Optional[str] = None
+    email_id: Optional[str] = None
     aadhaar_number: Optional[str] = None
+    patient_category: str = "STANDARD" # STANDARD, MLC, BIRTH, DEATH
     dob: Optional[datetime.datetime] = None
+    admission_date: Optional[datetime.datetime] = None
     discharge_date: Optional[datetime.datetime] = None
     physical_box_id: Optional[int] = None
     box_label: Optional[str] = None
@@ -324,8 +327,11 @@ class PatientCreate(BaseModel):
     address: Optional[str] = None
     contact_number: Optional[str] = None
     email_id: Optional[str] = None
+    email_id: Optional[str] = None
     aadhaar_number: Optional[str] = None
+    patient_category: str = "STANDARD" # STANDARD, MLC, BIRTH, DEATH
     dob: Optional[datetime.datetime] = None
+    admission_date: Optional[datetime.datetime] = None
     discharge_date: Optional[datetime.datetime] = None  # Made optional for registration
     hospital_id: Optional[int] = None
 
@@ -339,7 +345,9 @@ class PatientUpdate(BaseModel):
     contact_number: Optional[str] = None
     email_id: Optional[str] = None
     aadhaar_number: Optional[str] = None
+    patient_category: str = "STANDARD" # STANDARD, MLC, BIRTH, DEATH
     dob: Optional[datetime.datetime] = None
+    admission_date: Optional[datetime.datetime] = None
     discharge_date: Optional[datetime.datetime] = None
 
 class PatientDetailResponse(PatientResponse):
@@ -402,6 +410,7 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
         email_id=patient.email_id,
         aadhaar_number=patient.aadhaar_number,
         dob=patient.dob,
+        admission_date=patient.admission_date,
         discharge_date=patient.discharge_date
     )
     
@@ -420,11 +429,12 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
         raise HTTPException(status_code=500, detail="Database error occurred during creation.")
     
     # --- Auto-Assign Storage ---
-    try:
-        StorageService.auto_assign_patient(db, db_patient)
-    except Exception as e:
-        print(f"Auto-assign failed: {e}")
-        # We don't fail the request, just log it. Patient is created.
+    # Disabled by user request (Manual Assignment Mode)
+    # try:
+    #     StorageService.auto_assign_patient(db, db_patient)
+    # except Exception as e:
+    #     print(f"Auto-assign failed: {e}")
+    #     # We don't fail the request, just log it. Patient is created.
         
     return db_patient
 
@@ -440,7 +450,7 @@ async def upload_patient_file(
         print(f"🔵 UPLOAD REQUEST: {file.filename}")
         
         # 0. Authorization
-        is_platform = current_user.role in ["website_admin", "website_staff"]
+        is_platform = current_user.role in ["superadmin", "superadmin_staff"]
         patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
@@ -508,7 +518,7 @@ async def upload_patient_file(
 def search_files(q: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Search in Filename OR OCR Text (case insensitive)
     # If Website role, search across all. If Hospital role, filter by hospital.
-    is_platform = current_user.role in ["website_admin", "website_staff"]
+    is_platform = current_user.role in ["superadmin", "superadmin_staff"]
     
     query_obj = db.query(PDFFile).join(Patient)
     if not is_platform:
@@ -528,7 +538,7 @@ def search_files(q: str, db: Session = Depends(get_db), current_user: User = Dep
     for f in results:
         if f.upload_status == 'confirmed':
             filtered_results.append(f)
-        elif current_user.role == UserRole.MRD_STAFF:
+        elif current_user.role == UserRole.WAREHOUSE_MANAGER:
             # MRD can see drafts
             filtered_results.append(f)
             
@@ -551,7 +561,7 @@ def get_patients(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    is_platform = current_user.role in ["website_admin", "website_staff"]
+    is_platform = current_user.role in ["superadmin", "superadmin_staff"]
     
     query = db.query(Patient).options(joinedload(Patient.files))
     
@@ -582,7 +592,7 @@ def get_patients(
 
 @router.get("/{patient_id}", response_model=PatientDetailResponse)
 def get_patient(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    is_platform = current_user.role in ["website_admin", "website_staff"]
+    is_platform = current_user.role in ["superadmin", "superadmin_staff"]
     
     query = db.query(Patient).options(joinedload(Patient.files)).filter(Patient.record_id == patient_id)
     if not is_platform:

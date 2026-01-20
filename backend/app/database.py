@@ -18,7 +18,15 @@ print(f"SQLAlchemy connecting to: {SQLALCHEMY_DATABASE_URL.split('@')[-1]}")
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, 
-    connect_args={"check_same_thread": False, "timeout": 15} if "sqlite" in SQLALCHEMY_DATABASE_URL else {}
+    connect_args={
+        "check_same_thread": False, 
+        "timeout": 15
+    } if "sqlite" in SQLALCHEMY_DATABASE_URL else {
+        "connect_timeout": 10,
+        "options": "-c statement_timeout=10000" # 10 seconds query timeout
+    },
+    pool_pre_ping=True,
+    pool_recycle=300,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

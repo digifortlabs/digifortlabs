@@ -44,8 +44,25 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     
     # 1. Check Lockout Status
     if user.locked_until:
-        if user.locked_until > datetime.utcnow():
-            remaining_mins = int((user.locked_until - datetime.utcnow()).total_seconds() / 60)
+        # Ensure UTC Awareness
+        now = datetime.utcnow()
+        if user.locked_until.tzinfo is None:
+             # Assume stored time is naive UTC
+             pass 
+        
+        # Safer comparison: Convert both to naive or both to aware. 
+        # Using naive execution for simplicity as DB usually returns naive for 'timestamp without time zone'
+        # OR returns aware for 'timestamp with time zone'.
+        # Best fix:
+        lock_time = user.locked_until
+        current_time = datetime.utcnow()
+        
+        # If lock_time is aware, make current_time aware
+        if lock_time.tzinfo:
+            current_time = current_time.replace(tzinfo=lock_time.tzinfo)
+            
+        if lock_time > current_time:
+            remaining_mins = int((lock_time - current_time).total_seconds() / 60)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Account locked due to multiple failed attempts. Try again in {remaining_mins + 1} minutes."
