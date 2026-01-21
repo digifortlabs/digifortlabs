@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { API_URL } from '../../../config/api';
-import { Receipt, Boxes, ShieldAlert, Download, RefreshCw, FileText } from 'lucide-react';
+import { Receipt, Boxes, ShieldAlert, Download, RefreshCw, FileText, Stethoscope } from 'lucide-react';
 
 export default function ReportsPage() {
-    const [activeTab, setActiveTab] = useState('billing'); // billing, inventory, audit
+    const [activeTab, setActiveTab] = useState('billing'); // billing, inventory, audit, clinical
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [summary, setSummary] = useState<any>(null);
@@ -21,6 +21,9 @@ export default function ReportsPage() {
                 const json = await res.json();
                 if (activeTab === 'billing') {
                     setData(json.data);
+                    setSummary(json.summary);
+                } else if (activeTab === 'clinical') {
+                    setData(json.details);
                     setSummary(json.summary);
                 } else {
                     setData(json);
@@ -118,6 +121,12 @@ export default function ReportsPage() {
                         <Receipt size={20} /> Billing Report
                     </button>
                     <button
+                        onClick={() => setActiveTab('clinical')}
+                        className={`px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-wide flex items-center gap-3 transition-all ${activeTab === 'clinical' ? 'bg-white text-indigo-600 shadow-xl shadow-indigo-100 ring-1 ring-indigo-50' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                    >
+                        <Stethoscope size={20} /> Clinical Data
+                    </button>
+                    <button
                         onClick={() => setActiveTab('inventory')}
                         className={`px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-wide flex items-center gap-3 transition-all ${activeTab === 'inventory' ? 'bg-white text-indigo-600 shadow-xl shadow-indigo-100 ring-1 ring-indigo-50' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
                     >
@@ -131,17 +140,29 @@ export default function ReportsPage() {
                     </button>
                 </div>
 
-                {/* Summary Card (Billing Only) */}
-                {summary && (
+                {/* Summary Card (Billing & Clinical) */}
+                {summary && (activeTab === 'billing' || activeTab === 'clinical') && (
                     <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6 animate-in slide-in-from-top-4">
-                        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Files</p>
-                            <h3 className="text-3xl font-black text-slate-800">{summary.total_files}</h3>
-                        </div>
-                        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Estimated Cost</p>
-                            <h3 className="text-3xl font-black text-indigo-600">₹{summary.total_cost}</h3>
-                        </div>
+                        {activeTab === 'billing' ? (
+                            <>
+                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Files</p>
+                                    <h3 className="text-3xl font-black text-slate-800">{summary.total_files}</h3>
+                                </div>
+                                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Estimated Cost</p>
+                                    <h3 className="text-3xl font-black text-indigo-600">₹{summary.total_cost}</h3>
+                                </div>
+                            </>
+                        ) : (
+                            // Clinical Summary
+                            Object.entries(summary).slice(0, 3).map(([key, value]: any) => (
+                                <div key={key} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{key}</p>
+                                    <h3 className="text-3xl font-black text-indigo-600">{value}</h3>
+                                </div>
+                            ))
+                        )}
                     </div>
                 )}
 
@@ -180,6 +201,14 @@ export default function ReportsPage() {
                                                 <th className="px-8 py-5">User</th>
                                                 <th className="px-8 py-5">Action</th>
                                                 <th className="px-8 py-5">Details</th>
+                                            </>
+                                        )}
+                                        {activeTab === 'clinical' && (
+                                            <>
+                                                <th className="px-8 py-5">Date</th>
+                                                <th className="px-8 py-5">Patient Details</th>
+                                                <th className="px-8 py-5">File</th>
+                                                <th className="px-8 py-5">Tags</th>
                                             </>
                                         )}
                                     </tr>
@@ -244,6 +273,18 @@ export default function ReportsPage() {
                                                         <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider">{row.action}</span>
                                                     </td>
                                                     <td className="px-8 py-4 text-slate-500">{row.details}</td>
+                                                </>
+                                            )}
+                                            {activeTab === 'clinical' && (
+                                                <>
+                                                    <td className="px-8 py-4 whitespace-nowrap">{row.upload_date}</td>
+                                                    <td className="px-8 py-4 font-bold text-slate-800">{row.patient_name}</td>
+                                                    <td className="px-8 py-4 text-indigo-600 font-medium">{row.filename}</td>
+                                                    <td className="px-8 py-4">
+                                                        <span className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded text-[10px] font-black uppercase border border-indigo-100">
+                                                            {row.tags}
+                                                        </span>
+                                                    </td>
                                                 </>
                                             )}
                                         </tr>

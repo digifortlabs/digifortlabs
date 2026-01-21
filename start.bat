@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo  DigifortLabs - Local Development
+echo  DigifortLabs - Master Startup Script
 echo ========================================
 echo.
 echo Starting Backend and Frontend servers...
@@ -16,7 +16,7 @@ start "DigifortLabs Backend" cmd /k "call start_backend.bat"
 
 timeout /t 3 /nobreak >nul
 
-start "DigifortLabs Frontend" cmd /k "cd frontend && npm run dev"
+start "DigifortLabs Frontend" cmd /k "call start_frontend.bat"
 
 echo.
 echo Both servers are starting in separate windows...

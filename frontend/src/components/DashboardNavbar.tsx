@@ -103,18 +103,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 </Link>
                             )}
 
-                            {/* Audit Link - Super Admin & Hospital Admin */}
-                            {(userRole === 'superadmin' || userRole === 'hospital_admin') && (
-                                <Link
-                                    href="/dashboard/audit"
-                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/audit')
-                                        ? 'bg-slate-800 text-white'
-                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                        }`}
-                                >
-                                    Audit
-                                </Link>
-                            )}
+
 
                             {/* Reports Link - Admins */}
                             {(userRole === 'superadmin' || userRole === 'hospital_admin') && (

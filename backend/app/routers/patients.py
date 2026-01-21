@@ -646,6 +646,37 @@ def check_uhid_exists(uhid_no: str, db: Session = Depends(get_db), current_user:
         }
     return {"exists": False}
 
+class OCRUpdateRequest(BaseModel):
+    ocr_text: str
+
+@router.put("/files/{file_id}/ocr")
+def update_ocr_text(file_id: int, body: OCRUpdateRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # 1. Check Permissions (Hospital Staff/Admin logic)
+    is_platform = current_user.role in ["website_admin", "website_staff", "superadmin"]
+    
+    q = db.query(PDFFile).join(Patient).filter(PDFFile.file_id == file_id)
+    if not is_platform:
+        q = q.filter(Patient.hospital_id == current_user.hospital_id)
+    f = q.first()
+    
+    if not f:
+        raise HTTPException(status_code=404, detail="File not found or access denied")
+        
+    # 2. Update Text
+    f.ocr_text = body.ocr_text
+    
+    # Auto-classify again on save for better search tags
+    new_tags = classify_document(f.ocr_text)
+    f.tags = ",".join(new_tags) if new_tags else None
+    
+    db.commit()
+    
+    # Log Audit
+    from ..audit import log_audit
+    log_audit(db, current_user.user_id, "OCR_EDIT", f"Updated OCR text for {f.filename}", hospital_id=current_user.hospital_id)
+    
+    return {"status": "success", "message": "OCR Text updated successfully"}
+
 @router.post("/files/{file_id}/confirm")
 def confirm_upload(file_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     is_platform = current_user.role in ["website_admin", "website_staff"]

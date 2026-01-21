@@ -231,3 +231,55 @@ def mark_files_as_paid(
         
     db.commit()
     return {"message": f"Updated {count} records", "status": "success"}
+
+@router.get("/clinical")
+def get_clinical_report(
+    hospital_id: Optional[int] = None, 
+    export_csv: bool = False,
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(PDFFile).join(Patient)
+    query = apply_hospital_filter(query, Patient, current_user, hospital_id)
+    
+    files = query.all()
+    
+    # Aggregation Logic
+    tag_counts = {}
+    detailed_data = []
+    
+    for f in files:
+        if f.tags:
+            tags = [t.strip() for t in f.tags.split(',')]
+            for tag in tags:
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+        else:
+            tag_counts["Unclassified"] = tag_counts.get("Unclassified", 0) + 1
+            
+        detailed_data.append({
+            "file_id": f.file_id,
+            "filename": f.filename,
+            "patient_name": f.patient.full_name,
+            "tags": f.tags or "Unclassified",
+            "upload_date": f.upload_date.strftime("%Y-%m-%d") if f.upload_date else "N/A"
+        })
+            
+    if export_csv:
+        output = io.StringIO()
+        fieldnames = ["file_id", "filename", "patient_name", "tags", "upload_date"]
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        if writer:
+            writer.writeheader()
+            writer.writerows(detailed_data)
+            
+        output.seek(0)
+        return StreamingResponse(
+            io.BytesIO(output.getvalue().encode()),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=clinical_report_{datetime.now().strftime('%Y%m%d')}.csv"}
+        )
+
+    return {
+        "summary": tag_counts,
+        "details": detailed_data
+    }

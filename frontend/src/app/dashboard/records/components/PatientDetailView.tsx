@@ -128,6 +128,18 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
     const [showProcModal, setShowProcModal] = useState(false);
     const [procSearch, setProcSearch] = useState('');
     const [procResults, setProcResults] = useState<ICD11Procedure[]>([]);
+
+    // OCR Editing State
+    const [isEditingOCR, setIsEditingOCR] = useState(false);
+    const [editedOCRText, setEditedOCRText] = useState("");
+
+    // When opening a text file, initialize the edit state
+    useEffect(() => {
+        if (viewTextFile) {
+            setEditedOCRText(viewTextFile.ocr_text || "");
+            setIsEditingOCR(false);
+        }
+    }, [viewTextFile]);
     const [selectedProcCode, setSelectedProcCode] = useState<ICD11Procedure | null>(null);
     const [procNotes, setProcNotes] = useState('');
 
@@ -455,6 +467,33 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                 if (id) fetchPatient(token || '', id);
             }
         } catch (e) { console.error(e); }
+    };
+
+    const saveOCRText = async () => {
+        if (!viewTextFile) return;
+        const token = localStorage.getItem('token');
+        const apiUrl = API_URL;
+
+        try {
+            const res = await fetch(`${apiUrl}/patients/files/${viewTextFile.file_id}/ocr`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ ocr_text: editedOCRText })
+            });
+
+            if (res.ok) {
+                alert("OCR Text Updated Successfully!");
+                setIsEditingOCR(false);
+                // Update local state to reflect change immediately
+                setViewTextFile({ ...viewTextFile, ocr_text: editedOCRText });
+                if (id && token) fetchPatient(token, id); // Refresh user data to persist in list
+            } else {
+                alert("Failed to update text.");
+            }
+        } catch (e) { console.error(e); alert("Network Error"); }
     };
 
     const fetchBoxes = async () => {
@@ -925,8 +964,50 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
             {viewTextFile && (
                 <div className="fixed inset-0 bg-slate-900 bg-opacity-70 flex items-center justify-center p-4 z-[70]">
                     <div className="bg-white rounded-xl p-6 max-w-lg w-full h-[80vh] flex flex-col">
-                        <div className="flex justify-between mb-4"><h3 className="font-bold">OCR Text</h3><button onClick={() => setViewTextFile(null)}>✕</button></div>
-                        <div className="flex-1 overflow-auto bg-slate-50 p-4 text-xs font-mono">{viewTextFile.ocr_text}</div>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-lg">OCR Text Content</h3>
+                            <button onClick={() => setViewTextFile(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+                        </div>
+
+                        <div className="flex-1 overflow-hidden flex flex-col">
+                            {isEditingOCR ? (
+                                <textarea
+                                    className="flex-1 w-full p-4 border rounded-lg font-mono text-xs focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                                    value={editedOCRText}
+                                    onChange={(e) => setEditedOCRText(e.target.value)}
+                                />
+                            ) : (
+                                <div className="flex-1 overflow-auto bg-slate-50 p-4 text-xs font-mono rounded-lg border border-slate-100 whitespace-pre-wrap">
+                                    {viewTextFile.ocr_text || <span className="text-gray-400 italic">No text content found. Click Edit to add text manually.</span>}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mt-4 flex justify-end gap-2 border-t pt-4">
+                            {isEditingOCR ? (
+                                <>
+                                    <button
+                                        onClick={() => setIsEditingOCR(false)}
+                                        className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold hover:bg-gray-200"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={saveOCRText}
+                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-sm"
+                                    >
+                                        Save Changes
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    onClick={() => setIsEditingOCR(true)}
+                                    className="px-4 py-2 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-lg text-sm font-bold hover:bg-indigo-100"
+                                >
+                                    Edit Text
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

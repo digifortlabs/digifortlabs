@@ -39,7 +39,7 @@ if [[ "$CURRENT_NODE" != v20* ]]; then
     curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
     sudo dnf install -y nodejs
 fi
-sudo dnf install -y git python3 python3-pip nginx pm2 augeas-libs unzip mesa-libGL tesseract || true
+sudo dnf install -y git python3 python3-pip nginx pm2 augeas-libs unzip mesa-libGL poppler-utils tesseract tesseract-langpack-eng
 if ! command -v pm2 &> /dev/null; then sudo npm install -g pm2; fi
 
 # --- 2. FRONTEND DEPLOYMENT ---
