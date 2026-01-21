@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { API_URL } from '../../../config/api';
 import { Receipt, Boxes, ShieldAlert, Download, RefreshCw, FileText, Stethoscope } from 'lucide-react';
 
