@@ -16,11 +16,11 @@ if (typeof window !== 'undefined') {
     }
     // Fallback solely for local network testing if needed
     else if (window.location.protocol === 'http:') {
-        apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
     }
 } else {
     // Server-side rendering fallback
-    apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 }
 
 export const API_URL = apiUrl;

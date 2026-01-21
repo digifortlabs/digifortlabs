@@ -239,7 +239,7 @@ def get_clinical_report(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    query = db.query(PDFFile).join(Patient)
+    query = db.query(PDFFile).join(Patient).options(joinedload(PDFFile.patient))
     query = apply_hospital_filter(query, Patient, current_user, hospital_id)
     
     files = query.all()
@@ -259,8 +259,8 @@ def get_clinical_report(
         detailed_data.append({
             "file_id": f.file_id,
             "filename": f.filename,
-            "patient_name": f.patient.full_name,
-            "patient_id": f.patient.patient_id,
+            "patient_name": f.patient.full_name if f.patient else "Unknown",
+            "patient_id": f.patient.record_id if f.patient else None,
             "tags": f.tags or "Unclassified",
             "upload_date": f.upload_date.strftime("%Y-%m-%d") if f.upload_date else "N/A"
         })
