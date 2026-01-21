@@ -648,6 +648,7 @@ def check_uhid_exists(uhid_no: str, db: Session = Depends(get_db), current_user:
 
 class OCRUpdateRequest(BaseModel):
     ocr_text: str
+    tags: Optional[str] = None
 
 @router.put("/files/{file_id}/ocr")
 def update_ocr_text(file_id: int, body: OCRUpdateRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -665,9 +666,13 @@ def update_ocr_text(file_id: int, body: OCRUpdateRequest, db: Session = Depends(
     # 2. Update Text
     f.ocr_text = body.ocr_text
     
-    # Auto-classify again on save for better search tags
-    new_tags = classify_document(f.ocr_text)
-    f.tags = ",".join(new_tags) if new_tags else None
+    # 3. Update Tags
+    if body.tags is not None:
+        f.tags = body.tags
+    else:
+        # Only auto-classify if manual tags NOT provided
+        new_tags = classify_document(f.ocr_text)
+        f.tags = ",".join(new_tags) if new_tags else None
     
     db.commit()
     

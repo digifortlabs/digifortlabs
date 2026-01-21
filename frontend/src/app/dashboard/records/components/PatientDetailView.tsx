@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import imageCompression from 'browser-image-compression';
-import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download } from 'lucide-react';
+import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download, FileText } from 'lucide-react';
 import DigitizationScanner from '@/components/Scanner/DigitizationScanner'; // Ensure this path is correct relative to this file
 import { API_URL } from '@/config/api';
 
@@ -132,11 +132,13 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
     // OCR Editing State
     const [isEditingOCR, setIsEditingOCR] = useState(false);
     const [editedOCRText, setEditedOCRText] = useState("");
+    const [editedTags, setEditedTags] = useState("");
 
     // When opening a text file, initialize the edit state
     useEffect(() => {
         if (viewTextFile) {
             setEditedOCRText(viewTextFile.ocr_text || "");
+            setEditedTags(viewTextFile.tags || "");
             setIsEditingOCR(false);
         }
     }, [viewTextFile]);
@@ -388,7 +390,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
         if (!confirm("Are you sure you want to delete this procedure?")) return;
         const token = localStorage.getItem('token') || '';
         try {
-            const res = await fetch(`${API_URL}/icd11/patients/${id}/procedures/${procId}`, {
+            const res = await fetch(`${API_URL}/icd11/procedures/patients/${id}/procedures/${procId}`, {
                 method: 'DELETE',
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -481,14 +483,14 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${token}`
                 },
-                body: JSON.stringify({ ocr_text: editedOCRText })
+                body: JSON.stringify({ ocr_text: editedOCRText, tags: editedTags })
             });
 
             if (res.ok) {
                 alert("OCR Text Updated Successfully!");
                 setIsEditingOCR(false);
                 // Update local state to reflect change immediately
-                setViewTextFile({ ...viewTextFile, ocr_text: editedOCRText });
+                setViewTextFile({ ...viewTextFile, ocr_text: editedOCRText, tags: editedTags });
                 if (id && token) fetchPatient(token, id); // Refresh user data to persist in list
             } else {
                 alert("Failed to update text.");
@@ -765,6 +767,13 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                                             View Document
                                         </button>
 
+                                        <button
+                                            onClick={() => setViewTextFile(file)}
+                                            className="w-full py-2 bg-indigo-50 text-indigo-600 rounded-md text-sm font-medium hover:bg-indigo-100 flex items-center justify-center gap-2"
+                                        >
+                                            <FileText size={14} /> Edit OCR / Tags
+                                        </button>
+
                                         {file.upload_status === 'draft' ? (
                                             <div className="flex gap-2">
                                                 <button onClick={() => handleConfirmUpload(file.file_id)} className="flex-1 py-1.5 bg-green-600 text-white rounded-md text-xs font-bold hover:bg-green-700 transition">Confirm</button>
@@ -969,18 +978,33 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                             <button onClick={() => setViewTextFile(null)} className="text-gray-400 hover:text-gray-600">✕</button>
                         </div>
 
-                        <div className="flex-1 overflow-hidden flex flex-col">
-                            {isEditingOCR ? (
-                                <textarea
-                                    className="flex-1 w-full p-4 border rounded-lg font-mono text-xs focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
-                                    value={editedOCRText}
-                                    onChange={(e) => setEditedOCRText(e.target.value)}
-                                />
-                            ) : (
-                                <div className="flex-1 overflow-auto bg-slate-50 p-4 text-xs font-mono rounded-lg border border-slate-100 whitespace-pre-wrap">
-                                    {viewTextFile.ocr_text || <span className="text-gray-400 italic">No text content found. Click Edit to add text manually.</span>}
+                        <div className="flex-1 overflow-hidden flex flex-col gap-4">
+                            {isEditingOCR && (
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Tags (Comma Separated)</label>
+                                    <input
+                                        type="text"
+                                        value={editedTags}
+                                        onChange={(e) => setEditedTags(e.target.value)}
+                                        className="w-full border p-2 rounded-lg text-sm font-semibold text-indigo-700"
+                                        placeholder="e.g. Lab Report, Urgent, Blood Test"
+                                    />
                                 </div>
                             )}
+                            <div className="flex-1 flex flex-col">
+                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Extracted Text</label>
+                                {isEditingOCR ? (
+                                    <textarea
+                                        className="flex-1 w-full p-4 border rounded-lg font-mono text-xs focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                                        value={editedOCRText}
+                                        onChange={(e) => setEditedOCRText(e.target.value)}
+                                    />
+                                ) : (
+                                    <div className="flex-1 overflow-auto bg-slate-50 p-4 text-xs font-mono rounded-lg border border-slate-100 whitespace-pre-wrap">
+                                        {viewTextFile.ocr_text || <span className="text-gray-400 italic">No text content found. Click Edit to add text manually.</span>}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div className="mt-4 flex justify-end gap-2 border-t pt-4">

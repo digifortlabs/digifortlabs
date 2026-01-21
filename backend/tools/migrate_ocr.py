@@ -66,6 +66,7 @@ def migrate_ocr():
                  # Auto-tag
                  tags = classify_document(text)
                  f.tags = ",".join(tags) if tags else None
+                 f.is_searchable = True
                  
                  print(f"  - [OK] Extracted {len(text)} chars. Tags: {f.tags}")
                  db.commit()
