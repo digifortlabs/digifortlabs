@@ -279,7 +279,14 @@ export default function ReportsPage() {
                                                 <>
                                                     <td className="px-8 py-4 whitespace-nowrap">{row.upload_date}</td>
                                                     <td className="px-8 py-4 font-bold text-slate-800">{row.patient_name}</td>
-                                                    <td className="px-8 py-4 text-indigo-600 font-medium">{row.filename}</td>
+                                                    <td className="px-8 py-4">
+                                                        <Link
+                                                            href={`/dashboard/records?search=${row.patient_id}`}
+                                                            className="text-indigo-600 font-medium hover:underline flex items-center gap-1"
+                                                        >
+                                                            {row.filename} <span className="text-xs">↗</span>
+                                                        </Link>
+                                                    </td>
                                                     <td className="px-8 py-4">
                                                         <span className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded text-[10px] font-black uppercase border border-indigo-100">
                                                             {row.tags}

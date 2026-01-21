@@ -260,6 +260,7 @@ def get_clinical_report(
             "file_id": f.file_id,
             "filename": f.filename,
             "patient_name": f.patient.full_name,
+            "patient_id": f.patient.patient_id,
             "tags": f.tags or "Unclassified",
             "upload_date": f.upload_date.strftime("%Y-%m-%d") if f.upload_date else "N/A"
         })
