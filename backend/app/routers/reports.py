@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, subqueryload
 
 from ..database import get_db
 from ..models import (
@@ -239,7 +239,9 @@ def get_clinical_report(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    query = db.query(PDFFile).join(Patient).options(joinedload(PDFFile.patient))
+    query = db.query(PDFFile).join(Patient).options(
+        joinedload(PDFFile.patient).subqueryload(Patient.diagnoses)
+    )
     query = apply_hospital_filter(query, Patient, current_user, hospital_id)
     
     files = query.all()
@@ -262,12 +264,13 @@ def get_clinical_report(
             "patient_name": f.patient.full_name if f.patient else "Unknown",
             "patient_id": f.patient.record_id if f.patient else None,
             "tags": f.tags or "Unclassified",
+            "icd_codes": ", ".join([d.code for d in f.patient.diagnoses]) if f.patient and f.patient.diagnoses else "N/A",
             "upload_date": f.upload_date.strftime("%Y-%m-%d") if f.upload_date else "N/A"
         })
             
     if export_csv:
         output = io.StringIO()
-        fieldnames = ["file_id", "filename", "patient_name", "tags", "upload_date"]
+        fieldnames = ["file_id", "filename", "patient_name", "icd_codes", "tags", "upload_date"]
         writer = csv.DictWriter(output, fieldnames=fieldnames)
         if writer:
             writer.writeheader()

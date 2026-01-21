@@ -145,6 +145,9 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
     const [selectedProcCode, setSelectedProcCode] = useState<ICD11Procedure | null>(null);
     const [procNotes, setProcNotes] = useState('');
 
+    const [isAddingDiag, setIsAddingDiag] = useState(false);
+    const [isAddingProc, setIsAddingProc] = useState(false);
+
     // Scanner State
     const [showScanner, setShowScanner] = useState(false);
 
@@ -360,6 +363,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                 setSelectedCode(null);
                 setDiagNotes('');
                 setDiagSearch('');
+                setIsAddingDiag(false);
                 fetchDiagnoses(token || '');
                 alert("Diagnosis Added!");
             }
@@ -380,6 +384,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                 setSelectedProcCode(null);
                 setProcNotes('');
                 setProcSearch('');
+                setIsAddingProc(false);
                 fetchProcedures(token);
                 alert("Procedure Added!");
             }
@@ -668,6 +673,18 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                                     <p className="font-semibold text-gray-700">{new Date(patient.discharge_date).toLocaleDateString()}</p>
                                 </div>
                             )}
+                            {diagnoses.length > 0 && (
+                                <div className="col-span-2">
+                                    <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mb-0.5">Diagnoses (ICD-11)</span>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                        {diagnoses.map(d => (
+                                            <span key={d.diagnosis_id} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded border border-indigo-100">
+                                                {d.code}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -894,19 +911,67 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                         <h2 className="text-lg font-semibold flex items-center gap-2">
                             <Stethoscope className="text-indigo-600" size={20} /> Clinical Diagnoses
                         </h2>
-                        {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'website_staff') && (
+                        {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'website_staff' || userRole === 'superadmin') && (
                             <button
-                                onClick={() => setShowDiagModal(true)}
-                                className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg border border-indigo-100 hover:bg-indigo-100 font-bold"
+                                onClick={() => setIsAddingDiag(!isAddingDiag)}
+                                className={`text-xs px-3 py-1.5 rounded-lg border font-bold transition-all ${isAddingDiag ? 'bg-red-50 text-red-600 border-red-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'}`}
                             >
-                                <Plus size={14} /> Add
+                                {isAddingDiag ? 'Cancel' : <><Plus size={14} /> Add</>}
                             </button>
                         )}
                     </div>
+
+                    {isAddingDiag && (
+                        <div className="mb-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 animate-in fade-in slide-in-from-top-2">
+                            <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Search ICD-11 Database</p>
+                            {!selectedCode ? (
+                                <>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-2.5 text-indigo-400" size={16} />
+                                        <input
+                                            autoFocus
+                                            className="w-full border border-indigo-200 p-2 pl-10 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            placeholder="Search diagnosis (e.g. Diabetes, Fever)..."
+                                            value={diagSearch}
+                                            onChange={e => searchDiagnoses(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="mt-2 max-h-48 overflow-y-auto bg-white rounded-lg border border-indigo-100 shadow-sm">
+                                        {diagResults.length > 0 ? diagResults.map(r => (
+                                            <div key={r.code} onClick={() => setSelectedCode(r)} className="p-3 hover:bg-indigo-50 cursor-pointer border-b last:border-0 border-slate-50 flex flex-col">
+                                                <span className="font-bold text-indigo-700 text-xs">{r.code}</span>
+                                                <span className="text-sm text-slate-700">{r.description}</span>
+                                            </div>
+                                        )) : diagSearch.length >= 2 ? (
+                                            <div className="p-4 text-center text-slate-400 text-xs italic">No matching codes found.</div>
+                                        ) : null}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="space-y-3">
+                                    <div className="bg-white p-3 rounded-lg border border-indigo-200">
+                                        <span className="font-black text-indigo-700 text-xs">{selectedCode.code}</span>
+                                        <p className="text-sm font-bold text-slate-800">{selectedCode.description}</p>
+                                    </div>
+                                    <textarea
+                                        className="w-full border border-indigo-200 p-3 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-20"
+                                        placeholder="Add clinical notes (optional)..."
+                                        value={diagNotes}
+                                        onChange={e => setDiagNotes(e.target.value)}
+                                    />
+                                    <div className="flex gap-2">
+                                        <button onClick={addDiagnosis} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 w-full transition-all">Add to Record</button>
+                                        <button onClick={() => setSelectedCode(null)} className="text-slate-500 px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50 w-full transition-all">Cancel</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {diagnoses.length > 0 ? (
                         <div className="space-y-2">
                             {diagnoses.map(diag => (
-                                <div key={diag.diagnosis_id} className="p-3 bg-slate-50 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-100 flex justify-between">
+                                <div key={diag.diagnosis_id} className="p-3 bg-slate-50 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-100 flex justify-between group">
                                     <div>
                                         <div className="flex items-baseline gap-2">
                                             <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 rounded text-xs">{diag.code}</span>
@@ -914,8 +979,8 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                                         </div>
                                         {diag.notes && <p className="text-xs text-slate-500 mt-1 italic">"{diag.notes}"</p>}
                                     </div>
-                                    {(userRole === 'hospital_admin' || userRole === 'superadmin') && (
-                                        <button onClick={() => deleteDiagnosis(diag.diagnosis_id)} className="text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>
+                                    {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'website_admin') && (
+                                        <button onClick={() => deleteDiagnosis(diag.diagnosis_id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
                                     )}
                                 </div>
                             ))}
@@ -929,19 +994,67 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                         <h2 className="text-lg font-semibold flex items-center gap-2">
                             <Syringe className="text-emerald-600" size={20} /> Procedures
                         </h2>
-                        {(userRole === 'hospital_admin' || userRole === 'website_admin') && (
+                        {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'superadmin') && (
                             <button
-                                onClick={() => setShowProcModal(true)}
-                                className="text-xs bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-lg border border-emerald-100 hover:bg-emerald-100 font-bold"
+                                onClick={() => setIsAddingProc(!isAddingProc)}
+                                className={`text-xs px-3 py-1.5 rounded-lg border font-bold transition-all ${isAddingProc ? 'bg-red-50 text-red-600 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100'}`}
                             >
-                                <Plus size={14} /> Add
+                                {isAddingProc ? 'Cancel' : <><Plus size={14} /> Add</>}
                             </button>
                         )}
                     </div>
+
+                    {isAddingProc && (
+                        <div className="mb-4 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-top-2">
+                            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2">Search Procedures</p>
+                            {!selectedProcCode ? (
+                                <>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-2.5 text-emerald-400" size={16} />
+                                        <input
+                                            autoFocus
+                                            className="w-full border border-emerald-200 p-2 pl-10 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                                            placeholder="Search procedure (e.g. Surgery, X-Ray)..."
+                                            value={procSearch}
+                                            onChange={e => searchProcedures(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="mt-2 max-h-48 overflow-y-auto bg-white rounded-lg border border-emerald-100 shadow-sm">
+                                        {procResults.length > 0 ? procResults.map(r => (
+                                            <div key={r.code} onClick={() => setSelectedProcCode(r)} className="p-3 hover:bg-emerald-50 cursor-pointer border-b last:border-0 border-slate-50 flex flex-col">
+                                                <span className="font-bold text-emerald-700 text-xs">{r.code}</span>
+                                                <span className="text-sm text-slate-700">{r.description}</span>
+                                            </div>
+                                        )) : procSearch.length >= 2 ? (
+                                            <div className="p-4 text-center text-slate-400 text-xs italic">No matching procedures found.</div>
+                                        ) : null}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="space-y-3">
+                                    <div className="bg-white p-3 rounded-lg border border-emerald-200">
+                                        <span className="font-black text-emerald-700 text-xs">{selectedProcCode.code}</span>
+                                        <p className="text-sm font-bold text-slate-800">{selectedProcCode.description}</p>
+                                    </div>
+                                    <textarea
+                                        className="w-full border border-emerald-200 p-3 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none h-20"
+                                        placeholder="Add procedure notes..."
+                                        value={procNotes}
+                                        onChange={e => setProcNotes(e.target.value)}
+                                    />
+                                    <div className="flex gap-2">
+                                        <button onClick={addProcedure} className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-700 w-full transition-all">Add to Record</button>
+                                        <button onClick={() => setSelectedProcCode(null)} className="text-slate-500 px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50 w-full transition-all">Cancel</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {procedures.length > 0 ? (
                         <div className="space-y-2">
                             {procedures.map((proc, idx) => (
-                                <div key={idx} className="p-3 bg-slate-50 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-100 flex justify-between">
+                                <div key={idx} className="p-3 bg-slate-50 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-100 flex justify-between group">
                                     <div>
                                         <div className="flex items-baseline gap-2">
                                             <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 rounded text-xs">{proc.code}</span>
@@ -949,13 +1062,12 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                                         </div>
                                         {proc.notes && <p className="text-xs text-slate-500 mt-1 italic">"{proc.notes}"</p>}
                                     </div>
-                                    {(userRole === 'hospital_admin' || userRole === 'superadmin') && (
-                                        <button onClick={() => deleteProcedure(proc.procedure_id)} className="text-slate-300 hover:text-red-500"><Trash2 size={14} /></button>
+                                    {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'website_admin') && (
+                                        <button onClick={() => deleteProcedure(proc.procedure_id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
                                     )}
                                 </div>
                             ))}
                         </div>
-
                     ) : <p className="text-sm text-slate-400 italic">No procedures recorded.</p>}
                 </div>
 
@@ -1052,52 +1164,6 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                 </div>
             )}
 
-            {showDiagModal && (
-                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-[80]">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
-                        <h2 className="text-lg font-bold mb-4">Add Diagnosis</h2>
-                        {!selectedCode ? (
-                            <>
-                                <input autoFocus className="w-full border p-2 mb-2" placeholder="Search..." value={diagSearch} onChange={e => searchDiagnoses(e.target.value)} />
-                                <div className="max-h-60 overflow-auto">
-                                    {diagResults.map(r => <div key={r.code} onClick={() => setSelectedCode(r)} className="p-2 hover:bg-gray-100 cursor-pointer">{r.code} - {r.description}</div>)}
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <div className="bg-indigo-50 p-2 mb-2"><strong>{selectedCode.code}</strong><p>{selectedCode.description}</p></div>
-                                <textarea className="w-full border p-2 mb-2" placeholder="Notes" value={diagNotes} onChange={e => setDiagNotes(e.target.value)} />
-                                <div className="flex gap-2"><button onClick={addDiagnosis} className="bg-indigo-600 text-white px-4 py-2 rounded w-full">Confirm</button><button onClick={() => setSelectedCode(null)} className="text-gray-500 w-full">Cancel</button></div>
-                            </>
-                        )}
-                        <button onClick={() => setShowDiagModal(false)} className="absolute top-2 right-2">✕</button>
-                    </div>
-                </div>
-            )}
-
-            {showProcModal && (
-                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-[80]">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full">
-                        <h2 className="text-lg font-bold mb-4">Add Procedure</h2>
-                        {!selectedProcCode ? (
-                            <>
-                                <input autoFocus className="w-full border p-2 mb-2" placeholder="Search..." value={procSearch} onChange={e => searchProcedures(e.target.value)} />
-                                <div className="max-h-60 overflow-auto">
-                                    {procResults.map(r => <div key={r.code} onClick={() => setSelectedProcCode(r)} className="p-2 hover:bg-gray-100 cursor-pointer">{r.code} - {r.description}</div>)}
-                                </div>
-                            </>
-                        ) : (
-                            <>
-                                <div className="bg-emerald-50 p-2 mb-2"><strong>{selectedProcCode.code}</strong><p>{selectedProcCode.description}</p></div>
-                                <textarea className="w-full border p-2 mb-2" placeholder="Notes" value={procNotes} onChange={e => setProcNotes(e.target.value)} />
-                                <div className="flex gap-2"><button onClick={addProcedure} className="bg-emerald-600 text-white px-4 py-2 rounded w-full">Confirm</button><button onClick={() => setSelectedProcCode(null)} className="text-gray-500 w-full">Cancel</button></div>
-                            </>
-                        )}
-                        <button onClick={() => setShowProcModal(false)} className="absolute top-2 right-2">✕</button>
-                    </div>
-                </div>
-            )}
-
             {showScanner && (
                 <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
                     <div className="w-full h-full max-w-7xl max-h-[95vh] bg-white rounded-2xl overflow-hidden shadow-2xl">
@@ -1118,7 +1184,6 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                     </div>
                 </div>
             )}
-
         </div>
     );
 }

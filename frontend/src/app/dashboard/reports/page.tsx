@@ -209,6 +209,7 @@ export default function ReportsPage() {
                                                 <th className="px-8 py-5">Date</th>
                                                 <th className="px-8 py-5">Patient Details</th>
                                                 <th className="px-8 py-5">File</th>
+                                                <th className="px-8 py-5">ICD-11</th>
                                                 <th className="px-8 py-5">Tags</th>
                                             </>
                                         )}
@@ -287,6 +288,11 @@ export default function ReportsPage() {
                                                         >
                                                             {row.filename} <span className="text-xs">↗</span>
                                                         </Link>
+                                                    </td>
+                                                    <td className="px-8 py-4">
+                                                        <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                                                            {row.icd_codes}
+                                                        </span>
                                                     </td>
                                                     <td className="px-8 py-4">
                                                         <span className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded text-[10px] font-black uppercase border border-indigo-100">
