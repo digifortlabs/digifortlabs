@@ -28,7 +28,7 @@ export default function WarehousePage() {
     const [racks, setRacks] = useState<any[]>([]);
     const [boxes, setBoxes] = useState<any[]>([]);
 
-    const [stats, setStats] = useState({ totalFiles: 0, capacity: 0, utilization: 0, pending: 0 });
+    const [stats, setStats] = useState({ totalFiles: 0, capacity: 0, utilization: 0, pending: 0, scannedToday: 0, openBoxes: 0 });
 
     const fetchAllData = async () => {
         const token = localStorage.getItem('token');
@@ -41,6 +41,7 @@ export default function WarehousePage() {
                 fetch(`${API_URL}/storage/racks`, { headers: { Authorization: `Bearer ${token}` } }),
                 fetch(`${API_URL}/storage/boxes`, { headers: { Authorization: `Bearer ${token}` } }),
                 fetch(`${API_URL}/storage/requests`, { headers: { Authorization: `Bearer ${token}` } }),
+                fetch(`${API_URL}/stats/dashboard`, { headers: { Authorization: `Bearer ${token}` } }),
             ]);
 
             if (layoutRes.ok) setWarehouseData(await layoutRes.json());
@@ -56,6 +57,7 @@ export default function WarehousePage() {
 
             // Calculate Stats
             const totalFiles = allBoxes.reduce((acc, box) => acc + (box.patient_count || 0), 0);
+            const openBoxes = allBoxes.filter(b => b.status === "OPEN").length;
             const capacity = allBoxes.reduce((acc, box) => acc + (box.capacity || 0), 0);
             const utilization = capacity > 0 ? Math.round((totalFiles / capacity) * 100) : 0;
 
@@ -65,7 +67,20 @@ export default function WarehousePage() {
                 pending = allReqs.filter((r: any) => ['Pending', 'Pending Approval'].includes(r.status)).length;
             }
 
-            setStats({ totalFiles, capacity, utilization, pending });
+            let scannedToday = 0;
+            if (layoutRes.ok && logsRes.ok && racksRes.ok && boxesRes.ok && reqsRes.ok && arguments[0] && (arguments[0] as any)[5]?.ok) {
+                const dashStats = await (arguments[0] as any)[5].json();
+                scannedToday = dashStats?.requests?.todays_scans || 0;
+            } else {
+                // Fallback: try fetching separately if the Promise.all array access is tricky
+                const dashRes = await fetch(`${API_URL}/stats/dashboard`, { headers: { Authorization: `Bearer ${token}` } });
+                if (dashRes.ok) {
+                    const dashData = await dashRes.json();
+                    scannedToday = dashData?.requests?.todays_scans || 0;
+                }
+            }
+
+            setStats({ totalFiles, capacity, utilization, pending, scannedToday, openBoxes });
 
         } catch (e) {
             console.error("Data Sync Error", e);

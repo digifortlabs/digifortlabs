@@ -28,6 +28,7 @@ export default function HospitalsPage() {
     const [city, setCity] = useState('');
     const [state, setState] = useState('');
     const [pincode, setPincode] = useState('');
+    const [gstNumber, setGstNumber] = useState('');
     const [pincodeLoading, setPincodeLoading] = useState(false);
 
     const [type, setType] = useState('Private');
@@ -107,11 +108,12 @@ export default function HospitalsPage() {
         setCity(hospital.city || '');
         setState(hospital.state || '');
         setPincode(hospital.pincode || '');
-        setType(hospital.hospital_type || 'Private');
+        setType((hospital.hospital_type || 'PRIVATE').toUpperCase());
         setPlan(hospital.subscription_tier || 'Standard');
         setPricePerFile(hospital.price_per_file || 100);
         setIncludedPages(hospital.included_pages || 20);
         setPricePerExtraPage(hospital.price_per_extra_page || 1);
+        setGstNumber((hospital.gst_number || '').toUpperCase());
         setShowModal(true);
         setActiveActionId(null);
     };
@@ -173,7 +175,8 @@ export default function HospitalsPage() {
                     subscription_tier: plan,
                     price_per_file: pricePerFile,
                     included_pages: includedPages,
-                    price_per_extra_page: pricePerExtraPage
+                    price_per_extra_page: pricePerExtraPage,
+                    gst_number: gstNumber
                 })
             });
 
@@ -186,7 +189,7 @@ export default function HospitalsPage() {
                 alert(msg);
 
                 // Reset form
-                setLegalName(''); setEmail(''); setCity(''); setState(''); setPincode('');
+                setLegalName(''); setEmail(''); setCity(''); setState(''); setPincode(''); setGstNumber('');
                 setIsEditMode(false);
                 setCurrentHospitalId(null);
             } else {
@@ -216,7 +219,7 @@ export default function HospitalsPage() {
                     onClick={() => {
                         setIsEditMode(false);
                         setCurrentHospitalId(null);
-                        setLegalName(''); setEmail(''); setCity(''); setState(''); setPincode('');
+                        setLegalName(''); setEmail(''); setCity(''); setState(''); setPincode(''); setGstNumber('');
                         setType('Private'); setPlan('Standard');
                         setPricePerFile(100); setIncludedPages(20); setPricePerExtraPage(1);
                         setShowModal(true);
@@ -401,9 +404,18 @@ export default function HospitalsPage() {
                                         <label className="text-xs font-bold text-slate-600">Hospital Type</label>
                                         <input
                                             value={type}
-                                            onChange={e => setType(toTitleCase(e.target.value))}
-                                            className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                            placeholder="e.g. Private, Clinic, etc."
+                                            onChange={e => setType(e.target.value.toUpperCase())}
+                                            className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 uppercase"
+                                            placeholder="e.g. PRIVATE, CLINIC, etc."
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-600">GST Identification Number (GSTIN)</label>
+                                        <input
+                                            value={gstNumber}
+                                            onChange={e => setGstNumber(e.target.value.toUpperCase())}
+                                            className="w-full p-3 bg-indigo-50/50 rounded-xl border-none font-bold text-indigo-900 outline-none focus:ring-2 focus:ring-indigo-500/20 uppercase"
+                                            placeholder="e.g. 07AAAAA0000A1Z5"
                                         />
                                     </div>
                                 </div>

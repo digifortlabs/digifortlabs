@@ -435,3 +435,257 @@ class EmailService:
         except Exception as e:
             print(f"[EMAIL SERVICE] Failed to send notification to {to_email}: {str(e)}")
             return False
+
+    @staticmethod
+    def send_invoice_email(recipient_email: str, hospital_name: str, invoice_number: str, amount: float, items: list, bank_details: dict = None, extra_details: dict = None):
+        """
+        Sends a professional tax-compliant invoice email matching the reference format.
+        """
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from datetime import datetime
+        from app.core.config import settings
+
+        SMTP_SERVER = settings.SMTP_SERVER
+        SMTP_PORT = settings.SMTP_PORT
+        SMTP_USERNAME = settings.SMTP_USERNAME
+        SMTP_PASSWORD = settings.SMTP_PASSWORD
+        SENDER_EMAIL = settings.SENDER_EMAIL
+
+        ext = extra_details or {}
+        amt_words = ext.get('amount_in_words', 'N/A')
+        inv_period = ext.get('invoice_period', 'N/A')
+        detailed_records = ext.get('detailed_records', [])
+
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = f"Digifort Billing <{SENDER_EMAIL}>"
+            msg['To'] = recipient_email
+            msg['Subject'] = f"TAX INVOICE - {invoice_number} - Digifort Labs"
+
+            # 1. Summary Items Rows - Grouping files into one line
+            summary_rows = ""
+            subtotal = 0
+            
+            non_file_items = [i for i in items if "Processing MRD:" not in i['description'] and i['description'] != "One-time Registration Fee"]
+            file_items = [i for i in items if "Processing MRD:" in i['description']]
+            reg_fee_item = next((i for i in items if i['description'] == "One-time Registration Fee"), None)
+            
+            display_idx = 1
+            
+            # Handle Registration Fee first if present
+            if reg_fee_item:
+                subtotal += reg_fee_item['amount']
+                summary_rows += f"""
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #000; text-align: center;">{display_idx}</td>
+                    <td style="padding: 10px; border: 1px solid #000;">{reg_fee_item['description']}</td>
+                    <td style="padding: 10px; border: 1px solid #000; text-align: center;">{reg_fee_item.get('hsn', '998311')}</td>
+                    <td style="padding: 10px; border: 1px solid #000; text-align: right;">{reg_fee_item['amount']:,.2f}</td>
+                </tr>
+                """
+                display_idx += 1
+            
+            # Handle Grouped Files
+            if file_items:
+                file_total = sum(i['amount'] for i in file_items)
+                subtotal += file_total
+                summary_rows += f"""
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #000; text-align: center;">{display_idx}</td>
+                    <td style="padding: 10px; border: 1px solid #000;">Processing of {len(file_items)} Patient Records</td>
+                    <td style="padding: 10px; border: 1px solid #000; text-align: center;">998311</td>
+                    <td style="padding: 10px; border: 1px solid #000; text-align: right;">{file_total:,.2f}</td>
+                </tr>
+                """
+                display_idx += 1
+                
+            # Handle other custom items
+            for item in non_file_items:
+                subtotal += item['amount']
+                summary_rows += f"""
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #000; text-align: center;">{display_idx}</td>
+                    <td style="padding: 10px; border: 1px solid #000;">{item['description']}</td>
+                    <td style="padding: 10px; border: 1px solid #000; text-align: center;">{item.get('hsn', '998311')}</td>
+                    <td style="padding: 10px; border: 1px solid #000; text-align: right;">{item['amount']:,.2f}</td>
+                </tr>
+                """
+                display_idx += 1
+
+            tax_9_percent = (subtotal * 9) / 100
+            grand_total = subtotal + (tax_9_percent * 2)
+
+            # 2. Detailed Patient Records Rows
+            patient_rows = ""
+            for idx, rec in enumerate(detailed_records):
+                patient_rows += f"""
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #000; text-align: center;">{idx+1}</td>
+                    <td style="padding: 8px; border: 1px solid #000;">FILE-{rec.get('file_id')}</td>
+                    <td style="padding: 8px; border: 1px solid #000;">{rec.get('mrd_id', 'N/A')}</td>
+                    <td style="padding: 8px; border: 1px solid #000;">{rec.get('name', 'Unknown')}</td>
+                    <td style="padding: 8px; border: 1px solid #000; text-align: center;">{rec.get('admission_date', 'N/A')}</td>
+                    <td style="padding: 8px; border: 1px solid #000; text-align: center;">{rec.get('pages', 0)}</td>
+                </tr>
+                """
+
+            body = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; color: #000; font-size: 13px; margin: 0; padding: 20px; }}
+                    .main-container {{ width: 100%; max-width: 800px; margin: auto; border: 2px solid #000; padding: 0; }}
+                    .invoice-header {{ background-color: #d1d5db; text-align: center; font-weight: bold; font-size: 18px; padding: 10px; border-bottom: 1px solid #000; border-top: 1px solid #000; }}
+                    .info-grid {{ width: 100%; border-collapse: collapse; }}
+                    .info-grid td {{ border: 1px solid #000; padding: 15px; vertical-align: top; width: 50%; }}
+                    .table-header {{ background-color: #d1d5db; font-weight: bold; text-align: center; }}
+                    .summary-table {{ width: 100%; border-collapse: collapse; }}
+                    .summary-table th, .summary-table td {{ border: 1px solid #000; padding: 10px; }}
+                    .details-label {{ font-weight: bold; display: inline-block; width: 130px; }}
+                    .totals-box {{ text-align: right; border-top: none !important; }}
+                    .bank-box {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+                    .bank-box td {{ border: 1px solid #000; padding: 15px; }}
+                </style>
+            </head>
+            <body>
+                <div class="main-container">
+                    <!-- Brand Header -->
+                    <div style="padding: 20px; height: 80px;">
+                        <div style="float: left;">
+                            <img src="https://digifortlabs.com/l.webp" height="60" alt="Digifort Logo">
+                            <p style="margin: 5px 0 0 0; font-size: 10px; color: #4338ca; font-weight: bold;">Empowering Healthcare Providers and Patients</p>
+                        </div>
+                        <div style="float: right; text-align: right;">
+                            <h2 style="margin:0; font-size: 16px;">Digifort Labs Pvt. Ltd.</h2>
+                            <p style="margin: 5px 0; font-size: 11px;">
+                                A-502, Tech Park, GIDC Estate,<br>
+                                Vapi 396191, Gujarat.
+                            </p>
+                        </div>
+                        <div style="clear: both;"></div>
+                    </div>
+
+                    <div class="invoice-header">TAX INVOICE</div>
+
+                    <table class="info-grid">
+                        <tr>
+                            <td>
+                                <strong style="font-size: 15px;">Bill To Party</strong><br><br>
+                                <div style="font-weight: bold; font-size: 14px;">{hospital_name}</div>
+                                <div style="margin-top: 5px;">
+                                    <strong>GSTIN :</strong> {bank_details.get('gst') if bank_details else 'URD'}<br>
+                                    <strong>State :</strong> Gujarat &nbsp;&nbsp; <strong>Code :</strong> 24
+                                </div>
+                            </td>
+                            <td>
+                                <strong style="font-size: 15px;">Details</strong><br><br>
+                                <div><span class="details-label">Invoice No. :</span> <strong>{invoice_number}</strong></div>
+                                <div><span class="details-label">Date of Invoice :</span> {datetime.now().strftime("%d-%m-%Y")}</div>
+                                <div><span class="details-label">Due Date :</span> {datetime.now().strftime("%d-%m-%Y")}</div>
+                                <div><span class="details-label">Invoice period :</span> {inv_period}</div>
+                                <div><span class="details-label">Company's GSTIN :</span> 24AAFCD9999A1ZP</div>
+                                <div><span class="details-label">State :</span> Gujarat &nbsp;&nbsp; <strong>Code :</strong> 24</div>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <div class="table-header" style="padding: 10px; border-bottom: 1px solid #000;">Summary Table for all charges</div>
+                    
+                    <table class="summary-table">
+                        <tr style="background-color: #d1d5db;">
+                            <th style="width: 60px;">Item #</th>
+                            <th>Chargeable Item</th>
+                            <th style="width: 100px;">HSN/SAC code</th>
+                            <th style="width: 120px;">Amount(Rs.)</th>
+                        </tr>
+                        {summary_rows}
+                        <tr>
+                            <td colspan="3" style="text-align: right; font-weight: bold;">Sub. Total(Excl. of taxes) :</td>
+                            <td style="text-align: right; font-weight: bold;">Rs.{subtotal:,.2f}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="3" style="text-align: right;">Central GST @ 9.00% :</td>
+                            <td style="text-align: right;">Rs.{tax_9_percent:,.2f}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="3" style="text-align: right;">State GST @ 9.00% :</td>
+                            <td style="text-align: right;">Rs.{tax_9_percent:,.2f}</td>
+                        </tr>
+                        <tr style="background-color: #fef08a;">
+                            <td colspan="3" style="text-align: right; font-weight: bold; font-size: 14px;">Total Amount after Tax :</td>
+                            <td style="text-align: right; font-weight: bold; font-size: 14px;">Rs.{grand_total:,.2f}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="4" style="padding: 15px;">
+                                <strong>Total Invoice amount in words :</strong> {amt_words}
+                            </td>
+                        </tr>
+                    </table>
+
+                    <table class="bank-box">
+                        <tr>
+                            <td style="width: 65%;">
+                                <strong style="font-size: 14px; text-transform: uppercase;">BANK DETAILS</strong><br><br>
+                                <strong>Bank Name :</strong> HDFC Bank - Tech Park Branch<br>
+                                <strong>Account Name. :</strong> Digifort Labs Pvt. Ltd.<br>
+                                <strong>Account No. :</strong> 50200012345678<br>
+                                <strong>IFSC CODE :</strong> HDFC0001234<br>
+                                <strong>Company's PAN :</strong> AAFCD9999A
+                            </td>
+                            <td style="text-align: center;">
+                                <strong>Common Seal</strong><br><br><br><br>
+                            </td>
+                        </tr>
+                    </table>
+                    
+                    <div style="padding: 20px; font-size: 11px; line-height: 1.5;">
+                        *This is a computer generated invoice.<br>
+                        *Please contact Digifort Labs customer care for more information at care@digifortlabs.com<br>
+                        *Cheque payable to 'Digifort Labs Pvt. Ltd.'<br>
+                        *Late charge of 5% of the invoice amount would be levied on invoices which are due for more than 15 days from the date of issue
+                    </div>
+
+                    <div style="text-align: center; padding: 20px; font-weight: bold; border-top: 1px solid #000;">
+                        Thank you for using Digifort Labs - Empowering Healthcare Providers and Patients
+                    </div>
+                </div>
+
+                <!-- Detailed Records Table (Page 2 Style) -->
+                <div style="margin-top: 40px; border: 2px solid #000; max-width: 800px; margin-left: auto; margin-right: auto;">
+                    <div class="table-header" style="padding: 15px; font-size: 16px;">Invoiced Record Details Summary</div>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr style="background-color: #d1d5db; font-weight: bold;">
+                            <th style="padding: 10px; border: 1px solid #000;">Sr. No</th>
+                            <th style="padding: 10px; border: 1px solid #000;">Record Id</th>
+                            <th style="padding: 10px; border: 1px solid #000;">MRD No.</th>
+                            <th style="padding: 10px; border: 1px solid #000;">Name of Patient</th>
+                            <th style="padding: 10px; border: 1px solid #000;">Admission Date</th>
+                            <th style="padding: 10px; border: 1px solid #000;">Pages</th>
+                        </tr>
+                        {patient_rows}
+                    </table>
+                </div>
+            </body>
+            </html>
+            """
+            
+            msg.attach(MIMEText(body, 'html'))
+
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            text = msg.as_string()
+            server.sendmail(SENDER_EMAIL, recipient_email, text)
+            server.quit()
+            
+            print(f"✅ [EMAIL SERVICE] Professional Invoice {invoice_number} sent to {recipient_email}")
+            return True
+
+        except Exception as e:
+            print(f"❌ [EMAIL SERVICE] Failed to send invoice to {recipient_email}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False

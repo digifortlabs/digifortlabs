@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Building2, Menu, X, Settings, LogOut, LayoutDashboard, Database, Archive, FileClock, Users as UsersIcon, Box, FileText } from 'lucide-react';
+import { Building2, Menu, X, Settings, LogOut, LayoutDashboard, Database, Archive, FileClock, Users as UsersIcon, Box, FileText, Receipt } from 'lucide-react';
 
 interface DashboardNavbarProps {
     userRole: string;
@@ -57,7 +57,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                     </div>
 
                     {/* Left Side: Logo & Main Nav */}
-                    <div className="flex items-center gap-4 md:gap-8">
+                    <div className="flex items-center gap-2 lg:gap-8">
                         {/* Brand */}
                         <div className="flex-shrink-0 flex items-center">
                             <div className="bg-white rounded-lg px-2 py-1">
@@ -66,10 +66,10 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                         </div>
 
                         {/* Desktop Navigation */}
-                        <div className="hidden md:flex items-center space-x-2">
+                        <div className="hidden md:flex items-center space-x-1 lg:space-x-2">
                             <Link
                                 href="/dashboard"
-                                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${pathname === '/dashboard'
+                                className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${pathname === '/dashboard'
                                     ? 'bg-slate-800 text-white'
                                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                     }`}
@@ -81,7 +81,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             {userRole === 'superadmin' && (
                                 <Link
                                     href="/dashboard/hospital_mgmt"
-                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/hospital_mgmt')
+                                    className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/hospital_mgmt')
                                         ? 'bg-indigo-600 text-white'
                                         : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                         }`}
@@ -94,7 +94,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             {(userRole === 'hospital_admin' || userRole === 'warehouse_manager' || userRole === 'superadmin') && (
                                 <Link
                                     href="/dashboard/records"
-                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/records')
+                                    className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/records')
                                         ? 'bg-slate-800 text-white'
                                         : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                         }`}
@@ -107,15 +107,26 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
                             {/* Reports Link - Admins */}
                             {(userRole === 'superadmin' || userRole === 'hospital_admin') && (
-                                <Link
-                                    href="/dashboard/reports"
-                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/reports')
-                                        ? 'bg-slate-800 text-white'
-                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                        }`}
-                                >
-                                    Reports
-                                </Link>
+                                <>
+                                    <Link
+                                        href="/dashboard/reports"
+                                        className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/reports')
+                                            ? 'bg-slate-800 text-white'
+                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                            }`}
+                                    >
+                                        Reports
+                                    </Link>
+                                    <Link
+                                        href="/dashboard/accounting"
+                                        className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/accounting')
+                                            ? 'bg-slate-800 text-white'
+                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                            }`}
+                                    >
+                                        Accounting
+                                    </Link>
+                                </>
                             )}
 
                             {/* Warehouse Link (Added by Request) */}
@@ -124,7 +135,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             {userRole === 'superadmin' && (
                                 <Link
                                     href="/dashboard/storage"
-                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/storage') && !isActive('/dashboard/storage/requests')
+                                    className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/storage') && !isActive('/dashboard/storage/requests')
                                         ? 'bg-slate-800 text-white'
                                         : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                         }`}
@@ -144,7 +155,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                     {userRole === 'hospital_admin' && (
                                         <Link
                                             href="/dashboard/user_mgmt"
-                                            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/user_mgmt')
+                                            className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/user_mgmt')
                                                 ? 'bg-slate-800 text-white'
                                                 : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                                 }`}
@@ -156,7 +167,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                     {/* File Retrieval Requests */}
                                     <Link
                                         href="/dashboard/requests"
-                                        className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/requests')
+                                        className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/requests')
                                             ? 'bg-slate-800 text-white'
                                             : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                             }`}
@@ -167,7 +178,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                     {(userRole === 'warehouse_manager' || userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'superadmin_staff') && (
                                         <Link
                                             href="/dashboard/archive"
-                                            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/archive')
+                                            className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/archive')
                                                 ? 'bg-slate-800 text-white'
                                                 : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                                 }`}
@@ -179,7 +190,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                     {userRole === 'warehouse_manager' && (
                                         <Link
                                             href="/dashboard/drafts"
-                                            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/dashboard/drafts')
+                                            className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/drafts')
                                                 ? 'bg-amber-900/20 text-amber-500 border border-amber-900/50'
                                                 : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                                 }`}
@@ -195,7 +206,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                     </div>
 
                     {/* Right Side: Account & Logout */}
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 lg:gap-4">
                         {/* Hospital Badge for Tenants */}
                         {hospitalName && (
                             <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full">
@@ -208,10 +219,10 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
                         <Link
                             href="/dashboard/downloads"
-                            className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors border border-slate-700"
+                            className="hidden md:flex items-center gap-2 px-2 lg:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors border border-slate-700"
                             title="Download Desktop Scanner"
                         >
-                            <span className="text-xs font-bold text-slate-300">Scanner App</span>
+                            <span className="text-[11px] lg:text-xs font-bold text-slate-300">Scanner App</span>
                         </Link>
 
                         {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'superadmin_staff') && (
@@ -224,15 +235,15 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             </Link>
                         )}
 
-                        <div className="flex items-center gap-4 pl-4 border-l border-slate-700">
+                        <div className="flex items-center gap-2 lg:gap-4 pl-2 lg:pl-4 border-l border-slate-700">
                             {userRole && (
-                                <span className="hidden lg:block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                <span className="hidden xl:block text-xs font-bold text-slate-500 uppercase tracking-wider">
                                     {userRole.replace('_', ' ')}
                                 </span>
                             )}
                             <button
                                 onClick={handleLogout}
-                                className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-lg shadow-red-900/20"
+                                className="px-3 lg:px-4 py-2 text-[11px] lg:text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-lg shadow-red-900/20"
                             >
                                 Sign Out
                             </button>
@@ -321,18 +332,30 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             </>
                         )}
 
-                        {/* Reports Link - Admins */}
+                        {/* Reports & Accounting Link - Admins */}
                         {(userRole === 'superadmin' || userRole === 'hospital_admin') && (
-                            <Link
-                                href="/dashboard/reports"
-                                onClick={() => setIsMenuOpen(false)}
-                                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/reports')
-                                    ? 'bg-slate-800 text-white'
-                                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                    }`}
-                            >
-                                <FileText size={18} /> Reports
-                            </Link>
+                            <>
+                                <Link
+                                    href="/dashboard/reports"
+                                    onClick={() => setIsMenuOpen(false)}
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/reports')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        }`}
+                                >
+                                    <FileText size={18} /> Reports
+                                </Link>
+                                <Link
+                                    href="/dashboard/accounting"
+                                    onClick={() => setIsMenuOpen(false)}
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/accounting')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        }`}
+                                >
+                                    <Receipt size={18} /> Accounting
+                                </Link>
+                            </>
                         )}
 
                         {userRole === 'superadmin' && (

@@ -69,7 +69,7 @@ class BoxCreate(BaseModel):
     location_code: str
     hospital_id: Optional[int] = None # Required for Super Admin
     rack_id: Optional[int] = None
-    capacity: Optional[int] = 50 
+    capacity: Optional[int] = 100 
 
 class BoxUpdate(BaseModel):
     label: Optional[str] = None
@@ -87,7 +87,7 @@ class BoxResponse(BaseModel):
     location_code: Optional[str] = None # Hidden for Hospital Staff
     status: str
     patient_count: int = 0
-    capacity: int = 50
+    capacity: int = 100
     rack_id: Optional[int] = None
     rack_row: Optional[int] = None
     rack_column: Optional[int] = None
@@ -466,7 +466,7 @@ def get_boxes(db: Session = Depends(get_db), current_user: User = Depends(get_cu
             location_code=b.location_code if show_location else "RESTRICTED",
             status=b.status,
             patient_count=count,
-            capacity=b.capacity or 50, 
+            capacity=b.capacity or 100, 
             rack_id=b.rack_id,
             rack_row=b.rack_row,
             rack_column=b.rack_column,
@@ -553,7 +553,7 @@ def create_box(box: BoxCreate, db: Session = Depends(get_db), current_user: User
         rack_id=box.rack_id,
         rack_row=assigned_row,
         rack_column=assigned_col,
-        capacity=box.capacity or 50,
+        capacity=box.capacity or 100,
         status="OPEN"
     )
 

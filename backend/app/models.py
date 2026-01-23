@@ -49,6 +49,16 @@ class Hospital(Base):
     included_pages = Column(Integer, default=20) # Pages included in base price
     price_per_extra_page = Column(Float, default=1.0) # Charge per page above limit
     
+    # Advanced Billing
+    registration_fee = Column(Float, default=1000.0)
+    is_reg_fee_paid = Column(Boolean, default=False)
+    gst_number = Column(String, nullable=True)
+    
+    # Banking Details
+    bank_name = Column(String, nullable=True)
+    bank_account_no = Column(String, nullable=True)
+    bank_ifsc = Column(String, nullable=True)
+    
     # Stores JSON string of changes pending approval
     pending_updates = Column(String, nullable=True)
 
@@ -296,7 +306,7 @@ class PhysicalBox(Base):
     location_code = Column(String) # e.g. "WH-1-RACK-4-SHELF-2"
     status = Column(String, default="OPEN") # OPEN, CLOSED, ARCHIVED, DESTROYED
     is_open = Column(Boolean, default=True) # True = Accepting files
-    capacity = Column(Integer, default=50) 
+    capacity = Column(Integer, default=100) 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Link to Rack
@@ -358,6 +368,7 @@ Patient.diagnoses = relationship("PatientDiagnosis", back_populates="patient")
 Patient.procedures = relationship("PatientProcedure", back_populates="patient")
 
 
+
 class PasswordResetOTP(Base):
     __tablename__ = "password_reset_otps"
 
@@ -369,3 +380,116 @@ class PasswordResetOTP(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class Invoice(Base):
+    __tablename__ = "invoices"
+
+    invoice_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"))
+    invoice_number = Column(String, unique=True, index=True, nullable=False) # e.g. INV-2026-0001
+    total_amount = Column(Float, nullable=False)
+    gst_rate = Column(Float, default=18.0) # 18% GST standard
+    tax_amount = Column(Float, default=0.0)
+    
+    status = Column(String, default="PENDING") # PENDING, PAID, CANCELLED
+    transaction_id = Column(String, nullable=True)
+    payment_method = Column(String, nullable=True) # Cash, Bank Transfer, Online
+    
+    bill_date = Column(DateTime(timezone=True), nullable=True)
+    due_date = Column(DateTime(timezone=True), nullable=True)
+    payment_date = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    hospital = relationship("Hospital")
+    items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
+
+
+class InvoiceItem(Base):
+    __tablename__ = "invoice_items"
+
+    item_id = Column(Integer, primary_key=True, index=True)
+    invoice_id = Column(Integer, ForeignKey("invoices.invoice_id"))
+    file_id = Column(Integer, ForeignKey("pdf_files.file_id"), nullable=True)
+    amount = Column(Float, nullable=False)
+    description = Column(String, nullable=True)
+    hsn_code = Column(String, nullable=True) # HSN for products, SAC for services
+
+    invoice = relationship("Invoice", back_populates="items")
+    pdf_file = relationship("PDFFile") # Relationship to the specific file billed
+
+
+class AccountingVendor(Base):
+    __tablename__ = "accounting_vendors"
+    vendor_id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    contact_person = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    address = Column(String, nullable=True)
+    gst_number = Column(String, nullable=True)
+    category = Column(String, nullable=True) # IT, HR, Operations, etc.
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class AccountingExpense(Base):
+    __tablename__ = "accounting_expenses"
+    expense_id = Column(Integer, primary_key=True, index=True)
+    description = Column(String, nullable=False)
+    amount = Column(Float, nullable=False)
+    tax_amount = Column(Float, default=0.0)
+    category = Column(String, nullable=True) # Salary, Rent, Electricity, Server, etc.
+    date = Column(DateTime(timezone=True), server_default=func.now())
+    payment_method = Column(String, nullable=True) # Cash, Bank, UPI
+    vendor_id = Column(Integer, ForeignKey("accounting_vendors.vendor_id"), nullable=True)
+    reference_number = Column(String, nullable=True) # Invoice/Bill Number from Vendor
+    
+    vendor = relationship("AccountingVendor")
+
+class AccountingTransaction(Base):
+    """
+    Unified Ledger Table: Stores every financial movement (Voucher).
+    Follows double-entry concepts: 
+    - Debit: Increase in Assets (Receivables) or Expenses.
+    - Credit: Increase in Liabilities (Payables) or Revenue.
+    """
+    __tablename__ = "accounting_transactions"
+    transaction_id = Column(Integer, primary_key=True, index=True)
+    
+    # Party linkage
+    party_type = Column(String, nullable=False) # HOSPITAL, VENDOR, INTERNAL
+    party_id = Column(Integer, nullable=True) # Link to hospital_id or vendor_id
+    
+    # Voucher details
+    voucher_type = Column(String, nullable=False) # INVOICE, RECEIPT, PAYMENT, EXPENSE
+    voucher_id = Column(Integer, nullable=True) # ID of the source Invoice or Expense record
+    voucher_number = Column(String, index=True, nullable=True) # INV-..., EXP-...
+    
+    debit = Column(Float, default=0.0) # Positive for money due from Party
+    credit = Column(Float, default=0.0) # Positive for money received/owing to Party
+    
+    description = Column(String, nullable=True)
+    date = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class AccountingConfig(Base):
+    __tablename__ = "accounting_config"
+    config_id = Column(Integer, primary_key=True, index=True)
+    
+    # Financial Year Settings
+    current_fy = Column(String, default="2025-26") # e.g. 2025-26
+    
+    # Company Identity
+    company_gst = Column(String, nullable=True)
+    
+    # Prefix Settings
+    invoice_prefix = Column(String, default="INV")
+    receipt_prefix = Column(String, default="RCPT")
+    expense_prefix = Column(String, default="EXP")
+    
+    # Counters
+    next_invoice_number = Column(Integer, default=1)
+    next_receipt_number = Column(Integer, default=1)
+    next_expense_number = Column(Integer, default=1)
+    
+    # Format choice (e.g. PREFIX/FY/NUMBER)
+    number_format = Column(String, default="{prefix}/{fy}/{number:04d}")
+    
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
