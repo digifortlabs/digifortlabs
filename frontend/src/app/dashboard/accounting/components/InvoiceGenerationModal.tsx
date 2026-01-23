@@ -427,10 +427,18 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
                                         <span className="font-bold text-xs">₹{filesTotal.toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-slate-400 lg:">
-                                        <span className="text-[10px] font-bold uppercase tracking-widest">Other Charges (Net)</span>
-                                        <span className="font-bold text-xs">₹{(customTotal + regFeeTotal).toLocaleString()}</span>
+                                        <span className="text-[10px] font-bold uppercase tracking-widest">Other Charges (Gross)</span>
+                                        <span className="font-bold text-xs">₹{(customItems.reduce((sum, item) => sum + item.amount, 0) + regFeeTotal).toLocaleString()}</span>
                                     </div>
-                                    <div className="flex justify-between items-center text-emerald-400/80 border-t border-slate-800 pt-2 border-dashed">
+                                    <div className="flex justify-between items-center text-emerald-500/80">
+                                        <span className="text-[10px] font-bold uppercase tracking-widest">Total Discount</span>
+                                        <span className="font-bold text-xs">-₹{(customItems.reduce((sum, item) => sum + (item.discount || 0), 0)).toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-slate-400 border-t border-slate-800 pt-2 border-dashed">
+                                        <span className="text-[10px] font-bold uppercase tracking-widest text">Net Taxable Value</span>
+                                        <span className="font-bold text-xs">₹{subtotal.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-emerald-400/80">
                                         <div className="flex items-center gap-1.5">
                                             <Percent size={10} strokeWidth={3} />
                                             <span className="text-[10px] font-bold uppercase tracking-widest">GST (18%)</span>
