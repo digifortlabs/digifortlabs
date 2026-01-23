@@ -347,7 +347,7 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
                                             <div>
                                                 <p className="text-sm font-bold text-slate-900">{item.description}</p>
                                                 <p className="text-[10px] text-slate-500 uppercase font-black">HSN: {item.hsn_code} • Price: ₹{item.amount}</p>
-                                                {item.discount > 0 && (
+                                                {item.discount && item.discount > 0 && (
                                                     <p className="text-[10px] text-emerald-600 uppercase font-black">Discount: -₹{item.discount}</p>
                                                 )}
                                             </div>
