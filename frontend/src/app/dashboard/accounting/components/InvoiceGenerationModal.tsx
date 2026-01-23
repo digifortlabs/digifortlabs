@@ -38,6 +38,7 @@ interface UnbilledFile {
 interface CustomItem {
     description: string;
     amount: number;
+    discount?: number; // Added discount field
     hsn_code: string;
 }
 
