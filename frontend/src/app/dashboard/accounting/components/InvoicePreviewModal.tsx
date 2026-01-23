@@ -250,7 +250,9 @@ export default function InvoicePreviewModal({ isOpen, onClose, invoiceId }: Invo
                                             <th className="p-2 border-r border-slate-900 w-12 font-black">Sr</th>
                                             <th className="p-2 border-r border-slate-900 text-left font-black">Description of Service</th>
                                             <th className="p-2 border-r border-slate-900 w-24 font-black">SAC code</th>
-                                            <th className="p-2 w-32 text-right font-black">Amount (INR)</th>
+                                            <th className="p-2 border-r border-slate-900 w-24 text-right font-black">Gross</th>
+                                            <th className="p-2 border-r border-slate-900 w-20 text-right font-black">Disc.</th>
+                                            <th className="p-2 w-28 text-right font-black">Net Amount</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -260,6 +262,8 @@ export default function InvoicePreviewModal({ isOpen, onClose, invoiceId }: Invo
                                                 <td className="p-2 border-r border-slate-900 text-center font-bold">1</td>
                                                 <td className="p-2 border-r border-slate-900 font-medium">{regFeeItem.description}</td>
                                                 <td className="p-2 border-r border-slate-900 text-center">{regFeeItem.hsn_code || '998311'}</td>
+                                                <td className="p-2 border-r border-slate-900 text-right text-slate-400">{(regFeeItem.amount + (regFeeItem.discount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                <td className="p-2 border-r border-slate-900 text-right text-slate-400">{(regFeeItem.discount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                                 <td className="p-2 text-right font-bold">{regFeeItem.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                             </tr>
                                         )}
@@ -270,6 +274,12 @@ export default function InvoicePreviewModal({ isOpen, onClose, invoiceId }: Invo
                                                 <td className="p-2 border-r border-slate-900 text-center font-bold">{regFeeItem ? 2 : 1}</td>
                                                 <td className="p-2 border-r border-slate-900 font-medium">Processing & Digitization of {fileItems.length} Patient Records</td>
                                                 <td className="p-2 border-r border-slate-900 text-center">998311</td>
+                                                <td className="p-2 border-r border-slate-900 text-right text-slate-400">
+                                                    {(fileItems.reduce((acc: number, item: any) => acc + item.amount + (item.discount || 0), 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                </td>
+                                                <td className="p-2 border-r border-slate-900 text-right text-slate-400">
+                                                    {(fileItems.reduce((acc: number, item: any) => acc + (item.discount || 0), 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                </td>
                                                 <td className="p-2 text-right font-bold">
                                                     {fileItems.reduce((acc: number, item: any) => acc + item.amount, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </td>
@@ -284,33 +294,35 @@ export default function InvoicePreviewModal({ isOpen, onClose, invoiceId }: Invo
                                                     <td className="p-2 border-r border-slate-900 text-center font-bold">{startIdx + idx}</td>
                                                     <td className="p-2 border-r border-slate-900 font-medium">{item.description}</td>
                                                     <td className="p-2 border-r border-slate-900 text-center">{item.hsn_code || '998311'}</td>
+                                                    <td className="p-2 border-r border-slate-900 text-right text-slate-400">{(item.amount + (item.discount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                    <td className="p-2 border-r border-slate-900 text-right text-slate-400">{(item.discount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                                     <td className="p-2 text-right font-bold">{item.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                                 </tr>
                                             );
                                         })}
 
                                         {/* Spacing Row */}
-                                        <tr style={{ height: '40px' }}><td colSpan={4} className="border-r border-slate-900"></td></tr>
+                                        <tr style={{ height: '40px' }}><td colSpan={6} className="border-r border-slate-900"></td></tr>
 
                                         {/* Totals Section */}
                                         <tr className="border-t border-slate-900">
-                                            <td colSpan={3} className="p-2 border-r border-slate-900 text-right font-black uppercase tracking-tighter">Sub-Total (Excl. taxes)</td>
+                                            <td colSpan={5} className="p-2 border-r border-slate-900 text-right font-black uppercase tracking-tighter">Sub-Total (Excl. taxes)</td>
                                             <td className="p-2 text-right font-black">{subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                         </tr>
                                         <tr className="text-[10px]">
-                                            <td colSpan={3} className="p-1 px-2 border-r border-slate-900 text-right">Central GST (CGST) @ 9.00%</td>
+                                            <td colSpan={5} className="p-1 px-2 border-r border-slate-900 text-right">Central GST (CGST) @ 9.00%</td>
                                             <td className="p-1 px-2 text-right">{cgst.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                         </tr>
                                         <tr className="text-[10px] border-b border-slate-400">
-                                            <td colSpan={3} className="p-1 px-2 border-r border-slate-900 text-right">State GST (SGST) @ 9.00%</td>
+                                            <td colSpan={5} className="p-1 px-2 border-r border-slate-900 text-right">State GST (SGST) @ 9.00%</td>
                                             <td className="p-1 px-2 text-right">{sgst.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                         </tr>
                                         <tr className="bg-slate-900 text-white border-b border-slate-900">
-                                            <td colSpan={3} className="p-2 border-r border-slate-900 text-right font-black uppercase tracking-widest">Total Invoice Value (Incl. Tax)</td>
+                                            <td colSpan={5} className="p-2 border-r border-slate-900 text-right font-black uppercase tracking-widest">Total Invoice Value (Incl. Tax)</td>
                                             <td className="p-2 text-right font-black text-sm">₹{(subtotal + cgst + sgst).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                         </tr>
                                         <tr>
-                                            <td colSpan={4} className="p-4 bg-slate-50 italic font-black text-[10px] uppercase border-b border-slate-900">
+                                            <td colSpan={6} className="p-4 bg-slate-50 italic font-black text-[10px] uppercase border-b border-slate-900">
                                                 Total Amount in Words: {invoice.amount_in_words || 'N/A'}
                                             </td>
                                         </tr>
@@ -382,7 +394,9 @@ export default function InvoicePreviewModal({ isOpen, onClose, invoiceId }: Invo
                                                 <th className="p-2 border border-slate-900 w-12 font-bold uppercase text-[9px] text-center">Sr</th>
                                                 <th className="p-2 border border-slate-900 text-left font-bold uppercase text-[9px] w-28">Record Id</th>
                                                 <th className="p-2 border border-slate-900 text-left font-bold uppercase text-[9px]">MRD No / Patient Name</th>
-                                                <th className="p-2 border border-slate-900 text-right font-bold uppercase text-[9px] w-24">Amount</th>
+                                                <th className="p-2 border border-slate-900 text-right font-bold uppercase text-[9px] w-24">Gross</th>
+                                                <th className="p-2 border border-slate-900 text-right font-bold uppercase text-[9px] w-20">Disc.</th>
+                                                <th className="p-2 border border-slate-900 text-right font-bold uppercase text-[9px] w-24">Net Amount</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-300">
@@ -393,13 +407,15 @@ export default function InvoicePreviewModal({ isOpen, onClose, invoiceId }: Invo
                                                     <td className="p-1.5 border-x border-slate-300">
                                                         <span className="font-bold text-slate-700">{item.description.replace('Processing MRD: ', '')}</span>
                                                     </td>
+                                                    <td className="p-1.5 border-x border-slate-300 text-right text-slate-400">₹{(item.amount + (item.discount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                    <td className="p-1.5 border-x border-slate-300 text-right text-slate-400">₹{(item.discount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                                     <td className="p-1.5 border-x border-slate-300 text-right font-bold">₹{item.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                         {fileItems.length === 0 && (
                                             <tr>
-                                                <td colSpan={4} className="p-8 text-center text-slate-400 italic font-bold">No patient files linked to this invoice.</td>
+                                                <td colSpan={6} className="p-8 text-center text-slate-400 italic font-bold">No patient files linked to this invoice.</td>
                                             </tr>
                                         )}
                                     </table>

@@ -409,7 +409,8 @@ class InvoiceItem(Base):
     item_id = Column(Integer, primary_key=True, index=True)
     invoice_id = Column(Integer, ForeignKey("invoices.invoice_id"))
     file_id = Column(Integer, ForeignKey("pdf_files.file_id"), nullable=True)
-    amount = Column(Float, nullable=False)
+    amount = Column(Float, nullable=False) # Taxable Value (Net after discount)
+    discount = Column(Float, default=0.0) # Discount amount
     description = Column(String, nullable=True)
     hsn_code = Column(String, nullable=True) # HSN for products, SAC for services
 

@@ -62,6 +62,7 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
     const [customItems, setCustomItems] = useState<CustomItem[]>([]);
     const [newItemDesc, setNewItemDesc] = useState('');
     const [newItemPrice, setNewItemPrice] = useState('');
+    const [newItemDiscount, setNewItemDiscount] = useState('');
     const [newItemHSN, setNewItemHSN] = useState('998311');
 
     useEffect(() => {
@@ -128,6 +129,7 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
             setStep(1);
             setSelectedHospital(null);
             setSelectedFileIds([]);
+            setCustomItems([]);
         } catch (error) {
             console.error("Error generating invoice:", error);
             alert("Failed to generate invoice. Please try again.");
@@ -147,7 +149,7 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
         .filter(f => selectedFileIds.includes(f.file_id))
         .reduce((sum, f) => sum + f.suggested_amount, 0);
 
-    const customTotal = customItems.reduce((sum, item) => sum + item.amount, 0);
+    const customTotal = customItems.reduce((sum, item) => sum + (item.amount - (item.discount || 0)), 0);
     const regFeeTotal = includeRegFee ? (parseFloat(regFeeAmount) || 0) : 0;
 
     const subtotal = filesTotal + customTotal + regFeeTotal;
@@ -159,10 +161,12 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
         setCustomItems([...customItems, {
             description: newItemDesc,
             amount: parseFloat(newItemPrice),
+            discount: parseFloat(newItemDiscount) || 0,
             hsn_code: newItemHSN
         }]);
         setNewItemDesc('');
         setNewItemPrice('');
+        setNewItemDiscount('');
     };
 
     const removeCustomItem = (index: number) => {
@@ -305,7 +309,7 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
                                 <div className="flex items-center justify-between px-2">
                                     <h3 className="font-bold text-slate-900 flex items-center gap-2">
                                         <Plus size={18} className="text-slate-400" />
-                                        Additional Charges
+                                        Additional Charges & Discounts
                                     </h3>
                                 </div>
 
@@ -341,10 +345,13 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
                                         <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl group">
                                             <div>
                                                 <p className="text-sm font-bold text-slate-900">{item.description}</p>
-                                                <p className="text-[10px] text-slate-500 uppercase font-black">HSN: {item.hsn_code}</p>
+                                                <p className="text-[10px] text-slate-500 uppercase font-black">HSN: {item.hsn_code} • Price: ₹{item.amount}</p>
+                                                {item.discount > 0 && (
+                                                    <p className="text-[10px] text-emerald-600 uppercase font-black">Discount: -₹{item.discount}</p>
+                                                )}
                                             </div>
                                             <div className="flex items-center gap-3">
-                                                <p className="font-bold text-slate-900 text-sm">₹{item.amount.toLocaleString()}</p>
+                                                <p className="font-bold text-slate-900 text-sm">₹{(item.amount - (item.discount || 0)).toLocaleString()}</p>
                                                 <button onClick={() => removeCustomItem(idx)} className="text-slate-300 hover:text-red-500 p-1">
                                                     <Trash2 size={14} />
                                                 </button>
@@ -353,11 +360,11 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
                                     ))}
 
                                     {/* Add Custom Item Form */}
-                                    <div className="grid grid-cols-12 gap-2 mt-2">
+                                    <div className="grid grid-cols-12 gap-2 mt-2 items-center">
                                         <input
                                             type="text"
                                             placeholder="Item Description"
-                                            className="col-span-6 px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-indigo-500"
+                                            className="col-span-5 px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-indigo-500"
                                             value={newItemDesc}
                                             onChange={(e) => setNewItemDesc(e.target.value)}
                                         />
@@ -368,9 +375,16 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
                                             value={newItemPrice}
                                             onChange={(e) => setNewItemPrice(e.target.value)}
                                         />
+                                        <input
+                                            type="number"
+                                            placeholder="Disc."
+                                            className="col-span-2 px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-indigo-500"
+                                            value={newItemDiscount}
+                                            onChange={(e) => setNewItemDiscount(e.target.value)}
+                                        />
                                         <button
                                             onClick={addCustomItem}
-                                            className="col-span-3 bg-indigo-50 text-indigo-600 font-bold text-xs rounded-lg hover:bg-indigo-100 transition-colors flex items-center justify-center gap-1"
+                                            className="col-span-2 bg-indigo-50 text-indigo-600 font-bold text-xs rounded-lg hover:bg-indigo-100 transition-colors flex items-center justify-center gap-1 h-full"
                                         >
                                             <Plus size={14} /> Add
                                         </button>
@@ -412,7 +426,7 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
                                         <span className="font-bold text-xs">₹{filesTotal.toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-slate-400 lg:">
-                                        <span className="text-[10px] font-bold uppercase tracking-widest">Other Charges</span>
+                                        <span className="text-[10px] font-bold uppercase tracking-widest">Other Charges (Net)</span>
                                         <span className="font-bold text-xs">₹{(customTotal + regFeeTotal).toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-emerald-400/80 border-t border-slate-800 pt-2 border-dashed">

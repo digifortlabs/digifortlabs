@@ -16,7 +16,7 @@ router = APIRouter()
 
 class HospitalCreate(BaseModel):
     legal_name: str
-    subscription_tier: str = "Starter"
+    subscription_tier: str = "Standard"
     hospital_type: str = "Private"
     email: EmailStr
     director_name: Optional[str] = None
@@ -26,6 +26,7 @@ class HospitalCreate(BaseModel):
     state: Optional[str] = None
     pincode: Optional[str] = None
     phone: Optional[str] = None
+    gst_number: Optional[str] = None
     
     # Billing Config (INR)
     price_per_file: float = 100.0
@@ -45,6 +46,7 @@ class HospitalResponse(BaseModel):
     state: Optional[str] = None
     pincode: Optional[str] = None
     phone: Optional[str] = None
+    gst_number: Optional[str] = None
     
     price_per_file: float
     included_pages: int
@@ -64,6 +66,7 @@ class HospitalUpdate(BaseModel):
     pincode: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
+    gst_number: Optional[str] = None
     
     # Super Admin Only Fields
     legal_name: Optional[str] = None
@@ -146,11 +149,10 @@ def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), cur
     # Check for duplicate email
     if db.query(Hospital).filter(Hospital.email == hospital.email).first():
         raise HTTPException(status_code=400, detail="Hospital with this email already exists")
-
     db_hospital = Hospital(
         legal_name=hospital.legal_name, 
         subscription_tier=hospital.subscription_tier,
-        hospital_type=hospital.hospital_type,
+        hospital_type=hospital.hospital_type.upper() if hospital.hospital_type else "PRIVATE",
         email=hospital.email,
         director_name=hospital.director_name,
         registration_number=hospital.registration_number,
@@ -161,7 +163,8 @@ def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), cur
         phone=hospital.phone,
         price_per_file=hospital.price_per_file,
         included_pages=hospital.included_pages,
-        price_per_extra_page=hospital.price_per_extra_page
+        price_per_extra_page=hospital.price_per_extra_page,
+        gst_number=hospital.gst_number.upper() if hospital.gst_number else None
     )
     db.add(db_hospital)
     db.flush() # Generate ID without committing transaction
@@ -257,6 +260,8 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Sessi
     if is_super:
         # Super Admin: Apply Immediately
         for key, value in update_data.items():
+            if key in ["gst_number", "hospital_type"] and value:
+                value = value.upper()
             setattr(db_hospital, key, value)
         # Also clear pending updates if any, as super overrides
         db_hospital.pending_updates = None
@@ -283,6 +288,8 @@ def approve_update(hospital_id: int, db: Session = Depends(get_db), current_user
     
     for key, value in updates.items():
         if hasattr(db_hospital, key):
+            if key in ["gst_number", "hospital_type"] and value:
+                value = value.upper()
             setattr(db_hospital, key, value)
     
     db_hospital.pending_updates = None

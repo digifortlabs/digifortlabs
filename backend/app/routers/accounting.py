@@ -23,6 +23,7 @@ class InvoiceItemResponse(BaseModel):
     file_id: Optional[int] = None
     filename: Optional[str] = None
     amount: float
+    discount: float = 0.0
     description: Optional[str] = None
     hsn_code: Optional[str] = "998311" # Standard SAC for IT/Data services
 
@@ -65,6 +66,7 @@ class InvoiceResponse(BaseModel):
 class CustomItem(BaseModel):
     description: str
     amount: float
+    discount: float = 0.0
     hsn_code: Optional[str] = "998311"
 
 class GenerateInvoiceRequest(BaseModel):
@@ -162,6 +164,7 @@ def get_invoice_details(
             file_id=item.file_id,
             filename=item.pdf_file.filename if item.pdf_file else None,
             amount=item.amount,
+            discount=item.discount,
             description=item.description,
             hsn_code=item.hsn_code
         ))
@@ -371,6 +374,7 @@ def generate_invoice(
             invoice_items.append({
                 "file_id": None,
                 "amount": reg_fee,
+                "discount": 0.0,
                 "description": "One-time Registration Fee",
                 "hsn_code": "998311"
             })
@@ -401,16 +405,19 @@ def generate_invoice(
             invoice_items.append({
                 "file_id": f.file_id,
                 "amount": file_cost,
+                "discount": 0.0,
                 "description": description,
                 "hsn_code": "998311"
             })
 
         # Add Custom Items
         for ci in req.custom_items:
-            total_amount += ci.amount
+            net_amount = ci.amount - ci.discount
+            total_amount += net_amount
             invoice_items.append({
                 "file_id": None,
-                "amount": ci.amount,
+                "amount": net_amount, # Store Net Amount
+                "discount": ci.discount,
                 "description": ci.description,
                 "hsn_code": ci.hsn_code or "998311"
             })
@@ -440,6 +447,7 @@ def generate_invoice(
                 invoice_id=new_invoice.invoice_id,
                 file_id=item["file_id"],
                 amount=item["amount"],
+                discount=item["discount"],
                 description=item["description"],
                 hsn_code=item.get("hsn_code")
             )
