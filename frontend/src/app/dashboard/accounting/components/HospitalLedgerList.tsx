@@ -28,7 +28,7 @@ export default function HospitalLedgerList() {
         async function fetchData() {
             try {
                 // Fetch hospitals first
-                const hospitalsData = await apiFetch('/hospitals');
+                const hospitalsData = await apiFetch('/hospitals/');
 
                 // Fetch ledger balances for each hospital
                 const results = await Promise.all(hospitalsData.map(async (h: any) => {

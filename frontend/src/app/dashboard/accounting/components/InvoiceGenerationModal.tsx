@@ -73,7 +73,7 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
 
     const fetchHospitals = async () => {
         try {
-            const data = await apiFetch('/hospitals');
+            const data = await apiFetch('/hospitals/');
             setHospitals(data);
         } catch (error) {
             console.error("Error fetching hospitals:", error);

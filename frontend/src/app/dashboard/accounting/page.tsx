@@ -89,7 +89,7 @@ export default function AccountingPage() {
     const fetchInvoices = async () => {
         setLoading(true);
         try {
-            const data = await apiFetch('/accounting');
+            const data = await apiFetch('/accounting/');
             setInvoices(data);
 
             // Calculate stats
