@@ -6,6 +6,8 @@ import {
     Scan,
     Printer,
     History,
+    Archive,
+    FileText,
     Building2,
     Package
 } from 'lucide-react';
@@ -19,9 +21,11 @@ interface SidebarProps {
 const WarehouseSidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, userRole }) => {
     const navItems = [
         { id: 'warehouse', label: 'Warehouse Map', icon: LayoutGrid },
+        { id: 'archive', label: 'Archive View', icon: Archive },
+        { id: 'requests', label: 'File Requests', icon: FileText },
         { id: 'bulk', label: 'Bulk Scan', icon: ScanLine },
         { id: 'scanner', label: 'File Tracker', icon: Scan },
-        { id: 'manager', label: 'Rack Manager', icon: Building2 }, // Added here
+        { id: 'manager', label: 'Rack Manager', icon: Building2 },
         { id: 'generator', label: 'Label Printer', icon: Printer },
         { id: 'logs', label: 'History Logs', icon: History },
     ];

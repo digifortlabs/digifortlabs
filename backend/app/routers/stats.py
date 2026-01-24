@@ -70,6 +70,7 @@ def get_dashboard_stats(
         elif new_users_24h > 0:
             user_trend = f"+{new_users_24h}"
     except Exception as e:
+        db.rollback()
         print(f"Stats Error (Users): {e}")
         user_count = 0
         active_users = 0
@@ -93,6 +94,7 @@ def get_dashboard_stats(
         elif new_patients_24h > 0:
             patient_trend = f"+{new_patients_24h}"
     except Exception as e:
+        db.rollback()
         print(f"Stats Error (Patients): {e}")
         patient_count = 0
         patient_trend = "Error"
@@ -107,6 +109,7 @@ def get_dashboard_stats(
             box_count = db.query(PhysicalBox).join(Patient).filter(Patient.hospital_id == target_hospital_id).distinct().count()
             warehouse_capacity_pct = 0
     except Exception as e:
+        db.rollback()
         print(f"Stats Error (Warehouse): {e}")
         box_count = 0
         warehouse_capacity_pct = 0
@@ -125,6 +128,7 @@ def get_dashboard_stats(
              q_todays_scans = q_todays_scans.join(Patient).filter(Patient.hospital_id == target_hospital_id)
         todays_scans_count = q_todays_scans.count()
     except Exception as e:
+        db.rollback()
         print(f"Stats Error (Requests): {e}")
         pending_requests = 0
         todays_scans_count = 0
@@ -145,6 +149,7 @@ def get_dashboard_stats(
             "time": log.timestamp.strftime("%H:%M")
         } for log in recent_audits]
     except Exception as e:
+        db.rollback()
         print(f"Stats Error (Audit): {e}")
 
     # 6. QA Issues (Real Data Only)
@@ -165,7 +170,8 @@ def get_dashboard_stats(
             "timestamp": i.created_at.strftime("%Y-%m-%d") if i.created_at else "N/A"
         } for i in qa_issues]
     except Exception as e:
-         print(f"Stats Error (QA): {e}")
+        db.rollback()
+        print(f"Stats Error (QA): {e}")
 
     # 7. Storage & Trends
     total_bytes = 0
@@ -200,6 +206,7 @@ def get_dashboard_stats(
         max_storage_bytes = 1024 * 1024 * 1024 * 1024  # 1TB
         storage_capacity_pct = min(round((total_bytes / max_storage_bytes) * 100, 1), 100)
     except Exception as e:
+        db.rollback()
         print(f"Stats Error (Storage): {e}")
 
     # 8. Billing & Revenue (For Detailed Hospital View)
@@ -224,6 +231,7 @@ def get_dashboard_stats(
                     "files_count": total_files
                 }
     except Exception as e:
+        db.rollback()
         print(f"Stats Error (Billing): {e}")
 
     # 9. Open Boxes Count
@@ -234,6 +242,7 @@ def get_dashboard_stats(
             q_open_boxes = q_open_boxes.filter(PhysicalBox.hospital_id == target_hospital_id)
         open_boxes_count = q_open_boxes.count()
     except Exception as e:
+        db.rollback()
         print(f"Stats Error (Boxes): {e}")
     
     # 10. Files Pending QA
@@ -248,6 +257,7 @@ def get_dashboard_stats(
             if count > 0:
                 category_breakdown.append({"name": category, "value": count})
     except Exception as e:
+        db.rollback()
         print(f"Stats Error (Categories): {e}")
     
     # 12. Activity Trend (last 7 days for line chart)
@@ -270,6 +280,7 @@ def get_dashboard_stats(
                 "count": day_count
             })
     except Exception as e:
+        db.rollback()
         print(f"Stats Error (Activity): {e}")
     
     # 13. Enhanced Recent Activity with Patient Names
@@ -298,10 +309,11 @@ def get_dashboard_stats(
                 "patient": patient_name,
                 "details": log.details,
                 "time": log.timestamp.strftime("%H:%M"),
-                "user": log.user_email or "System"
+                "user": log.user.email if log.user else "System"
             })
     except Exception as e:
-         print(f"Stats Error (Recent Audits): {e}")
+        db.rollback()
+        print(f"Stats Error (Recent Audits): {e}")
 
     # 14. Recent Uploads (last 24 hours)
     recent_uploads_count = todays_scans_count

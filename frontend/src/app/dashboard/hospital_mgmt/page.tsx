@@ -13,7 +13,13 @@ import {
     Hotel,
     CheckCircle2,
     XCircle,
-    Loader2
+    Loader2,
+    Activity,
+    Wallet,
+    AlertCircle,
+    Trash,
+    Power,
+    Cpu
 } from 'lucide-react';
 
 export default function HospitalsPage() {
@@ -21,6 +27,7 @@ export default function HospitalsPage() {
     const [hospitals, setHospitals] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [selectedHospitals, setSelectedHospitals] = useState<number[]>([]);
 
     // Form State
     const [legalName, setLegalName] = useState('');
@@ -46,6 +53,22 @@ export default function HospitalsPage() {
         return str.replace(/\w\S*/g, (txt) => {
             return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
         });
+    };
+
+    const toggleSelect = (id: number) => {
+        if (selectedHospitals.includes(id)) {
+            setSelectedHospitals(selectedHospitals.filter(x => x !== id));
+        } else {
+            setSelectedHospitals([...selectedHospitals, id]);
+        }
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedHospitals.length === hospitals.length) {
+            setSelectedHospitals([]);
+        } else {
+            setSelectedHospitals(hospitals.map(h => h.hospital_id));
+        }
     };
 
     const handlePincodeBlur = async () => {
@@ -133,6 +156,7 @@ export default function HospitalsPage() {
             });
             if (res.ok) {
                 alert('Hospital Deleted Successfully');
+                setHospitals(prev => prev.filter(h => h.hospital_id !== hospitalToDelete.hospital_id));
                 setShowDeleteModal(false);
                 setHospitalToDelete(null);
                 setDeleteConfirmation('');
@@ -144,6 +168,31 @@ export default function HospitalsPage() {
         } catch (error) {
             console.error(error);
             alert('Error deleting hospital');
+        }
+    };
+
+    // Bulk OCR Logic
+    const [ocrLoading, setOcrLoading] = useState(false);
+    const runBulkOCR = async () => {
+        if (!confirm("This will trigger background OCR for up to 50 pending files. Continue?")) return;
+        setOcrLoading(true);
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/platform/bulk-ocr?limit=50`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert(data.message);
+            } else {
+                alert(`Error: ${data.detail || data.message}`);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Failed to trigger OCR");
+        } finally {
+            setOcrLoading(false);
         }
     };
 
@@ -204,6 +253,13 @@ export default function HospitalsPage() {
         }
     };
 
+    // Calculate Stats
+    const totalHospitals = hospitals.length;
+    const activeHospitals = hospitals.filter(h => h.is_active).length;
+    const inactiveHospitals = totalHospitals - activeHospitals;
+    // Dummy revenue calculation: sum of base price * 10 (avg files)
+    const estimatedRevenue = hospitals.reduce((acc, h) => acc + (h.price_per_file || 100) * 10, 0);
+
     return (
         <div className="p-8 max-w-[1600px] mx-auto min-h-screen pb-20">
 
@@ -230,9 +286,40 @@ export default function HospitalsPage() {
                 </button>
             </div>
 
+            {/* System Tools (Admin Only) */}
+            <div className="bg-slate-900 rounded-[2rem] p-8 mb-8 text-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+
+                <div className="flex justify-between items-center relative z-10">
+                    <div>
+                        <h2 className="text-xl font-black flex items-center gap-3">
+                            <Cpu className="text-indigo-400" /> System Maintenance
+                        </h2>
+                        <p className="text-slate-400 mt-1 font-medium text-sm">Perform system-wide diagnostics and batch operations.</p>
+                    </div>
+
+                    <button
+                        onClick={runBulkOCR}
+                        disabled={ocrLoading}
+                        className="bg-white/10 hover:bg-white/20 border border-white/10 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-3 transition-all active:scale-95 disabled:opacity-50"
+                    >
+                        {ocrLoading ? <Loader2 className="animate-spin text-indigo-400" /> : <div className="p-1 bg-indigo-500 rounded text-white"><Search size={14} /></div>}
+                        <span>Run Bulk OCR (Recover Old Files)</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* Stats Dashboard */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <StatsCard title="Total Hospitals" value={totalHospitals} icon={Building2} color="indigo" />
+                <StatsCard title="Active Licenses" value={activeHospitals} icon={Activity} color="emerald" />
+                <StatsCard title="Inactive / Expired" value={inactiveHospitals} icon={AlertCircle} color="red" />
+                <StatsCard title="Est. Monthly Revenue" value={`₹${estimatedRevenue.toLocaleString()}`} icon={Wallet} color="amber" />
+            </div>
+
             {/* List */}
             <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200">
-                <div className="p-6 border-b border-slate-100 flex gap-4">
+                <div className="p-6 border-b border-slate-100 flex gap-4 justify-between items-center">
                     <div className="relative flex-1 max-w-md">
                         <Search className="absolute left-4 top-3 text-slate-400" size={20} />
                         <input
@@ -243,11 +330,33 @@ export default function HospitalsPage() {
                             className="w-full pl-12 pr-4 py-3 bg-slate-50 rounded-xl font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400"
                         />
                     </div>
+
+                    {/* Bulk Actions Menu */}
+                    {selectedHospitals.length > 0 && (
+                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5">
+                            <span className="text-sm font-bold text-slate-500">{selectedHospitals.length} Selected</span>
+                            <div className="h-8 w-[1px] bg-slate-200 mx-2"></div>
+                            <button className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-bold text-sm transition-colors">
+                                <Trash size={16} /> Delete
+                            </button>
+                            <button className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-bold text-sm transition-colors">
+                                <Power size={16} /> Deactivate
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <table className="w-full text-left">
                     <thead className="bg-slate-50 border-b border-slate-100">
                         <tr>
+                            <th className="px-8 py-4">
+                                <input
+                                    type="checkbox"
+                                    checked={hospitals.length > 0 && selectedHospitals.length === hospitals.length}
+                                    onChange={toggleSelectAll}
+                                    className="w-5 h-5 rounded-md border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                            </th>
                             <th className="px-8 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Hospital Name</th>
                             <th className="px-8 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Type</th>
                             <th className="px-8 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Plan</th>
@@ -267,8 +376,18 @@ export default function HospitalsPage() {
                             <tr
                                 key={h.hospital_id}
                                 onClick={() => router.push(`/dashboard?hospital_id=${h.hospital_id}`)}
-                                className="hover:bg-slate-50/50 transition-colors relative group cursor-pointer"
+                                className={`hover:bg-slate-50/50 transition-colors relative group cursor-pointer ${selectedHospitals.includes(h.hospital_id) ? 'bg-indigo-50/30' : ''}`}
                             >
+                                <td className="px-8 py-5">
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedHospitals.includes(h.hospital_id)}
+                                            onChange={() => toggleSelect(h.hospital_id)}
+                                            className="w-5 h-5 rounded-md border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                </td>
                                 <td className="px-8 py-5">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
@@ -566,3 +685,24 @@ const PlanCard = ({ name, selected, onClick }: any) => (
         </div>
     </div>
 );
+
+const StatsCard = ({ title, value, icon: Icon, color }: any) => {
+    const colorStyles: any = {
+        indigo: 'bg-indigo-50 text-indigo-600',
+        emerald: 'bg-emerald-50 text-emerald-600',
+        red: 'bg-red-50 text-red-600',
+        amber: 'bg-amber-50 text-amber-600'
+    };
+
+    return (
+        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-lg transition-shadow">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${colorStyles[color]}`}>
+                <Icon size={28} />
+            </div>
+            <div>
+                <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">{title}</p>
+                <div className="text-2xl font-black text-slate-800">{value}</div>
+            </div>
+        </div>
+    );
+};

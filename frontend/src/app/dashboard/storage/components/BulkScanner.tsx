@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { ScanLine, Loader2, Trash2, Camera, StopCircle } from 'lucide-react';
+import { ScanLine, Loader2, Trash2, Camera, StopCircle, HardDrive, ArrowUpCircle } from 'lucide-react';
 import { Html5Qrcode } from "html5-qrcode";
 import { API_URL } from '../../../../config/api';
 
@@ -16,13 +16,39 @@ const BulkScanner: React.FC<BulkScannerProps> = ({ boxes, refreshData }) => {
     const [bulkInput, setBulkInput] = useState('');
     const [isBulkSaving, setIsBulkSaving] = useState(false);
 
+    // Capacity State
+    const [targetBox, setTargetBox] = useState<any>(null);
+
+    const handleUpgradeCapacity = async (newCap: number) => {
+        if (!targetBox) return;
+        const token = localStorage.getItem('token');
+        if (!confirm(`Upgrade box "${targetBox.label}" capacity to ${newCap}?`)) return;
+
+        try {
+            const res = await fetch(`${API_URL}/storage/boxes/${targetBox.box_id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ capacity: newCap })
+            });
+
+            if (res.ok) {
+                alert("Capacity Upgraded! Please continue scanning.");
+                refreshData();
+            } else {
+                alert("Failed to upgrade capacity.");
+            }
+        } catch (e) { console.error(e); }
+    };
+
     // Auto-select if only one box is open
     useEffect(() => {
         const openBoxes = boxes.filter(b => b.status === "OPEN");
         if (openBoxes.length === 1) {
             setBulkBoxId(openBoxes[0].box_id);
+            setTargetBox(openBoxes[0]);
         } else if (openBoxes.length === 0) {
             setBulkBoxId(null);
+            setTargetBox(null);
         }
     }, [boxes]);
 
@@ -189,7 +215,11 @@ const BulkScanner: React.FC<BulkScannerProps> = ({ boxes, refreshData }) => {
                     <select
                         className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
                         value={bulkBoxId || ''}
-                        onChange={e => setBulkBoxId(Number(e.target.value))}
+                        onChange={e => {
+                            const newId = Number(e.target.value);
+                            setBulkBoxId(newId);
+                            setTargetBox(boxes.find(b => b.box_id === newId));
+                        }}
                     >
                         <option value="">-- Choose an Open Box --</option>
                         {boxes.filter(b => b.status === "OPEN").map(box => (
@@ -205,6 +235,49 @@ const BulkScanner: React.FC<BulkScannerProps> = ({ boxes, refreshData }) => {
                         </p>
                     )}
                 </div>
+
+                {/* Capacity Warning / Upgrade */}
+                {targetBox && (
+                    <div className="bg-white border rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <div className="flex-1 w-full">
+                            <div className="flex justify-between items-end mb-2">
+                                <span className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                                    <HardDrive size={14} /> Storage Usage
+                                </span>
+                                <span className={`text-xs font-black ${(targetBox.patient_count + bulkScannedItems.length) >= targetBox.capacity
+                                        ? "text-red-500"
+                                        : "text-slate-800"
+                                    }`}>
+                                    {targetBox.patient_count + bulkScannedItems.length} / {targetBox.capacity} Files
+                                </span>
+                            </div>
+                            <div className="h-4 bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                    className={`h-full transition-all duration-500 ${(targetBox.patient_count + bulkScannedItems.length) >= targetBox.capacity
+                                            ? "bg-red-500 animate-pulse"
+                                            : "bg-indigo-500"
+                                        }`}
+                                    style={{ width: `${Math.min(100, ((targetBox.patient_count + bulkScannedItems.length) / targetBox.capacity) * 100)}%` }}
+                                ></div>
+                            </div>
+                            {(targetBox.patient_count + bulkScannedItems.length) >= targetBox.capacity && (
+                                <p className="text-[10px] font-bold text-red-500 mt-2 uppercase tracking-wide">
+                                    ⚠️ Capacity Reached - Cannot add more files
+                                </p>
+                            )}
+                        </div>
+
+                        {(targetBox.patient_count + bulkScannedItems.length) >= (targetBox.capacity * 0.9) && (
+                            <button
+                                onClick={() => handleUpgradeCapacity(targetBox.capacity + 500)}
+                                className="bg-amber-100 text-amber-700 px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-amber-200 transition shrink-0"
+                            >
+                                <ArrowUpCircle size={18} />
+                                Upgrade to {targetBox.capacity + 500}
+                            </button>
+                        )}
+                    </div>
+                )}
 
                 {/* Step 2: Scan Files */}
                 <div className="p-6 rounded-3xl border-2 border-indigo-100 bg-indigo-50/30">

@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Search, Filter, Plus, FileText, ChevronRight, Upload, User, ArrowRight, Pencil, Trash2, Building2, Layout, Tag } from 'lucide-react';
 import PatientDetailView from './components/PatientDetailView';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { API_URL } from '@/config/api';
-import { toTitleCase, toUpperCaseMRD } from '@/utils/formatters';
+import { API_URL } from '../../../config/api';
+import { toTitleCase, toUpperCaseMRD } from '../../../utils/formatters';
 
 export default function RecordsList() {
     const router = useRouter();
@@ -45,7 +45,8 @@ export default function RecordsList() {
         patient_category: 'STANDARD', // STANDARD, MLC, BIRTH, DEATH
         dob: '',
         admission_date: '',
-        discharge_date: ''
+        discharge_date: '',
+        mother_record_id: '' as string | number // Store ID if linked
     });
 
     const [ageUnit, setAgeUnit] = useState<string>('Years'); // Years, Months, Days
@@ -107,9 +108,12 @@ export default function RecordsList() {
 
     const resetForm = () => {
         setNewPatient({
-            full_name: '', patient_u_id: '', uhid: '', age: '', gender: '', address: '', contact_number: '', email_id: '', aadhaar_number: '', patient_category: 'STANDARD', dob: '', admission_date: '', discharge_date: ''
+            full_name: '', patient_u_id: '', uhid: '', age: '', gender: '', address: '', contact_number: '', email_id: '', aadhaar_number: '', patient_category: 'STANDARD', dob: '', admission_date: '', discharge_date: '', mother_record_id: ''
         });
         setIsExistingPatient(false);
+        setMotherSearchTerm('');
+        setMotherSuggestions([]);
+        setSelectedMother(null);
         setIsMRDDuplicate(false);
         setIsEditing(false);
         setSelectedPatientId(null);
@@ -182,7 +186,8 @@ export default function RecordsList() {
             patient_category: 'STANDARD', // New admission default
             dob: p.dob ? new Date(p.dob).toISOString().split('T')[0] : '',
             admission_date: '', // New admission
-            discharge_date: '' // New admission
+            discharge_date: '', // New admission
+            mother_record_id: ''
         });
         setAgeUnit(unit);
         setIsExistingPatient(true);
@@ -207,6 +212,39 @@ export default function RecordsList() {
 
         setSuggestions(matches);
         setShowSuggestions(true);
+    };
+
+    // --- Mother Search Logic ---
+    const [motherSearchTerm, setMotherSearchTerm] = useState('');
+    const [motherSuggestions, setMotherSuggestions] = useState<any[]>([]);
+    const [selectedMother, setSelectedMother] = useState<any>(null);
+
+    const handleMotherSearch = (val: string) => {
+        setMotherSearchTerm(val);
+        if (val.length < 2) {
+            setMotherSuggestions([]);
+            return;
+        }
+        // Filter females
+        const matches = patients.filter(p =>
+            (p.gender === 'Female' || p.gender?.toLowerCase() === 'f') &&
+            (p.full_name?.toLowerCase().includes(val.toLowerCase()) ||
+                p.uhid?.toLowerCase().includes(val.toLowerCase()) ||
+                p.patient_u_id?.toLowerCase().includes(val.toLowerCase()))
+        ).slice(0, 5);
+        setMotherSuggestions(matches);
+    };
+
+    const selectMother = (m: any) => {
+        setNewPatient(prev => ({ ...prev, mother_record_id: m.record_id }));
+        setSelectedMother(m);
+        setMotherSearchTerm('');
+        setMotherSuggestions([]);
+    };
+
+    const removeMother = () => {
+        setNewPatient(prev => ({ ...prev, mother_record_id: '' }));
+        setSelectedMother(null);
     };
 
     useEffect(() => {
@@ -543,8 +581,18 @@ export default function RecordsList() {
                                                                 patient_category: p.patient_category || 'STANDARD',
                                                                 dob: p.dob ? (p.dob.includes('T') ? p.dob.split('T')[0] : p.dob) : '',
                                                                 admission_date: p.admission_date ? (p.admission_date.includes('T') ? p.admission_date.split('T')[0] : p.admission_date) : '',
-                                                                discharge_date: p.discharge_date ? (p.discharge_date.includes('T') ? p.discharge_date.split('T')[0] : p.discharge_date) : ''
+                                                                discharge_date: p.discharge_date ? (p.discharge_date.includes('T') ? p.discharge_date.split('T')[0] : p.discharge_date) : '',
+                                                                mother_record_id: p.mother_record_id || ''
                                                             });
+                                                            // Populate user selected mother (Visual only since backend might handle response differently)
+                                                            // Usually we need backend to return mother details to show Name
+                                                            if (p.mother_record_id && p.mother_details) {
+                                                                setSelectedMother(p.mother_details);
+                                                            } else {
+                                                                setSelectedMother(null);
+                                                            }
+
+                                                            setAgeUnit(unit);
                                                             setAgeUnit(unit);
                                                             setSelectedPatientId(p.record_id);
                                                             setIsEditing(true);
@@ -738,6 +786,51 @@ export default function RecordsList() {
                                                 onChange={e => setNewPatient({ ...newPatient, address: toTitleCase(e.target.value) })}
                                                 placeholder="City / Area" />
                                         </div>
+                                    </div>
+                                </div>
+
+                                {/* Section 1.5: Family Linkage (Optional) */}
+                                <div className="bg-pink-50/50 p-4 rounded-xl border border-pink-100">
+                                    <h3 className="text-[10px] font-black text-pink-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <User size={12} /> Link Mother (Optional)
+                                    </h3>
+                                    <div className="relative">
+                                        {selectedMother ? (
+                                            <div className="flex items-center justify-between bg-white border border-pink-200 p-2 rounded-lg">
+                                                <div>
+                                                    <p className="text-xs font-bold text-slate-800">{selectedMother.full_name}</p>
+                                                    <p className="text-[10px] text-slate-500">UHID: {selectedMother.uhid || 'N/A'} | MRD: {selectedMother.patient_u_id}</p>
+                                                </div>
+                                                <button type="button" onClick={removeMother} className="text-red-500 hover:text-red-700 p-1">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    className="w-full px-3 py-2 bg-white border border-pink-200 rounded-lg outline-none focus:border-pink-500 text-sm font-bold placeholder-pink-300 text-slate-700"
+                                                    placeholder="Search Mother's Name / UHID..."
+                                                    value={motherSearchTerm}
+                                                    onChange={e => handleMotherSearch(e.target.value)}
+                                                />
+                                                {motherSuggestions.length > 0 && (
+                                                    <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-40 overflow-y-auto">
+                                                        {motherSuggestions.map((p, idx) => (
+                                                            <button
+                                                                key={idx}
+                                                                type="button"
+                                                                onClick={() => selectMother(p)}
+                                                                className="w-full text-left px-3 py-2 hover:bg-pink-50 transition border-b border-slate-50 last:border-0"
+                                                            >
+                                                                <p className="font-bold text-slate-800 text-xs">{p.full_name}</p>
+                                                                <p className="text-[10px] text-slate-500">{p.uhid ? `UHID:${p.uhid}` : `mrd:${p.patient_u_id}`}</p>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 

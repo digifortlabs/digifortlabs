@@ -4,8 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import imageCompression from 'browser-image-compression';
 import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download, FileText } from 'lucide-react';
-import DigitizationScanner from '@/components/Scanner/DigitizationScanner'; // Ensure this path is correct relative to this file
-import { API_URL } from '@/config/api';
+import DigitizationScanner from '../../../../components/Scanner/DigitizationScanner'; // Ensure this path is correct relative to this file
+import { API_URL } from '../../../../config/api';
 
 interface FileData {
     file_id: number;
@@ -47,6 +47,13 @@ interface PatientDetail {
     included_pages: number;
     price_per_extra_page: number;
     patient_category?: string;
+    mother_record_id?: number;
+    mother_details?: {
+        record_id: number;
+        full_name: string;
+        patient_u_id: string;
+        uhid?: string;
+    };
 }
 
 interface Box {
@@ -298,13 +305,19 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
             }
         }
         setIsUploading(false);
-        alert("Batch Upload Complete!");
-        setFileQueue([]);
+        // Removed blocking alert to allow immediate UI update
+        // alert("Batch Upload Complete!"); 
+
+        // Refresh data immediately
         if (id) {
-            fetchPatient(token, id);
+            await fetchPatient(token, id);
             fetchDiagnoses(token);
             fetchProcedures(token);
         }
+
+        // Clear queue after a small delay or keep completed items visible for a moment?
+        // User wants immediate refresh. 
+        setTimeout(() => setFileQueue([]), 2000);
     };
 
     const fetchDiagnoses = async (token: string) => {
@@ -318,7 +331,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
 
     const fetchProcedures = async (token: string) => {
         try {
-            const res = await fetch(`${API_URL}/icd11/patients/${id}/procedures`, {
+            const res = await fetch(`${API_URL}/icd11/procedures/patients/${id}/procedures`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) setProcedures(await res.json());
@@ -374,7 +387,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
         if (!selectedProcCode) return;
         const token = localStorage.getItem('token') || '';
         try {
-            const res = await fetch(`${API_URL}/icd11/patients/${id}/procedures`, {
+            const res = await fetch(`${API_URL}/icd11/procedures/patients/${id}/procedures`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ code: selectedProcCode.code, notes: procNotes })
@@ -472,6 +485,24 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
             if (res.ok) {
                 alert("Draft discarded successfully");
                 if (id) fetchPatient(token || '', id);
+            }
+        } catch (e) { console.error(e); }
+    };
+
+    const handleRunOCR = async (fileId: number) => {
+        if (!confirm("Run OCR on this file? This will process the file in the background.")) return;
+        const token = localStorage.getItem('token');
+        const apiUrl = API_URL;
+        try {
+            const res = await fetch(`${apiUrl}/patients/files/${fileId}/run-ocr`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                alert("OCR Triggered! processing in background...");
+                if (id) fetchPatient(token || '', id);
+            } else {
+                alert("Failed to trigger OCR");
             }
         } catch (e) { console.error(e); }
     };
@@ -643,6 +674,20 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                                     <p className="font-bold text-gray-700 font-mono tracking-wider">{patient.aadhaar_number.replace(/(\d{4})(?=\d)/g, "$1 ")}</p>
                                 </div>
                             )}
+                            {patient.mother_details && (
+                                <div className="col-span-2 md:col-span-1">
+                                    <span className="text-[10px] text-pink-400 font-bold uppercase tracking-wider block mb-0.5">Mother</span>
+                                    <div className="flex items-center gap-2 cursor-pointer hover:bg-pink-50 rounded p-1 -ml-1 transition"
+                                        onClick={() => router.push(`/dashboard/records/view?id=${patient.mother_details?.record_id}`)}
+                                    >
+                                        <div className="w-6 h-6 rounded-full bg-pink-100 flex items-center justify-center text-[10px] font-bold text-pink-600">M</div>
+                                        <div>
+                                            <p className="font-bold text-gray-800 text-xs leading-tight">{patient.mother_details.full_name}</p>
+                                            <p className="text-[10px] text-gray-500">{patient.mother_details.patient_u_id}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             {(patient.age || patient.gender) && (
                                 <div>
                                     <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Demographics</span>
@@ -790,6 +835,16 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                                         >
                                             <FileText size={14} /> Edit OCR / Tags
                                         </button>
+
+                                        {/* Manual OCR Trigger for Old/Failed Files */}
+                                        {(!file.is_searchable && file.upload_status === 'confirmed' && file.processing_stage !== 'analyzing') && (
+                                            <button
+                                                onClick={() => handleRunOCR(file.file_id)}
+                                                className="w-full py-2 bg-slate-100 text-slate-700 rounded-md text-xs font-bold hover:bg-slate-200 border border-slate-200 flex items-center justify-center gap-1"
+                                            >
+                                                <Sparkles size={12} /> Run OCR
+                                            </button>
+                                        )}
 
                                         {file.upload_status === 'draft' ? (
                                             <div className="flex gap-2">

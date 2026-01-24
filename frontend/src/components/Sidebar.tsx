@@ -36,9 +36,9 @@ export default function Sidebar({ userRole }: SidebarProps) {
                     {userRole === 'website_admin' && (
                         <>
                             <Link
-                                href="/dashboard/super-admin"
-                                className={`block px-4 py-3 rounded-xl transition-all duration-200 border ${isActive('/dashboard/super-admin')
-                                    ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-900/50'
+                                href="/dashboard/hospital_mgmt"
+                                className={`block px-4 py-3 rounded-xl transition-all duration-200 border ${isActive('/dashboard/hospital_mgmt')
+                                    ? 'active bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-900/50'
                                     : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
                                     }`}
                             >
@@ -50,7 +50,7 @@ export default function Sidebar({ userRole }: SidebarProps) {
                             <Link
                                 href="/dashboard/audit"
                                 className={`block px-4 py-3 rounded-xl transition-all duration-200 ${isActive('/dashboard/audit')
-                                    ? 'bg-slate-800 text-white font-medium'
+                                    ? 'active bg-slate-800 text-white font-medium'
                                     : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                                     }`}
                             >
@@ -64,7 +64,7 @@ export default function Sidebar({ userRole }: SidebarProps) {
                     <Link
                         href="/dashboard"
                         className={`block px-4 py-3 rounded-xl transition-all duration-200 ${pathname === '/dashboard'
-                            ? 'bg-slate-800 text-white font-medium border border-slate-700'
+                            ? 'active bg-slate-800 text-white font-medium border border-slate-700'
                             : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                             }`}
                     >
@@ -79,7 +79,7 @@ export default function Sidebar({ userRole }: SidebarProps) {
                         <Link
                             href="/dashboard/storage"
                             className={`block px-4 py-3 rounded-xl transition-all duration-200 ${isActive('/dashboard/storage') && !isActive('/dashboard/storage/requests')
-                                ? 'bg-slate-800 text-white font-medium border border-slate-700'
+                                ? 'active bg-slate-800 text-white font-medium border border-slate-700'
                                 : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                                 }`}
                         >
@@ -94,7 +94,7 @@ export default function Sidebar({ userRole }: SidebarProps) {
                         <Link
                             href="/dashboard/records"
                             className={`block px-4 py-3 rounded-xl transition-all duration-200 ${isActive('/dashboard/records')
-                                ? 'bg-slate-800 text-white font-medium border border-slate-700'
+                                ? 'active bg-slate-800 text-white font-medium border border-slate-700'
                                 : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                                 }`}
                         >
@@ -115,7 +115,7 @@ export default function Sidebar({ userRole }: SidebarProps) {
                                 <Link
                                     href="/dashboard/drafts"
                                     className={`block px-4 py-3 rounded-xl transition-all duration-200 ${isActive('/dashboard/drafts')
-                                        ? 'bg-amber-900/20 text-amber-500 font-medium border border-amber-900'
+                                        ? 'active bg-amber-900/20 text-amber-500 font-medium border border-amber-900'
                                         : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                                         }`}
                                 >
@@ -124,19 +124,6 @@ export default function Sidebar({ userRole }: SidebarProps) {
                                     </div>
                                 </Link>
                             )}
-
-
-                            <Link
-                                href="/dashboard/requests"
-                                className={`block px-4 py-3 rounded-xl transition-all duration-200 ${isActive('/dashboard/requests')
-                                    ? 'bg-slate-800 text-white font-medium border border-slate-700'
-                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                                    }`}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <span>🚚</span> Retrievals
-                                </div>
-                            </Link>
                         </div>
                     )
                 }
@@ -149,7 +136,7 @@ export default function Sidebar({ userRole }: SidebarProps) {
                         <Link
                             href="/dashboard/settings"
                             className={`block px-4 py-3 rounded-xl transition-all duration-200 ${isActive('/dashboard/settings')
-                                ? 'bg-slate-800 text-white font-medium border border-slate-700'
+                                ? 'active bg-slate-800 text-white font-medium border border-slate-700'
                                 : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                                 }`}
                         >

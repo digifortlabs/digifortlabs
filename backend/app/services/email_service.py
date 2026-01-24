@@ -23,6 +23,17 @@ class EmailService:
         
         return True
 
+        return True
+
+    @staticmethod
+    def send_account_locked_email(email: str, reason: str):
+        """
+        Simulates sending an account locked email.
+        Non-blocking mock for now to prevent login freeze.
+        """
+        print(f"[MOCK EMAIL SERVICE] Account Locked: {email} | Reason: {reason}")
+        return True
+
     @staticmethod
     def send_otp_email(email: str, otp_code: str):
         """

@@ -1,6 +1,4 @@
-import csv
-import io
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import List, Optional
 from pydantic import BaseModel
 
@@ -54,17 +52,28 @@ def apply_hospital_filter(query, model_with_hospital_id, user: User, target_hosp
         # Enforce User's Hospital
         return query.filter(model_with_hospital_id.hospital_id == user.hospital_id)
 
+def apply_date_filter(query, date_column, start_date: Optional[date], end_date: Optional[date]):
+    if start_date:
+        query = query.filter(date_column >= start_date)
+    if end_date:
+        # End of the day for end_date
+        query = query.filter(date_column < (end_date + timedelta(days=1)))
+    return query
+
 # --- Endpoints ---
 
 @router.get("/billing")
 def get_billing_report(
     hospital_id: Optional[int] = None, 
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
     export_csv: bool = False,
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(PDFFile).join(Patient).options(joinedload(PDFFile.patient))
     query = apply_hospital_filter(query, Patient, current_user, hospital_id)
+    query = apply_date_filter(query, PDFFile.upload_date, start_date, end_date)
     
     files = query.all()
     
@@ -89,6 +98,10 @@ def get_billing_report(
             "upload_date": f.upload_date.strftime("%Y-%m-%d %H:%M") if f.upload_date else "N/A",
             "patient_name": f.patient.full_name,
             "mrd": f.patient.patient_u_id,
+            "uhid": f.patient.uhid, # Added Field
+            "age": f.patient.age,   # Added Field
+            "admission_date": f.patient.admission_date.strftime("%Y-%m-%d") if f.patient.admission_date else None, # Added Field
+            "discharge_date": f.patient.discharge_date.strftime("%Y-%m-%d") if f.patient.discharge_date else None, # Added Field
             "filename": f.filename,
             "page_count": page_count,
             "file_size_mb": round(f.file_size_mb, 2),
@@ -101,7 +114,7 @@ def get_billing_report(
 
     if export_csv:
         output = io.StringIO()
-        fieldnames = ["file_id", "record_id", "upload_date", "patient_name", "mrd", "filename", "page_count", "file_size_mb", "cost", "status", "is_paid", "payment_date"]
+        fieldnames = ["file_id", "record_id", "upload_date", "patient_name", "mrd", "uhid", "age", "admission_date", "discharge_date", "filename", "page_count", "file_size_mb", "cost", "status", "is_paid", "payment_date"]
         writer = csv.DictWriter(output, fieldnames=fieldnames)
         if writer:
             writer.writeheader()
@@ -126,12 +139,31 @@ def get_billing_report(
 @router.get("/inventory")
 def get_inventory_report(
     hospital_id: Optional[int] = None, 
+    search: Optional[str] = None,
     export_csv: bool = False,
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(PhysicalBox).options(joinedload(PhysicalBox.rack))
     query = apply_hospital_filter(query, PhysicalBox, current_user, hospital_id)
+    
+    if search:
+        search_term = f"%{search}%"
+        # Need to join rack if searching rack label, but let's stick to box fields for simplicity or simple join
+        # PhysicalBox has relationship `rack`
+        query = query.outerjoin(PhysicalBox.rack).filter(
+            or_(
+                PhysicalBox.label.ilike(search_term),
+                PhysicalBox.location_code.ilike(search_term),
+                # PhysicalBox.rack.has(Rack.label.ilike(search_term)) # If using has
+                # Since we joined, we can filter on Rack model if imported. 
+                # Let's simplify and search local fields first. 
+                # To search rack label, we need Rack model or aliases. 
+                # Let's stick to Box Label and Location for now to avoid complexity without Rack model import.
+                # Actually, Rack model is likely available via relationships.
+                PhysicalBox.description.ilike(search_term)
+            )
+        )
     
     boxes = query.all()
     data = []
@@ -172,6 +204,8 @@ def get_inventory_report(
 @router.get("/audit")
 def get_audit_report(
     hospital_id: Optional[int] = None, 
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
     export_csv: bool = False,
     limit: int = 100,
     db: Session = Depends(get_db), 
@@ -179,6 +213,7 @@ def get_audit_report(
 ):
     query = db.query(AuditLog).options(joinedload(AuditLog.user))
     query = apply_hospital_filter(query, AuditLog, current_user, hospital_id)
+    query = apply_date_filter(query, AuditLog.timestamp, start_date, end_date)
     
     logs = query.order_by(AuditLog.timestamp.desc()).limit(limit).all()
     
@@ -235,6 +270,9 @@ def mark_files_as_paid(
 @router.get("/clinical")
 def get_clinical_report(
     hospital_id: Optional[int] = None, 
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    search: Optional[str] = None,
     export_csv: bool = False,
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
@@ -243,6 +281,18 @@ def get_clinical_report(
         joinedload(PDFFile.patient).subqueryload(Patient.diagnoses)
     )
     query = apply_hospital_filter(query, Patient, current_user, hospital_id)
+    query = apply_date_filter(query, PDFFile.upload_date, start_date, end_date)
+    
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            or_(
+                Patient.full_name.ilike(search_term),
+                Patient.patient_u_id.ilike(search_term),
+                PDFFile.filename.ilike(search_term),
+                PDFFile.tags.ilike(search_term)
+            )
+        )
     
     files = query.all()
     

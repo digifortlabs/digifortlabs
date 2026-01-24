@@ -23,11 +23,31 @@ export default function SessionMonitor() {
     };
 
     useEffect(() => {
+        let lastActivity = Date.now();
+        const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 Minutes
+
+        const updateActivity = () => {
+            lastActivity = Date.now();
+        };
+
+        // Activity listeners
+        window.addEventListener('mousemove', updateActivity);
+        window.addEventListener('keydown', updateActivity);
+        window.addEventListener('click', updateActivity);
+        window.addEventListener('scroll', updateActivity);
+
         const checkToken = () => {
             const token = localStorage.getItem('token');
             if (!token) {
                 setShowCountdown(false);
                 setTimeLeft(null);
+                return;
+            }
+
+            // Check Idle Time
+            if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
+                localStorage.removeItem('token');
+                router.push('/login?error=Session timed out due to inactivity.');
                 return;
             }
 
@@ -60,7 +80,13 @@ export default function SessionMonitor() {
         const interval = setInterval(checkToken, 1000);
         checkToken();
 
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('mousemove', updateActivity);
+            window.removeEventListener('keydown', updateActivity);
+            window.removeEventListener('click', updateActivity);
+            window.removeEventListener('scroll', updateActivity);
+        };
     }, [router]);
 
     if (!showCountdown || timeLeft === null) return null;

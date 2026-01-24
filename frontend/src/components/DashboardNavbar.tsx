@@ -42,6 +42,18 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
     const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');
 
+    const isSuperAdmin = userRole === 'superadmin';
+    const isHospitalAdmin = userRole === 'hospital_admin';
+    const isWarehouseManager = userRole === 'warehouse_manager';
+    const isStaff = userRole === 'superadmin_staff';
+
+    // Grouping Logic
+    const showStorage = isSuperAdmin;
+    const showRequests = isHospitalAdmin || isWarehouseManager || isStaff || isSuperAdmin;
+    const showArchive = isWarehouseManager || isHospitalAdmin || isSuperAdmin || isStaff;
+    const showDrafts = isWarehouseManager;
+    const showWarehouseMenu = showStorage || showRequests || showArchive || showDrafts;
+
     return (
         <nav className="fixed top-0 w-full z-40 bg-slate-900 border-b border-slate-800 shadow-md">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -78,7 +90,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             </Link>
 
                             {/* Super Admin Links */}
-                            {userRole === 'superadmin' && (
+                            {isSuperAdmin && (
                                 <Link
                                     href="/dashboard/hospital_mgmt"
                                     className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/hospital_mgmt')
@@ -90,8 +102,8 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 </Link>
                             )}
 
-                            {/* Records Link - Admins & MRD Staff */}
-                            {(userRole === 'hospital_admin' || userRole === 'warehouse_manager' || userRole === 'superadmin') && (
+                            {/* Records Link */}
+                            {(isHospitalAdmin || isWarehouseManager || isSuperAdmin) && (
                                 <Link
                                     href="/dashboard/records"
                                     className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/records')
@@ -103,10 +115,8 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 </Link>
                             )}
 
-
-
-                            {/* Reports Link - Admins */}
-                            {(userRole === 'superadmin' || userRole === 'hospital_admin') && (
+                            {/* Reports & Accounting */}
+                            {(isSuperAdmin || isHospitalAdmin) && (
                                 <>
                                     <Link
                                         href="/dashboard/reports"
@@ -129,79 +139,57 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 </>
                             )}
 
-                            {/* Warehouse Link (Added by Request) */}
-                            {/* Warehouse Link - Super Admin Only */}
-                            {/* Warehouse Link - Super Admin Only */}
-                            {userRole === 'superadmin' && (
-                                <Link
-                                    href="/dashboard/storage"
-                                    className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/storage') && !isActive('/dashboard/storage/requests')
-                                        ? 'bg-slate-800 text-white'
-                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                        }`}
-                                >
-                                    Warehouse
-                                </Link>
-                            )}
-
-
-
-                            {/* Operations */}
-                            {(userRole === 'hospital_admin' || userRole === 'warehouse_manager' || userRole === 'superadmin_staff' || userRole === 'superadmin') && (
-                                <>
-
-
-                                    {/* Team Management - Hospital Admin Only */}
-                                    {userRole === 'hospital_admin' && (
-                                        <Link
-                                            href="/dashboard/user_mgmt"
-                                            className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/user_mgmt')
-                                                ? 'bg-slate-800 text-white'
-                                                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                                }`}
-                                        >
-                                            Staff
-                                        </Link>
-                                    )}
-
-                                    {/* File Retrieval Requests */}
-                                    <Link
-                                        href="/dashboard/requests"
-                                        className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/requests')
+                            {/* Warehouse Dropdown */}
+                            {showWarehouseMenu && (
+                                <div className="relative group">
+                                    <button
+                                        className={`flex items-center gap-1 px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/storage') || isActive('/dashboard/requests') || isActive('/dashboard/archive') || isActive('/dashboard/drafts')
                                             ? 'bg-slate-800 text-white'
                                             : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                             }`}
                                     >
-                                        File Requests
-                                    </Link>
-                                    {/* Physical Archive - Visible to MRD and Admins */}
-                                    {(userRole === 'warehouse_manager' || userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'superadmin_staff') && (
-                                        <Link
-                                            href="/dashboard/archive"
-                                            className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/archive')
-                                                ? 'bg-slate-800 text-white'
-                                                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                                }`}
-                                        >
-                                            Archive
-                                        </Link>
-                                    )}
-
-                                    {userRole === 'warehouse_manager' && (
-                                        <Link
-                                            href="/dashboard/drafts"
-                                            className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/drafts')
-                                                ? 'bg-amber-900/20 text-amber-500 border border-amber-900/50'
-                                                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                                }`}
-                                        >
-                                            Drafts
-                                        </Link>
-                                    )}
-
-
-                                </>
+                                        Warehouse <span className="text-[10px]">▼</span>
+                                    </button>
+                                    <div className="absolute left-0 mt-0 w-48 bg-slate-900 border border-slate-800 rounded-xl shadow-xl overflow-hidden hidden group-hover:block animate-in fade-in zoom-in-95 duration-150">
+                                        <div className="p-1 space-y-0.5">
+                                            {showStorage && (
+                                                <Link href="/dashboard/storage" className="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg">
+                                                    Overview
+                                                </Link>
+                                            )}
+                                            {showRequests && (
+                                                <Link href="/dashboard/requests" className="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg">
+                                                    File Requests
+                                                </Link>
+                                            )}
+                                            {showArchive && (
+                                                <Link href="/dashboard/archive" className="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg">
+                                                    Physical Archive
+                                                </Link>
+                                            )}
+                                            {showDrafts && (
+                                                <Link href="/dashboard/drafts" className="block px-4 py-2 text-sm text-amber-500 hover:bg-slate-800 hover:text-amber-400 rounded-lg">
+                                                    Drafts
+                                                </Link>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
                             )}
+
+                            {/* Staff Mgmt */}
+                            {isHospitalAdmin && (
+                                <Link
+                                    href="/dashboard/user_mgmt"
+                                    className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/user_mgmt')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        }`}
+                                >
+                                    Staff
+                                </Link>
+                            )}
+
                         </div>
                     </div>
 

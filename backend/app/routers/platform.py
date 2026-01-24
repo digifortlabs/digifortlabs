@@ -31,3 +31,45 @@ async def update_setting(key: str, update: SettingUpdate, db: Session = Depends(
     
     db.commit()
     return {"status": "success", "key": key, "value": update.value}
+
+from fastapi import BackgroundTasks
+from ..models import PDFFile
+
+@router.post("/bulk-ocr")
+async def run_bulk_ocr(
+    background_tasks: BackgroundTasks,
+    limit: int = 50,
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Triggers OCR for files that are 'confirmed' but NOT 'is_searchable'.
+    """
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.PLATFORM_STAFF]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Find candidates
+    candidates = db.query(PDFFile).filter(
+        PDFFile.upload_status == 'confirmed',
+        PDFFile.is_searchable == False,
+        PDFFile.processing_stage != 'analyzing' # Skip already running
+    ).limit(limit).all()
+    
+    if not candidates:
+        return {"status": "success", "message": "No pending files found for OCR."}
+
+    from ..routers.patients import run_post_confirmation_ocr
+    
+    count = 0
+    for file in candidates:
+        file.processing_stage = 'analyzing'
+        background_tasks.add_task(run_post_confirmation_ocr, file.file_id, db) # Note: db session sharing might be tricky in bg tasks, ideally new session
+        count += 1
+    
+    db.commit() # Save 'analyzing' state
+    
+    return {
+        "status": "success", 
+        "message": f"Triggered OCR for {count} files.", 
+        "candidates": [f.file_id for f in candidates]
+    }

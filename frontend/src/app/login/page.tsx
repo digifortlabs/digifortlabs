@@ -5,6 +5,8 @@ import { useEffect, useState, Suspense } from 'react';
 import { API_URL } from '../../config/api';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { Mail, Lock, ArrowRight, ShieldCheck, Activity, Globe } from 'lucide-react';
+import Link from 'next/link';
 
 function LoginForm() {
     const [email, setEmail] = useState('');
@@ -26,6 +28,7 @@ function LoginForm() {
         e.preventDefault();
         setLoading(true);
         setError('');
+        console.log("🔵 [Login] Starting login request...");
 
         try {
             const formData = new URLSearchParams();
@@ -33,6 +36,8 @@ function LoginForm() {
             formData.append('password', password);
 
             const apiUrl = API_URL;
+            console.log(`🔵 [Login] URL: ${apiUrl}/auth/token`);
+
             const res = await fetch(`${apiUrl}/auth/token`, {
                 method: 'POST',
                 headers: {
@@ -41,31 +46,37 @@ function LoginForm() {
                 body: formData,
             });
 
+            console.log(`🟢 [Login] Response Status: ${res.status}`);
+
             if (!res.ok) {
                 console.error('[Login] Failed:', res.status, res.statusText);
                 throw new Error('Invalid credentials');
             }
 
             const data = await res.json();
+            console.log("🟢 [Login] Success, Token received.");
             localStorage.setItem('token', data.access_token);
             router.push('/dashboard');
 
         } catch (err) {
             console.error('[Login] Error:', err);
-            setError('Login failed. Please check your credentials.');
+            setError('Invalid email or password. Please try again.');
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="bg-white py-8 px-4 shadow-xl shadow-slate-200/50 border border-slate-100 sm:rounded-2xl sm:px-10">
+        <div className="w-full max-w-md mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700">
+            <div className="mb-10">
+                <h2 className="text-3xl font-black text-slate-900 tracking-tight">Welcome Back</h2>
+                <p className="text-slate-500 mt-2 font-medium">Please enter your credentials to access the portal.</p>
+            </div>
+
             <form className="space-y-6" onSubmit={handleLogin}>
-                <div>
-                    <label htmlFor="email" className="block text-sm font-semibold text-slate-700">
-                        Email Address
-                    </label>
-                    <div className="mt-1">
+                <div className="space-y-4">
+                    <div className="relative group">
+                        <Mail className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
                         <input
                             id="email"
                             name="email"
@@ -74,17 +85,13 @@ function LoginForm() {
                             required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="appearance-none block w-full px-4 py-3 border border-slate-200 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                            placeholder="admin@hospital.com"
+                            className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
+                            placeholder="name@hospital.com"
                         />
                     </div>
-                </div>
 
-                <div>
-                    <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
-                        Password
-                    </label>
-                    <div className="mt-1">
+                    <div className="relative group">
+                        <Lock className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
                         <input
                             id="password"
                             name="password"
@@ -93,46 +100,44 @@ function LoginForm() {
                             required
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="appearance-none block w-full px-4 py-3 border border-slate-200 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                            className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
+                            placeholder="••••••••"
                         />
                     </div>
                 </div>
 
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                        <input
-                            id="remember-me"
-                            name="remember-me"
-                            type="checkbox"
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
-                            Remember me
-                        </label>
-                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500" />
+                        <span className="text-sm font-medium text-slate-600">Remember me</span>
+                    </label>
 
-                    <div className="text-sm">
-                        <a href="/forgot-password" className="font-medium text-blue-600 hover:text-blue-500">
-                            Forgot your password?
-                        </a>
-                    </div>
+                    <Link href="/forgot-password" className="text-sm font-bold text-indigo-600 hover:text-indigo-700">
+                        Forgot Password?
+                    </Link>
                 </div>
 
                 {error && (
-                    <div className="text-red-500 text-sm text-center">
-                        {error}
+                    <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm font-bold flex items-center gap-2 animate-in zoom-in-95">
+                        <ShieldCheck size={16} /> {error}
                     </div>
                 )}
 
-                <div>
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 transition disabled:opacity-50"
-                    >
-                        {loading ? 'Signing in...' : 'Sign in'}
-                    </button>
-                </div>
+                <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full relative flex items-center justify-center gap-2 py-4 px-4 bg-slate-900 text-white rounded-2xl font-bold text-sm hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-xl shadow-slate-900/20 active:scale-[0.98]"
+                >
+                    {loading ? (
+                        <>Processing...</>
+                    ) : (
+                        <>Sign In <ArrowRight size={16} /></>
+                    )}
+                </button>
+
+                <p className="text-center text-sm font-medium text-slate-500">
+                    Don't have an account? <a href="/contact" className="text-indigo-600 font-bold hover:underline">Contact Sales</a>
+                </p>
             </form>
         </div>
     );
@@ -140,36 +145,68 @@ function LoginForm() {
 
 export default function LoginPage() {
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-            <Navbar />
-
-            <div className="flex-1 flex flex-col justify-center py-12 sm:px-6 lg:px-8 mt-16 relative overflow-hidden">
-                {/* Background Decoration - Neo-Clean */}
+        <div className="min-h-screen flex bg-white font-sans">
+            {/* Left Side - Visuals */}
+            <div className="hidden lg:flex lg:w-1/2 bg-slate-900 relative overflow-hidden items-center justify-center p-12 text-white">
                 <div className="absolute inset-0 z-0">
-                    <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-100/50 rounded-full blur-3xl opacity-60"></div>
-                    <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-100/50 rounded-full blur-3xl opacity-60"></div>
+                    <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-indigo-600/20 rounded-full blur-[120px] translate-x-1/3 -translate-y-1/3"></div>
+                    <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[100px] -translate-x-1/3 translate-y-1/3"></div>
                 </div>
 
-                <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-                    <div className="text-center mb-8">
-                        <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-600 rounded-xl text-white font-bold text-2xl mb-4 shadow-lg shadow-blue-900/20">
-                            D
+                <div className="relative z-10 max-w-lg">
+                    <div className="flex items-center gap-3 mb-8">
+                        <div className="p-3 bg-white/10 backdrop-blur-md rounded-xl border border-white/10">
+                            <Activity className="text-indigo-400" size={32} />
                         </div>
-                        <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                            Partner Login
-                        </h2>
-                        <p className="mt-2 text-sm text-slate-500">
-                            Secure access for Hospital Administrators
-                        </p>
+                        <h1 className="text-2xl font-black tracking-tight">DIGIFORT LABS</h1>
                     </div>
 
-                    <Suspense fallback={<div className="text-center p-4">Loading login form...</div>}>
-                        <LoginForm />
-                    </Suspense>
+                    <h2 className="text-5xl font-black leading-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
+                        The Future of Medical Records.
+                    </h2>
+                    <p className="text-lg text-slate-400 leading-relaxed mb-10">
+                        Securely manage patient data, streamline retrieval, and ensuring compliance with our state-of-the-art digital infrastructure.
+                    </p>
+
+                    <div className="flex gap-6">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                <ShieldCheck size={20} />
+                            </div>
+                            <div>
+                                <p className="font-bold text-sm">HIPAA Compliant</p>
+                                <p className="text-xs text-slate-500">Bank-grade security</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                <Globe size={20} />
+                            </div>
+                            <div>
+                                <p className="font-bold text-sm">Cloud Access</p>
+                                <p className="text-xs text-slate-500">24/7 Availability</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <Footer />
+            {/* Right Side - Form */}
+            <div className="flex-1 flex flex-col justify-center p-4 sm:p-12 lg:p-24 relative">
+                <div className="absolute top-8 left-8 lg:hidden">
+                    <img src="/logo/longlogo.png" alt="Digifort" className="h-8" />
+                </div>
+
+                <Suspense fallback={<div className="flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div></div>}>
+                    <LoginForm />
+                </Suspense>
+
+                <div className="absolute bottom-6 left-0 w-full text-center">
+                    <p className="text-xs font-medium text-slate-400">
+                        &copy; {new Date().getFullYear()} Digifort Labs. All rights reserved.
+                    </p>
+                </div>
+            </div>
         </div>
     );
 }

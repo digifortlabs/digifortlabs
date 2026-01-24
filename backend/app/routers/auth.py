@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+import logging
+import time
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -28,7 +30,14 @@ class Token(BaseModel):
 
 
 @router.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+async def login_for_access_token(
+    background_tasks: BackgroundTasks,
+    form_data: OAuth2PasswordRequestForm = Depends(), 
+    db: Session = Depends(get_db)
+):
+    print(f"🔐 [AUTH] Login attempt for: {form_data.username}")
+    start_time = time.time()
+    
     # Authenticate User
     from sqlalchemy import func
     from datetime import datetime, timedelta
@@ -80,8 +89,17 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         db.commit()
 
         if user.failed_login_attempts >= 5:
+            # Requirements #11: Lockout + Email
             user.locked_until = datetime.utcnow() + timedelta(minutes=15)
             db.commit()
+            
+            # Send Lockout Email
+            try:
+                from ..services.email_service import EmailService
+                EmailService.send_account_locked_email(user.email, "Multiple failed login attempts")
+            except Exception as e:
+                print(f"[AUTH] Failed to send lockout email: {e}")
+
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Account locked for 15 minutes due to too many failed login attempts."
@@ -103,36 +121,23 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             )
 
     # Success: Reset counters
-    if user.failed_login_attempts > 0 or user.locked_until:
+    # Success: Reset counters & Update Session
+    if (user.failed_login_attempts or 0) > 0 or user.locked_until:
         user.failed_login_attempts = 0
         user.locked_until = None
-        db.commit()
-
-    # Single Login Management: Update Session ID
+    
     import uuid
     new_session_id = str(uuid.uuid4())
     user.current_session_id = new_session_id
-    db.commit()
 
     # --- NOTIFICATIONS & AUDIT ---
     from ..audit import log_audit
-    from ..services.email_service import EmailService
     
-    # Get Request Data (Need to modify signature to accept Request)
-    # Since we can't easily inject Request into this specific signature without changing it,
-    # we will rely on a background task or simple extraction if Request is available.
-    # Actually, let's just use "Unknown Device" for now or use Depends(Request) if feasible.
-    # For now, simplistic implementation:
-    
-    client_ip = "Unknown IP" # In real app, inject Request: Request
-    device_info = "Unknown Device"
-    
-    try:
-        EmailService.send_login_alert(user.email, client_ip, device_info)
-    except Exception as e:
-        print(f"[AUTH] Failed to send login alert: {e}")
-
+    # Audit Log (Non-blocking add)
     log_audit(db, user.user_id, "LOGIN_SUCCESS", "User logged in successfully")
+    
+    # Final Commit for Everything (Login count reset, Session ID, Audit Log)
+    db.commit()
     # -----------------------------
 
     # Create Token with Role and Session ID

@@ -13,4 +13,4 @@ def log_audit(db: Session, user_id: Optional[int], action: str, details: str, ho
         details=details
     )
     db.add(new_log)
-    db.commit()
+    # db.commit() # Caller must commit to reduce transaction overhead

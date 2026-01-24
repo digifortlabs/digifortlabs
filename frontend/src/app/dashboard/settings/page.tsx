@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { API_URL } from '../../../config/api';
 
+import { Loader2 } from 'lucide-react';
 
 export default function SettingsPage() {
     const router = useRouter();
@@ -41,7 +42,7 @@ export default function SettingsPage() {
                 if (payload.role !== 'website_admin' && payload.hospital_id) {
                     fetchProfile(payload.hospital_id, token);
                 }
-                if (payload.role === 'website_admin') {
+                if (['website_admin', 'superadmin'].includes(payload.role)) {
                     fetchPlatformStaff(token);
                     fetchSystemSettings(token);
                 }
@@ -96,6 +97,31 @@ export default function SettingsPage() {
         }
     };
 
+    // Bulk OCR Logic
+    const [ocrLoading, setOcrLoading] = useState(false);
+    const runBulkOCR = async () => {
+        if (!confirm("This will trigger background OCR for up to 50 pending files. Continue?")) return;
+        setOcrLoading(true);
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/platform/bulk-ocr?limit=50`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert(data.message);
+            } else {
+                alert(`Error: ${data.detail || data.message}`);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Failed to trigger OCR");
+        } finally {
+            setOcrLoading(false);
+        }
+    };
+
     const fetchPlatformStaff = async (token: string) => {
         const apiUrl = API_URL;
         try {
@@ -104,7 +130,7 @@ export default function SettingsPage() {
             });
             if (res.ok) {
                 const allUsers = await res.json();
-                setPlatformStaff(allUsers.filter((u: any) => u.role === 'website_staff'));
+                setPlatformStaff(allUsers.filter((u: any) => u.role === 'superadmin_staff'));
             }
         } catch (error) {
             console.error(error);
@@ -127,7 +153,7 @@ export default function SettingsPage() {
                 body: JSON.stringify({
                     email: newStaff.email,
                     password: newStaff.password,
-                    role: 'website_staff'
+                    role: 'superadmin_staff'
                 })
             });
 
@@ -356,7 +382,8 @@ export default function SettingsPage() {
             )}
 
             {/* Platform Settings (Visible ONLY to Super Admin) */}
-            {userRole === 'website_admin' && (
+            {/* Platform Settings (Visible ONLY to Super Admin) */}
+            {['website_admin', 'superadmin'].includes(userRole) && (
                 <div className="bg-indigo-50 rounded-lg shadow-sm border border-indigo-100 p-6 max-w-2xl mb-6">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="p-2 bg-indigo-100 rounded-lg">
@@ -397,6 +424,21 @@ export default function SettingsPage() {
                             />
                             <p className="text-[10px] text-gray-400 mt-1">Changes are saved automatically on blur.</p>
                         </div>
+                    </div>
+
+                    <div className="mt-4 bg-white p-4 rounded border border-indigo-100 flex justify-between items-center">
+                        <div>
+                            <p className="font-medium text-gray-800">Bulk OCR Utility</p>
+                            <p className="text-xs text-gray-500">Scan 50 old files for data extraction.</p>
+                        </div>
+                        <button
+                            onClick={runBulkOCR}
+                            disabled={ocrLoading}
+                            className="bg-indigo-600 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                            {ocrLoading && <Loader2 className="animate-spin" size={16} />}
+                            Running...
+                        </button>
                     </div>
                 </div>
             )}
@@ -442,65 +484,69 @@ export default function SettingsPage() {
                 </form>
             </div>
 
-            {userRole === 'website_admin' && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl mb-6">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-semibold">🔧 Manage Platform Staff</h2>
-                        <button
-                            onClick={() => setShowStaffModal(true)}
-                            className="bg-indigo-600 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-indigo-700"
-                        >
-                            + Add Platform Staff
-                        </button>
-                    </div>
-                    <p className="text-xs text-gray-500 mb-4">Staff members who can access and process digitizations for all hospitals.</p>
+            {
+                ['website_admin', 'superadmin'].includes(userRole) && (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl mb-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-lg font-semibold">🔧 Manage Platform Staff</h2>
+                            <button
+                                onClick={() => setShowStaffModal(true)}
+                                className="bg-indigo-600 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-indigo-700"
+                            >
+                                + Add Platform Staff
+                            </button>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-4">Staff members who can access and process digitizations for all hospitals.</p>
 
-                    <div className="space-y-2">
-                        {platformStaff.length > 0 ? platformStaff.map((staff, idx) => (
-                            <div key={idx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                <span className="text-sm font-medium text-gray-700">{staff.email}</span>
-                                <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded uppercase font-bold">Platform Staff</span>
-                            </div>
-                        )) : (
-                            <p className="text-center text-gray-400 py-4 text-sm">No platform staff created yet.</p>
-                        )}
+                        <div className="space-y-2">
+                            {platformStaff.length > 0 ? platformStaff.map((staff, idx) => (
+                                <div key={idx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                    <span className="text-sm font-medium text-gray-700">{staff.email}</span>
+                                    <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded uppercase font-bold">Platform Staff</span>
+                                </div>
+                            )) : (
+                                <p className="text-center text-gray-400 py-4 text-sm">No platform staff created yet.</p>
+                            )}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
-            {showStaffModal && (
-                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
-                        <h2 className="text-xl font-bold mb-4 text-indigo-700">Add Platform Scanning Staff</h2>
-                        <form onSubmit={handleCreateStaff}>
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Staff Email</label>
-                                <input required type="email" className="w-full border rounded p-2"
-                                    value={newStaff.email} onChange={e => setNewStaff({ ...newStaff, email: e.target.value })}
-                                    placeholder="scanning.staff@dizivault.com"
-                                />
-                            </div>
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Temporary Password</label>
-                                <input required type="text" className="w-full border rounded p-2"
-                                    value={newStaff.password} onChange={e => setNewStaff({ ...newStaff, password: e.target.value })}
-                                />
-                            </div>
-                            <div className="flex justify-end gap-3 mt-6">
-                                <button type="button" onClick={() => setShowStaffModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
-                                <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-bold">Create Staff Account</button>
-                            </div>
-                        </form>
+            {
+                showStaffModal && (
+                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+                            <h2 className="text-xl font-bold mb-4 text-indigo-700">Add Platform Scanning Staff</h2>
+                            <form onSubmit={handleCreateStaff}>
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Staff Email</label>
+                                    <input required type="email" className="w-full border rounded p-2"
+                                        value={newStaff.email} onChange={e => setNewStaff({ ...newStaff, email: e.target.value })}
+                                        placeholder="scanning.staff@dizivault.com"
+                                    />
+                                </div>
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Temporary Password</label>
+                                    <input required type="text" className="w-full border rounded p-2"
+                                        value={newStaff.password} onChange={e => setNewStaff({ ...newStaff, password: e.target.value })}
+                                    />
+                                </div>
+                                <div className="flex justify-end gap-3 mt-6">
+                                    <button type="button" onClick={() => setShowStaffModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+                                    <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-bold">Create Staff Account</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl mt-6">
                 <h2 className="text-lg font-semibold mb-4 text-red-600">Danger Zone</h2>
                 <p className="text-sm text-gray-600 mb-4">Clear all local cache and reset default views.</p>
                 <button className="border border-red-200 text-red-600 px-4 py-2 rounded-md hover:bg-red-50">Reset Dashboard</button>
             </div>
-        </div>
+        </div >
 
     );
 }

@@ -4,6 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from ..database import get_db
 from ..models import (
@@ -39,7 +40,7 @@ def get_super_admin_emails(db: Session) -> List[str]:
 class RackCreate(BaseModel):
     label: str
     aisle: int
-    capacity: int = 100
+    capacity: int = 500
     total_rows: int = 5
     total_columns: int = 10
 
@@ -52,8 +53,8 @@ class RackUpdate(BaseModel):
 
 class RackResponse(BaseModel):
     rack_id: int
+    hospital_id: int
     label: str
-    aisle: int
     aisle: int
     capacity: int
     total_rows: int = 5
@@ -69,7 +70,7 @@ class BoxCreate(BaseModel):
     location_code: str
     hospital_id: Optional[int] = None # Required for Super Admin
     rack_id: Optional[int] = None
-    capacity: Optional[int] = 100 
+    capacity: Optional[int] = 500 
 
 class BoxUpdate(BaseModel):
     label: Optional[str] = None
@@ -87,7 +88,7 @@ class BoxResponse(BaseModel):
     location_code: Optional[str] = None # Hidden for Hospital Staff
     status: str
     patient_count: int = 0
-    capacity: int = 100
+    capacity: int = 500
     rack_id: Optional[int] = None
     rack_row: Optional[int] = None
     rack_column: Optional[int] = None
@@ -207,6 +208,28 @@ def update_rack(rack_id: int, rack_update: RackUpdate, db: Session = Depends(get
     db.refresh(db_rack)
     return db_rack
 
+@router.delete("/racks/{rack_id}")
+def delete_rack(rack_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Auth
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.WAREHOUSE_MANAGER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    db_rack = db.query(PhysicalRack).filter(PhysicalRack.rack_id == rack_id).first()
+    if not db_rack:
+        raise HTTPException(status_code=404, detail="Rack not found")
+        
+    if current_user.role != UserRole.SUPER_ADMIN and db_rack.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Check for boxes
+    has_boxes = db.query(PhysicalBox).filter(PhysicalBox.rack_id == rack_id).first()
+    if has_boxes:
+        raise HTTPException(status_code=400, detail="Cannot delete rack containing boxes. Remove boxes first.")
+
+    db.delete(db_rack)
+    db.commit()
+    return {"status": "success", "message": "Rack deleted"}
+
 @router.get("/racks", response_model=List[RackResponse])
 def get_racks(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     target_hospital_id = current_user.hospital_id
@@ -225,19 +248,32 @@ def get_warehouse_layout(db: Session = Depends(get_db), current_user: User = Dep
     if current_user.role == UserRole.SUPER_ADMIN and not target_hospital_id:
         target_hospital_id = 1
 
+    # Fetch all racks
     db_racks = db.query(PhysicalRack).filter(PhysicalRack.hospital_id == target_hospital_id).all()
     
     if not db_racks:
         return []
+
+    # Optimize: Single Aggregation Query for Rack Occupancy
+    # SELECT rack_id, COUNT(*) FROM physical_box WHERE rack_id IN (...) GROUP BY rack_id
+    rack_ids = [r.rack_id for r in db_racks]
+    occupancy_data = db.query(
+        PhysicalBox.rack_id, 
+        func.count(PhysicalBox.box_id)
+    ).filter(
+        PhysicalBox.rack_id.in_(rack_ids)
+    ).group_by(PhysicalBox.rack_id).all()
+    
+    # Map occupancy to rack_id
+    occupancy_map = {r_id: count for r_id, count in occupancy_data}
 
     layout_map = {}
     for rack in db_racks:
         if rack.aisle not in layout_map:
             layout_map[rack.aisle] = []
         
-        occupied = db.query(PhysicalBox).filter(
-            PhysicalBox.rack_id == rack.rack_id
-        ).count()
+        # O(1) Lookup
+        occupied = occupancy_map.get(rack.rack_id, 0)
         
         layout_map[rack.aisle].append({
             "id": str(rack.rack_id),
@@ -304,7 +340,7 @@ def toggle_box_status(box_id: int, status: BoxStatusUpdate, db: Session = Depend
 
 @router.post("/files/bulk-assign")
 def bulk_assign_files(req: BulkAssignRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.WAREHOUSE_MANAGER]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.WAREHOUSE_MANAGER, UserRole.HOSPITAL_ADMIN, UserRole.PLATFORM_STAFF]:
         raise HTTPException(status_code=403, detail="Not authorized")
         
     box = db.query(PhysicalBox).filter(PhysicalBox.box_id == req.box_id).first()
@@ -317,20 +353,43 @@ def bulk_assign_files(req: BulkAssignRequest, db: Session = Depends(get_db), cur
     # Check current capacity
     current_count = db.query(Patient).filter(Patient.physical_box_id == box.box_id).count()
     
-    hospital_id = current_user.hospital_id
+    # Valid scope: Patients must belong to the same hospital as the box
+    target_hospital_id = box.hospital_id
+    
     success_count = 0
     errors = []
     
     for ident in req.identifiers:
         # Check if box is full before each assignment
         if current_count >= box.capacity:
-            errors.append(f"{ident}: Box is FULL (capacity: {box.capacity})")
-            continue
+            # AUTO-EXPAND POLICY:
+            # If current user is Admin/Warehouse/Platform, we increase capacity automatically up to 1000
+            # This prevents "199/200" blockers during bulk operations.
+            if current_user.role in [UserRole.SUPER_ADMIN, UserRole.WAREHOUSE_MANAGER, UserRole.PLATFORM_STAFF, UserRole.HOSPITAL_ADMIN] and box.capacity < 1000:
+                 box.capacity = max(box.capacity + 100, current_count + 50) # Give extra breathing room
+                 if box.capacity > 1000: box.capacity = 1000
+                 db.commit() # Save capacity increase immediately
+            
+            # Re-check
+            if current_count >= box.capacity:
+                errors.append(f"{ident}: Box is FULL (capacity: {box.capacity})")
+                continue
             
         p = db.query(Patient).filter(
-            Patient.hospital_id == hospital_id,
+            Patient.hospital_id == target_hospital_id,
             (Patient.patient_u_id == ident) | (Patient.uhid == ident)
         ).first()
+
+        if not p:
+            # Try parsing as int for record_id (Frontend sends record_id)
+            try:
+                rid = int(ident)
+                p = db.query(Patient).filter(
+                    Patient.hospital_id == target_hospital_id, 
+                    Patient.record_id == rid
+                ).first()
+            except:
+                pass
         
         if not p:
             errors.append(f"{ident}: Not Found")
@@ -364,7 +423,7 @@ def bulk_assign_files(req: BulkAssignRequest, db: Session = Depends(get_db), cur
 def bulk_unassign_files(req: BulkUnassignRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Reusing BulkUnassignRequest (safe now)
     
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.WAREHOUSE_MANAGER, UserRole.HOSPITAL_ADMIN]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.WAREHOUSE_MANAGER, UserRole.HOSPITAL_ADMIN, UserRole.PLATFORM_STAFF]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     hospital_id = current_user.hospital_id
@@ -374,7 +433,7 @@ def bulk_unassign_files(req: BulkUnassignRequest, db: Session = Depends(get_db),
     for ident in req.identifiers:
         # Build base query
         query = db.query(Patient)
-        if current_user.role != UserRole.SUPER_ADMIN:
+        if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
              query = query.filter(Patient.hospital_id == hospital_id)
         
         # Find by ID or UHID
@@ -385,7 +444,7 @@ def bulk_unassign_files(req: BulkUnassignRequest, db: Session = Depends(get_db),
             try:
                 rid = int(ident)
                 query_rid = db.query(Patient)
-                if current_user.role != UserRole.SUPER_ADMIN:
+                if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
                     query_rid = query_rid.filter(Patient.hospital_id == hospital_id)
                 p = query_rid.filter(Patient.record_id == rid).first()
             except:
@@ -553,7 +612,7 @@ def create_box(box: BoxCreate, db: Session = Depends(get_db), current_user: User
         rack_id=box.rack_id,
         rack_row=assigned_row,
         rack_column=assigned_col,
-        capacity=box.capacity or 100,
+        capacity=box.capacity or 500,
         status="OPEN"
     )
 
@@ -889,6 +948,50 @@ def delete_request(request_id: int, db: Session = Depends(get_db), current_user:
     db.commit()
     return {"status": "success", "message": "Request deleted successfully"}
 
+
+@router.get("/search")
+def search_files(q: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """
+    Global Warehouse Search.
+    Finds files by Name, UHID, or Old Request ID.
+    Returns hierarchical location data.
+    """
+    if not q or len(q) < 2:
+        return []
+        
+    query = db.query(Patient).join(PhysicalBox, Patient.physical_box_id == PhysicalBox.box_id).join(PhysicalRack, PhysicalBox.rack_id == PhysicalRack.rack_id)
+    
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+        query = query.filter(Patient.hospital_id == current_user.hospital_id)
+        
+    # Search logic
+    search = f"%{q}%"
+    results = query.filter(
+        (Patient.full_name.ilike(search)) |
+        (Patient.uhid.ilike(search)) |
+        (Patient.patient_u_id.ilike(search))
+    ).limit(20).all()
+    
+    data = []
+    for p in results:
+        box = p.physical_box
+        rack = box.rack if box else None
+        
+        data.append({
+            "record_id": p.record_id,
+            "patient_name": p.full_name,
+            "uhid": p.uhid,
+            "mrd_id": p.patient_u_id,
+            "location": {
+                "aisle": rack.aisle if rack else 0,
+                "rack": rack.label if rack else "Unknown",
+                "box": box.label if box else "Unknown",
+                "box_id": box.box_id if box else None,
+                "status": box.status if box else "CLOSED"
+            }
+        })
+        
+    return data
 
 @router.post("/confirm-all")
 def confirm_all_drafts(hospital_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

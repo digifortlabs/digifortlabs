@@ -314,7 +314,10 @@ class PatientResponse(BaseModel):
     price_per_file: float = 100.0
     included_pages: int = 20
     price_per_extra_page: float = 1.0
-    
+
+    mother_record_id: Optional[int] = None
+    mother_details: Optional[dict] = None # Basic info about mother if linked
+
     class Config:
         from_attributes = True
 
@@ -333,7 +336,9 @@ class PatientCreate(BaseModel):
     dob: Optional[datetime.datetime] = None
     admission_date: Optional[datetime.datetime] = None
     discharge_date: Optional[datetime.datetime] = None  # Made optional for registration
+    discharge_date: Optional[datetime.datetime] = None  # Made optional for registration
     hospital_id: Optional[int] = None
+    mother_record_id: Optional[int] = None
 
 class PatientUpdate(BaseModel):
     patient_u_id: Optional[str] = None
@@ -348,7 +353,9 @@ class PatientUpdate(BaseModel):
     patient_category: str = "STANDARD" # STANDARD, MLC, BIRTH, DEATH
     dob: Optional[datetime.datetime] = None
     admission_date: Optional[datetime.datetime] = None
+    admission_date: Optional[datetime.datetime] = None
     discharge_date: Optional[datetime.datetime] = None
+    mother_record_id: Optional[int] = None
 
 class PatientDetailResponse(PatientResponse):
     pass
@@ -369,6 +376,18 @@ def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session =
     is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
     if not is_platform and db_patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
+
+    # 1.5 Date Validation for Updates
+    effective_admission = patient_update.admission_date or db_patient.admission_date
+    effective_discharge = patient_update.discharge_date or db_patient.discharge_date
+    
+    # Only validate if both exist (either in DB or in Update) and we are updating at least one of them
+    is_updating_dates = (patient_update.admission_date is not None) or (patient_update.discharge_date is not None)
+    
+    if is_updating_dates and effective_admission and effective_discharge:
+        # Check logic
+        if effective_discharge < effective_admission:
+             raise HTTPException(status_code=400, detail="Discharge Date cannot be before Admission Date.")
 
     # 2. Update Fields
     for var, value in vars(patient_update).items():
@@ -398,6 +417,13 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
     if existing_mrd:
         raise HTTPException(status_code=400, detail=f"MRD Number '{patient.patient_u_id}' already exists.")
 
+    # 2. Date Validation (Phase 2 Requirement)
+    if patient.admission_date and patient.discharge_date:
+        # Pydantic parses them as datetimes. We can compare directly.
+        # Ensure we compare date parts if times are somehow included but irrelevant
+        if patient.discharge_date < patient.admission_date:
+             raise HTTPException(status_code=400, detail="Discharge Date cannot be before Admission Date.")
+
     db_patient = Patient(
         patient_u_id=patient.patient_u_id,
         uhid=patient.uhid,
@@ -411,7 +437,8 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
         aadhaar_number=patient.aadhaar_number,
         dob=patient.dob,
         admission_date=patient.admission_date,
-        discharge_date=patient.discharge_date
+        discharge_date=patient.discharge_date,
+        mother_record_id=patient.mother_record_id
     )
     
     try:
@@ -645,6 +672,32 @@ def check_uhid_exists(uhid_no: str, db: Session = Depends(get_db), current_user:
             }
         }
     return {"exists": False}
+
+@router.post("/files/{file_id}/run-ocr")
+def run_manual_ocr(file_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # 1. Permission Check
+    is_admin = current_user.role in ["superadmin", "superadmin_staff", "hospital_admin"]
+    is_mrd = current_user.role == "warehouse_manager" # MRD can also trigger
+    
+    if not (is_admin or is_mrd):
+        raise HTTPException(status_code=403, detail="Not authorized to trigger OCR")
+
+    # 2. Get File
+    q = db.query(PDFFile).join(Patient).filter(PDFFile.file_id == file_id)
+    if current_user.role not in ["superadmin", "superadmin_staff"]:
+        q = q.filter(Patient.hospital_id == current_user.hospital_id)
+    
+    db_file = q.first()
+    if not db_file:
+         raise HTTPException(status_code=404, detail="File not found")
+
+    # 3. Trigger
+    db_file.processing_stage = 'analyzing'
+    db.commit()
+    
+    background_tasks.add_task(run_post_confirmation_ocr, file_id)
+    
+    return {"message": "OCR triggered successfully"}
 
 class OCRUpdateRequest(BaseModel):
     ocr_text: str
@@ -885,6 +938,13 @@ def serve_file(
     if not pdf_file:
          raise HTTPException(status_code=404, detail="File not found")
     
+    # Audit Log (Phase 3)
+    try:
+        from ..audit import log_audit
+        log_audit(db, current_user.user_id, "VIEW_DOCUMENT", f"Viewed file: {pdf_file.filename}", hospital_id=current_user.hospital_id)
+    except Exception as e:
+        print(f"Audit log failed: {e}")
+
     s3_manager = S3Manager()
     encrypted_bytes = s3_manager.get_file_bytes(pdf_file.s3_key)
     

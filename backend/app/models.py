@@ -119,6 +119,11 @@ class Patient(Base):
     physical_box_id = Column(Integer, ForeignKey("physical_boxes.box_id"), nullable=True)
     box = relationship("PhysicalBox", back_populates="patients")
 
+    # Baby-Mother Linkage
+    mother_record_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True)
+    # Use string for remote side in self-referential relationship to avoid circular import issues if any
+    mother = relationship("Patient", remote_side=[record_id], backref="babies")
+
     __table_args__ = (UniqueConstraint('hospital_id', 'patient_u_id', name='_hospital_mrd_uc'),)
 
     @property
@@ -140,6 +145,17 @@ class Patient(Base):
     @property
     def price_per_extra_page(self):
         return self.hospital.price_per_extra_page if self.hospital else 1.0
+
+    @property
+    def mother_details(self):
+        if self.mother:
+            return {
+                "record_id": self.mother.record_id,
+                "full_name": self.mother.full_name,
+                "patient_u_id": self.mother.patient_u_id,
+                "uhid": self.mother.uhid
+            }
+        return None
 
 class PDFFile(Base):
     __tablename__ = "pdf_files"

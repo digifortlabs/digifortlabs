@@ -192,6 +192,13 @@ def cancel_invoice(
         if invoice.hospital:
             invoice.hospital.is_reg_fee_paid = False
         
+        
+    # Delete associated Ledger Entry
+    db.query(AccountingTransaction).filter(
+        AccountingTransaction.voucher_type == "INVOICE",
+        AccountingTransaction.voucher_id == invoice_id
+    ).delete()
+
     db.delete(invoice)
     db.commit()
     return {"message": "Invoice cancelled and deleted successfully"}
