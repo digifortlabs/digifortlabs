@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL } from '../../config/api';
+import { formatDateTime, formatDate } from '../utils/dateFormatter';
 import {
     Activity,
     Server,
@@ -41,6 +42,8 @@ export default function CommandCenter() {
     const [selectedIssue, setSelectedIssue] = useState<any>(null);
     const [userRole, setUserRole] = useState('');
     const [isDetailedView, setIsDetailedView] = useState(false);
+    const [sessionDuration, setSessionDuration] = useState('00:00:00');
+    const [currentTime, setCurrentTime] = useState('');
 
     // Patient List State
     const [patients, setPatients] = useState<any[]>([]);
@@ -54,8 +57,8 @@ export default function CommandCenter() {
         try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             // Ensure lowercase for consistent checks
-            const role = (payload.role || '').toLowerCase();
-            setUserRole(role);
+            const rule = (payload.role || '').toLowerCase();
+            setUserRole(rule);
         } catch (e) {
             console.error("Failed to parse token", e);
         }
@@ -105,6 +108,49 @@ export default function CommandCenter() {
 
     }, [hospitalId]);
 
+    // Separate Effect for Session Timer
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.iat) {
+                // Initial calculation
+                const updateTimer = () => {
+                    const now = Math.floor(Date.now() / 1000);
+                    const diff = now - payload.iat;
+                    const h = Math.floor(diff / 3600).toString().padStart(2, '0');
+                    const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
+                    const s = (diff % 60).toString().padStart(2, '0');
+                    setSessionDuration(`${h}:${m}:${s}`);
+                };
+
+                updateTimer(); // Run immediately
+                const interval = setInterval(updateTimer, 1000);
+                return () => clearInterval(interval);
+            }
+        } catch (e) {
+            // Silent fail for timer
+        }
+    }, []);
+
+    // Live Clock Effect
+    useEffect(() => {
+        const updateClock = () => {
+            const now = new Date();
+            setCurrentTime(now.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            }));
+        };
+        updateClock();
+        const interval = setInterval(updateClock, 1000);
+        return () => clearInterval(interval);
+    }, []);
+
     return (
         <div className="p-4 sm:p-6 max-w-[1600px] mx-auto min-h-screen pb-20">
 
@@ -131,12 +177,35 @@ export default function CommandCenter() {
                 </div>
                 <div className="flex flex-wrap gap-2 sm:gap-4">
                     <div className="bg-indigo-50 px-4 py-2 rounded-xl flex items-center gap-2 border border-indigo-100">
-                        <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse"></div>
-                        <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider">Live Stream</span>
+                        <Clock className="text-indigo-600 w-4 h-4" />
+                        <div className="flex flex-col">
+                            <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider leading-none">Session Time</span>
+                            <span className="text-xs font-black text-indigo-700 leading-none">{sessionDuration}</span>
+                        </div>
                     </div>
                     <div className="bg-emerald-50 px-4 py-2 rounded-xl flex items-center gap-2 border border-emerald-100">
                         <ShieldCheck className="text-emerald-600 w-4 h-4" />
-                        <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Uptime: {stats?.system?.uptime || '...'}</span>
+                        <div className="flex flex-col">
+                            <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider leading-none">Login Time</span>
+                            <span className="text-xs font-black text-emerald-700 leading-none">
+                                <div className="flex flex-col">
+                                    <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider leading-none">Login Time</span>
+                                    <span className="text-xs font-black text-emerald-700 leading-none">
+                                        {stats?.system?.uptime ? formatDateTime(stats.system.uptime) : '...'}
+                                    </span>
+                                </div>
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Digital Clock (New) */}
+                    <div className="bg-slate-900 px-6 py-2 rounded-xl flex items-center gap-3 shadow-lg shadow-slate-200">
+                        <div className="flex flex-col items-end">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Local Time</span>
+                            <span className="text-xl font-black text-white leading-none font-mono tracking-wider">
+                                {currentTime || '--:--:--'}
+                            </span>
+                        </div>
                     </div>
 
                     {/* Export Buttons - Show for detailed view or admins */}
@@ -381,7 +450,9 @@ export default function CommandCenter() {
                                                 {p.uhid && <div className="text-[10px] text-slate-400 font-bold">UHID: {p.uhid}</div>}
                                             </td>
                                             <td className="px-6 py-4 text-sm font-medium text-slate-600">
-                                                {p.discharge_date ? new Date(p.discharge_date).toLocaleDateString('en-IN') : '-'}
+                                                <td className="px-6 py-4 text-sm font-medium text-slate-600">
+                                                    {formatDate(p.discharge_date)}
+                                                </td>
                                             </td>
                                             <td className="px-6 py-4">
                                                 {p.physical_box_id ? (
@@ -526,12 +597,12 @@ export default function CommandCenter() {
                             </div>
                         )}
 
-                        {/* Hospital Actions */}
-                        {(userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'website_staff') && (
+                        {/* Hospital & Staff Actions */}
+                        {(userRole === 'hospital_admin' || userRole === 'hospital_staff' || userRole === 'warehouse_manager' || userRole === 'superadmin_staff') && (
                             <div className="grid grid-cols-2 gap-4">
 
                                 {/* Universal Admin Action: Confirm Uploads */}
-                                {(userRole === 'hospital_admin' || userRole === 'website_staff') && (
+                                {(userRole === 'hospital_admin' || userRole === 'superadmin_staff') && (
                                     <button
                                         onClick={async () => {
                                             if (!confirm("Are you sure you want to confirm all pending uploads immediately? This will finalize their storage locations.")) return;
@@ -560,8 +631,8 @@ export default function CommandCenter() {
                                     </button>
                                 )}
 
-                                {/* MRD Custom Actions */}
-                                {userRole === 'mrd_staff' ? (
+                                {/* Warehouse Manager (MRD) Actions */}
+                                {userRole === 'warehouse_manager' ? (
                                     <>
                                         <ActionButton
                                             icon={<ScanLine size={18} />}
@@ -585,6 +656,7 @@ export default function CommandCenter() {
                                         />
                                     </>
                                 ) : (
+                                    /* Hospital Admin & Staff Actions */
                                     <>
                                         <ActionButton
                                             icon={<FileText size={18} />}
@@ -608,7 +680,7 @@ export default function CommandCenter() {
                                     />
                                 )}
 
-                                {(userRole === 'hospital_admin' || userRole === 'website_staff') && (
+                                {(userRole === 'hospital_admin' || userRole === 'superadmin_staff') && (
                                     <ActionButton
                                         icon={<FileText size={18} />}
                                         label="Digitize Records"
@@ -620,76 +692,79 @@ export default function CommandCenter() {
                     </div>
 
                 </div>
-            </div>
 
-            {/* QA Simulation Modal */}
-            {showQaModal && selectedIssue && (
-                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="bg-red-50 p-6 border-b border-red-100 flex justify-between items-center">
-                            <h3 className="text-xl font-black text-red-900 flex items-center gap-2">
-                                <AlertTriangle className="text-red-600" /> QA Alert
-                            </h3>
-                            <button onClick={() => setShowQaModal(false)} className="bg-white p-2 rounded-full hover:bg-red-100 text-red-900 transition-colors">
-                                <XCircle size={20} />
-                            </button>
-                        </div>
-                        <div className="p-8">
-                            {selectedIssue.issue.toLowerCase().includes('page') ? (
-                                <div className="flex gap-4 mb-6">
-                                    <div className="w-16 h-20 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-400 font-bold text-xs uppercase text-center p-1">
-                                        Prev<br />Pg
-                                    </div>
-                                    <div className="w-16 h-20 bg-red-100 border-2 border-red-500 border-dashed rounded-lg flex items-center justify-center text-red-600 font-bold text-[10px] text-center p-1 uppercase">
-                                        {selectedIssue.issue.replace(' ', '\n')}<br />ERROR
-                                    </div>
-                                    <div className="w-16 h-20 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-400 font-bold text-xs uppercase text-center p-1">
-                                        Next<br />Pg
-                                    </div>
+
+                {/* QA Simulation Modal */}
+                {
+                    showQaModal && selectedIssue && (
+                        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                                <div className="bg-red-50 p-6 border-b border-red-100 flex justify-between items-center">
+                                    <h3 className="text-xl font-black text-red-900 flex items-center gap-2">
+                                        <AlertTriangle className="text-red-600" /> QA Alert
+                                    </h3>
+                                    <button onClick={() => setShowQaModal(false)} className="bg-white p-2 rounded-full hover:bg-red-100 text-red-900 transition-colors">
+                                        <XCircle size={20} />
+                                    </button>
                                 </div>
-                            ) : (
-                                <div className="bg-slate-50 p-6 rounded-2xl mb-6 border border-slate-200 border-dashed flex items-center justify-center">
-                                    <div className="text-center">
-                                        <div className={`w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center ${selectedIssue.severity === 'high' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
-                                            <AlertTriangle size={24} />
+                                <div className="p-8">
+                                    {selectedIssue.issue.toLowerCase().includes('page') ? (
+                                        <div className="flex gap-4 mb-6">
+                                            <div className="w-16 h-20 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-400 font-bold text-xs uppercase text-center p-1">
+                                                Prev<br />Pg
+                                            </div>
+                                            <div className="w-16 h-20 bg-red-100 border-2 border-red-500 border-dashed rounded-lg flex items-center justify-center text-red-600 font-bold text-[10px] text-center p-1 uppercase">
+                                                {selectedIssue.issue.replace(' ', '\n')}<br />ERROR
+                                            </div>
+                                            <div className="w-16 h-20 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-slate-400 font-bold text-xs uppercase text-center p-1">
+                                                Next<br />Pg
+                                            </div>
                                         </div>
-                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{selectedIssue.issue}</p>
+                                    ) : (
+                                        <div className="bg-slate-50 p-6 rounded-2xl mb-6 border border-slate-200 border-dashed flex items-center justify-center">
+                                            <div className="text-center">
+                                                <div className={`w-12 h-12 rounded-full mx-auto mb-3 flex items-center justify-center ${selectedIssue.severity === 'high' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
+                                                    <AlertTriangle size={24} />
+                                                </div>
+                                                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{selectedIssue.issue}</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <h4 className="font-bold text-lg text-slate-800 mb-2">{selectedIssue.issue}</h4>
+                                    <p className="text-slate-600 text-sm mb-6">
+                                        {selectedIssue.details || "No details provided for this issue."}
+                                    </p>
+                                    <p className="text-xs text-slate-400 mb-6">
+                                        File: <strong>{selectedIssue.file}</strong> • Severity: <span className="uppercase">{selectedIssue.severity}</span>
+                                    </p>
+
+                                    <div className="flex gap-3">
+                                        <button onClick={() => setShowQaModal(false)} className="flex-1 py-3 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200">
+                                            Flag for Rescan
+                                        </button>
+                                        <button onClick={async () => {
+                                            try {
+                                                const res = await fetch(`${API_URL}/qa/${selectedIssue.id}/resolve`, {
+                                                    method: 'POST',
+                                                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                                                });
+                                                if (res.ok) {
+                                                    setQaIssues(prev => prev.filter(i => i.id !== selectedIssue.id));
+                                                    setShowQaModal(false);
+                                                }
+                                            } catch (e) { console.error(e); }
+                                        }} className="flex-1 py-3 rounded-xl bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-600 shadow-lg shadow-emerald-200">
+                                            Mark Resolved
+                                        </button>
                                     </div>
                                 </div>
-                            )}
-
-                            <h4 className="font-bold text-lg text-slate-800 mb-2">{selectedIssue.issue}</h4>
-                            <p className="text-slate-600 text-sm mb-6">
-                                {selectedIssue.details || "No details provided for this issue."}
-                            </p>
-                            <p className="text-xs text-slate-400 mb-6">
-                                File: <strong>{selectedIssue.file}</strong> • Severity: <span className="uppercase">{selectedIssue.severity}</span>
-                            </p>
-
-                            <div className="flex gap-3">
-                                <button onClick={() => setShowQaModal(false)} className="flex-1 py-3 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200">
-                                    Flag for Rescan
-                                </button>
-                                <button onClick={async () => {
-                                    try {
-                                        const res = await fetch(`${API_URL}/qa/${selectedIssue.id}/resolve`, {
-                                            method: 'POST',
-                                            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-                                        });
-                                        if (res.ok) {
-                                            setQaIssues(prev => prev.filter(i => i.id !== selectedIssue.id));
-                                            setShowQaModal(false);
-                                        }
-                                    } catch (e) { console.error(e); }
-                                }} className="flex-1 py-3 rounded-xl bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-600 shadow-lg shadow-emerald-200">
-                                    Mark Resolved
-                                </button>
                             </div>
                         </div>
-                    </div>
-                </div>
-            )}
+                    )
+                }
 
+            </div>
         </div>
     );
 }

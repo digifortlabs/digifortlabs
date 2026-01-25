@@ -6,6 +6,7 @@ import imageCompression from 'browser-image-compression';
 import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download, FileText } from 'lucide-react';
 import DigitizationScanner from '../../../../components/Scanner/DigitizationScanner'; // Ensure this path is correct relative to this file
 import { API_URL } from '../../../../config/api';
+import { formatDate } from '../../../utils/dateFormatter';
 
 interface FileData {
     file_id: number;
@@ -637,21 +638,21 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
 
     return (
         <div className="flex-1 bg-white h-full overflow-y-auto">
-            <div className="p-6">
-                <div className="mb-6 flex justify-between items-start">
+            <div className="p-4">
+                <div className="mb-4 flex justify-between items-start">
                     <div className="flex-1">
                         {onBack && (
-                            <button onClick={onBack} className="text-gray-500 hover:text-gray-700 mb-2 font-medium flex items-center gap-1">
+                            <button onClick={onBack} className="text-gray-500 hover:text-gray-700 mb-2 font-medium flex items-center gap-1 text-sm">
                                 ← Back to List
                             </button>
                         )}
-                        <div className="flex items-center gap-4">
-                            <h1 className="text-2xl font-black text-gray-800 tracking-tight">{patient.full_name}</h1>
-                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-full border border-indigo-100">
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-xl font-black text-gray-800 tracking-tight">{patient.full_name}</h1>
+                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded-full border border-indigo-100">
                                 {patient.patient_u_id}
                             </span>
                             {patient.patient_category && patient.patient_category !== 'STANDARD' && (
-                                <span className={`px-2 py-0.5 text-xs font-black rounded-full border uppercase tracking-wide
+                                <span className={`px-2 py-0.5 text-[10px] font-black rounded-full border uppercase tracking-wide
                                     ${patient.patient_category === 'MLC' ? 'bg-red-50 text-red-600 border-red-200' :
                                         patient.patient_category === 'BIRTH' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
                                             'bg-slate-900 text-white border-slate-700'}`}>
@@ -661,7 +662,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                         </div>
 
                         {/* Patient Details Grid */}
-                        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-8 text-sm border-t border-gray-100 pt-4">
+                        <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-y-2 gap-x-4 text-sm border-t border-gray-100 pt-3">
                             {patient.uhid && (
                                 <div>
                                     <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">UHID</span>
@@ -767,13 +768,13 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                 </div>
 
                 {/* Digitized Files Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                    <h2 className="text-lg font-semibold mb-4 border-b pb-2">Digitized Files ({patient.files.length})</h2>
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
+                    <h2 className="text-base font-semibold mb-3 border-b pb-2">Digitized Files ({patient.files.length})</h2>
 
                     {patient.files.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {patient.files.map((file) => (
-                                <div key={file.file_id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                                <div key={file.file_id} className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow">
                                     <div className="flex items-start justify-between mb-4">
                                         <div className={`p-2 rounded-lg ${file.upload_status === 'draft' ? 'bg-orange-50 text-orange-500' : 'bg-red-50 text-red-600'}`}>
                                             <FileType size={20} />

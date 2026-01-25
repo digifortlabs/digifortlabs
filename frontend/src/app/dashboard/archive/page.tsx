@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Archive, Search, FileText, Calendar, Box } from 'lucide-react';
 import { API_URL } from '../../../config/api';
+import { formatDate } from '../../utils/dateFormatter';
 
 export default function ArchiveView() {
     const [archivedFiles, setArchivedFiles] = useState<any[]>([]);
@@ -98,7 +99,7 @@ export default function ArchiveView() {
                                     <td className="p-6">
                                         <div className="flex items-center gap-2 text-slate-600 font-medium">
                                             <Calendar size={16} className="text-slate-400" />
-                                            {file.discharge_date ? new Date(file.discharge_date).toLocaleDateString() : (
+                                            {file.discharge_date ? formatDate(file.discharge_date) : (
                                                 <span className="text-slate-400 italic text-xs">Not Recorded</span>
                                             )}
                                         </div>

@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Plus, FileText, ChevronRight, Upload, User, ArrowRight, Pencil, Trash2, Building2, Layout, Tag } from 'lucide-react';
+import { Search, Filter, Plus, FileText, ChevronRight, Upload, User, ArrowRight, Pencil, Trash2, Building2, Layout, Tag, ArrowUpDown } from 'lucide-react';
 import PatientDetailView from './components/PatientDetailView';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL } from '../../../config/api';
 import { toTitleCase, toUpperCaseMRD } from '../../../utils/formatters';
+import { formatDate } from '../../utils/dateFormatter';
 
 export default function RecordsList() {
     const router = useRouter();
@@ -24,6 +25,16 @@ export default function RecordsList() {
 
     const [isEditing, setIsEditing] = useState(false);
     const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+
+    // Sorting
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+    const handleSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
 
     // Hospital Management (for Super Admins)
     const [userProfile, setUserProfile] = useState<any>(null);
@@ -351,6 +362,8 @@ export default function RecordsList() {
             body.dob = newPatient.dob || null;
             body.admission_date = newPatient.admission_date || null;
             body.discharge_date = newPatient.discharge_date || null;
+            body.mother_record_id = newPatient.mother_record_id || null;
+            body.uhid = newPatient.uhid || null;
             // Append Unit to Age
             body.age = `${newPatient.age} ${ageUnit}`;
 
@@ -401,10 +414,33 @@ export default function RecordsList() {
     };
 
     // Filter Logic
-    const filteredPatients = patients.filter(p =>
-        p.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.patient_u_id?.includes(searchTerm)
-    );
+    // Filter Logic
+    const filteredPatients = React.useMemo(() => {
+        let filtered = patients.filter(p =>
+            p.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.patient_u_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.uhid?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        if (sortConfig) {
+            filtered = [...filtered].sort((a, b) => {
+                let aValue = a[sortConfig.key] || '';
+                let bValue = b[sortConfig.key] || '';
+
+                // Handle date sorting specifically if keys match date fields
+                if (sortConfig.key === 'dates') {
+                    // Sort by discharge date, then admission date
+                    aValue = a.discharge_date || a.admission_date || '';
+                    bValue = b.discharge_date || b.admission_date || '';
+                }
+
+                if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+        return filtered;
+    }, [patients, searchTerm, sortConfig]);
 
     return (
         <div className="max-w-7xl mx-auto p-4 sm:p-6">
@@ -493,22 +529,30 @@ export default function RecordsList() {
                                 <table className="w-full text-left">
                                     <thead className="bg-gradient-to-r from-slate-50 to-slate-100 border-b-2 border-slate-200 sticky top-0 z-10">
                                         <tr>
-                                            <th className="p-4 md:p-6 text-left text-xs font-black text-slate-500 uppercase tracking-wider">Patient Details</th>
-                                            {!selectedPatientId && (
-                                                <>
-                                                    <th className="p-6 text-left text-xs font-black text-slate-500 uppercase tracking-wider hidden md:table-cell">Contact</th>
-                                                    <th className="p-6 text-left text-xs font-black text-slate-500 uppercase tracking-wider hidden md:table-cell">Dates</th>
-                                                    <th className="p-6 text-left text-xs font-black text-slate-500 uppercase tracking-wider hidden md:table-cell">Status</th>
-                                                </>
-                                            )}
-                                            <th className="p-6 text-right text-xs font-black text-slate-500 uppercase tracking-wider">Action</th>
+                                            <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort('uhid')}>
+                                                <div className="flex items-center gap-1">UHID <ArrowUpDown size={12} className="text-slate-300" /></div>
+                                            </th>
+                                            <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort('full_name')}>
+                                                <div className="flex items-center gap-1">Name <ArrowUpDown size={12} className="text-slate-300" /></div>
+                                            </th>
+                                            <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort('patient_u_id')}>
+                                                <div className="flex items-center gap-1">MRD ID <ArrowUpDown size={12} className="text-slate-300" /></div>
+                                            </th>
+                                            <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort('admission_date')}>
+                                                <div className="flex items-center gap-1">Adm. Date <ArrowUpDown size={12} className="text-slate-300" /></div>
+                                            </th>
+                                            <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort('discharge_date')}>
+                                                <div className="flex items-center gap-1">Disch. Date <ArrowUpDown size={12} className="text-slate-300" /></div>
+                                            </th>
+                                            <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap hidden md:table-cell">Status</th>
+                                            <th className="p-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {loading ? (
-                                            <tr><td colSpan={selectedPatientId ? 2 : 5} className="p-12 text-center">Loading Records...</td></tr>
+                                            <tr><td colSpan={7} className="p-12 text-center">Loading Records...</td></tr>
                                         ) : filteredPatients.length === 0 ? (
-                                            <tr><td colSpan={selectedPatientId ? 2 : 5} className="p-12 text-center text-slate-400 italic">No patients found.</td></tr>
+                                            <tr><td colSpan={7} className="p-12 text-center text-slate-400 italic">No patients found.</td></tr>
                                         ) : (
                                             filteredPatients.map(p => (
                                                 <tr
@@ -516,55 +560,71 @@ export default function RecordsList() {
                                                     className={`hover:bg-slate-50/80 transition cursor-pointer ${selectedPatientId === p.record_id ? 'bg-indigo-50/50 border-l-4 border-indigo-500' : ''}`}
                                                     onClick={() => setSelectedPatientId(p.record_id)}
                                                 >
-                                                    <td className="p-4 md:p-6">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-black border
-                                                        ${p.patient_category === 'MLC' ? 'bg-red-50 text-red-600 border-red-200 shadow-sm shadow-red-100' :
+                                                    {/* UHID */}
+                                                    <td className="p-3 align-middle">
+                                                        {p.uhid ? (
+                                                            <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-mono font-bold">{p.uhid}</span>
+                                                        ) : (
+                                                            <span className="text-slate-300 text-xs italic">—</span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Name */}
+                                                    <td className="p-3 align-middle">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[9px] font-black border
+                                                        ${p.patient_category === 'MLC' ? 'bg-red-50 text-red-600 border-red-200' :
                                                                     p.patient_category === 'BIRTH' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
                                                                         p.patient_category === 'DEATH' ? 'bg-slate-900 text-white border-slate-700' :
                                                                             'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>
-                                                                {p.patient_category === 'MLC' ? 'MLC' :
-                                                                    p.patient_category === 'BIRTH' ? 'B' :
-                                                                        p.patient_category === 'DEATH' ? '†' :
-                                                                            p.full_name?.[0]}
+                                                                {p.full_name?.[0]}
                                                             </div>
-                                                            <div>
-                                                                <div className="font-bold text-slate-900">{p.full_name}</div>
-                                                                <div className="text-xs text-slate-500 font-mono mt-0.5">{p.patient_u_id}</div>
-                                                                <div className="flex gap-2 mt-1">
-                                                                    {p.uhid && <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-mono">{p.uhid}</span>}
-                                                                    {p.files?.length > 0 && (
-                                                                        <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
-                                                                            <FileText size={8} /> {p.files.length}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
+                                                            <span className={`text-sm font-bold text-slate-900 truncate max-w-[12rem] ${p.patient_category === 'MLC' ? 'text-red-700' : ''}`}>
+                                                                {p.full_name}
+                                                                {p.patient_category === 'MLC' && <span className="ml-1 text-[9px] bg-red-100 text-red-700 px-1 rounded border border-red-200">MLC</span>}
+                                                            </span>
                                                         </div>
                                                     </td>
 
-                                                    {!selectedPatientId && (
-                                                        <>
-                                                            <td className="p-6 hidden md:table-cell align-top text-sm text-slate-600">
-                                                                {p.contact_number || <span className="text-slate-300 italic">—</span>}
-                                                            </td>
-                                                            <td className="p-6 hidden md:table-cell align-top text-sm text-slate-600">
-                                                                <div className="flex flex-col gap-1">
-                                                                    {p.discharge_date && <span className="text-xs">Out: {new Date(p.discharge_date).toLocaleDateString('en-IN')}</span>}
-                                                                    {p.admission_date && <span className="text-xs text-slate-400">In: {new Date(p.admission_date).toLocaleDateString('en-IN')}</span>}
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-6 hidden md:table-cell align-top">
-                                                                {p.physical_box_id ? (
-                                                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100">Archived</span>
-                                                                ) : (
-                                                                    <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100">Digital Only</span>
-                                                                )}
-                                                            </td>
-                                                        </>
-                                                    )}
+                                                    {/* MRD ID */}
+                                                    <td className="p-3 align-middle">
+                                                        <span className="text-xs text-slate-600 font-mono font-medium">{p.patient_u_id}</span>
+                                                        {p.files?.length > 0 && (
+                                                            <span className="ml-2 text-[9px] bg-indigo-50 text-indigo-600 px-1 py-0.5 rounded font-bold inline-flex items-center gap-0.5">
+                                                                <FileText size={8} /> {p.files.length}
+                                                            </span>
+                                                        )}
+                                                    </td>
 
-                                                    <td className="p-6 text-right align-top">
+                                                    {/* Admission Date */}
+                                                    <td className="p-3 align-middle whitespace-nowrap">
+                                                        {p.admission_date ? (
+                                                            <span className="text-xs text-slate-500 font-medium">{formatDate(p.admission_date)}</span>
+                                                        ) : (
+                                                            <span className="text-slate-300 text-xs">—</span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Discharge Date */}
+                                                    <td className="p-3 align-middle whitespace-nowrap">
+                                                        {p.discharge_date ? (
+                                                            <span className="text-xs font-bold text-slate-700">{formatDate(p.discharge_date)}</span>
+                                                        ) : (
+                                                            <span className="text-slate-300 text-xs">—</span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Status */}
+                                                    <td className="p-3 hidden md:table-cell align-middle">
+                                                        {p.physical_box_id ? (
+                                                            <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 uppercase tracking-wide">Archived</span>
+                                                        ) : (
+                                                            <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 uppercase tracking-wide">Digital</span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Action */}
+                                                    <td className="p-3 text-right align-middle">
                                                         <button onClick={(e) => {
                                                             e.stopPropagation();
                                                             const { val, unit } = parseAgeString(p.age);
@@ -584,8 +644,6 @@ export default function RecordsList() {
                                                                 discharge_date: p.discharge_date ? (p.discharge_date.includes('T') ? p.discharge_date.split('T')[0] : p.discharge_date) : '',
                                                                 mother_record_id: p.mother_record_id || ''
                                                             });
-                                                            // Populate user selected mother (Visual only since backend might handle response differently)
-                                                            // Usually we need backend to return mother details to show Name
                                                             if (p.mother_record_id && p.mother_details) {
                                                                 setSelectedMother(p.mother_details);
                                                             } else {
@@ -593,10 +651,10 @@ export default function RecordsList() {
                                                             }
 
                                                             setAgeUnit(unit);
-                                                            setAgeUnit(unit);
                                                             setSelectedPatientId(p.record_id);
                                                             setIsEditing(true);
                                                             setShowCreateModal(true);
+
                                                         }} className="text-slate-400 hover:text-blue-600 transition p-2 hover:bg-blue-50 rounded-lg" title="Edit Patient">
                                                             <Pencil size={16} />
                                                         </button>

@@ -272,6 +272,12 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Sessi
 
     db.commit()
     db.refresh(db_hospital)
+
+    try:
+        log_audit(db, current_user.user_id, "HOSPITAL_UPDATED", f"Updated hospital details for {db_hospital.legal_name}")
+    except Exception as e:
+        print(f"Audit Log Error: {e}")
+
     return db_hospital
 
 @router.post("/{hospital_id}/approve")
@@ -391,6 +397,12 @@ def delete_hospital(hospital_id: int, db: Session = Depends(get_db), current_use
         
         db.delete(db_hospital)
         db.commit()
+        
+        try:
+             log_audit(db, current_user.user_id, "HOSPITAL_DELETED", f"Deleted hospital: {db_hospital.legal_name}")
+        except:
+             pass
+
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Cannot delete hospital. Ensure all patients/data are removed first. Error: {str(e)}")

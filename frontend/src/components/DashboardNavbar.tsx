@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Building2, Menu, X, Settings, LogOut, LayoutDashboard, Database, Archive, FileClock, Users as UsersIcon, Box, FileText, Receipt } from 'lucide-react';
+import { Building2, Menu, X, Settings, LogOut, LayoutDashboard, Database, Archive, FileClock, Users as UsersIcon, Box, FileText, Receipt, Shield, HardDrive } from 'lucide-react';
 
 interface DashboardNavbarProps {
     userRole: string;
@@ -13,7 +13,9 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const [hospitalName, setHospitalName] = useState<string | null>(null);
+    const [userEmail, setUserEmail] = useState<string | null>(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -27,6 +29,12 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                 const decoded = JSON.parse(jsonPayload);
                 if (decoded.hospital_name) {
                     setHospitalName(decoded.hospital_name);
+                    document.title = `DF | ${decoded.hospital_name}`;
+                } else {
+                    document.title = "Digifort Labs | Dashboard";
+                }
+                if (decoded.sub) {
+                    setUserEmail(decoded.sub);
                 }
             } catch (e) {
                 console.error("Error decoding token", e);
@@ -48,15 +56,15 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
     const isStaff = userRole === 'superadmin_staff';
 
     // Grouping Logic
-    const showStorage = isSuperAdmin;
+    const showStorage = isSuperAdmin || isWarehouseManager;
     const showRequests = isHospitalAdmin || isWarehouseManager || isStaff || isSuperAdmin;
     const showArchive = isWarehouseManager || isHospitalAdmin || isSuperAdmin || isStaff;
-    const showDrafts = isWarehouseManager;
+    const showDrafts = isWarehouseManager || isSuperAdmin;
     const showWarehouseMenu = showStorage || showRequests || showArchive || showDrafts;
 
     return (
         <nav className="fixed top-0 w-full z-40 bg-slate-900 border-b border-slate-800 shadow-md">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="w-full px-4 lg:px-6">
                 <div className="flex items-center justify-between h-16">
                     {/* Mobile Menu Toggle */}
                     <div className="flex md:hidden">
@@ -139,6 +147,19 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 </>
                             )}
 
+                            {/* Audit Logs */}
+                            {isSuperAdmin && (
+                                <Link
+                                    href="/dashboard/audit"
+                                    className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/audit')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        }`}
+                                >
+                                    Audit Logs
+                                </Link>
+                            )}
+
                             {/* Warehouse Dropdown */}
                             {showWarehouseMenu && (
                                 <div className="relative group">
@@ -193,48 +214,84 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                         </div>
                     </div>
 
-                    {/* Right Side: Account & Logout */}
-                    <div className="flex items-center gap-2 lg:gap-4">
+                    {/* Right Side: Account & Profile */}
+                    <div className="flex items-center gap-4">
                         {/* Hospital Badge for Tenants */}
                         {hospitalName && (
                             <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full">
                                 <Building2 size={14} className="text-indigo-400" />
-                                <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest truncate max-w-[150px]">
+                                <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest whitespace-nowrap">
                                     {hospitalName}
                                 </span>
                             </div>
                         )}
 
-                        <Link
-                            href="/dashboard/downloads"
-                            className="hidden md:flex items-center gap-2 px-2 lg:px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors border border-slate-700"
-                            title="Download Desktop Scanner"
-                        >
-                            <span className="text-[11px] lg:text-xs font-bold text-slate-300">Scanner App</span>
-                        </Link>
-
-                        {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'superadmin_staff') && (
-                            <Link
-                                href="/dashboard/settings"
-                                className={`text-slate-400 hover:text-white transition-colors ${isActive('/dashboard/settings') ? 'text-white' : ''}`}
-                                title="Settings"
-                            >
-                                <span className="text-xl">⚙️</span>
-                            </Link>
-                        )}
-
-                        <div className="flex items-center gap-2 lg:gap-4 pl-2 lg:pl-4 border-l border-slate-700">
-                            {userRole && (
-                                <span className="hidden xl:block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                    {userRole.replace('_', ' ')}
-                                </span>
-                            )}
+                        {/* Profile Dropdown */}
+                        <div className="relative">
                             <button
-                                onClick={handleLogout}
-                                className="px-3 lg:px-4 py-2 text-[11px] lg:text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-lg shadow-red-900/20"
+                                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                                className="flex items-center gap-2 p-1 rounded-full hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                             >
-                                Sign Out
+                                <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-indigo-500/20 border border-indigo-400">
+                                    {(userEmail || 'U').charAt(0).toUpperCase()}
+                                </div>
                             </button>
+
+                            {/* Dropdown Menu */}
+                            {isProfileOpen && (
+                                <div className="absolute right-0 mt-3 w-72 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                                    {/* Header */}
+                                    <div className="p-4 border-b border-slate-800 bg-slate-800/30">
+                                        <p className="text-sm font-bold text-white truncate">{userEmail}</p>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
+                                                {userRole?.replace('_', ' ')}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Links */}
+                                    <div className="p-2 space-y-1">
+                                        {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'superadmin_staff') && (
+                                            <Link
+                                                href="/dashboard/settings"
+                                                onClick={() => setIsProfileOpen(false)}
+                                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                                            >
+                                                <Settings size={16} /> Settings
+                                            </Link>
+                                        )}
+
+                                        {isSuperAdmin && (
+                                            <Link
+                                                href="/dashboard/server-manager"
+                                                onClick={() => setIsProfileOpen(false)}
+                                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-amber-500 hover:bg-slate-800 hover:text-amber-400 transition-colors"
+                                            >
+                                                <HardDrive size={16} /> Server Manager
+                                            </Link>
+                                        )}
+
+                                        <Link
+                                            href="/dashboard/downloads"
+                                            onClick={() => setIsProfileOpen(false)}
+                                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                                        >
+                                            <Archive size={16} /> Scanner App
+                                        </Link>
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="p-2 border-t border-slate-800 mt-1">
+                                        <button
+                                            onClick={handleLogout}
+                                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-red-500 hover:bg-red-500/10 transition-colors"
+                                        >
+                                            <LogOut size={16} /> Sign Out
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -346,7 +403,20 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             </>
                         )}
 
-                        {userRole === 'superadmin' && (
+                        {isSuperAdmin && (
+                            <Link
+                                href="/dashboard/audit"
+                                onClick={() => setIsMenuOpen(false)}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/audit')
+                                    ? 'bg-slate-800 text-white'
+                                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                    }`}
+                            >
+                                <Shield size={18} /> Audit Logs
+                            </Link>
+                        )}
+
+                        {(userRole === 'superadmin' || userRole === 'warehouse_manager') && (
                             <Link
                                 href="/dashboard/storage"
                                 onClick={() => setIsMenuOpen(false)}

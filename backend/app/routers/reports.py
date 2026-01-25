@@ -95,20 +95,20 @@ def get_billing_report(
         row = {
             "file_id": f.file_id,
             "record_id": f.record_id,
-            "upload_date": f.upload_date.strftime("%Y-%m-%d %H:%M") if f.upload_date else "N/A",
+            "upload_date": f.upload_date.strftime("%d/%m/%Y %H:%M") if f.upload_date else "N/A",
             "patient_name": f.patient.full_name,
             "mrd": f.patient.patient_u_id,
             "uhid": f.patient.uhid, # Added Field
             "age": f.patient.age,   # Added Field
-            "admission_date": f.patient.admission_date.strftime("%Y-%m-%d") if f.patient.admission_date else None, # Added Field
-            "discharge_date": f.patient.discharge_date.strftime("%Y-%m-%d") if f.patient.discharge_date else None, # Added Field
+            "admission_date": f.patient.admission_date.strftime("%d/%m/%Y") if f.patient.admission_date else None, # Added Field
+            "discharge_date": f.patient.discharge_date.strftime("%d/%m/%Y") if f.patient.discharge_date else None, # Added Field
             "filename": f.filename,
             "page_count": page_count,
             "file_size_mb": round(f.file_size_mb, 2),
             "cost": round(cost, 2),
             "status": f.upload_status,
             "is_paid": f.is_paid or False,
-            "payment_date": f.payment_date.strftime("%Y-%m-%d") if f.payment_date else None
+            "payment_date": f.payment_date.strftime("%d/%m/%Y") if f.payment_date else None
         }
         data.append(row)
 
@@ -181,7 +181,7 @@ def get_inventory_report(
             "files_stored": p_count,
             "capacity": b.capacity,
             "utilization_pct": utilization,
-            "created_at": b.created_at.strftime("%Y-%m-%d") if b.created_at else "N/A"
+            "created_at": b.created_at.strftime("%d/%m/%Y") if b.created_at else "N/A"
         }
         data.append(row)
         
@@ -220,7 +220,7 @@ def get_audit_report(
     data = []
     for log in logs:
         row = {
-            "timestamp": log.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            "timestamp": log.timestamp.strftime("%d/%m/%Y %H:%M:%S"),
             "user": log.user.email if log.user else "System",
             "action": log.action,
             "details": log.details,
@@ -315,7 +315,7 @@ def get_clinical_report(
             "patient_id": f.patient.record_id if f.patient else None,
             "tags": f.tags or "Unclassified",
             "icd_codes": ", ".join([d.code for d in f.patient.diagnoses]) if f.patient and f.patient.diagnoses else "N/A",
-            "upload_date": f.upload_date.strftime("%Y-%m-%d") if f.upload_date else "N/A"
+            "upload_date": f.upload_date.strftime("%d/%m/%Y") if f.upload_date else "N/A"
         })
             
     if export_csv:

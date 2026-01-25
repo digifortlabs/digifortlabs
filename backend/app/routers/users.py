@@ -31,6 +31,14 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User 
     
     db.delete(target_user)
     db.commit()
+
+    try:
+        from ..audit import log_audit
+        # We use current_user here because target_user is deleted
+        log_audit(db, current_user.user_id, "USER_DELETED", f"Deleted user: {target_user.email}", hospital_id=current_user.hospital_id)
+    except Exception as e:
+        print(f"Audit Log Error: {e}")
+
     return {"message": "User deleted"}
 
 PLAN_LIMITS = {
@@ -151,6 +159,12 @@ def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: U
     db.commit()
     db.refresh(new_user)
     
+    try:
+        from ..audit import log_audit
+        log_audit(db, current_user.user_id, "USER_CREATED", f"Created user: {new_user.email} ({new_user.role})", hospital_id=current_user.hospital_id)
+    except Exception as e:
+        print(f"Audit Log Error: {e}")
+
     return new_user
 
 
@@ -178,4 +192,11 @@ def update_user(user_id: int, data: UserUpdate, db: Session = Depends(get_db), c
         target_user.current_session_id = str(uuid.uuid4()) # Invalidate existing sessions
         
     db.commit()
+
+    try:
+        from ..audit import log_audit
+        log_audit(db, current_user.user_id, "USER_UPDATED", f"Updated user: {target_user.email}", hospital_id=current_user.hospital_id)
+    except Exception as e:
+        print(f"Audit Log Error: {e}")
+
     return {"message": "User updated"}

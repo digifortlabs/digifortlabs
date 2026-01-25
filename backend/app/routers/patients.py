@@ -396,6 +396,13 @@ def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session =
              
     db.commit()
     db.refresh(db_patient)
+
+    try:
+        from ..audit import log_audit
+        log_audit(db, current_user.user_id, "PATIENT_UPDATED", f"Updated patient: {db_patient.full_name} ({db_patient.patient_u_id})", hospital_id=db_patient.hospital_id)
+    except Exception as e:
+        print(f"Audit Log Error: {e}")
+
     return db_patient
 
 @router.post("/")
@@ -455,6 +462,12 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
         print(f"❌ Database Error: {e}")
         raise HTTPException(status_code=500, detail="Database error occurred during creation.")
     
+    try:
+        from ..audit import log_audit
+        log_audit(db, current_user.user_id, "PATIENT_CREATED", f"Created patient: {db_patient.full_name} ({db_patient.patient_u_id})", hospital_id=hospital_id)
+    except Exception as e:
+        print(f"Audit Log Error: {e}") 
+
     # --- Auto-Assign Storage ---
     # Disabled by user request (Manual Assignment Mode)
     # try:

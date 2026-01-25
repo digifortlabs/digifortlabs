@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { API_URL } from '../../../config/api';
-import { Boxes, ShieldAlert, Download, RefreshCw, FileText, Stethoscope, Calendar, Building2, Filter, Search } from 'lucide-react';
+import { Boxes, ShieldAlert, Download, RefreshCw, FileText, Stethoscope, Calendar, Building2, Filter, Search, ArrowUpDown } from 'lucide-react';
 
 export default function ReportsPage() {
     const [activeTab, setActiveTab] = useState('clinical'); // inventory, audit, clinical
@@ -20,6 +20,35 @@ export default function ReportsPage() {
     // Admin State
     const [userRole, setUserRole] = useState('');
     const [hospitals, setHospitals] = useState<any[]>([]);
+
+    // Sorting
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+    const handleSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const sortedData = React.useMemo(() => {
+        if (!data) return [];
+        if (!sortConfig) return data;
+
+        return [...data].sort((a, b) => {
+            const aValue = a[sortConfig.key] || '';
+            const bValue = b[sortConfig.key] || '';
+
+            if (aValue < bValue) {
+                return sortConfig.direction === 'asc' ? -1 : 1;
+            }
+            if (aValue > bValue) {
+                return sortConfig.direction === 'asc' ? 1 : -1;
+            }
+            return 0;
+        });
+    }, [data, sortConfig]);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -239,82 +268,89 @@ export default function ReportsPage() {
                                     <tr>
                                         {activeTab === 'inventory' && (
                                             <>
-                                                <th className="px-8 py-5">Box Label</th>
-                                                <th className="px-8 py-5">Location</th>
-                                                <th className="px-8 py-5">Status</th>
-                                                <th className="px-8 py-5">Utilization</th>
+                                                <th className="px-4 py-3">Box Label</th>
+                                                <th className="px-4 py-3">Location</th>
+                                                <th className="px-4 py-3">Status</th>
+                                                <th className="px-4 py-3">Utilization</th>
                                             </>
                                         )}
                                         {activeTab === 'audit' && (
                                             <>
-                                                <th className="px-8 py-5">Time</th>
-                                                <th className="px-8 py-5">User</th>
-                                                <th className="px-8 py-5">Action</th>
-                                                <th className="px-8 py-5">Details</th>
+                                                <th className="px-4 py-3">Time</th>
+                                                <th className="px-4 py-3">User</th>
+                                                <th className="px-4 py-3">Action</th>
+                                                <th className="px-4 py-3">Details</th>
                                             </>
                                         )}
                                         {activeTab === 'clinical' && (
                                             <>
-                                                <th className="px-8 py-5">Date</th>
-                                                <th className="px-8 py-5">Patient Details</th>
-                                                <th className="px-8 py-5">File</th>
-                                                <th className="px-8 py-5">ICD-11</th>
-                                                <th className="px-8 py-5">Tags</th>
+                                                <th className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort('patient_name')}>
+                                                    <div className="flex items-center gap-1">Name <ArrowUpDown size={12} className="text-slate-300" /></div>
+                                                </th>
+                                                <th className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort('patient_id')}>
+                                                    <div className="flex items-center gap-1">ID <ArrowUpDown size={12} className="text-slate-300" /></div>
+                                                </th>
+                                                <th className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort('admission_date')}>
+                                                    <div className="flex items-center gap-1">Admission <ArrowUpDown size={12} className="text-slate-300" /></div>
+                                                </th>
+                                                <th className="px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort('discharge_date')}>
+                                                    <div className="flex items-center gap-1">Discharge <ArrowUpDown size={12} className="text-slate-300" /></div>
+                                                </th>
+                                                <th className="px-4 py-3">File</th>
+                                                <th className="px-4 py-3">Tags</th>
                                             </>
                                         )}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 font-medium text-sm text-slate-600">
-                                    {data.map((row: any, i: number) => (
+                                    {(activeTab === 'clinical' ? sortedData : data).map((row: any, i: number) => (
                                         <tr key={i} className="hover:bg-slate-50 transition-colors">
                                             {activeTab === 'inventory' && (
                                                 <>
-                                                    <td className="px-8 py-4 font-bold text-indigo-600">{row.box_label}</td>
-                                                    <td className="px-8 py-4 font-mono text-xs">{row.location}</td>
-                                                    <td className="px-8 py-4">
-                                                        <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${row.status === 'OPEN' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
+                                                    <td className="px-4 py-3 font-bold text-indigo-600">{row.box_label}</td>
+                                                    <td className="px-4 py-3 font-mono text-xs">{row.location}</td>
+                                                    <td className="px-4 py-3">
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${row.status === 'OPEN' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
                                                             {row.status}
                                                         </span>
                                                     </td>
-                                                    <td className="px-8 py-4">
+                                                    <td className="px-4 py-3">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden w-24">
+                                                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden w-24">
                                                                 <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${row.utilization_pct}%` }}></div>
                                                             </div>
-                                                            <span className="text-xs font-bold">{row.files_stored}/{row.capacity}</span>
+                                                            <span className="text-[10px] font-bold">{row.files_stored}/{row.capacity}</span>
                                                         </div>
                                                     </td>
                                                 </>
                                             )}
                                             {activeTab === 'audit' && (
                                                 <>
-                                                    <td className="px-8 py-4 whitespace-nowrap font-mono text-xs">{row.timestamp}</td>
-                                                    <td className="px-8 py-4 font-bold text-slate-800">{row.user}</td>
-                                                    <td className="px-8 py-4">
-                                                        <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider">{row.action}</span>
+                                                    <td className="px-4 py-3 whitespace-nowrap font-mono text-xs">{row.timestamp}</td>
+                                                    <td className="px-4 py-3 font-bold text-slate-800">{row.user}</td>
+                                                    <td className="px-4 py-3">
+                                                        <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider">{row.action}</span>
                                                     </td>
-                                                    <td className="px-8 py-4 text-slate-500">{row.details}</td>
+                                                    <td className="px-4 py-3 text-slate-500 text-xs">{row.details}</td>
                                                 </>
                                             )}
                                             {activeTab === 'clinical' && (
                                                 <>
-                                                    <td className="px-8 py-4 whitespace-nowrap">{row.upload_date}</td>
-                                                    <td className="px-8 py-4 font-bold text-slate-800">{row.patient_name}</td>
-                                                    <td className="px-8 py-4">
+                                                    <td className="px-4 py-3 font-bold text-slate-800">{row.patient_name}</td>
+                                                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{row.patient_id}</td>
+                                                    <td className="px-4 py-3 text-xs whitespace-nowrap">{row.admission_date || '-'}</td>
+                                                    <td className="px-4 py-3 text-xs whitespace-nowrap">{row.discharge_date || '-'}</td>
+                                                    <td className="px-4 py-3">
                                                         <Link
                                                             href={`/dashboard/records?search=${row.patient_id}`}
-                                                            className="text-indigo-600 font-medium hover:underline flex items-center gap-1"
+                                                            className="text-indigo-600 font-medium hover:underline flex items-center gap-1 truncate max-w-[150px]"
+                                                            title={row.filename}
                                                         >
-                                                            {row.filename} <span className="text-xs">↗</span>
+                                                            {row.filename}
                                                         </Link>
                                                     </td>
-                                                    <td className="px-8 py-4">
-                                                        <span className="font-mono text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                                                            {row.icd_codes}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-8 py-4">
-                                                        <span className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded text-[10px] font-black uppercase border border-indigo-100">
+                                                    <td className="px-4 py-3">
+                                                        <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[10px] font-black uppercase border border-indigo-100">
                                                             {row.tags}
                                                         </span>
                                                     </td>

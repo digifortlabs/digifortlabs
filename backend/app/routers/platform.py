@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import SystemSetting, User, UserRole
 from ..routers.auth import get_current_user
+from ..audit import log_audit
 
 router = APIRouter()
 
@@ -30,6 +31,12 @@ async def update_setting(key: str, update: SettingUpdate, db: Session = Depends(
         setting.value = update.value
     
     db.commit()
+    
+    try:
+        log_audit(db, current_user.user_id, "SETTING_UPDATED", f"Updated system setting: {key} = {update.value}")
+    except Exception as e:
+        print(f"Audit Log Error: {e}")
+
     return {"status": "success", "key": key, "value": update.value}
 
 from fastapi import BackgroundTasks
@@ -67,6 +74,11 @@ async def run_bulk_ocr(
         count += 1
     
     db.commit() # Save 'analyzing' state
+
+    try:
+        log_audit(db, current_user.user_id, "BULK_OCR_TRIGGERED", f"Triggered OCR for {count} files")
+    except Exception as e:
+        print(f"Audit Log Error: {e}")
     
     return {
         "status": "success", 

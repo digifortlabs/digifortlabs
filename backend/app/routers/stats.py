@@ -324,7 +324,22 @@ def get_dashboard_stats(
         avg_latency = (app_state.total_latency / app_state.total_requests) * 1000
     
     uptime_delta = datetime.utcnow() - app_state.startup_time
-    uptime_str = f"{uptime_delta.days}d {uptime_delta.seconds // 3600}h" if uptime_delta.days > 0 else f"{uptime_delta.seconds // 3600}h {(uptime_delta.seconds % 3600) // 60}m"
+    # uptime_str = f"{uptime_delta.days}d {uptime_delta.seconds // 3600}h" if uptime_delta.days > 0 else f"{uptime_delta.seconds // 3600}h {(uptime_delta.seconds % 3600) // 60}m"
+    
+    # FETCH LAST LOGIN (Replaces Uptime Display)
+    last_login_str = "First Login"
+    try:
+        last_login_log = db.query(AuditLog).filter(
+            AuditLog.user_id == current_user.user_id, 
+            AuditLog.action == "LOGIN_SUCCESS"
+        ).order_by(AuditLog.timestamp.desc()).first()
+        
+        if last_login_log:
+            # Return raw datetime for frontend to format locally
+            last_login_str = last_login_log.timestamp
+    except Exception as e:
+        print(f"Error fetching last login: {e}")
+
     
     network_load = "0.0 MB/s"
     
@@ -371,7 +386,7 @@ def get_dashboard_stats(
         "recent_uploads": recent_uploads_count,
         "system": {
             "health": "Optimal",
-            "uptime": uptime_str,
+            "uptime": last_login_str,
             "latency": f"{int(avg_latency)} ms",
             "network_load": network_load,
             "connected_db": connected_db_str

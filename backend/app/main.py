@@ -2,7 +2,11 @@ from fastapi import FastAPI
 
 from .core.config import settings
 from .database import Base, engine
-from .routers import auth, hospitals, patients  # We will create these next
+from .routers import auth, hospitals, patients
+from .core.logging_config import setup_logging
+
+# Initialize Logging
+setup_logging()
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -62,6 +66,10 @@ from .routers import audit_logs, platform
 
 app.include_router(audit_logs.router, prefix="/audit", tags=["audit"])
 app.include_router(platform.router, prefix="/platform", tags=["platform"])
+
+from .routers import server_files
+app.include_router(server_files.router, prefix="/server-files", tags=["server-files"])
+
 from .routers import storage
 
 app.include_router(storage.router, prefix="/storage", tags=["storage"])
