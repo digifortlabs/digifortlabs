@@ -593,6 +593,56 @@ def search_files(q: str, db: Session = Depends(get_db), current_user: User = Dep
         for f in filtered_results
     ]
 
+@router.get("/next-id")
+@router.get("/next-id")
+def get_next_mrd(
+    hospital_id: Optional[int] = None, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    # Determine effective hospital_id
+    target_hospital_id = current_user.hospital_id
+    
+    # If Super Admin, allow overriding/specifying hospital_id
+    if current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+         if hospital_id:
+             target_hospital_id = hospital_id
+    
+    if not target_hospital_id:
+        raise HTTPException(status_code=400, detail="Hospital Context Required")
+
+    # Fetch all UIDs for this hospital to find max
+    # Note: This is a simple approach. For high scale, use a sequence or dedicated counter table.
+    patients = db.query(Patient.patient_u_id).filter(Patient.hospital_id == target_hospital_id).all()
+    
+    max_val = 0
+    prefix = "" 
+    
+    import re # Ensure imported
+    
+    # Simple heuristic: Look for pattern Prefix+Number or just Number
+    for p in patients:
+        uid = p.patient_u_id
+        # Extract number from end
+        match = re.search(r'(\d+)$', uid)
+        if match:
+            num_part = int(match.group(1))
+            if num_part > max_val:
+                max_val = num_part
+                # Update prefix if this is the max (best guess at current series)
+                prefix = uid[:match.start()]
+
+    # If no patients, start at 1
+    next_val = max_val + 1
+    
+    # Simple zero-padding logic: if max_val likely came from a padded string (impossible to know for sure without original str)
+    # But usually 5 or 6 digits is standard. Let's return raw next string for now based on prefix.
+    
+    last_id = f"{prefix}{max_val}" if max_val > 0 else "None"
+    next_id = f"{prefix}{next_val}"
+    
+    return {"next_id": next_id, "last_id": last_id}
+
 @router.get("/", response_model=List[PatientResponse])
 def get_patients(
     q: Optional[str] = None, 

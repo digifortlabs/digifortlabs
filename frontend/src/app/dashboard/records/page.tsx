@@ -133,6 +133,7 @@ export default function RecordsList() {
 
 
     const [lastMRD, setLastMRD] = useState<string | null>(null);
+    const [lastAssignedMRD, setLastAssignedMRD] = useState<string | null>(null);
 
     const parseAgeString = (ageStr: string | number) => {
         if (!ageStr) return { val: '', unit: 'Years' };
@@ -172,6 +173,7 @@ export default function RecordsList() {
                     setAgeUnit(unit);
                     setIsExistingPatient(true);
                     if (p.last_mrd) setLastMRD(p.last_mrd);
+                    fetchNextMRD(); // Auto-fill next MRD for existing patient too
                 } else {
                     setIsExistingPatient(false);
                     setLastMRD(null);
@@ -182,11 +184,48 @@ export default function RecordsList() {
         }
     };
 
+    const fetchNextMRD = async () => {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        // Prevent 400 Bad Request for Super Admins if no hospital selected
+        // We assume 'userProfile' is available in scope (used elsewhere in component)
+        const role = userProfile?.role;
+        if ((role === 'superadmin' || role === 'superadmin_staff') && !selectedHospitalId) {
+            return;
+        }
+
+        // For superadmins, we need to pass the selected hospital
+        let url = `${API_URL}/patients/next-id`;
+        if (selectedHospitalId) {
+            url += `?hospital_id=${selectedHospitalId}`;
+        }
+
+        try {
+            const res = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                // User Request: Remove auto-fill. Only show helper text.
+                // if (data.next_id) {
+                //    setNewPatient(prev => ({ ...prev, patient_u_id: data.next_id }));
+                // }
+                if (data.last_id) {
+                    setLastAssignedMRD(data.last_id);
+                }
+            } else {
+                console.warn("Next ID fetch failed", res.status);
+            }
+        } catch (e) { console.error("Failed to fetch next MRD", e); }
+    };
+
     const handleSelectPatient = (p: any) => {
         const { val, unit } = parseAgeString(p.age);
-        setNewPatient({
+        setNewPatient(prev => ({ // Updated to functional state update for safety
+            ...prev,
             full_name: p.full_name || '',
-            patient_u_id: '', // Must be new
+            patient_u_id: '', // Will fetch next ID below
             uhid: p.uhid || '',
             age: val,
             gender: p.gender || '',
@@ -194,15 +233,18 @@ export default function RecordsList() {
             contact_number: p.contact_number || '',
             email_id: p.email_id || '',
             aadhaar_number: p.aadhaar_number || '',
-            patient_category: 'STANDARD', // New admission default
+            patient_category: 'STANDARD',
             dob: p.dob ? new Date(p.dob).toISOString().split('T')[0] : '',
-            admission_date: '', // New admission
-            discharge_date: '', // New admission
+            admission_date: '',
+            discharge_date: '',
             mother_record_id: ''
-        });
+        }));
         setAgeUnit(unit);
         setIsExistingPatient(true);
         setShowSuggestions(false);
+
+        // Auto-fetch next MRD ID for the New Visit
+        fetchNextMRD();
     };
 
     const handleNameSearch = (val: string) => {
@@ -485,7 +527,10 @@ export default function RecordsList() {
                     </div>
                     <div className="flex gap-2">
                         <button
-                            onClick={() => setShowCreateModal(true)}
+                            onClick={() => {
+                                setShowCreateModal(true);
+                                fetchNextMRD(); // Auto-fill next MRD
+                            }}
                             className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/20"
                         >
                             <Plus size={20} /> <span className="hidden md:inline">Add New MRD</span>
@@ -910,6 +955,20 @@ export default function RecordsList() {
                                                 }}
                                                 placeholder="New MRD" />
                                             {isMRDDuplicate && <p className="text-red-500 text-[10px] mt-0.5">⚠️ Exists!</p>}
+                                            {(lastAssignedMRD || lastMRD) && !isMRDDuplicate && (
+                                                <div className="flex gap-3 mt-1">
+                                                    {lastAssignedMRD && (
+                                                        <p className="text-slate-400 text-[10px] italic">
+                                                            Global Last: <span className="font-bold text-slate-600">{lastAssignedMRD}</span>
+                                                        </p>
+                                                    )}
+                                                    {lastMRD && (
+                                                        <p className="text-indigo-400 text-[10px] italic">
+                                                            Patient Previous: <span className="font-bold text-indigo-600">{lastMRD}</span>
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="col-span-6">

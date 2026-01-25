@@ -165,6 +165,8 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
     const [selectedBoxId, setSelectedBoxId] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
 
+    const isDeletingRef = useRef(false);
+
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (!token) {
@@ -187,6 +189,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
 
 
     const fetchPatient = async (token: string, patientId: string) => {
+        if (isDeletingRef.current) return; // Prevent fetching if deletion is in progress
         const apiUrl = API_URL;
         setError(null);
         try {
@@ -306,19 +309,17 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
             }
         }
         setIsUploading(false);
-        // Removed blocking alert to allow immediate UI update
-        // alert("Batch Upload Complete!"); 
 
-        // Refresh data immediately
-        if (id) {
-            await fetchPatient(token, id);
-            fetchDiagnoses(token);
-            fetchProcedures(token);
-        }
-
-        // Clear queue after a small delay or keep completed items visible for a moment?
-        // User wants immediate refresh. 
-        setTimeout(() => setFileQueue([]), 2000);
+        // Wait a moment for backend to commit transaction before refreshing
+        setTimeout(async () => {
+            if (id) {
+                await fetchPatient(token, id);
+                fetchDiagnoses(token);
+                fetchProcedures(token);
+            }
+            // Clear queue
+            setFileQueue([]);
+        }, 1000);
     };
 
     const fetchDiagnoses = async (token: string) => {
@@ -600,6 +601,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
         const input = prompt(`DANGER ZONE \n\nTo PERMANENTLY delete this patient and ALL their files, type "delete" below:`);
         if (input !== "delete") return;
 
+        isDeletingRef.current = true; // Block further fetches
         const token = localStorage.getItem('token');
         const apiUrl = API_URL;
 
@@ -614,10 +616,15 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                 if (onDeleteSuccess) onDeleteSuccess();
                 else if (onBack) onBack();
             } else {
+                isDeletingRef.current = false; // Reset if failed
                 const data = await res.json();
                 alert(`Failed: ${data.detail || "Unknown error"}`);
             }
-        } catch (e) { console.error(e); alert("Network error."); }
+        } catch (e) {
+            isDeletingRef.current = false;
+            console.error(e);
+            alert("Network error.");
+        }
     };
 
     if (error) {

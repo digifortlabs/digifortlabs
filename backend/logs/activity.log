@@ -1,0 +1,2 @@
+2026-01-25 23:02:50,715 - INFO - User: 1 | Hosp: 1 | Action: PATIENT_CREATED | Created patient: Keval Kuvekar (D11111)
+2026-01-25 23:03:07,409 - INFO - User: 1 | Hosp: None | Action: PATIENT_DELETED | Deleted patient: Keval Kuvekar
