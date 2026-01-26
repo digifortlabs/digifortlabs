@@ -89,6 +89,10 @@ app.include_router(contact.router, prefix="/contact", tags=["contact"])
 from .routers import accounting, accounting_advanced
 app.include_router(accounting.router, prefix="/accounting", tags=["accounting"])
 app.include_router(accounting_advanced.router, prefix="/accounting-adv", tags=["accounting-advanced"])
+
+from .routers import inventory 
+app.include_router(inventory.router, prefix="/inventory", tags=["inventory"])
+
 try:
     from .routers import scanner
     app.include_router(scanner.router) # Scanner Service

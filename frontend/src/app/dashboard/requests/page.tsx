@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Search, Plus, Clock, CheckCircle2, AlertCircle, Box } from 'lucide-react';
 import { API_URL } from '../../../config/api';
-import { formatDate } from '../../utils/dateFormatter';
+import { formatDate } from '@/lib/dateFormatter';
 
 export default function FileRequests() {
     const [requests, setRequests] = useState<any[]>([]);
@@ -148,7 +148,7 @@ export default function FileRequests() {
 
 
     return (
-        <div className="max-w-7xl mx-auto p-4 sm:p-6 text-slate-900">
+        <div className="w-full mx-auto p-4 sm:p-6 text-slate-900">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-black text-slate-900 flex items-center gap-3">

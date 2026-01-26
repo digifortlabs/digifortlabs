@@ -14,7 +14,8 @@ import {
     ArrowLeft,
     Plus,
     Trash2,
-    Percent
+    Percent,
+    CheckCircle2 // Added missing import
 } from 'lucide-react';
 import { apiFetch } from '@/config/api';
 import { format } from 'date-fns';
@@ -58,19 +59,57 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
     const [searchHospital, setSearchHospital] = useState('');
     const [billDate, setBillDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
     const [dueDate, setDueDate] = useState<string>(format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'));
-    const [includeRegFee, setIncludeRegFee] = useState(true);
+
+    // New States for Invoice Numbering
+    const [invoiceNumber, setInvoiceNumber] = useState('');
+    const [config, setConfig] = useState<any>(null);
+
+    const [includeRegFee, setIncludeRegFee] = useState(false); // Default unchecked
     const [regFeeAmount, setRegFeeAmount] = useState<string>('1000');
     const [customItems, setCustomItems] = useState<CustomItem[]>([]);
     const [newItemDesc, setNewItemDesc] = useState('');
     const [newItemPrice, setNewItemPrice] = useState('');
     const [newItemDiscount, setNewItemDiscount] = useState('');
+    const [newItemDiscountType, setNewItemDiscountType] = useState<'FIXED' | 'PERCENT'>('FIXED');
     const [newItemHSN, setNewItemHSN] = useState('998311');
+    const [isGSTBill, setIsGSTBill] = useState(true); // Added GST Toggle State
 
     useEffect(() => {
         if (isOpen && step === 1) {
             fetchHospitals();
+            fetchConfig();
         }
     }, [isOpen, step]);
+
+    useEffect(() => {
+        // Auto-update number on toggle change if config exists
+        if (config) {
+            updateInvoiceNumberPreview();
+        }
+    }, [isGSTBill, config]);
+
+    const fetchConfig = async () => {
+        try {
+            const data = await apiFetch('/accounting/config');
+            setConfig(data);
+        } catch (error) {
+            console.error("Error fetching config:", error);
+        }
+    };
+
+    const updateInvoiceNumberPreview = () => {
+        if (!config) return;
+
+        let prefix = isGSTBill ? config.invoice_prefix : (config.invoice_prefix_nongst || "BOS");
+        let number = isGSTBill ? config.next_invoice_number : (config.next_invoice_number_nongst || 1);
+
+        // Use default format logic
+        // Format: {prefix}-{fy}-{number:03d}
+        // We will do a simple construction here
+        const numStr = number.toString().padStart(3, '0');
+        const preview = `${prefix}-${config.current_fy}-${numStr}`;
+        setInvoiceNumber(preview);
+    };
 
     const fetchHospitals = async () => {
         try {
@@ -86,8 +125,7 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
         try {
             const data = await apiFetch(`/accounting/unbilled/${hospitalId}`);
             setUnbilledFiles(data);
-            // Default select all
-            setSelectedFileIds(data.map((f: UnbilledFile) => f.file_id));
+            setSelectedFileIds([]); // Default uncheck all
         } catch (error) {
             console.error("Error fetching unbilled files:", error);
         } finally {
@@ -108,7 +146,17 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
     };
 
     const handleGenerate = async () => {
-        if (!selectedHospital || selectedFileIds.length === 0) return;
+        if (!selectedHospital) return;
+
+        // Validation check for empty invoice
+        const hasFiles = selectedFileIds.length > 0;
+        const hasCustomItems = customItems.length > 0;
+        const hasRegFee = includeRegFee && parseFloat(regFeeAmount) > 0;
+
+        if (!hasFiles && !hasCustomItems && !hasRegFee) {
+            alert("Please select at least one item (file, custom item, or registration fee) to generate an invoice.");
+            return;
+        }
 
         setLoading(true);
         try {
@@ -121,12 +169,13 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
                     due_date: new Date(dueDate).toISOString(),
                     bill_date: new Date(billDate).toISOString(),
                     include_registration_fee: includeRegFee,
-                    registration_fee_amount: includeRegFee ? (parseFloat(regFeeAmount) || 0) : null
+                    registration_fee_amount: includeRegFee ? (parseFloat(regFeeAmount) || 0) : null,
+                    is_gst_bill: isGSTBill,
+                    custom_invoice_number: invoiceNumber // Added semi-auto numbering
                 })
             });
             onSuccess();
             onClose();
-            // Reset state
             setStep(1);
             setSelectedHospital(null);
             setSelectedFileIds([]);
@@ -154,20 +203,36 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
     const regFeeTotal = includeRegFee ? (parseFloat(regFeeAmount) || 0) : 0;
 
     const subtotal = filesTotal + customTotal + regFeeTotal;
-    const taxAmount = (subtotal * 0.18); // 18% GST
+    const taxAmount = isGSTBill ? (subtotal * 0.18) : 0;
     const grandTotal = subtotal + taxAmount;
+
+    // Round Off Logic
+    const roundedTotal = Math.round(grandTotal);
+    const roundOffDiff = roundedTotal - grandTotal;
 
     const addCustomItem = () => {
         if (!newItemDesc || !newItemPrice) return;
+
+        const price = parseFloat(newItemPrice);
+        let discount = parseFloat(newItemDiscount) || 0;
+        let finalDesc = newItemDesc;
+
+        if (newItemDiscountType === 'PERCENT' && discount > 0) {
+            const percent = discount;
+            discount = (price * percent) / 100;
+            finalDesc = `${newItemDesc} (${percent}% Off)`;
+        }
+
         setCustomItems([...customItems, {
-            description: newItemDesc,
-            amount: parseFloat(newItemPrice),
-            discount: parseFloat(newItemDiscount) || 0,
+            description: finalDesc,
+            amount: price,
+            discount: discount,
             hsn_code: newItemHSN
         }]);
         setNewItemDesc('');
         setNewItemPrice('');
         setNewItemDiscount('');
+        setNewItemDiscountType('FIXED');
     };
 
     const removeCustomItem = (index: number) => {
@@ -175,303 +240,308 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-6xl h-[95vh] flex flex-col rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
-                {/* Modal Header */}
-                <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className={`bg-white w-full ${step === 2 ? 'max-w-7xl' : 'max-w-4xl'} max-h-[85vh] h-[75vh] flex flex-col rounded-[1.5rem] shadow-2xl overflow-hidden transition-all duration-500`}>
+
+                {/* Header */}
+                <div className="px-6 py-3 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-900">Generate New Invoice</h2>
-                        <p className="text-sm text-slate-500">Step {step} of 2: {step === 1 ? 'Select Hospital' : 'Review Items'}</p>
+                        <h2 className="text-xl font-bold text-slate-900 tracking-tight">New Tax Invoice</h2>
+                        <p className="text-xs font-medium text-slate-500">Create a professional GST invoice</p>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500">
-                        <X size={20} />
-                    </button>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center bg-slate-100 rounded-full p-1">
+                            <div className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${step === 1 ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>1. Select Client</div>
+                            <div className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${step === 2 ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>2. Add Items</div>
+                        </div>
+                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition">
+                            <X size={20} />
+                        </button>
+                    </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200">
+                {/* Content */}
+                <div className="flex-1 overflow-hidden">
                     {step === 1 ? (
-                        <div className="space-y-4">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <div className="h-full flex flex-col p-8 max-w-2xl mx-auto">
+                            <div className="relative mb-6">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                                 <input
                                     type="text"
-                                    placeholder="Search hospital by name or city..."
-                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                                    placeholder="Search hospital..."
+                                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-lg focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all"
                                     value={searchHospital}
                                     onChange={(e) => setSearchHospital(e.target.value)}
+                                    autoFocus
                                 />
                             </div>
 
-                            <div className="max-h-[350px] overflow-y-auto space-y-2 pr-2">
-                                {filteredHospitals.length === 0 ? (
-                                    <div className="text-center py-12 text-slate-400">
-                                        <Building2 size={40} className="mx-auto mb-2 opacity-20" />
-                                        <p>No hospitals found.</p>
-                                    </div>
-                                ) : (
-                                    filteredHospitals.map(hospital => (
-                                        <button
-                                            key={hospital.hospital_id}
-                                            onClick={() => handleSelectHospital(hospital)}
-                                            className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all group active:scale-[0.99]"
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
-                                                    <Building2 size={24} />
-                                                </div>
-                                                <div className="text-left">
-                                                    <p className="font-bold text-slate-900">{hospital.legal_name}</p>
-                                                    <p className="text-xs text-slate-500">{hospital.city}</p>
-                                                </div>
-                                            </div>
-                                            <ChevronRight size={18} className="text-slate-300 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all" />
-                                        </button>
-                                    ))
-                                )}
+                            <div className="flex-1 overflow-y-auto pr-2 space-y-3 scrollbar-thin scrollbar-thumb-slate-200 hover:scrollbar-thumb-slate-300">
+                                {filteredHospitals.map(hospital => (
+                                    <button
+                                        key={hospital.hospital_id}
+                                        onClick={() => handleSelectHospital(hospital)}
+                                        className="w-full flex items-center p-4 rounded-2xl border border-slate-100 hover:border-indigo-600 hover:bg-indigo-50/50 transition-all group text-left"
+                                    >
+                                        <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500 group-hover:bg-indigo-600 group-hover:text-white transition-colors mr-4">
+                                            <Building2 size={24} />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-slate-900 group-hover:text-indigo-700 text-lg">{hospital.legal_name}</p>
+                                            <p className="text-sm text-slate-500">{hospital.city}</p>
+                                        </div>
+                                        <ChevronRight className="ml-auto text-slate-300 group-hover:text-indigo-600" />
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     ) : (
-                        <div className="space-y-6">
-                            {/* Review Section */}
-                            <div className="flex items-center justify-between bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
-                                        <Building2 size={20} />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest leading-none">Selected Hospital</p>
-                                        <p className="font-bold text-slate-900 mt-1">{selectedHospital?.legal_name}</p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => setStep(1)}
-                                    className="text-indigo-600 text-sm font-bold flex items-center gap-1 hover:underline"
-                                >
-                                    <ArrowLeft size={14} /> Change
-                                </button>
-                            </div>
+                        <div className="h-full flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100">
 
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between px-2">
-                                    <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                                        <FileText size={18} className="text-slate-400" />
-                                        Billable Items ({selectedFileIds.length})
-                                    </h3>
-                                    <button
-                                        onClick={() => setSelectedFileIds(selectedFileIds.length === unbilledFiles.length ? [] : unbilledFiles.map(f => f.file_id))}
-                                        className="text-xs font-bold text-indigo-600 hover:text-indigo-700"
-                                    >
-                                        {selectedFileIds.length === unbilledFiles.length ? 'Deselect All' : 'Select All'}
+                            {/* LEFT PANE: Items Selection */}
+                            <div className="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden">
+                                {/* Toolbar */}
+                                <div className="p-4 bg-white border-b border-slate-100 flex items-center gap-4">
+                                    <button onClick={() => setStep(1)} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold text-sm">
+                                        <ArrowLeft size={16} /> Change Client
                                     </button>
+                                    <div className="h-4 w-px bg-slate-200"></div>
+                                    <div className="flex items-center gap-2">
+                                        <Building2 size={16} className="text-indigo-600" />
+                                        <span className="font-bold text-slate-900">{selectedHospital?.legal_name}</span>
+                                    </div>
+                                    <div className="ml-auto flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
+                                        <button
+                                            onClick={() => setIsGSTBill(true)}
+                                            className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${isGSTBill ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                                        >
+                                            GST Invoice
+                                        </button>
+                                        <button
+                                            onClick={() => setIsGSTBill(false)}
+                                            className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${!isGSTBill ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                                        >
+                                            Bill of Supply
+                                        </button>
+                                    </div>
                                 </div>
 
-                                <div className="max-h-[400px] overflow-y-auto space-y-2 border border-slate-100 rounded-2xl p-2 bg-slate-50/50">
-                                    {loading ? (
-                                        <div className="flex flex-col items-center justify-center py-12 gap-3 text-slate-400">
-                                            <Loader2 className="animate-spin" size={32} />
-                                            <p className="text-sm">Calculating costs...</p>
-                                        </div>
-                                    ) : unbilledFiles.length === 0 ? (
-                                        <div className="text-center py-12 text-slate-400">
-                                            <AlertCircle size={32} className="mx-auto mb-2 opacity-20" />
-                                            <p>No unpaid files available for billing.</p>
-                                        </div>
-                                    ) : (
-                                        unbilledFiles.map(file => (
+                                {/* Scrollable Content */}
+                                <div className="flex-1 overflow-y-auto p-6 space-y-8">
+
+                                    {/* 1. Unbilled Files Table */}
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                                <FileText size={20} className="text-slate-400" />
+                                                Billable Records
+                                                <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md text-xs">{unbilledFiles.length}</span>
+                                            </h3>
                                             <button
-                                                key={file.file_id}
-                                                onClick={() => toggleFileSelection(file.file_id)}
-                                                className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all text-left ${selectedFileIds.includes(file.file_id)
-                                                    ? 'bg-white border-indigo-200 shadow-sm ring-1 ring-indigo-50'
-                                                    : 'bg-transparent border-transparent opacity-60 hover:opacity-100'
-                                                    }`}
+                                                onClick={() => setSelectedFileIds(selectedFileIds.length === unbilledFiles.length ? [] : unbilledFiles.map(f => f.file_id))}
+                                                className="text-sm font-bold text-indigo-600 hover:bg-indigo-50 px-3 py-1 rounded-lg transition"
                                             >
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${selectedFileIds.includes(file.file_id) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300'
-                                                        }`}>
-                                                        {selectedFileIds.includes(file.file_id) && <Check size={12} strokeWidth={3} />}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm font-bold text-slate-900 truncate max-w-[250px]">{file.filename}</p>
-                                                        <p className="text-[10px] text-slate-500 uppercase font-black">
-                                                            <span className="text-indigo-600">MRD: {file.mrd_id}</span> • {file.patient_name} • {file.page_count} Pages
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <p className="font-bold text-slate-900">₹{file.suggested_amount.toLocaleString()}</p>
+                                                {selectedFileIds.length === unbilledFiles.length ? 'Deselect All' : 'Select All'}
                                             </button>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
+                                        </div>
 
-                            {/* Additional Charges Section */}
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between px-2">
-                                    <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                                        <Plus size={18} className="text-slate-400" />
-                                        Additional Charges & Discounts
-                                    </h3>
-                                </div>
+                                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                            <table className="w-full text-left">
+                                                <thead className="bg-slate-50 border-b border-slate-100 text-xs uppercase text-slate-400 font-bold tracking-wider">
+                                                    <tr>
+                                                        <th className="px-4 py-3 w-10">
+                                                            <div className="w-4 h-4 border-2 border-slate-300 rounded mx-auto" ></div>
+                                                        </th>
+                                                        <th className="px-4 py-3">Record Details</th>
+                                                        <th className="px-4 py-3 text-right">Pages</th>
+                                                        <th className="px-4 py-3 text-right">Amount</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 text-sm">
+                                                    {loading ? (
+                                                        <tr><td colSpan={4} className="p-8 text-center"><Loader2 className="animate-spin mx-auto text-indigo-500" /></td></tr>
+                                                    ) : unbilledFiles.length === 0 ? (
+                                                        <tr><td colSpan={4} className="p-8 text-center text-slate-400">No unbilled files found.</td></tr>
+                                                    ) : unbilledFiles.map(file => (
+                                                        <tr
+                                                            key={file.file_id}
+                                                            onClick={() => toggleFileSelection(file.file_id)}
+                                                            className={`cursor-pointer transition-colors ${selectedFileIds.includes(file.file_id) ? 'bg-indigo-50/60' : 'hover:bg-slate-50'}`}
+                                                        >
+                                                            <td className="px-3 py-2 text-center">
+                                                                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${selectedFileIds.includes(file.file_id) ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'}`}>
+                                                                    {selectedFileIds.includes(file.file_id) && <Check size={10} className="text-white" strokeWidth={4} />}
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-3 py-2">
+                                                                <div className="font-bold text-slate-800 text-sm">{file.patient_name}</div>
+                                                                <div className="text-[10px] text-slate-500 font-mono">MRD: {file.mrd_id} • {format(new Date(file.created_at), 'dd MMM yyyy')}</div>
+                                                            </td>
+                                                            <td className="px-3 py-2 text-right text-slate-600 font-mono text-xs">{file.page_count}</td>
+                                                            <td className="px-3 py-2 text-right font-bold text-slate-900 text-sm">₹{file.suggested_amount}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
 
-                                <div className="grid grid-cols-1 gap-3 border border-slate-100 rounded-2xl p-4 bg-slate-50/50">
-                                    {/* Registration Fee Toggle */}
-                                    <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:border-indigo-200 transition-all">
-                                        <div className="flex items-center gap-3 flex-1">
-                                            <div
-                                                onClick={() => setIncludeRegFee(!includeRegFee)}
-                                                className={`w-5 h-5 cursor-pointer rounded-md border flex items-center justify-center transition-colors ${includeRegFee ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300'}`}
-                                            >
-                                                {includeRegFee && <Check size={12} strokeWidth={3} />}
+                                    {/* 2. Additional Charges */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                            <Plus size={20} className="text-slate-400" /> Additional Line Items
+                                        </h3>
+
+                                        {/* Reg Fee Card */}
+                                        <div
+                                            onClick={() => setIncludeRegFee(!includeRegFee)}
+                                            className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${includeRegFee ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-100 hover:border-slate-200'}`}
+                                        >
+                                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${includeRegFee ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'}`}>
+                                                {includeRegFee && <Check size={12} className="text-white" strokeWidth={4} />}
                                             </div>
                                             <div className="flex-1">
-                                                <p className="text-sm font-bold text-slate-900">One-time Registration Fee</p>
-                                                <p className="text-[10px] text-slate-500 uppercase font-black">Initial setup & licensing fee</p>
+                                                <div className="font-bold text-slate-800">One-time Registration Fee</div>
+                                                <div className="text-xs text-slate-500">Initial platform setup & licensing</div>
+                                            </div>
+                                            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200">
+                                                <span className="text-slate-400 font-bold text-xs">₹</span>
+                                                <input
+                                                    type="number"
+                                                    className="w-20 text-right font-bold text-slate-900 outline-none"
+                                                    value={regFeeAmount}
+                                                    onChange={(e) => setRegFeeAmount(e.target.value)}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    disabled={!includeRegFee}
+                                                />
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-slate-400 font-bold text-sm">₹</span>
-                                            <input
-                                                type="number"
-                                                className="w-20 font-bold text-slate-900 text-sm bg-slate-50 border border-slate-200 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                                value={regFeeAmount}
-                                                onChange={(e) => setRegFeeAmount(e.target.value)}
-                                                disabled={!includeRegFee}
-                                            />
+
+                                        {/* Custom Items List */}
+                                        {customItems.length > 0 && (
+                                            <div className="space-y-2">
+                                                {customItems.map((item, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
+                                                        <div>
+                                                            <p className="font-bold text-slate-800">{item.description}</p>
+                                                            <p className="text-xs text-slate-500">HSN: {item.hsn_code} {item.discount ? `• Disc: ₹${item.discount}` : ''}</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-4">
+                                                            <span className="font-bold text-slate-900">₹{item.amount - (item.discount || 0)}</span>
+                                                            <button onClick={() => removeCustomItem(idx)} className="text-slate-400 hover:text-red-500"><Trash2 size={16} /></button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Add Item Form */}
+                                        <div className="grid grid-cols-12 gap-2">
+                                            <input className="col-span-4 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-500" placeholder="Description" value={newItemDesc} onChange={e => setNewItemDesc(e.target.value)} />
+                                            <input className="col-span-3 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-500" placeholder="HSN Code" value={newItemHSN} onChange={e => setNewItemHSN(e.target.value)} />
+                                            <input className="col-span-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-500" type="number" placeholder="Price" value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} />
+                                            <div className="col-span-3 flex border border-slate-200 rounded-lg bg-white overflow-hidden">
+                                                <input
+                                                    className="w-full px-3 py-2 text-sm outline-none"
+                                                    type="number"
+                                                    placeholder="Disc"
+                                                    value={newItemDiscount}
+                                                    onChange={e => setNewItemDiscount(e.target.value)}
+                                                />
+                                                <div className="flex border-l border-slate-100">
+                                                    <button
+                                                        onClick={() => setNewItemDiscountType('FIXED')}
+                                                        className={`px-2 text-xs font-bold transition-colors ${newItemDiscountType === 'FIXED' ? 'bg-slate-100 text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
+                                                    >₹</button>
+                                                    <button
+                                                        onClick={() => setNewItemDiscountType('PERCENT')}
+                                                        className={`px-2 text-xs font-bold transition-colors ${newItemDiscountType === 'PERCENT' ? 'bg-slate-100 text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
+                                                    >%</button>
+                                                </div>
+                                            </div>
+                                            <button onClick={addCustomItem} className="col-span-1 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-colors"><Plus size={18} /></button>
                                         </div>
                                     </div>
 
-                                    {/* Custom Items List */}
-                                    {customItems.map((item, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl group">
-                                            <div>
-                                                <p className="text-sm font-bold text-slate-900">{item.description}</p>
-                                                <p className="text-[10px] text-slate-500 uppercase font-black">HSN: {item.hsn_code} • Price: ₹{item.amount}</p>
-                                                {item.discount && item.discount > 0 && (
-                                                    <p className="text-[10px] text-emerald-600 uppercase font-black">Discount: -₹{item.discount}</p>
-                                                )}
+                                </div>
+                            </div>
+
+                            {/* RIGHT PANE: Summary & Actions (Sticky) */}
+                            <div className="w-[380px] bg-white flex flex-col h-full border-l border-slate-100 shadow-2xl z-10">
+                                <div className="p-6 space-y-6 flex-1 overflow-y-auto">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-900 mb-4">Invoice Summary</h3>
+
+                                        {/* Invoice Number Preview */}
+                                        <div className="space-y-1 mb-6">
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Invoice Number (Auto)</label>
+                                            <input
+                                                type="text"
+                                                value={invoiceNumber}
+                                                onChange={e => setInvoiceNumber(e.target.value)}
+                                                className="w-full bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 font-black text-indigo-700 outline-none focus:border-indigo-500 transition-colors"
+                                            />
+                                        </div>
+
+                                        {/* Date Pickers */}
+                                        <div className="space-y-3 mb-6">
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Issue Date</label>
+                                                <input type="date" value={billDate} onChange={e => setBillDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-medium text-slate-700 outline-none focus:border-indigo-500" />
                                             </div>
-                                            <div className="flex items-center gap-3">
-                                                <p className="font-bold text-slate-900 text-sm">₹{(item.amount - (item.discount || 0)).toLocaleString()}</p>
-                                                <button onClick={() => removeCustomItem(idx)} className="text-slate-300 hover:text-red-500 p-1">
-                                                    <Trash2 size={14} />
-                                                </button>
+                                            <div className="space-y-1">
+                                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Due Date</label>
+                                                <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-medium text-slate-700 outline-none focus:border-indigo-500" />
                                             </div>
                                         </div>
-                                    ))}
 
-                                    {/* Add Custom Item Form */}
-                                    <div className="grid grid-cols-12 gap-2 mt-2 items-center">
-                                        <input
-                                            type="text"
-                                            placeholder="Item Description"
-                                            className="col-span-5 px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-indigo-500"
-                                            value={newItemDesc}
-                                            onChange={(e) => setNewItemDesc(e.target.value)}
-                                        />
-                                        <input
-                                            type="number"
-                                            placeholder="Price"
-                                            className="col-span-3 px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-indigo-500"
-                                            value={newItemPrice}
-                                            onChange={(e) => setNewItemPrice(e.target.value)}
-                                        />
-                                        <input
-                                            type="number"
-                                            placeholder="Disc."
-                                            className="col-span-2 px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-indigo-500"
-                                            value={newItemDiscount}
-                                            onChange={(e) => setNewItemDiscount(e.target.value)}
-                                        />
+                                        {/* Totals */}
+                                        <div className="bg-slate-50 rounded-2xl p-2 space-y-2 border border-slate-100">
+                                            <div className="flex justify-between text-xs text-slate-600">
+                                                <span>Records ({selectedFileIds.length})</span>
+                                                <span className="font-bold text-slate-900">₹{filesTotal.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between text-xs text-slate-600">
+                                                <span>Other Items</span>
+                                                <span className="font-bold text-slate-900">₹{(customTotal + regFeeTotal).toLocaleString()}</span>
+                                            </div>
+                                            <div className="h-px bg-slate-200 my-1"></div>
+                                            <div className="flex justify-between text-sm font-bold text-slate-700">
+                                                <span>Taxable Value</span>
+                                                <span>₹{subtotal.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between text-xs text-slate-500">
+                                                <span>GST ({isGSTBill ? '18%' : '0%'})</span>
+                                                <span>₹{taxAmount.toLocaleString()}</span>
+                                            </div>
+
+                                            {/* Round Off Display */}
+                                            <div className="flex justify-between text-xs text-slate-400 italic">
+                                                <span>Round Off</span>
+                                                <span>{roundOffDiff > 0 ? '+' : ''}{roundOffDiff.toFixed(2)}</span>
+                                            </div>
+
+                                            <div className="h-px bg-slate-200 my-1"></div>
+                                            <div className="flex justify-between items-baseline">
+                                                <span className="text-base font-black text-slate-900">Total</span>
+                                                <span className="text-xl font-black text-indigo-600">₹{roundedTotal.toLocaleString()}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex-shrink-0 pt-2">
                                         <button
-                                            onClick={addCustomItem}
-                                            className="col-span-2 bg-indigo-50 text-indigo-600 font-bold text-xs rounded-lg hover:bg-indigo-100 transition-colors flex items-center justify-center gap-1 h-full"
+                                            onClick={handleGenerate}
+                                            disabled={loading}
+                                            className="w-full bg-slate-900 text-white font-bold py-3 px-4 rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all shadow-lg shadow-slate-900/10"
                                         >
-                                            <Plus size={14} /> Add
+                                            {loading ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />}
+                                            Generate Invoice
                                         </button>
                                     </div>
                                 </div>
                             </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-3">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Bill Date (Requested)</label>
-                                        <div className="relative">
-                                            <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                            <input
-                                                type="date"
-                                                value={billDate}
-                                                onChange={(e) => setBillDate(e.target.value)}
-                                                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-sm transition-all"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Due Date</label>
-                                        <div className="relative">
-                                            <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                            <input
-                                                type="date"
-                                                value={dueDate}
-                                                onChange={(e) => setDueDate(e.target.value)}
-                                                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-sm transition-all"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="bg-slate-900 text-white p-5 rounded-3xl space-y-3 shadow-xl">
-                                    <div className="flex justify-between items-center text-slate-400">
-                                        <span className="text-[10px] font-bold uppercase tracking-widest text">Files ({selectedFileIds.length})</span>
-                                        <span className="font-bold text-xs">₹{filesTotal.toLocaleString()}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-slate-400 lg:">
-                                        <span className="text-[10px] font-bold uppercase tracking-widest">Other Charges (Gross)</span>
-                                        <span className="font-bold text-xs">₹{(customItems.reduce((sum, item) => sum + item.amount, 0) + regFeeTotal).toLocaleString()}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-emerald-500/80">
-                                        <span className="text-[10px] font-bold uppercase tracking-widest">Total Discount</span>
-                                        <span className="font-bold text-xs">-₹{(customItems.reduce((sum, item) => sum + (item.discount || 0), 0)).toLocaleString()}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-slate-400 border-t border-slate-800 pt-2 border-dashed">
-                                        <span className="text-[10px] font-bold uppercase tracking-widest text">Net Taxable Value</span>
-                                        <span className="font-bold text-xs">₹{subtotal.toLocaleString()}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-emerald-400/80">
-                                        <div className="flex items-center gap-1.5">
-                                            <Percent size={10} strokeWidth={3} />
-                                            <span className="text-[10px] font-bold uppercase tracking-widest">GST (18%)</span>
-                                        </div>
-                                        <span className="font-bold text-xs">₹{taxAmount.toLocaleString()}</span>
-                                    </div>
-                                    <div className="pt-1">
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">Grand Total</p>
-                                        <p className="text-3xl font-black mt-1 tracking-tighter text-indigo-400">₹{grandTotal.toLocaleString()}</p>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
-                    )}
-                </div>
-
-                {/* Modal Footer */}
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-                    <button
-                        onClick={onClose}
-                        className="px-6 py-2 text-sm font-bold text-slate-600 hover:text-slate-800 transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    {step === 2 && (
-                        <button
-                            disabled={loading || selectedFileIds.length === 0}
-                            onClick={handleGenerate}
-                            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:hover:scale-100 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg shadow-indigo-200 flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
-                        >
-                            {loading ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-                            Generate Invoice
-                        </button>
                     )}
                 </div>
             </div>

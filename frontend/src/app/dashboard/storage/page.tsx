@@ -36,7 +36,7 @@ export default function WarehousePage() {
         if (!token) return;
 
         try {
-            const [layoutRes, logsRes, racksRes, boxesRes, reqsRes] = await Promise.all([
+            const [layoutRes, logsRes, racksRes, boxesRes, reqsRes, statsRes] = await Promise.all([
                 fetch(`${API_URL}/storage/layout`, { headers: { Authorization: `Bearer ${token}` } }),
                 fetch(`${API_URL}/storage/logs`, { headers: { Authorization: `Bearer ${token}` } }),
                 fetch(`${API_URL}/storage/racks`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -69,8 +69,8 @@ export default function WarehousePage() {
             }
 
             let scannedToday = 0;
-            if (arguments[0] && (arguments[0] as any)[5]?.ok) {
-                const dash = await (arguments[0] as any)[5].json();
+            if (statsRes.ok) {
+                const dash = await statsRes.json();
                 scannedToday = dash?.requests?.todays_scans || 0;
             }
 
@@ -116,7 +116,7 @@ export default function WarehousePage() {
         <div className="bg-slate-50 min-h-screen p-4 md:p-6 font-sans text-slate-900 pb-24">
 
             {/* Header Area */}
-            <div className="max-w-7xl mx-auto space-y-6">
+            <div className="w-full mx-auto space-y-6">
 
                 {/* 1. Stats & Search Row */}
                 <div className="flex flex-col xl:flex-row gap-6 items-start xl:items-center justify-between">

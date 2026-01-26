@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL } from '../../config/api';
-import { formatDateTime, formatDate } from '../utils/dateFormatter';
+import { formatDateTime, formatDate } from '@/lib/dateFormatter';
 import {
     Activity,
     Server,
@@ -28,7 +28,7 @@ import {
     AppWindow // Replacement
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { exportDashboardMetrics, generatePDFReport } from '../utils/reportUtils';
+import { exportDashboardMetrics, generatePDFReport } from '@/lib/reportUtils';
 
 export default function CommandCenter() {
     const router = useRouter();
@@ -152,7 +152,7 @@ export default function CommandCenter() {
     }, []);
 
     return (
-        <div className="p-4 sm:p-6 max-w-[1600px] mx-auto min-h-screen pb-20">
+        <div className="p-4 sm:p-6 w-full mx-auto min-h-screen pb-20">
 
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -186,7 +186,7 @@ export default function CommandCenter() {
                     <div className="bg-emerald-50 px-4 py-2 rounded-xl flex items-center gap-2 border border-emerald-100">
                         <ShieldCheck className="text-emerald-600 w-4 h-4" />
                         <div className="flex flex-col">
-                            <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider leading-none">Login Time</span>
+                           
                             <span className="text-xs font-black text-emerald-700 leading-none">
                                 <div className="flex flex-col">
                                     <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider leading-none">Login Time</span>

@@ -5,8 +5,8 @@ import { Search, Filter, Plus, FileText, ChevronRight, Upload, User, ArrowRight,
 import PatientDetailView from './components/PatientDetailView';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL } from '../../../config/api';
-import { toTitleCase, toUpperCaseMRD } from '../../../utils/formatters';
-import { formatDate } from '../../utils/dateFormatter';
+import { toTitleCase, toUpperCaseMRD } from '@/lib/formatters';
+import { formatDate } from '@/lib/dateFormatter';
 
 export default function RecordsList() {
     const router = useRouter();
@@ -485,7 +485,7 @@ export default function RecordsList() {
     }, [patients, searchTerm, sortConfig]);
 
     return (
-        <div className="max-w-7xl mx-auto p-4 sm:p-6">
+        <div className="w-full mx-auto p-4 sm:p-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
@@ -595,7 +595,18 @@ export default function RecordsList() {
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {loading ? (
-                                            <tr><td colSpan={7} className="p-12 text-center">Loading Records...</td></tr>
+                                            // Skeleton Loader
+                                            [...Array(5)].map((_, i) => (
+                                                <tr key={i} className="animate-pulse">
+                                                    <td className="p-3"><div className="h-4 bg-slate-200 rounded w-16"></div></td>
+                                                    <td className="p-3"><div className="h-4 bg-slate-200 rounded w-32"></div></td>
+                                                    <td className="p-3"><div className="h-4 bg-slate-200 rounded w-20"></div></td>
+                                                    <td className="p-3"><div className="h-4 bg-slate-200 rounded w-24"></div></td>
+                                                    <td className="p-3"><div className="h-4 bg-slate-200 rounded w-24"></div></td>
+                                                    <td className="p-3 hidden md:table-cell"><div className="h-6 bg-slate-200 rounded w-16"></div></td>
+                                                    <td className="p-3 text-right"><div className="h-8 w-8 bg-slate-200 rounded-lg ml-auto"></div></td>
+                                                </tr>
+                                            ))
                                         ) : filteredPatients.length === 0 ? (
                                             <tr><td colSpan={7} className="p-12 text-center text-slate-400 italic">No patients found.</td></tr>
                                         ) : (

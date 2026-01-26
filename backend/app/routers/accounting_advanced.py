@@ -303,49 +303,4 @@ def list_vendors(db: Session = Depends(get_db), current_user: User = Depends(get
         raise HTTPException(status_code=403, detail="Access denied")
     return db.query(AccountingVendor).all()
 
-# --- Configuration Endpoints ---
 
-@router.get("/config")
-def get_accounting_config(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != "superadmin":
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    config = db.query(AccountingConfig).first()
-    if not config:
-        # Create default if not exists
-        config = AccountingConfig()
-        db.add(config)
-        db.commit()
-        db.refresh(config)
-    return config
-
-class ConfigUpdate(BaseModel):
-    current_fy: Optional[str] = None
-    company_gst: Optional[str] = None
-    invoice_prefix: Optional[str] = None
-    receipt_prefix: Optional[str] = None
-    expense_prefix: Optional[str] = None
-    next_invoice_number: Optional[int] = None
-    next_receipt_number: Optional[int] = None
-    next_expense_number: Optional[int] = None
-    number_format: Optional[str] = None
-
-@router.post("/config")
-def update_accounting_config(
-    req: ConfigUpdate, 
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    if current_user.role != "superadmin":
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    config = db.query(AccountingConfig).first()
-    if not config:
-        config = AccountingConfig()
-        db.add(config)
-    
-    for key, value in req.dict(exclude_unset=True).items():
-        setattr(config, key, value)
-    
-    db.commit()
-    return config

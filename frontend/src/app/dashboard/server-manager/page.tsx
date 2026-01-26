@@ -82,7 +82,7 @@ export default function ServerFileManager() {
     };
 
     return (
-        <div className="p-6 max-w-[1600px] mx-auto">
+        <div className="p-6 w-full mx-auto">
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">

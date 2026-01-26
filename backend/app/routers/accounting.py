@@ -77,6 +77,8 @@ class GenerateInvoiceRequest(BaseModel):
     bill_date: Optional[datetime] = None
     include_registration_fee: bool = True
     registration_fee_amount: Optional[float] = None
+    is_gst_bill: bool = True # Toggle for GST vs Bill of Supply
+    custom_invoice_number: Optional[str] = None # Semi-auto numbering
 
 class ReceivePaymentRequest(BaseModel):
     transaction_id: str
@@ -88,6 +90,54 @@ class UpdateInvoiceRequest(BaseModel):
     due_date: Optional[datetime] = None
     bill_date: Optional[datetime] = None
     status: Optional[str] = None # e.g. CANCELLED
+
+# --- Configuration Endpoints ---
+
+@router.get("/config")
+def get_accounting_config(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role != "superadmin":
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    config = db.query(AccountingConfig).first()
+    if not config:
+        # Create default if not exists
+        config = AccountingConfig()
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+    return config
+
+class ConfigUpdate(BaseModel):
+    current_fy: Optional[str] = None
+    company_gst: Optional[str] = None
+    invoice_prefix: Optional[str] = None
+    receipt_prefix: Optional[str] = None
+    expense_prefix: Optional[str] = None
+    next_invoice_number: Optional[int] = None
+    next_receipt_number: Optional[int] = None
+    next_expense_number: Optional[int] = None
+    number_format: Optional[str] = None
+
+@router.post("/config")
+def update_accounting_config(
+    req: ConfigUpdate, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update accounting settings."""
+    if current_user.role != "superadmin":
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    config = db.query(AccountingConfig).first()
+    if not config:
+        config = AccountingConfig()
+        db.add(config)
+    
+    for key, value in req.dict(exclude_unset=True).items():
+        setattr(config, key, value)
+    
+    db.commit()
+    return config
 
 # --- Endpoints ---
 
@@ -193,11 +243,24 @@ def cancel_invoice(
             invoice.hospital.is_reg_fee_paid = False
         
         
+    # Reset is_paid status for all files in this invoice (just in case)
+    items = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).all()
+    file_ids = [item.file_id for item in items if item.file_id is not None]
+    
+    if file_ids:
+        db.query(PDFFile).filter(PDFFile.file_id.in_(file_ids)).update({
+            "is_paid": False,
+            "payment_date": None
+        }, synchronize_session=False)
+
     # Delete associated Ledger Entry
     db.query(AccountingTransaction).filter(
         AccountingTransaction.voucher_type == "INVOICE",
         AccountingTransaction.voucher_id == invoice_id
     ).delete()
+    
+    # Explicitly delete items (Safety against cascade failure)
+    db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).delete()
 
     db.delete(invoice)
     db.commit()
@@ -314,6 +377,7 @@ def number_to_words(number):
         res += " and " + _helper(decimal_part) + " Paise"
     return res + " Only"
 
+
 @router.post("/generate", response_model=InvoiceResponse)
 def generate_invoice(
     req: GenerateInvoiceRequest,
@@ -346,20 +410,36 @@ def generate_invoice(
             db.add(config)
             db.flush()
             
-        # Generate Invoice Number based on Format
-        invoice_number = config.number_format.format(
-            prefix=config.invoice_prefix,
-            fy=config.current_fy,
-            number=config.next_invoice_number
-        )
+        # Generate or Use Custom Invoice Number
+        if req.custom_invoice_number:
+            invoice_number = req.custom_invoice_number
+            # We do NOT increment the auto-counter if manual override is used, 
+            # to prevent gaps/jumps unless explicitly handled. 
+            # User must manually update config if they want to skip ahead.
+        else:
+            # Generate Invoice Number based on GST vs Non-GST
+            if req.is_gst_bill:
+                prefix = config.invoice_prefix
+                number = config.next_invoice_number
+            else:
+                prefix = config.invoice_prefix_nongst or "BOS"
+                number = config.next_invoice_number_nongst or 1
+                
+            invoice_number = config.number_format.format(
+                prefix=prefix,
+                fy=config.current_fy,
+                number=number
+            )
+            
+            # Increment counter
+            if req.is_gst_bill:
+                config.next_invoice_number += 1
+            else:
+                config.next_invoice_number_nongst = (config.next_invoice_number_nongst or 1) + 1
         
-        # Increment counter
-        config.next_invoice_number += 1
-        
-        # In case of unlikely collision, append suffix
-        while db.query(Invoice).filter(Invoice.invoice_number == invoice_number).first():
-            from random import randint
-            invoice_number = f"{invoice_number}-{randint(10, 99)}"
+        # Check for collision (Manual or Auto)
+        if db.query(Invoice).filter(Invoice.invoice_number == invoice_number).first():
+            raise HTTPException(status_code=400, detail=f"Invoice number '{invoice_number}' already exists!")
             
         # Calculate total and items
         total_amount = 0.0
@@ -429,8 +509,8 @@ def generate_invoice(
                 "hsn_code": ci.hsn_code or "998311"
             })
 
-        # Calculate GST (18%)
-        gst_rate = 18.0
+        # Calculate GST (18% if GST Bill, else 0%)
+        gst_rate = 18.0 if req.is_gst_bill else 0.0
         tax_amount = (total_amount * gst_rate) / 100
         grand_total = total_amount + tax_amount
 
@@ -581,7 +661,7 @@ async def get_unbilled_files(hospital_id: int, db: Session = Depends(get_db)):
 
     pfiles = db.query(PDFFile).join(Patient).filter(
         Patient.hospital_id == hospital_id,
-        PDFFile.processing_stage == 'completed', # Only bill completed files
+        PDFFile.processing_stage.in_(['completed', 'analyzing']), # Allow analyzing if pages are counted
         not_(PDFFile.file_id.in_(billed_file_ids))
     ).all()
     
@@ -646,3 +726,55 @@ def send_invoice_email(
         return {"message": "Invoice email sent successfully"}
     else:
         raise HTTPException(status_code=500, detail="Failed to send email")
+
+@router.delete("/{invoice_id}")
+def delete_invoice(
+    invoice_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete an invoice and reset associated files to 'unpaid'."""
+    if current_user.role != "superadmin":
+        raise HTTPException(status_code=403, detail="Only Super Admins can delete invoices")
+        
+    invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+        
+    if invoice.status == "PAID":
+         raise HTTPException(status_code=400, detail="Cannot delete a PAID invoice. Please delete the receipt/payment first.")
+
+    # Reset Reg Fee if applicable
+    if any(item.description == "One-time Registration Fee" for item in invoice.items):
+        if invoice.hospital:
+            invoice.hospital.is_reg_fee_paid = False
+
+    # Delete associated Ledger Entry
+    db.query(AccountingTransaction).filter(
+        AccountingTransaction.voucher_type == "INVOICE",
+        AccountingTransaction.voucher_id == invoice_id
+    ).delete()
+
+    # Reset File Statuses
+    items = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).all()
+    file_ids = [item.file_id for item in items if item.file_id is not None]
+    
+    if file_ids:
+        db.query(PDFFile).filter(PDFFile.file_id.in_(file_ids)).update({
+            "is_paid": False,
+            "payment_date": None
+        }, synchronize_session=False)
+
+    # Delete Invoice (Cascade will delete items)
+    db.delete(invoice)
+    db.commit()
+    
+    # Check if table is empty, if so, reset counters
+    if db.query(Invoice).count() == 0:
+        config = db.query(AccountingConfig).first()
+        if config:
+            config.next_invoice_number = 1
+            config.next_invoice_number_nongst = 1
+            db.commit()
+            
+    return {"message": "Invoice deleted, ledger updated, and items reset"}

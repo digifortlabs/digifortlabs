@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL } from '../../../../config/api';
-import { toTitleCase, toUpperCaseMRD } from '@/utils/formatters';
+import { toTitleCase, toUpperCaseMRD } from '@/lib/formatters';
 import { Search, Upload, X, Plus, FileText, Trash2, CheckCircle, AlertCircle, Loader2, PlayCircle, FileType, Building2, User, Camera } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import DigitizationScanner from '@/components/Scanner/DigitizationScanner';
@@ -354,7 +354,7 @@ export default function PatientUploadPage() {
 
 
     return (
-        <div className="max-w-6xl mx-auto p-6 md:p-12">
+        <div className="w-full mx-auto p-6 md:p-12">
 
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">

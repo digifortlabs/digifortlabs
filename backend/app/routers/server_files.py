@@ -25,7 +25,7 @@ class FileItem(BaseModel):
 
 @router.get("/list", response_model=List[FileItem])
 def list_files(
-    source: str = Query(..., regex="^(local|s3)$"),
+    source: str = Query(..., pattern="^(local|s3)$"),
     path: str = "", # Relative path for Local, Prefix for S3
     bucket: Optional[str] = None,
     current_user: User = Depends(get_current_user)

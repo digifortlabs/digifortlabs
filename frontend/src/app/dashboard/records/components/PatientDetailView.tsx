@@ -6,7 +6,7 @@ import imageCompression from 'browser-image-compression';
 import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download, FileText } from 'lucide-react';
 import DigitizationScanner from '../../../../components/Scanner/DigitizationScanner'; // Ensure this path is correct relative to this file
 import { API_URL } from '../../../../config/api';
-import { formatDate } from '../../../utils/dateFormatter';
+import { formatDate } from '@/lib/dateFormatter';
 
 interface FileData {
     file_id: number;
@@ -723,7 +723,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                             {patient.discharge_date && (
                                 <div>
                                     <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Discharged</span>
-                                    <p className="font-semibold text-gray-700">{new Date(patient.discharge_date).toLocaleDateString()}</p>
+                                    <p className="font-semibold text-gray-700">{formatDate(patient.discharge_date)}</p>
                                 </div>
                             )}
                             {diagnoses.length > 0 && (
@@ -787,7 +787,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                                             <FileType size={20} />
                                         </div>
                                         <div className="text-right">
-                                            <span className="text-xs text-gray-400 block">{new Date(file.upload_date).toLocaleDateString()}</span>
+                                            <span className="text-xs text-gray-400 block">{formatDate(file.upload_date)}</span>
                                             {file.upload_status === 'draft' && <span className="text-[10px] font-bold text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full">DRAFT</span>}
                                         </div>
                                     </div>
@@ -844,8 +844,8 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                                             <FileText size={14} /> Edit OCR / Tags
                                         </button>
 
-                                        {/* Manual OCR Trigger for Old/Failed Files */}
-                                        {(!file.is_searchable && file.upload_status === 'confirmed' && file.processing_stage !== 'analyzing') && (
+                                        {/* Manual OCR Trigger for Old/Failed/Stuck Files */}
+                                        {(file.upload_status === 'confirmed' && (!file.is_searchable || file.processing_stage === 'failed' || file.processing_stage === 'analyzing')) && (
                                             <button
                                                 onClick={() => handleRunOCR(file.file_id)}
                                                 className="w-full py-2 bg-slate-100 text-slate-700 rounded-md text-xs font-bold hover:bg-slate-200 border border-slate-200 flex items-center justify-center gap-1"

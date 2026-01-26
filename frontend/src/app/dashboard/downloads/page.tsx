@@ -4,7 +4,7 @@ import { Monitor, Download, ShieldCheck, Zap, HardDrive } from 'lucide-react';
 
 export default function DownloadsPage() {
     return (
-        <div className="max-w-5xl mx-auto space-y-8">
+        <div className="w-full mx-auto space-y-8">
             <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-slate-900 rounded-2xl p-8 md:p-12 text-white relative overflow-hidden">
                 {/* Background Pattern */}
                 <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>

@@ -71,7 +71,7 @@ export default function StaffManagement() {
     };
 
     return (
-        <div className="max-w-7xl mx-auto p-6">
+        <div className="w-full mx-auto p-6">
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">

@@ -261,7 +261,7 @@ export default function HospitalsPage() {
     const estimatedRevenue = hospitals.reduce((acc, h) => acc + (h.price_per_file || 100) * 10, 0);
 
     return (
-        <div className="p-8 max-w-[1600px] mx-auto min-h-screen pb-20">
+        <div className="p-8 w-full mx-auto min-h-screen pb-20">
 
             {/* Header */}
             <div className="flex justify-between items-center mb-8">

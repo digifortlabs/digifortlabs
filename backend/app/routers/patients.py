@@ -696,7 +696,7 @@ def get_patient(patient_id: int, db: Session = Depends(get_db), current_user: Us
     # Filter files in response based on status
     # Filter files: Admin/MRD see drafts (to review uploads). Website Staff/Dat Users?
     # For now, allow all hospital staff to see drafts to facilitate the review flow.
-    # if current_user.role not in [UserRole.MRD_STAFF, UserRole.HOSPITAL_ADMIN]:
+    # if current_user.role not in [UserRole.WAREHOUSE_MANAGER, UserRole.HOSPITAL_ADMIN]:
     #      patient.files = [f for f in patient.files if f.upload_status == 'confirmed']
          
     return patient
@@ -800,7 +800,7 @@ def update_ocr_text(file_id: int, body: OCRUpdateRequest, db: Session = Depends(
 
 @router.post("/files/{file_id}/confirm")
 def confirm_upload(file_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    is_platform = current_user.role in ["website_admin", "website_staff"]
+    is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
     
     q = db.query(PDFFile).join(Patient).filter(PDFFile.file_id == file_id)
     if not is_platform:
@@ -836,7 +836,7 @@ def delete_draft(file_id: int, db: Session = Depends(get_db), current_user: User
     s3_manager = S3Manager()
     # MRD uses this to discard drafts
     # Review Step: Allow discarding drafts
-    # if current_user.role != UserRole.MRD_STAFF:
+    # if current_user.role != UserRole.WAREHOUSE_MANAGER:
     #      raise HTTPException(status_code=403, detail="Access Denied")
          
     is_platform = current_user.role in ["website_admin", "website_staff"]
@@ -869,7 +869,7 @@ async def delete_file(
     """Delete a file from database and storage"""
     # Authorization Check
     # Only Admin or Hospital Admin (if same hospital)
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.MRD_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.WAREHOUSE_MANAGER]:
          raise HTTPException(status_code=403, detail="Not authorized to delete files")
 
     # Get the file
@@ -929,7 +929,7 @@ def list_drafts(db: Session = Depends(get_db), current_user: User = Depends(get_
     # Primarily for MRD to manage their queue. 
     # Admins currently excluded per "invisible" requirement, can relax if needed.
     
-    if current_user.role not in [UserRole.MRD_STAFF]:
+    if current_user.role not in [UserRole.WAREHOUSE_MANAGER]:
         raise HTTPException(status_code=403, detail="Access denied")
         
     results = db.query(PDFFile).join(Patient).filter(
@@ -1057,7 +1057,7 @@ def cancel_upload(file_id: int, db: Session = Depends(get_db), current_user: Use
 
 @router.post("/files/{file_id}/request-deletion")
 def request_deletion(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role == UserRole.MRD_STAFF:
+    if current_user.role == UserRole.WAREHOUSE_MANAGER:
         raise HTTPException(status_code=403, detail="MRD Staff cannot delete files. Please contact Admin.")
 
     is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]

@@ -460,6 +460,33 @@ class AccountingExpense(Base):
     
     vendor = relationship("AccountingVendor")
 
+class InventoryItem(Base):
+    __tablename__ = "inventory_items"
+    item_id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False) # e.g. "A4 Paper", "Toner Cartridge"
+    category = Column(String, nullable=True) # "Consumables", "Medical", "IT"
+    
+    current_stock = Column(Integer, default=0)
+    unit_price = Column(Float, default=0.0) # Average purchase price
+    reorder_point = Column(Integer, default=10) # Alert threshold
+    unit = Column(String, default="units") # units, boxes, kg, ltr
+    
+    last_updated = Column(DateTime(timezone=True), onupdate=func.now())
+
+class InventoryLog(Base):
+    __tablename__ = "inventory_logs"
+    log_id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(Integer, ForeignKey("inventory_items.item_id"), nullable=False)
+    
+    change_type = Column(String, nullable=False) # "IN" (Purchase), "OUT" (Usage), "ADJUST" (Correction)
+    quantity = Column(Integer, nullable=False) # Positive value
+    
+    description = Column(String, nullable=True) # Reason / PO Number
+    performed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    
+    item = relationship("InventoryItem")
+
 class AccountingTransaction(Base):
     """
     Unified Ledger Table: Stores every financial movement (Voucher).
@@ -498,11 +525,13 @@ class AccountingConfig(Base):
     
     # Prefix Settings
     invoice_prefix = Column(String, default="INV")
+    invoice_prefix_nongst = Column(String, default="BOS") # Bill of Supply
     receipt_prefix = Column(String, default="RCPT")
     expense_prefix = Column(String, default="EXP")
     
     # Counters
     next_invoice_number = Column(Integer, default=1)
+    next_invoice_number_nongst = Column(Integer, default=1) # Separate counter for Non-GST
     next_receipt_number = Column(Integer, default=1)
     next_expense_number = Column(Integer, default=1)
     
