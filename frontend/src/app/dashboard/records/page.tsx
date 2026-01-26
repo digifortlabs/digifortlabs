@@ -14,6 +14,27 @@ export default function RecordsList() {
     const hospitalIdParam = searchParams.get('hospital_id');
     const action = searchParams.get('action'); // ?action=new
 
+    interface NewPatientState {
+        full_name: string;
+        patient_u_id: string;
+        uhid: string;
+        age: string;
+        gender: string;
+        address: string;
+        contact_number: string;
+        email_id: string;
+        aadhaar_number: string;
+        patient_category: string;
+        dob: string;
+        admission_date: string;
+        discharge_date: string;
+        mother_record_id: string | number;
+        doctor_name: string;
+        weight: string;
+        mediclaim: string;
+        diagnosis: string;
+    }
+
     const [patients, setPatients] = useState<any[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
@@ -28,6 +49,8 @@ export default function RecordsList() {
 
     // Sorting
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+    const [hospitalDoctors, setHospitalDoctors] = useState<string[]>([]);
     const handleSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'asc';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -43,7 +66,7 @@ export default function RecordsList() {
 
     // New Patient Form State
     // New Patient Form State
-    const [newPatient, setNewPatient] = useState({
+    const [newPatient, setNewPatient] = useState<NewPatientState>({
         full_name: '',
         patient_u_id: '',
         uhid: '', // New UHID field
@@ -57,7 +80,11 @@ export default function RecordsList() {
         dob: '',
         admission_date: '',
         discharge_date: '',
-        mother_record_id: '' as string | number // Store ID if linked
+        mother_record_id: '' as string | number, // Store ID if linked
+        doctor_name: '',
+        weight: '',
+        mediclaim: '',
+        diagnosis: ''
     });
 
     const [ageUnit, setAgeUnit] = useState<string>('Years'); // Years, Months, Days
@@ -119,7 +146,9 @@ export default function RecordsList() {
 
     const resetForm = () => {
         setNewPatient({
-            full_name: '', patient_u_id: '', uhid: '', age: '', gender: '', address: '', contact_number: '', email_id: '', aadhaar_number: '', patient_category: 'STANDARD', dob: '', admission_date: '', discharge_date: '', mother_record_id: ''
+            full_name: '', patient_u_id: '', uhid: '', age: '', gender: '', address: '', contact_number: '', email_id: '',
+            aadhaar_number: '', patient_category: 'STANDARD', dob: '', admission_date: '', discharge_date: '',
+            mother_record_id: '', doctor_name: '', weight: '', mediclaim: '', diagnosis: ''
         });
         setIsExistingPatient(false);
         setMotherSearchTerm('');
@@ -237,7 +266,11 @@ export default function RecordsList() {
             dob: p.dob ? new Date(p.dob).toISOString().split('T')[0] : '',
             admission_date: '',
             discharge_date: '',
-            mother_record_id: ''
+            mother_record_id: '',
+            doctor_name: p.doctor_name || '',
+            weight: p.weight || '',
+            mediclaim: p.mediclaim || '',
+            diagnosis: p.diagnosis || ''
         }));
         setAgeUnit(unit);
         setIsExistingPatient(true);
@@ -328,8 +361,10 @@ export default function RecordsList() {
     useEffect(() => {
         if (selectedHospitalId) {
             fetchPatients();
+            fetchDoctors();
         } else if (userProfile && ['website_admin', 'website_staff', 'superadmin', 'superadmin_staff'].includes(userProfile.role)) {
             setPatients([]); // Clear list if deselecting
+            setHospitalDoctors([]);
         }
     }, [selectedHospitalId, userProfile]);
 
@@ -361,7 +396,7 @@ export default function RecordsList() {
         const token = localStorage.getItem('token');
         try {
             // Append hospital_id filter if selected (and user is privileged)
-            let url = `${API_URL}/patients/`;
+            let url = `${API_URL}/patients/`; // Note: matches backend router or fixes it
             if (selectedHospitalId && (userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff')) {
                 url += `?hospital_id=${selectedHospitalId}`;
             }
@@ -382,6 +417,21 @@ export default function RecordsList() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const fetchDoctors = async () => {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        try {
+            let url = `${API_URL}/patients/doctors/`;
+            if (selectedHospitalId && (userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff')) {
+                url += `?hospital_id=${selectedHospitalId}`;
+            }
+            const res = await fetch(url, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) setHospitalDoctors(await res.json());
+        } catch (e) { console.error("Failed to fetch doctors", e); }
     };
 
     const handleCreate = async (e: React.FormEvent) => {
@@ -439,6 +489,7 @@ export default function RecordsList() {
 
             if (res.ok) {
                 const data = await res.json();
+                fetchDoctors(); // Refresh suggestions
                 if (isEditing) {
                     setPatients(patients.map(p => p.record_id === selectedPatientId ? data : p));
                     alert("Patient Details Updated Successfully!");
@@ -574,6 +625,9 @@ export default function RecordsList() {
                                 <table className="w-full text-left">
                                     <thead className="bg-gradient-to-r from-slate-50 to-slate-100 border-b-2 border-slate-200 sticky top-0 z-10">
                                         <tr>
+                                            <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort('record_id')}>
+                                                <div className="flex items-center gap-1">RID <ArrowUpDown size={12} className="text-slate-300" /></div>
+                                            </th>
                                             <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort('uhid')}>
                                                 <div className="flex items-center gap-1">UHID <ArrowUpDown size={12} className="text-slate-300" /></div>
                                             </th>
@@ -581,13 +635,16 @@ export default function RecordsList() {
                                                 <div className="flex items-center gap-1">Name <ArrowUpDown size={12} className="text-slate-300" /></div>
                                             </th>
                                             <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort('patient_u_id')}>
-                                                <div className="flex items-center gap-1">MRD ID <ArrowUpDown size={12} className="text-slate-300" /></div>
+                                                <div className="flex items-center gap-1">MRD (IPD) <ArrowUpDown size={12} className="text-slate-300" /></div>
                                             </th>
                                             <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort('admission_date')}>
                                                 <div className="flex items-center gap-1">Adm. Date <ArrowUpDown size={12} className="text-slate-300" /></div>
                                             </th>
                                             <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort('discharge_date')}>
                                                 <div className="flex items-center gap-1">Disch. Date <ArrowUpDown size={12} className="text-slate-300" /></div>
+                                            </th>
+                                            <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort('doctor_name')}>
+                                                <div className="flex items-center gap-1">Doctor <ArrowUpDown size={12} className="text-slate-300" /></div>
                                             </th>
                                             <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap hidden md:table-cell">Status</th>
                                             <th className="p-3 text-right text-xs font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">Action</th>
@@ -608,7 +665,7 @@ export default function RecordsList() {
                                                 </tr>
                                             ))
                                         ) : filteredPatients.length === 0 ? (
-                                            <tr><td colSpan={7} className="p-12 text-center text-slate-400 italic">No patients found.</td></tr>
+                                            <tr><td colSpan={9} className="p-12 text-center text-slate-400 italic">No patients found.</td></tr>
                                         ) : (
                                             filteredPatients.map(p => (
                                                 <tr
@@ -616,6 +673,11 @@ export default function RecordsList() {
                                                     className={`hover:bg-slate-50/80 transition cursor-pointer ${selectedPatientId === p.record_id ? 'bg-indigo-50/50 border-l-4 border-indigo-500' : ''}`}
                                                     onClick={() => setSelectedPatientId(p.record_id)}
                                                 >
+                                                    {/* RID */}
+                                                    <td className="p-3 align-middle">
+                                                        <span className="text-[10px] bg-indigo-50 px-1.5 py-0.5 rounded text-indigo-600 font-mono font-black border border-indigo-100">#{p.record_id}</span>
+                                                    </td>
+
                                                     {/* UHID */}
                                                     <td className="p-3 align-middle">
                                                         {p.uhid ? (
@@ -670,6 +732,19 @@ export default function RecordsList() {
                                                         )}
                                                     </td>
 
+                                                    {/* Doctor */}
+                                                    <td className="p-3 align-middle">
+                                                        <div className="flex flex-wrap gap-1 max-w-[12rem]">
+                                                            {p.doctor_name ? p.doctor_name.split(',').map((d: string) => d.trim()).filter(Boolean).map((doc: string, idx: number) => (
+                                                                <span key={idx} className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100 whitespace-nowrap">
+                                                                    {doc.startsWith('Dr.') ? doc : `Dr. ${doc}`}
+                                                                </span>
+                                                            )) : (
+                                                                <span className="text-slate-300 text-[10px] italic">Not assigned</span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+
                                                     {/* Status */}
                                                     <td className="p-3 hidden md:table-cell align-middle">
                                                         {p.physical_box_id ? (
@@ -698,7 +773,11 @@ export default function RecordsList() {
                                                                 dob: p.dob ? (p.dob.includes('T') ? p.dob.split('T')[0] : p.dob) : '',
                                                                 admission_date: p.admission_date ? (p.admission_date.includes('T') ? p.admission_date.split('T')[0] : p.admission_date) : '',
                                                                 discharge_date: p.discharge_date ? (p.discharge_date.includes('T') ? p.discharge_date.split('T')[0] : p.discharge_date) : '',
-                                                                mother_record_id: p.mother_record_id || ''
+                                                                mother_record_id: p.mother_record_id || '',
+                                                                doctor_name: p.doctor_name || '',
+                                                                weight: p.weight || '',
+                                                                mediclaim: p.mediclaim || '',
+                                                                diagnosis: p.diagnosis || ''
                                                             });
                                                             if (p.mother_record_id && p.mother_details) {
                                                                 setSelectedMother(p.mother_details);
@@ -997,15 +1076,57 @@ export default function RecordsList() {
                                             </select>
                                         </div>
                                         <div className="col-span-6">
-                                            <label className="block text-xs font-bold text-slate-700 mb-1">Admission</label>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Admission Date</label>
                                             <input type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
-                                                value={newPatient.admission_date} onChange={e => setNewPatient({ ...newPatient, admission_date: e.target.value })} />
+                                                value={newPatient.admission_date} onChange={e => setNewPatient(prev => ({ ...prev, admission_date: e.target.value }))} />
                                         </div>
 
                                         <div className="col-span-6">
-                                            <label className="block text-xs font-bold text-slate-700 mb-1">Discharge <span className="text-red-500">*</span></label>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Discharge Date <span className="text-red-500">*</span></label>
                                             <input required type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
-                                                value={newPatient.discharge_date} onChange={e => setNewPatient({ ...newPatient, discharge_date: e.target.value })} />
+                                                value={newPatient.discharge_date} onChange={e => setNewPatient(prev => ({ ...prev, discharge_date: e.target.value }))} />
+                                        </div>
+
+                                        {/* New Medical Fields */}
+                                        <div className="col-span-12">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Doctor Name(s)</label>
+                                            <input
+                                                type="text"
+                                                list="hospital-doctors-list"
+                                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm font-bold"
+                                                placeholder="e.g. Dr. Dixit, Dr. Shah"
+                                                value={newPatient.doctor_name || ''}
+                                                onChange={e => setNewPatient(prev => ({ ...prev, doctor_name: e.target.value }))}
+                                            />
+                                            <datalist id="hospital-doctors-list">
+                                                {hospitalDoctors.map((doc, idx) => (
+                                                    <option key={idx} value={doc} />
+                                                ))}
+                                            </datalist>
+                                        </div>
+
+                                        <div className="col-span-6">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Weight</label>
+                                            <input type="text" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
+                                                placeholder="e.g. 65kg"
+                                                value={newPatient.weight || ''}
+                                                onChange={e => setNewPatient(prev => ({ ...prev, weight: e.target.value }))} />
+                                        </div>
+
+                                        <div className="col-span-6">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Mediclaim</label>
+                                            <input type="text" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
+                                                placeholder="Yes / No"
+                                                value={newPatient.mediclaim || ''}
+                                                onChange={e => setNewPatient(prev => ({ ...prev, mediclaim: e.target.value }))} />
+                                        </div>
+
+                                        <div className="col-span-12">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Diagnosis / Notes</label>
+                                            <textarea className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm h-20"
+                                                placeholder="Provisional diagnosis or medical notes..."
+                                                value={newPatient.diagnosis || ''}
+                                                onChange={e => setNewPatient(prev => ({ ...prev, diagnosis: e.target.value }))} />
                                         </div>
                                     </div>
                                 </div>

@@ -44,9 +44,9 @@ class Settings:
             try:
                 self.BACKEND_CORS_ORIGINS = json.loads(cors_env)
             except json.JSONDecodeError:
-                self.BACKEND_CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "*"]
+                self.BACKEND_CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"]
         else:
-            self.BACKEND_CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "*"]
+            self.BACKEND_CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"]
 
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     BACKEND_URL: str = os.getenv("BACKEND_URL", "http://localhost:8000")

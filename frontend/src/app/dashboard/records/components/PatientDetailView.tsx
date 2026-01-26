@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import imageCompression from 'browser-image-compression';
-import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download, FileText } from 'lucide-react';
+import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download, FileText, Pencil, Archive, Box } from 'lucide-react';
 import DigitizationScanner from '../../../../components/Scanner/DigitizationScanner'; // Ensure this path is correct relative to this file
 import { API_URL } from '../../../../config/api';
 import { formatDate } from '@/lib/dateFormatter';
@@ -40,6 +40,16 @@ interface PatientDetail {
     email_id?: string;
     aadhaar_number?: string;
     discharge_date?: string;
+
+    // New Medical Fields
+    doctor_name?: string;
+    weight?: string;
+    diagnosis?: string;
+    operative_notes?: string;
+    mediclaim?: string;
+    medical_summary?: string;
+    remarks?: string;
+
     files: FileData[];
     physical_box_id?: number;
     box_label?: string;
@@ -165,7 +175,82 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
     const [selectedBoxId, setSelectedBoxId] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
 
+    // Profile Editing State
+    const [isEditingProfile, setIsEditingProfile] = useState(false);
+    const [editData, setEditData] = useState<Partial<PatientDetail>>({});
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
+    const [doctorInput, setDoctorInput] = useState("");
+    const [hospitalDoctors, setHospitalDoctors] = useState<string[]>([]);
+    const [showDoctorSuggestions, setShowDoctorSuggestions] = useState(false);
+    const [isSearchingDiag, setIsSearchingDiag] = useState(false);
+    const [isSearchingProc, setIsSearchingProc] = useState(false);
+
+    const addDoctorTag = (name: string) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        const currentDoctors = editData.doctor_name ? editData.doctor_name.split(',').map(d => d.trim()).filter(Boolean) : [];
+        if (!currentDoctors.includes(trimmed)) {
+            setEditData({ ...editData, doctor_name: [...currentDoctors, trimmed].join(', ') });
+        }
+        setDoctorInput("");
+    };
+
+    const removeDoctorTag = (name: string) => {
+        const currentDoctors = editData.doctor_name ? editData.doctor_name.split(',').map(d => d.trim()).filter(Boolean) : [];
+        setEditData({ ...editData, doctor_name: currentDoctors.filter(d => d !== name).join(', ') });
+    };
+
     const isDeletingRef = useRef(false);
+
+    useEffect(() => {
+        if (patient) {
+            setEditData({
+                full_name: patient.full_name,
+                patient_u_id: patient.patient_u_id,
+                uhid: patient.uhid,
+                contact_number: patient.contact_number,
+                address: patient.address,
+                doctor_name: patient.doctor_name,
+                weight: patient.weight,
+                diagnosis: patient.diagnosis,
+                operative_notes: patient.operative_notes,
+                mediclaim: patient.mediclaim,
+                medical_summary: patient.medical_summary,
+                remarks: patient.remarks,
+                discharge_date: patient.discharge_date ? (patient.discharge_date.includes('T') ? patient.discharge_date.split('T')[0] : patient.discharge_date) : ''
+            });
+        }
+    }, [patient]);
+
+    const handleSaveProfile = async () => {
+        setIsSavingProfile(true);
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/patients/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify(editData)
+            });
+
+            if (res.ok) {
+                const updated = await res.json();
+                setPatient(updated);
+                setIsEditingProfile(false);
+                if (token) fetchDoctors(token); // Refresh doctor list for suggestions
+                alert("Patient Record Updated Successfully!");
+            } else {
+                alert("Failed to update patient record.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Network error.");
+        } finally {
+            setIsSavingProfile(false);
+        }
+    };
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -184,8 +269,18 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
             fetchPatient(token, id);
             fetchDiagnoses(token);
             fetchProcedures(token);
+            fetchDoctors(token);
         }
     }, [id, router]);
+
+    const fetchDoctors = async (token: string) => {
+        try {
+            const res = await fetch(`${API_URL}/patients/doctors/`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) setHospitalDoctors(await res.json());
+        } catch (e) { console.error("Failed to fetch doctors", e); }
+    };
 
 
     const fetchPatient = async (token: string, patientId: string) => {
@@ -343,25 +438,27 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
     const searchDiagnoses = async (q: string) => {
         setDiagSearch(q);
         if (q.length < 2) { setDiagResults([]); return; }
+        setIsSearchingDiag(true);
         const token = localStorage.getItem('token');
         try {
             const res = await fetch(`${API_URL}/icd11/diagnoses/search?q=${q}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) setDiagResults(await res.json());
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error(e); } finally { setIsSearchingDiag(false); }
     };
 
     const searchProcedures = async (q: string) => {
         setProcSearch(q);
         if (q.length < 2) { setProcResults([]); return; }
+        setIsSearchingProc(true);
         const token = localStorage.getItem('token');
         try {
             const res = await fetch(`${API_URL}/icd11/procedures/search?q=${q}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) setProcResults(await res.json());
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error(e); } finally { setIsSearchingProc(false); }
     };
 
     const addDiagnosis = async () => {
@@ -655,11 +752,18 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                         )}
                         <div className="flex items-center gap-3">
                             <h1 className="text-xl font-black text-gray-800 tracking-tight">{patient.full_name}</h1>
-                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded-full border border-indigo-100">
-                                {patient.patient_u_id}
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className="px-2 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black rounded-lg border border-indigo-100 uppercase shadow-sm">
+                                    MRD (IPD): {patient.patient_u_id}
+                                </span>
+                                {patient.uhid && (
+                                    <span className="px-2 py-1 bg-slate-50 text-slate-500 text-[10px] font-black rounded-lg border border-slate-100 uppercase shadow-sm">
+                                        UHID: {patient.uhid}
+                                    </span>
+                                )}
+                            </div>
                             {patient.patient_category && patient.patient_category !== 'STANDARD' && (
-                                <span className={`px-2 py-0.5 text-[10px] font-black rounded-full border uppercase tracking-wide
+                                <span className={`px-2 py-1 text-[10px] font-black rounded-lg border uppercase tracking-wide shadow-sm
                                     ${patient.patient_category === 'MLC' ? 'bg-red-50 text-red-600 border-red-200' :
                                         patient.patient_category === 'BIRTH' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
                                             'bg-slate-900 text-white border-slate-700'}`}>
@@ -668,119 +772,342 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                             )}
                         </div>
 
-                        {/* Patient Details Grid */}
-                        <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-y-2 gap-x-4 text-sm border-t border-gray-100 pt-3">
-                            {patient.uhid && (
-                                <div>
-                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">UHID</span>
-                                    <p className="font-bold text-gray-700 font-mono">{patient.uhid}</p>
-                                </div>
-                            )}
-                            {patient.aadhaar_number && (
-                                <div>
-                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Aadhaar No.</span>
-                                    <p className="font-bold text-gray-700 font-mono tracking-wider">{patient.aadhaar_number.replace(/(\d{4})(?=\d)/g, "$1 ")}</p>
-                                </div>
-                            )}
-                            {patient.mother_details && (
-                                <div className="col-span-2 md:col-span-1">
-                                    <span className="text-[10px] text-pink-400 font-bold uppercase tracking-wider block mb-0.5">Mother</span>
-                                    <div className="flex items-center gap-2 cursor-pointer hover:bg-pink-50 rounded p-1 -ml-1 transition"
-                                        onClick={() => router.push(`/dashboard/records/view?id=${patient.mother_details?.record_id}`)}
-                                    >
-                                        <div className="w-6 h-6 rounded-full bg-pink-100 flex items-center justify-center text-[10px] font-bold text-pink-600">M</div>
-                                        <div>
-                                            <p className="font-bold text-gray-800 text-xs leading-tight">{patient.mother_details.full_name}</p>
-                                            <p className="text-[10px] text-gray-500">{patient.mother_details.patient_u_id}</p>
+                        {/* Patient Details Grid / Edit Form */}
+                        <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-6 text-sm border-t border-gray-100 pt-6">
+                            {isEditingProfile ? (
+                                <>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Full Name</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                            value={editData.full_name || ''}
+                                            onChange={e => setEditData({ ...editData, full_name: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">MRD / IPD No.</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 font-mono outline-none focus:border-indigo-500"
+                                            value={editData.patient_u_id || ''}
+                                            onChange={e => setEditData({ ...editData, patient_u_id: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">UHID</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 font-mono outline-none focus:border-indigo-500"
+                                            value={editData.uhid || ''}
+                                            onChange={e => setEditData({ ...editData, uhid: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Contact No.</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 font-mono outline-none focus:border-indigo-500"
+                                            value={editData.contact_number || ''}
+                                            onChange={e => setEditData({ ...editData, contact_number: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Doctor(s)</label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {editData.doctor_name ? editData.doctor_name.split(',').map((d: string) => d.trim()).filter(Boolean).map((doc: string, idx: number) => (
+                                                <span key={idx} className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 border border-indigo-200">
+                                                    {doc}
+                                                    <button onClick={() => removeDoctorTag(doc)} className="hover:text-red-500"><X size={12} /></button>
+                                                </span>
+                                            )) : <span className="text-xs text-slate-400 italic">No doctors added</span>}
+                                        </div>
+                                        <div className="flex gap-2 relative">
+                                            <input
+                                                type="text"
+                                                className="flex-1 border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                                value={doctorInput}
+                                                onChange={e => {
+                                                    setDoctorInput(e.target.value);
+                                                    setShowDoctorSuggestions(true);
+                                                }}
+                                                onFocus={() => setShowDoctorSuggestions(true)}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        addDoctorTag(doctorInput);
+                                                        setShowDoctorSuggestions(false);
+                                                    }
+                                                }}
+                                                placeholder="Type Doctor Name & Press Enter"
+                                            />
+                                            {showDoctorSuggestions && doctorInput.length > 0 && (
+                                                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto">
+                                                    {(hospitalDoctors || [])
+                                                        .filter(d => d.toLowerCase().includes(doctorInput.toLowerCase()) &&
+                                                            !(editData.doctor_name || "").toLowerCase().includes(d.toLowerCase()))
+                                                        .map((doc, idx) => (
+                                                            <button
+                                                                key={idx}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    addDoctorTag(doc);
+                                                                    setShowDoctorSuggestions(false);
+                                                                }}
+                                                                className="w-full text-left px-4 py-2 hover:bg-indigo-50 text-sm font-bold text-slate-700 border-b border-slate-50 last:border-0"
+                                                            >
+                                                                {doc}
+                                                            </button>
+                                                        ))
+                                                    }
+                                                </div>
+                                            )}
+                                            <button
+                                                onClick={() => {
+                                                    addDoctorTag(doctorInput);
+                                                    setShowDoctorSuggestions(false);
+                                                }}
+                                                className="px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold border border-indigo-100 hover:bg-indigo-100 transition-all"
+                                            >
+                                                Add
+                                            </button>
                                         </div>
                                     </div>
-                                </div>
-                            )}
-                            {(patient.age || patient.gender) && (
-                                <div>
-                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Demographics</span>
-                                    <p className="font-semibold text-gray-700">
-                                        {patient.age ? (typeof patient.age === 'number' || !isNaN(Number(patient.age)) ? `${patient.age} Y` : patient.age) : ''}
-                                        {patient.age && patient.gender ? ' / ' : ''}
-                                        {patient.gender || ''}
-                                    </p>
-                                </div>
-                            )}
-                            {patient.contact_number && (
-                                <div>
-                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Contact</span>
-                                    <p className="font-semibold text-gray-700 font-mono">{patient.contact_number}</p>
-                                </div>
-                            )}
-                            {patient.address && (
-                                <div className="col-span-2">
-                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Address</span>
-                                    <p className="font-semibold text-gray-700 truncate" title={patient.address}>
-                                        {patient.address} {patient.city ? `, ${patient.city}` : ''}
-                                    </p>
-                                </div>
-                            )}
-                            {patient.discharge_date && (
-                                <div>
-                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Discharged</span>
-                                    <p className="font-semibold text-gray-700">{formatDate(patient.discharge_date)}</p>
-                                </div>
-                            )}
-                            {diagnoses.length > 0 && (
-                                <div className="col-span-2">
-                                    <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mb-0.5">Diagnoses (ICD-11)</span>
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                        {diagnoses.map(d => (
-                                            <span key={d.diagnosis_id} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded border border-indigo-100">
-                                                {d.code}
-                                            </span>
-                                        ))}
+                                    <div className="col-span-1">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Weight (kg)</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                            value={editData.weight || ''}
+                                            onChange={e => setEditData({ ...editData, weight: e.target.value })}
+                                            placeholder="e.g. 70kg"
+                                        />
                                     </div>
-                                </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Discharge Date</label>
+                                        <input
+                                            type="date"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                            value={editData.discharge_date || ''}
+                                            onChange={e => setEditData({ ...editData, discharge_date: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Diagnosis</label>
+                                        <textarea
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500 h-20"
+                                            value={editData.diagnosis || ''}
+                                            onChange={e => setEditData({ ...editData, diagnosis: e.target.value })}
+                                            placeholder="Enter Diagnosis..."
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Operative Notes</label>
+                                        <textarea
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500 h-20"
+                                            value={editData.operative_notes || ''}
+                                            onChange={e => setEditData({ ...editData, operative_notes: e.target.value })}
+                                            placeholder="Enter Operative Notes..."
+                                        />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Mediclaim</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                            value={editData.mediclaim || ''}
+                                            onChange={e => setEditData({ ...editData, mediclaim: e.target.value })}
+                                            placeholder="e.g. Yes/No/Policy No."
+                                        />
+                                    </div>
+                                    <div className="col-span-3">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Address</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                            value={editData.address || ''}
+                                            onChange={e => setEditData({ ...editData, address: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Medical Summary</label>
+                                        <textarea
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500 h-20"
+                                            value={editData.medical_summary || ''}
+                                            onChange={e => setEditData({ ...editData, medical_summary: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Remarks</label>
+                                        <textarea
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500 h-20"
+                                            value={editData.remarks || ''}
+                                            onChange={e => setEditData({ ...editData, remarks: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-4 flex justify-end">
+                                        <button
+                                            onClick={handleSaveProfile}
+                                            disabled={isSavingProfile}
+                                            className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-black shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all flex items-center gap-2"
+                                        >
+                                            {isSavingProfile ? <><Loader2 className="animate-spin" size={20} /> Saving...</> : 'Save Patient Record'}
+                                        </button>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    {patient.uhid && (
+                                        <div>
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">UHID</span>
+                                            <p className="font-bold text-gray-700 font-mono">{patient.uhid}</p>
+                                        </div>
+                                    )}
+                                    {patient.aadhaar_number && (
+                                        <div>
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Aadhaar No.</span>
+                                            <p className="font-bold text-gray-700 font-mono tracking-wider">{patient.aadhaar_number.replace(/(\d{4})(?=\d)/g, "$1 ")}</p>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mb-0.5">Doctor(s)</span>
+                                        <div className="flex flex-wrap gap-1.5 mt-1">
+                                            {patient.doctor_name ? patient.doctor_name.split(',').map((d: string) => d.trim()).filter(Boolean).map((doc: string, idx: number) => (
+                                                <span key={idx} className="bg-white border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded-lg text-[10px] font-black shadow-sm flex items-center gap-1.5">
+                                                    <Stethoscope size={10} className="text-indigo-400" />
+                                                    {doc}
+                                                </span>
+                                            )) : <span className="text-slate-300 italic text-xs">Not assigned</span>}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mb-0.5">Weight</span>
+                                        <p className="font-bold text-gray-800">
+                                            {patient.weight || <span className="text-slate-300 italic">—</span>}
+                                        </p>
+                                    </div>
+                                    {(patient.age || patient.gender) && (
+                                        <div>
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Demographics</span>
+                                            <p className="font-semibold text-gray-700">
+                                                {patient.age ? (typeof patient.age === 'number' || !isNaN(Number(patient.age)) ? `${patient.age} Y` : patient.age) : ''}
+                                                {patient.age && patient.gender ? ' / ' : ''}
+                                                {patient.gender || ''}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {patient.contact_number && (
+                                        <div>
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Contact</span>
+                                            <p className="font-semibold text-gray-700 font-mono">{patient.contact_number}</p>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Mediclaim</span>
+                                        <p className="font-semibold text-slate-700">
+                                            {patient.mediclaim || <span className="text-slate-300 italic">—</span>}
+                                        </p>
+                                    </div>
+                                    {patient.discharge_date && (
+                                        <div>
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Discharged</span>
+                                            <p className="font-semibold text-gray-700">{formatDate(patient.discharge_date)}</p>
+                                        </div>
+                                    )}
+                                    {patient.address && (
+                                        <div className="col-span-2">
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Address</span>
+                                            <p className="font-semibold text-gray-700 truncate" title={patient.address}>
+                                                {patient.address} {patient.city ? `, ${patient.city}` : ''}
+                                            </p>
+                                        </div>
+                                    )}
+                                    <div className="col-span-2">
+                                        <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mb-0.5">Diagnosis</span>
+                                        <p className="text-slate-700 font-medium whitespace-pre-wrap">
+                                            {patient.diagnosis || <span className="text-slate-300 italic">No direct diagnosis recorded.</span>}
+                                        </p>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mb-0.5">Operative Notes</span>
+                                        <p className="text-slate-700 font-medium whitespace-pre-wrap">
+                                            {patient.operative_notes || <span className="text-slate-300 italic">—</span>}
+                                        </p>
+                                    </div>
+                                    <div className="col-span-2 border-t border-slate-50 pt-3">
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Medical Summary</span>
+                                        <p className="text-slate-600 text-xs whitespace-pre-wrap leading-relaxed">
+                                            {patient.medical_summary || <span className="text-slate-300 italic">—</span>}
+                                        </p>
+                                    </div>
+                                    <div className="col-span-2 border-t border-slate-50 pt-3">
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Remarks</span>
+                                        <p className="text-slate-600 text-xs whitespace-pre-wrap leading-relaxed">
+                                            {patient.remarks || <span className="text-slate-300 italic">—</span>}
+                                        </p>
+                                    </div>
+                                </>
                             )}
                         </div>
                     </div>
 
-                    {/* Physical Storage - Hidden for Hospital Admin & MRD */}
-                    {!['hospital_admin', 'mrd_staff'].includes(userRole) && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex flex-col items-start gap-2 shadow-sm min-w-[150px]">
-                            <div>
-                                <p className="text-[10px] text-amber-700 font-bold uppercase tracking-wider mb-1">Physical Storage</p>
+                    {/* Header Actions Sidebar */}
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                        {/* Physical Storage Badge - Smaller & Above */}
+                        {!['hospital_admin', 'mrd_staff'].includes(userRole) && (
+                            <div className="bg-amber-50/50 backdrop-blur-sm border border-amber-200 rounded-lg px-2 py-1.5 flex flex-col items-start gap-1 shadow-sm w-full min-w-[140px]">
+                                <div className="flex items-center gap-1.5 w-full">
+                                    <Archive size={12} className="text-amber-600" />
+                                    <p className="text-[9px] text-amber-700 font-black uppercase tracking-widest whitespace-nowrap">Physical Storage</p>
+                                </div>
+
                                 {patient.box_label ? (
-                                    <div>
-                                        <p className="text-lg font-black text-amber-900 flex items-center gap-2">
-                                            📦 {patient.box_label}
-                                        </p>
-                                        <p className="text-xs font-bold text-amber-600 mt-0.5">
-                                            📍 {patient.box_location_code}
-                                        </p>
+                                    <div className="flex items-center justify-between w-full gap-2">
+                                        <div className="flex items-center gap-1">
+                                            <Box size={12} className="text-amber-500" />
+                                            <p className="text-xs font-black text-amber-900">{patient.box_label}</p>
+                                        </div>
+                                        <div className="bg-white/50 px-1.5 py-0.5 rounded border border-amber-100 flex items-center gap-1">
+                                            <span className="text-[8px] font-black text-amber-500">LOC</span>
+                                            <p className="text-[8px] font-bold text-amber-700">{patient.box_location_code}</p>
+                                        </div>
                                     </div>
                                 ) : (
-                                    <p className="text-sm text-gray-400 italic">Not Assigned</p>
+                                    <p className="text-[9px] text-amber-400 italic font-bold">Not Assigned</p>
+                                )}
+
+                                {(userRole === 'mrd_staff' || userRole === 'website_admin') && (
+                                    <button
+                                        onClick={() => {
+                                            fetchBoxes();
+                                            setShowBoxModal(true);
+                                        }}
+                                        className="text-[9px] bg-white border border-amber-200 text-amber-700 px-2 py-1 rounded hover:bg-amber-50 font-black transition-all shadow-sm w-full mt-0.5 flex items-center justify-center gap-1"
+                                    >
+                                        <Plus size={10} />
+                                        {patient.box_label ? 'Update' : 'Assign'}
+                                    </button>
                                 )}
                             </div>
-                            {(userRole === 'mrd_staff' || userRole === 'website_admin') && (
-                                <button
-                                    onClick={() => {
-                                        fetchBoxes();
-                                        setShowBoxModal(true);
-                                    }}
-                                    className="text-xs bg-white border border-amber-300 text-amber-700 px-3 py-1.5 rounded-lg hover:bg-amber-100 font-bold transition-all shadow-sm w-full"
-                                >
-                                    {patient.box_label ? 'Change' : 'Assign'}
-                                </button>
-                            )}
-                        </div>
-                    )}
+                        )}
+
+                        <button
+                            onClick={() => setIsEditingProfile(!isEditingProfile)}
+                            className={`px-4 py-2 rounded-xl border text-xs font-black transition-all shadow-md flex items-center gap-2 w-full justify-center
+                            ${isEditingProfile ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' : 'bg-indigo-600 text-white border-indigo-500 hover:bg-indigo-700 hover:shadow-indigo-500/25'}`}
+                        >
+                            {isEditingProfile ? <><X size={14} /> Cancel Edit</> : <><Pencil size={14} /> Edit Profile</>}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Digitized Files Section */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
-                    <h2 className="text-base font-semibold mb-3 border-b pb-2">Digitized Files ({patient.files.length})</h2>
+                    <h2 className="text-base font-semibold mb-3 border-b pb-2">Digitized Files ({(patient.files || []).length})</h2>
 
-                    {patient.files.length > 0 ? (
+                    {(patient.files || []).length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {patient.files.map((file) => (
+                            {(patient.files || []).map((file) => (
                                 <div key={file.file_id} className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow">
                                     <div className="flex items-start justify-between mb-4">
                                         <div className={`p-2 rounded-lg ${file.upload_status === 'draft' ? 'bg-orange-50 text-orange-500' : 'bg-red-50 text-red-600'}`}>
@@ -990,7 +1317,11 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                             {!selectedCode ? (
                                 <>
                                     <div className="relative">
-                                        <Search className="absolute left-3 top-2.5 text-indigo-400" size={16} />
+                                        {isSearchingDiag ? (
+                                            <Loader2 className="absolute left-3 top-2.5 text-indigo-400 animate-spin" size={16} />
+                                        ) : (
+                                            <Search className="absolute left-3 top-2.5 text-indigo-400" size={16} />
+                                        )}
                                         <input
                                             autoFocus
                                             className="w-full border border-indigo-200 p-2 pl-10 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -1073,7 +1404,11 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                             {!selectedProcCode ? (
                                 <>
                                     <div className="relative">
-                                        <Search className="absolute left-3 top-2.5 text-emerald-400" size={16} />
+                                        {isSearchingProc ? (
+                                            <Loader2 className="absolute left-3 top-2.5 text-emerald-400 animate-spin" size={16} />
+                                        ) : (
+                                            <Search className="absolute left-3 top-2.5 text-emerald-400" size={16} />
+                                        )}
                                         <input
                                             autoFocus
                                             className="w-full border border-emerald-200 p-2 pl-10 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"

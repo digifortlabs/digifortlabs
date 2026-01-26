@@ -315,6 +315,15 @@ class PatientResponse(BaseModel):
     included_pages: int = 20
     price_per_extra_page: float = 1.0
 
+    # New Medical Fields
+    doctor_name: Optional[str] = None
+    weight: Optional[str] = None
+    diagnosis: Optional[str] = None
+    operative_notes: Optional[str] = None
+    mediclaim: Optional[str] = None
+    medical_summary: Optional[str] = None
+    remarks: Optional[str] = None
+
     mother_record_id: Optional[int] = None
     mother_details: Optional[dict] = None # Basic info about mother if linked
 
@@ -340,6 +349,15 @@ class PatientCreate(BaseModel):
     hospital_id: Optional[int] = None
     mother_record_id: Optional[int] = None
 
+    # New Medical Fields
+    doctor_name: Optional[str] = None
+    weight: Optional[str] = None
+    diagnosis: Optional[str] = None
+    operative_notes: Optional[str] = None
+    mediclaim: Optional[str] = None
+    medical_summary: Optional[str] = None
+    remarks: Optional[str] = None
+
 class PatientUpdate(BaseModel):
     patient_u_id: Optional[str] = None
     uhid: Optional[str] = None
@@ -357,6 +375,15 @@ class PatientUpdate(BaseModel):
     discharge_date: Optional[datetime.datetime] = None
     mother_record_id: Optional[int] = None
 
+    # New Medical Fields
+    doctor_name: Optional[str] = None
+    weight: Optional[str] = None
+    diagnosis: Optional[str] = None
+    operative_notes: Optional[str] = None
+    mediclaim: Optional[str] = None
+    medical_summary: Optional[str] = None
+    remarks: Optional[str] = None
+
 class PatientDetailResponse(PatientResponse):
     pass
 
@@ -366,10 +393,10 @@ class UpdateTagsRequest(BaseModel):
 # ... (Existing update_patient)
 
 
-@router.put("/{patient_id}")
+@router.put("/{patient_id}", response_model=PatientDetailResponse)
 def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # 1. Authorization
-    db_patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+    db_patient = db.query(Patient).options(joinedload(Patient.files)).filter(Patient.record_id == patient_id).first()
     if not db_patient:
         raise HTTPException(status_code=404, detail="Patient not found")
         
@@ -445,7 +472,14 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
         dob=patient.dob,
         admission_date=patient.admission_date,
         discharge_date=patient.discharge_date,
-        mother_record_id=patient.mother_record_id
+        mother_record_id=patient.mother_record_id,
+        doctor_name=patient.doctor_name,
+        weight=patient.weight,
+        diagnosis=patient.diagnosis,
+        operative_notes=patient.operative_notes,
+        mediclaim=patient.mediclaim,
+        medical_summary=patient.medical_summary,
+        remarks=patient.remarks
     )
     
     try:
@@ -594,7 +628,6 @@ def search_files(q: str, db: Session = Depends(get_db), current_user: User = Dep
     ]
 
 @router.get("/next-id")
-@router.get("/next-id")
 def get_next_mrd(
     hospital_id: Optional[int] = None, 
     db: Session = Depends(get_db), 
@@ -642,6 +675,39 @@ def get_next_mrd(
     next_id = f"{prefix}{next_val}"
     
     return {"next_id": next_id, "last_id": last_id}
+
+@router.get("/doctors", response_model=List[str])
+def get_unique_doctors(
+    hospital_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Determine effective hospital_id
+    target_hospital_id = current_user.hospital_id
+    
+    # If Super Admin, allow specifying hospital_id
+    if current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+        if hospital_id:
+            target_hospital_id = hospital_id
+            
+    if not target_hospital_id:
+        return []
+
+    # Fetch unique strings from DB
+    results = db.query(Patient.doctor_name).filter(
+        Patient.hospital_id == target_hospital_id,
+        Patient.doctor_name != None
+    ).distinct().all()
+    
+    doctors = set()
+    for (doc_str,) in results:
+        if doc_str:
+            # Handle comma separated values if they exist
+            parts = [p.strip() for p in doc_str.split(',') if p.strip()]
+            for p in parts:
+                doctors.add(p)
+                
+    return sorted(list(doctors))
 
 @router.get("/", response_model=List[PatientResponse])
 def get_patients(

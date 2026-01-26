@@ -47,13 +47,25 @@ def search_procedures(q: str, db: Session = Depends(get_db), current_user: User 
         return []
     
     try:
-        # 1. Local Search
+        # 1. Local Search (Prioritized: Exact Code > Prefix Code > Description)
         local_results = db.query(ICD11ProcedureCode).filter(
             or_(
-                ICD11ProcedureCode.code.ilike(f"%{q}%"),
+                ICD11ProcedureCode.code.ilike(f"{q}%"),
                 ICD11ProcedureCode.description.ilike(f"%{q}%")
             )
-        ).limit(10).all()
+        ).order_by(
+            # Sort by: Exact code match first, then prefix match, then description
+            ICD11ProcedureCode.code == q,
+            ICD11ProcedureCode.code.ilike(f"{q}%"),
+            ICD11ProcedureCode.description.ilike(f"%{q}%")
+        ).limit(30).all()
+        
+        # Sort local results properly in Python to ensure strict prioritization
+        local_results.sort(key=lambda x: (
+            0 if x.code.lower() == q.lower() else
+            1 if x.code.lower().startswith(q.lower()) else
+            2
+        ))
         
         # 2. WHO Live Search
         live_results = []

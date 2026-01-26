@@ -112,6 +112,15 @@ class Patient(Base):
     admission_date = Column(DateTime, nullable=True)
     discharge_date = Column(DateTime, nullable=True)
 
+    # Added Medical Fields
+    doctor_name = Column(String, nullable=True)
+    weight = Column(String, nullable=True)
+    diagnosis = Column(Text, nullable=True)
+    operative_notes = Column(Text, nullable=True)
+    mediclaim = Column(String, nullable=True)
+    medical_summary = Column(Text, nullable=True)
+    remarks = Column(Text, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     hospital = relationship("Hospital", back_populates="patients")

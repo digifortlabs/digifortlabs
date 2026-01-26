@@ -45,13 +45,26 @@ def search_diagnoses(q: str, db: Session = Depends(get_db), current_user: User =
         return []
     
     try:
-        # 1. Local Search
+        # 1. Local Search (Prioritized: Exact Code > Prefix Code > Description)
         local_results = db.query(ICD11Code).filter(
             or_(
-                ICD11Code.code.ilike(f"%{q}%"),
+                ICD11Code.code.ilike(f"{q}%"),
                 ICD11Code.description.ilike(f"%{q}%")
             )
-        ).limit(10).all()
+        ).order_by(
+            # Sort by: Exact code match first, then prefix match, then description
+            ICD11Code.code == q,
+            ICD11Code.code.ilike(f"{q}%"),
+            ICD11Code.description.ilike(f"%{q}%")
+        ).limit(30).all()
+        
+        # Sort local results properly (SQLAlchemy doesn't support complex ordering easily in some cases)
+        # We can do it in Python to be sure of prioritization
+        local_results.sort(key=lambda x: (
+            0 if x.code.lower() == q.lower() else
+            1 if x.code.lower().startswith(q.lower()) else
+            2
+        ))
         
         # 2. WHO Live Search
         live_results = []
