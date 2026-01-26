@@ -1,7 +1,0 @@
-2026-01-25 23:02:50,715 - INFO - User: 1 | Hosp: 1 | Action: PATIENT_CREATED | Created patient: Keval Kuvekar (D11111)
-2026-01-25 23:03:07,409 - INFO - User: 1 | Hosp: None | Action: PATIENT_DELETED | Deleted patient: Keval Kuvekar
-2026-01-26 02:00:51,323 - INFO - User: 1 | Hosp: None | Action: FILE_DELETED | superadmin deleted file 160
-2026-01-26 02:00:53,054 - INFO - User: 1 | Hosp: None | Action: FILE_DELETED | superadmin deleted file 160
-2026-01-26 12:15:10,025 - INFO - User: 1 | Hosp: None | Action: BULK_OCR_TRIGGERED | Triggered OCR for 50 files
-2026-01-26 12:31:44,467 - INFO - User: 1 | Hosp: None | Action: FILE_UPLOADED | Uploaded: scan.pdf
-2026-01-26 17:18:49,909 - INFO - User: 1 | Hosp: 1 | Action: PATIENT_CREATED | Created patient: Mrs.Bhagmani Hairshchand Nisad (D44359)
