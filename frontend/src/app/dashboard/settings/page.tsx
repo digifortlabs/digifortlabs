@@ -26,6 +26,9 @@ export default function SettingsPage() {
     const [passwordData, setPasswordData] = useState({ old: '', new: '', confirm: '' });
     const [platformStaff, setPlatformStaff] = useState<any[]>([]);
     const [showStaffModal, setShowStaffModal] = useState(false);
+    const [showEditStaffModal, setShowEditStaffModal] = useState(false);
+    const [editingStaff, setEditingStaff] = useState<any>(null);
+    const [editStaffData, setEditStaffData] = useState({ password: '' });
     const [newStaff, setNewStaff] = useState({ email: '', password: '' });
     const [mustChangePassword, setMustChangePassword] = useState(false);
 
@@ -99,6 +102,57 @@ export default function SettingsPage() {
 
     // Bulk OCR Logic
     const [ocrLoading, setOcrLoading] = useState(false);
+    const [ocrStats, setOcrStats] = useState({ pending: 0, analyzing: 0, completed: 0 });
+    const [ocrLogs, setOcrLogs] = useState<string[]>([]);
+
+    const fetchOcrStats = async () => {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        try {
+            const res = await fetch(`${API_URL}/platform/ocr-status`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setOcrStats({
+                    pending: data.pending_ocr,
+                    analyzing: data.analyzing,
+                    completed: data.completed_ocr
+                });
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const fetchOcrLogs = async () => {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        try {
+            const res = await fetch(`${API_URL}/platform/ocr-logs`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setOcrLogs(data.logs || []);
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    useEffect(() => {
+        if (['website_admin', 'superadmin'].includes(userRole)) {
+            fetchOcrStats();
+            fetchOcrLogs();
+            const interval = setInterval(() => {
+                fetchOcrStats();
+                fetchOcrLogs();
+            }, 3000); // Poll every 3 seconds
+            return () => clearInterval(interval);
+        }
+    }, [userRole]);
+
     const runBulkOCR = async () => {
         if (!confirm("This will trigger background OCR for up to 50 pending files. Continue?")) return;
         setOcrLoading(true);
@@ -110,7 +164,9 @@ export default function SettingsPage() {
             });
             const data = await res.json();
             if (res.ok) {
-                alert(data.message);
+                // No alert, rely on stats update
+                // alert(data.message);
+                fetchOcrStats();
             } else {
                 alert(`Error: ${data.detail || data.message}`);
             }
@@ -169,6 +225,76 @@ export default function SettingsPage() {
         } catch (error) {
             console.error(error);
         }
+    };
+
+    const handleUpdateStaff = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const token = localStorage.getItem('token');
+        if (!token || !editingStaff) return;
+
+        try {
+            const apiUrl = API_URL;
+            const body: any = {};
+            // Only send password if provided
+            if (editStaffData.password) {
+                body.password = editStaffData.password;
+            } else {
+                alert("Please enter a new password to update.");
+                return;
+            }
+
+            const res = await fetch(`${apiUrl}/users/${editingStaff.user_id}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify(body)
+            });
+
+            if (res.ok) {
+                alert("Staff updated successfully!");
+                setShowEditStaffModal(false);
+                setEditingStaff(null);
+                setEditStaffData({ password: '' });
+                fetchPlatformStaff(token);
+            } else {
+                const err = await res.json();
+                alert(err.detail || "Failed to update staff");
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleDeleteStaff = async (staffId: number) => {
+        if (!confirm("Are you sure you want to permanently delete this staff member? This action cannot be undone.")) return;
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        try {
+            const apiUrl = API_URL;
+            const res = await fetch(`${apiUrl}/users/${staffId}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                alert("Staff member deleted successfully.");
+                fetchPlatformStaff(token);
+            } else {
+                const err = await res.json();
+                alert(err.detail || "Failed to delete staff");
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const openEditModal = (staff: any) => {
+        setEditingStaff(staff);
+        setEditStaffData({ password: '' });
+        setShowEditStaffModal(true);
     };
 
     const handlePasswordChange = async (e: React.FormEvent) => {
@@ -426,19 +552,33 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
-                    <div className="mt-4 bg-white p-4 rounded border border-indigo-100 flex justify-between items-center">
-                        <div>
-                            <p className="font-medium text-gray-800">Bulk OCR Utility</p>
-                            <p className="text-xs text-gray-500">Scan 50 old files for data extraction.</p>
+                    <div className="mt-4 bg-white p-4 rounded border border-indigo-100">
+                        <div className="flex justify-between items-center mb-3">
+                            <div>
+                                <p className="font-medium text-gray-800">Bulk OCR Utility</p>
+                                <p className="text-xs text-gray-500">Scan 50 old files for data extraction.</p>
+                                {(ocrStats.analyzing > 0 || ocrStats.pending > 0) && (
+                                    <p className="text-xs font-bold text-indigo-600 mt-1">
+                                        Processing: {ocrStats.analyzing} | Pending: {ocrStats.pending} | Completed: {ocrStats.completed}
+                                    </p>
+                                )}
+                            </div>
+                            <button
+                                onClick={runBulkOCR}
+                                disabled={ocrLoading || ocrStats.analyzing > 0}
+                                className="bg-indigo-600 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                                {ocrLoading && <Loader2 className="animate-spin" size={16} />}
+                                {ocrStats.analyzing > 0 ? 'Processing...' : 'Run Batch'}
+                            </button>
                         </div>
-                        <button
-                            onClick={runBulkOCR}
-                            disabled={ocrLoading}
-                            className="bg-indigo-600 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 hover:bg-indigo-700 disabled:opacity-50"
-                        >
-                            {ocrLoading && <Loader2 className="animate-spin" size={16} />}
-                            Running...
-                        </button>
+
+                        {/* CLI Log Viewer */}
+                        {(ocrStats.analyzing > 0 || ocrLogs.length > 0) && (
+                            <div className="bg-black text-green-400 font-mono text-xs p-3 rounded h-48 overflow-y-auto whitespace-pre-wrap">
+                                {ocrLogs.length > 0 ? ocrLogs.join('\n') : '> Waiting for logs...'}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -501,8 +641,24 @@ export default function SettingsPage() {
                         <div className="space-y-2">
                             {platformStaff.length > 0 ? platformStaff.map((staff, idx) => (
                                 <div key={idx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                    <span className="text-sm font-medium text-gray-700">{staff.email}</span>
-                                    <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded uppercase font-bold">Platform Staff</span>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm font-medium text-gray-700">{staff.email}</span>
+                                        <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded uppercase font-bold">Platform Staff</span>
+                                    </div>
+                                    <div>
+                                        <button
+                                            onClick={() => openEditModal(staff)}
+                                            className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold mr-3"
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteStaff(staff.user_id)}
+                                            className="text-xs text-red-600 hover:text-red-800 font-semibold"
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
                                 </div>
                             )) : (
                                 <p className="text-center text-gray-400 py-4 text-sm">No platform staff created yet.</p>
@@ -534,6 +690,30 @@ export default function SettingsPage() {
                                 <div className="flex justify-end gap-3 mt-6">
                                     <button type="button" onClick={() => setShowStaffModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
                                     <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-bold">Create Staff Account</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )
+            }
+
+            {
+                showEditStaffModal && editingStaff && (
+                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+                            <h2 className="text-xl font-bold mb-4 text-indigo-700">Edit Staff: {editingStaff.email}</h2>
+                            <form onSubmit={handleUpdateStaff}>
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">New Password (Reset)</label>
+                                    <input required type="text" className="w-full border rounded p-2"
+                                        value={editStaffData.password} onChange={e => setEditStaffData({ ...editStaffData, password: e.target.value })}
+                                        placeholder="Enter new password"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Updates the user's password immediately.</p>
+                                </div>
+                                <div className="flex justify-end gap-3 mt-6">
+                                    <button type="button" onClick={() => setShowEditStaffModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+                                    <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-bold">Update Staff</button>
                                 </div>
                             </form>
                         </div>

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Plus, FileText, ChevronRight, Upload, User, ArrowRight, Pencil, Trash2, Building2, Layout, Tag, ArrowUpDown, Sparkles, Loader2 } from 'lucide-react';
+import { Plus, Search, Filter, Download, Eye, Trash2, Edit, ChevronLeft, ChevronRight, X, Upload, Sparkles, FolderOpen, Calendar, User, FileText, Loader2, RefreshCw, Camera, Building2, ArrowRight, ArrowUpDown, Pencil } from 'lucide-react';
+import CameraModal from './components/CameraModal';
 import PatientDetailView from './components/PatientDetailView';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL } from '../../../config/api';
@@ -39,6 +40,9 @@ export default function RecordsList() {
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showCameraModal, setShowCameraModal] = useState(false);
+    const [isExtracting, setIsExtracting] = useState(false);
+    const [ageUnit, setAgeUnit] = useState<'Years' | 'Months' | 'Days'>('Years');
     const [isMRDDuplicate, setIsMRDDuplicate] = useState(false);
     const [suggestions, setSuggestions] = useState<any[]>([]); // Search suggestions
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -46,7 +50,6 @@ export default function RecordsList() {
 
     const [isEditing, setIsEditing] = useState(false);
     const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
-    const [isExtracting, setIsExtracting] = useState(false);
 
     // Sorting
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
@@ -65,7 +68,6 @@ export default function RecordsList() {
     const [hospitals, setHospitals] = useState<any[]>([]);
     const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null);
 
-    // New Patient Form State
     // New Patient Form State
     const [newPatient, setNewPatient] = useState<NewPatientState>({
         full_name: '',
@@ -87,8 +89,6 @@ export default function RecordsList() {
         mediclaim: '',
         diagnosis: ''
     });
-
-    const [ageUnit, setAgeUnit] = useState<string>('Years'); // Years, Months, Days
 
     const calculateAge = (dob: string) => {
         if (!dob) return;
@@ -198,17 +198,21 @@ export default function RecordsList() {
                 alert("✨ AI Magic complete! Fields have been auto-filled.");
             } else {
                 const err = await res.json();
-                alert(`AI Extraction failed: ${err.detail || 'Unknown error'}`);
+                alert(`Error: ${err.detail || "Failed to extract details"}`);
             }
-        } catch (e) {
-            console.error(e);
-            alert("Network error during AI extraction.");
+        } catch (error) {
+            console.error(error);
+            alert("Failed to connect to AI service.");
         } finally {
             setIsExtracting(false);
         }
     };
 
-    const parseAgeString = (ageStr: string | number) => {
+    const handleCameraCapture = (file: File) => {
+        handleAIExtraction(file); // Reuse the existing extraction logic
+    };
+
+    const parseAgeString = (ageStr: string | number): { val: string, unit: 'Years' | 'Months' | 'Days' } => {
         if (!ageStr) return { val: '', unit: 'Years' };
         const s = ageStr.toString();
         if (s.toLowerCase().includes('month')) return { val: s.replace(/\D/g, ''), unit: 'Months' };
@@ -879,30 +883,47 @@ export default function RecordsList() {
                                     <User className="text-indigo-600" size={20} /> {isEditing ? 'Edit Patient' : 'Register New Patient'}
                                 </h2>
                                 <div className="flex gap-2">
-                                    <label className={`flex items-center gap-2 px-3 py-1 rounded-lg border cursor-pointer transition-all ${isExtracting ? 'bg-indigo-50 border-indigo-200 cursor-wait' : 'bg-indigo-50/20 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200'}`}>
-                                        {isExtracting ? (
-                                            <>
-                                                <Loader2 size={12} className="text-indigo-600 animate-spin" />
-                                                <span className="text-[10px] font-bold text-indigo-600">AI Processing...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Sparkles size={12} className="text-indigo-600" />
-                                                <span className="text-[10px] font-bold text-indigo-600">Magic AI</span>
-                                                <input
-                                                    type="file"
-                                                    className="hidden"
-                                                    accept="image/*,.pdf"
-                                                    onChange={(e) => {
-                                                        const file = e.target.files?.[0];
-                                                        if (file) handleAIExtraction(file);
-                                                        e.target.value = '';
-                                                    }}
-                                                    disabled={isExtracting}
-                                                />
-                                            </>
-                                        )}
-                                    </label>
+                                    {/* AI Features - Restricted to Authorized Roles */}
+                                    {(['superadmin', 'superadmin_staff', 'website_admin', 'website_staff'].includes(userProfile?.role)) && (
+                                        <>
+                                            <label className={`flex items-center gap-2 px-3 py-1 rounded-lg border cursor-pointer transition-all ${isExtracting ? 'bg-indigo-50 border-indigo-200 cursor-wait' : 'bg-indigo-50/20 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200'}`}>
+                                                {isExtracting ? (
+                                                    <>
+                                                        <Loader2 size={12} className="text-indigo-600 animate-spin" />
+                                                        <span className="text-[10px] font-bold text-indigo-600">AI Processing...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Sparkles size={12} className="text-indigo-600" />
+                                                        <span className="text-[10px] font-bold text-indigo-600">Magic AI</span>
+                                                        <input
+                                                            type="file"
+                                                            className="hidden"
+                                                            accept="image/*,.pdf"
+                                                            onChange={(e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) handleAIExtraction(file);
+                                                                e.target.value = '';
+                                                            }}
+                                                            disabled={isExtracting}
+                                                        />
+                                                    </>
+                                                )
+                                                }
+                                            </label>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCameraModal(true)}
+                                                disabled={isExtracting}
+                                                className={`flex items-center gap-2 px-3 py-1 rounded-lg border transition-all ${isExtracting ? 'bg-indigo-50 border-indigo-200 cursor-wait' : 'bg-indigo-50/20 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200'}`}
+                                            >
+                                                <Camera size={12} className="text-indigo-600" />
+                                                <span className="text-[10px] font-bold text-indigo-600">Camera</span>
+                                            </button>
+                                        </>
+                                    )}
+
                                     <button
                                         onClick={resetForm}
                                         className="px-3 py-1 text-[10px] font-bold text-slate-400 hover:text-indigo-600 border border-slate-200 rounded-lg hover:border-indigo-200 transition"
@@ -917,6 +938,8 @@ export default function RecordsList() {
                                     </button>
                                 </div>
                             </div>
+
+                            {/* Form Content */}
 
                             <form onSubmit={handleCreate} className="space-y-4">
                                 {/* Hospital Selection for Super Admins */}
@@ -1008,7 +1031,7 @@ export default function RecordsList() {
                                                 <select
                                                     className="px-1 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-xs font-bold text-slate-700"
                                                     value={ageUnit}
-                                                    onChange={e => setAgeUnit(e.target.value)}
+                                                    onChange={e => setAgeUnit(e.target.value as any)}
                                                 >
                                                     <option value="Years">Yr</option>
                                                     <option value="Months">Mo</option>
@@ -1212,6 +1235,12 @@ export default function RecordsList() {
                     </div>
                 )
             }
+
+            <CameraModal
+                isOpen={showCameraModal}
+                onClose={() => setShowCameraModal(false)}
+                onCapture={handleCameraCapture}
+            />
         </div>
     );
 }

@@ -190,6 +190,14 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
     finally:
         db.close()
 
+def log_ocr(msg: str):
+    print(msg)
+    try:
+        with open("backend/logs/ocr_debug.log", "a", encoding="utf-8") as f:
+            f.write(f"{msg}\n")
+    except Exception:
+        pass
+
 def run_post_confirmation_ocr(file_id: int):
     """
     Background Task to run OCR after file is confirmed.
@@ -201,7 +209,7 @@ def run_post_confirmation_ocr(file_id: int):
         if not db_file:
             return
 
-        print(f"🔍 Post-Confirmation OCR Started: {file_id}")
+        log_ocr(f"🔍 Post-Confirmation OCR Started: {file_id}")
         db_file.processing_stage = 'analyzing'
         db.commit()
         
@@ -209,7 +217,7 @@ def run_post_confirmation_ocr(file_id: int):
         try:
             encrypted_bytes = s3_manager.get_file_bytes(db_file.s3_key)
             if not encrypted_bytes:
-                print(f"❌ Physical file not found for OCR: {db_file.s3_key}")
+                log_ocr(f"❌ Physical file not found for OCR: {db_file.s3_key}")
                 return
                 
             from ..services.encryption import decrypt_data
@@ -226,20 +234,20 @@ def run_post_confirmation_ocr(file_id: int):
                 if auto_tags:
                     db_file.tags = ", ".join(auto_tags)
                 
-                print(f"✅ Post-Confirmation OCR Complete: {file_id}")
+                log_ocr(f"✅ Post-Confirmation OCR Complete: {file_id}")
             else:
-                print(f"ℹ️ No OCR text found for {file_id}")
+                log_ocr(f"ℹ️ No OCR text found for {file_id}")
                 
             db_file.processing_stage = 'completed'
             db.commit()
             
         except Exception as e:
-            print(f"❌ Post-Confirmation OCR Error during processing: {e}")
+            log_ocr(f"❌ Post-Confirmation OCR Error during processing: {e}")
             db_file.processing_stage = 'completed' # Still completed even if OCR fails
             db.commit()
             
     except Exception as e:
-        print(f"❌ Post-Confirmation OCR Task Error: {e}")
+        log_ocr(f"❌ Post-Confirmation OCR Task Error: {e}")
     finally:
         db.close()
 
@@ -628,9 +636,13 @@ def search_files(q: str, db: Session = Depends(get_db), current_user: User = Dep
         for f in filtered_results
     ]
 
+@router.get("/next-id")
+def get_next_mrd_id(hospital_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    target_hospital_id = current_user.hospital_id
+
     if current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
-         if hospital_id:
-             target_hospital_id = hospital_id
+        if hospital_id:
+            target_hospital_id = hospital_id
     
     if not target_hospital_id:
         raise HTTPException(status_code=400, detail="Hospital Context Required")
@@ -853,22 +865,27 @@ async def extract_patient_details_from_file(
         content = await file.read()
         filename = file.filename.lower()
         
+        print(f"DEBUG: Processing /extract-details. Filename: {filename}, Size: {len(content)} bytes")
+        
         extracted_text = ""
+        extracted_json = None
+
         if filename.endswith(".pdf"):
             extracted_text = extract_text_from_pdf(content)
+            if not extracted_text:
+                print(f"DEBUG: OCR returned empty text for {filename}")
+                raise HTTPException(status_code=400, detail="No text found in document. Please ensure the file is clear.")
+            # Pass to Gemini for structured extraction from text
+            extracted_json = ai_service.extract_patient_details(extracted_text)
         elif filename.endswith((".png", ".jpg", ".jpeg", ".webp")):
-            extracted_text = extract_text_from_image(content)
+            # NEW: Use Gemini Vision directly for images
+            mime_type = file.content_type or "image/jpeg"
+            extracted_json = ai_service.extract_patient_details_from_image(content, mime_type)
         else:
             raise HTTPException(status_code=400, detail="Unsupported file format. Use PDF or Image.")
 
-        if not extracted_text:
-            raise HTTPException(status_code=400, detail="Could not extract text from document.")
-
-        # Pass to Gemini
-        extracted_json = ai_service.extract_patient_details(extracted_text)
-        
         if not extracted_json:
-            raise HTTPException(status_code=500, detail="AI extraction failed. Please enter details manually.")
+            raise HTTPException(status_code=500, detail="AI extraction failed. Please ensure the document is clear and contains patient details.")
 
         return extracted_json
     except HTTPException as he:

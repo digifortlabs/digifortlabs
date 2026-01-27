@@ -85,3 +85,54 @@ async def run_bulk_ocr(
         "message": f"Triggered OCR for {count} files.", 
         "candidates": [f.file_id for f in candidates]
     }
+
+@router.get("/ocr-status")
+async def get_ocr_status(
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Returns the count of files in different OCR stages.
+    """
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.PLATFORM_STAFF]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    pending = db.query(PDFFile).filter(
+        PDFFile.upload_status == 'confirmed',
+        PDFFile.is_searchable == False,
+        PDFFile.processing_stage != 'analyzing'
+    ).count()
+
+    analyzing = db.query(PDFFile).filter(
+        PDFFile.processing_stage == 'analyzing'
+    ).count()
+
+    completed = db.query(PDFFile).filter(
+        PDFFile.is_searchable == True
+    ).count()
+
+    return {
+        "pending_ocr": pending,
+        "analyzing": analyzing,
+        "completed_ocr": completed
+    }
+
+@router.get("/ocr-logs")
+async def get_ocr_logs(current_user: User = Depends(get_current_user)):
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.PLATFORM_STAFF]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    log_file = "backend/logs/ocr_debug.log"
+    logs = []
+    try:
+        import os
+        if os.path.exists(log_file):
+            with open(log_file, "r", encoding="utf-8") as f:
+                logs = f.readlines()
+                # Get last 50 lines
+                logs = logs[-50:]
+                logs = [l.strip() for l in logs]
+    except Exception as e:
+        logs = [f"Error reading logs: {e}"]
+        
+    return {"logs": logs}
