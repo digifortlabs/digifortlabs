@@ -17,12 +17,16 @@ class AIService:
                     if 'generateContent' in m.supported_generation_methods:
                         print(f"  - {m.name} (Supports content generation)")
                 
-                # Heuristic: Try to find a flash model in the list
+                # Heuristic: Try to find the best available multimodal model
                 flash_models = [m for m in available if "flash" in m.lower()]
+                pro_models = [m for m in available if "pro" in m.lower()]
+                
                 if "models/gemini-1.5-flash-8b" in available:
                     self.model_name = "gemini-1.5-flash-8b"
                 elif flash_models:
                     self.model_name = flash_models[0].replace("models/", "")
+                elif pro_models:
+                    self.model_name = pro_models[0].replace("models/", "")
                 else:
                     self.model_name = "gemini-1.5-flash" # Fallback
                 
