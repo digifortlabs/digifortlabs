@@ -12,8 +12,9 @@ from ..database import SessionLocal, get_db
 from ..models import BandwidthUsage, Patient, PDFFile, User, UserRole
 from ..routers.auth import get_current_user
 from ..services.compression import compress_pdf, compress_video_to_mp4
-from ..services.ocr import extract_text_from_pdf, classify_document
+from ..services.ocr import extract_text_from_pdf, classify_document, extract_text_from_image
 from ..services.s3_handler import S3Manager
+from ..services.ai_service import ai_service
 from ..services.storage_service import StorageService
 
 router = APIRouter(tags=["patients"])
@@ -627,16 +628,6 @@ def search_files(q: str, db: Session = Depends(get_db), current_user: User = Dep
         for f in filtered_results
     ]
 
-@router.get("/next-id")
-def get_next_mrd(
-    hospital_id: Optional[int] = None, 
-    db: Session = Depends(get_db), 
-    current_user: User = Depends(get_current_user)
-):
-    # Determine effective hospital_id
-    target_hospital_id = current_user.hospital_id
-    
-    # If Super Admin, allow overriding/specifying hospital_id
     if current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
          if hospital_id:
              target_hospital_id = hospital_id
@@ -847,6 +838,44 @@ def update_ocr_text(file_id: int, body: OCRUpdateRequest, db: Session = Depends(
         
     # 2. Update Text
     f.ocr_text = body.ocr_text
+    db.commit()
+    return {"message": "OCR text updated"}
+
+@router.post("/extract-details")
+async def extract_patient_details_from_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Extracts structured patient data from an uploaded document (PDF or Image).
+    """
+    try:
+        content = await file.read()
+        filename = file.filename.lower()
+        
+        extracted_text = ""
+        if filename.endswith(".pdf"):
+            extracted_text = extract_text_from_pdf(content)
+        elif filename.endswith((".png", ".jpg", ".jpeg", ".webp")):
+            extracted_text = extract_text_from_image(content)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file format. Use PDF or Image.")
+
+        if not extracted_text:
+            raise HTTPException(status_code=400, detail="Could not extract text from document.")
+
+        # Pass to Gemini
+        extracted_json = ai_service.extract_patient_details(extracted_text)
+        
+        if not extracted_json:
+            raise HTTPException(status_code=500, detail="AI extraction failed. Please enter details manually.")
+
+        return extracted_json
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"❌ Extraction API Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     
     # 3. Update Tags
     if body.tags is not None:

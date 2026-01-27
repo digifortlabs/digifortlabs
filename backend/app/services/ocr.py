@@ -159,20 +159,31 @@ def find_icd11_candidates(text: str) -> list[str]:
         return []
         
     # Pattern: Word boundary, 4 chars (at least one letter?), optional dot + alphanumeric
-    # Refined: ICD-11 codes usually start with a letter or number (Chapters 1-9, A-X). 
-    # Example: 1A00, CA01, XT9T. 
-    # Let's match 4 alphanumerics.
     pattern = r"\b[A-Z0-9][A-Z0-9]{3}(?:\.[A-Z0-9]+)?\b"
     
     matches = re.findall(pattern, text)
-    
-    # Filter out common false positives (e.g. dates 2024, words LIKE) if strictly uppercase
-    # We assume standard OCR output might be messy, so we filter basic stuff.
-    # For now, return all unique matches that look reasonable.
     unique_candidates = sorted(list(set(matches)))
     
-    # Simple heuristic to remove likely years (19xx, 20xx) if they appear in isolation
+    # Filter out common false positives (e.g. dates 2024, words LIKE) if strictly uppercase
     filtered = [m for m in unique_candidates if not (m.isdigit() and (m.startswith('19') or m.startswith('20')))]
     
     return filtered
+
+def extract_text_from_image(file_bytes: bytes) -> str:
+    """
+    Extracts text from an image file (bytes) using Tesseract.
+    """
+    if not HAS_OCR:
+        print("[WARN] OCR disabled. Cannot extract text from image.")
+        return ""
+        
+    try:
+        from PIL import Image
+        image = Image.open(io.BytesIO(file_bytes))
+        text = pytesseract.image_to_string(image)
+        image.close()
+        return text.strip()
+    except Exception as e:
+        print(f"[ERROR] Image OCR Failed: {e}")
+        return ""
 

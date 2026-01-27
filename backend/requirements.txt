@@ -27,3 +27,4 @@ scikit-image
 pytesseract
 pdf2image
 Pillow
+google-generativeai

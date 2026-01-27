@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Plus, FileText, ChevronRight, Upload, User, ArrowRight, Pencil, Trash2, Building2, Layout, Tag, ArrowUpDown } from 'lucide-react';
+import { Search, Filter, Plus, FileText, ChevronRight, Upload, User, ArrowRight, Pencil, Trash2, Building2, Layout, Tag, ArrowUpDown, Sparkles, Loader2 } from 'lucide-react';
 import PatientDetailView from './components/PatientDetailView';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL } from '../../../config/api';
@@ -46,6 +46,7 @@ export default function RecordsList() {
 
     const [isEditing, setIsEditing] = useState(false);
     const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+    const [isExtracting, setIsExtracting] = useState(false);
 
     // Sorting
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
@@ -163,6 +164,49 @@ export default function RecordsList() {
 
     const [lastMRD, setLastMRD] = useState<string | null>(null);
     const [lastAssignedMRD, setLastAssignedMRD] = useState<string | null>(null);
+
+    const handleAIExtraction = async (file: File) => {
+        setIsExtracting(true);
+        const token = localStorage.getItem('token');
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch(`${API_URL}/patients/extract-details`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                const { val, unit } = parseAgeString(data.age || '');
+
+                setNewPatient(prev => ({
+                    ...prev,
+                    full_name: data.full_name || prev.full_name,
+                    age: val || prev.age,
+                    gender: data.gender || prev.gender,
+                    address: data.address || prev.address,
+                    contact_number: data.contact_number || prev.contact_number,
+                    aadhaar_number: data.aadhaar_number || prev.aadhaar_number,
+                    dob: data.dob || prev.dob,
+                    diagnosis: data.diagnosis || prev.diagnosis,
+                    uhid: data.uhid || prev.uhid
+                }));
+                if (unit) setAgeUnit(unit);
+                alert("✨ AI Magic complete! Fields have been auto-filled.");
+            } else {
+                const err = await res.json();
+                alert(`AI Extraction failed: ${err.detail || 'Unknown error'}`);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Network error during AI extraction.");
+        } finally {
+            setIsExtracting(false);
+        }
+    };
 
     const parseAgeString = (ageStr: string | number) => {
         if (!ageStr) return { val: '', unit: 'Years' };
@@ -423,7 +467,7 @@ export default function RecordsList() {
         const token = localStorage.getItem('token');
         if (!token) return;
         try {
-            let url = `${API_URL}/patients/doctors/`;
+            let url = `${API_URL}/patients/doctors`;
             if (selectedHospitalId && (userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff')) {
                 url += `?hospital_id=${selectedHospitalId}`;
             }
@@ -835,6 +879,30 @@ export default function RecordsList() {
                                     <User className="text-indigo-600" size={20} /> {isEditing ? 'Edit Patient' : 'Register New Patient'}
                                 </h2>
                                 <div className="flex gap-2">
+                                    <label className={`flex items-center gap-2 px-3 py-1 rounded-lg border cursor-pointer transition-all ${isExtracting ? 'bg-indigo-50 border-indigo-200 cursor-wait' : 'bg-indigo-50/20 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200'}`}>
+                                        {isExtracting ? (
+                                            <>
+                                                <Loader2 size={12} className="text-indigo-600 animate-spin" />
+                                                <span className="text-[10px] font-bold text-indigo-600">AI Processing...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Sparkles size={12} className="text-indigo-600" />
+                                                <span className="text-[10px] font-bold text-indigo-600">Magic AI</span>
+                                                <input
+                                                    type="file"
+                                                    className="hidden"
+                                                    accept="image/*,.pdf"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) handleAIExtraction(file);
+                                                        e.target.value = '';
+                                                    }}
+                                                    disabled={isExtracting}
+                                                />
+                                            </>
+                                        )}
+                                    </label>
                                     <button
                                         onClick={resetForm}
                                         className="px-3 py-1 text-[10px] font-bold text-slate-400 hover:text-indigo-600 border border-slate-200 rounded-lg hover:border-indigo-200 transition"

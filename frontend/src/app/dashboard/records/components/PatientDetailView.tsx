@@ -275,7 +275,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
 
     const fetchDoctors = async (token: string) => {
         try {
-            const res = await fetch(`${API_URL}/patients/doctors/`, {
+            const res = await fetch(`${API_URL}/patients/doctors`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) setHospitalDoctors(await res.json());
