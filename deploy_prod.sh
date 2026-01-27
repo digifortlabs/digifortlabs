@@ -29,6 +29,9 @@ rm -rf backend/tests frontend/__tests__
 # System-wide cleanup
 sudo dnf clean all
 rm -rf ~/.cache ~/.npm
+npm cache clean --force || true
+find . -type d -name "__pycache__" -exec rm -rf {} +
+sudo rm -rf /tmp/* || true
 if command -v docker &> /dev/null; then sudo docker system prune -f; fi
 
 # Dependency Check (Node 20 & Python)
