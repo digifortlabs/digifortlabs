@@ -95,7 +95,7 @@ class User(Base):
 class Patient(Base):
     __tablename__ = "patients"
 
-    patient_id = Column(Integer, primary_key=True, index=True)
+    record_id = Column(Integer, primary_key=True, index=True)
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
     patient_u_id = Column(String, unique=True, index=True, nullable=False) # MRD NUMBER
     uhid = Column(String, index=True, nullable=True) # Alternate ID
@@ -120,12 +120,14 @@ class Patient(Base):
     # Relationships
     hospital = relationship("Hospital", back_populates="patients")
     files = relationship("PDFFile", back_populates="patient", cascade="all, delete-orphan")
+    diagnoses = relationship("PatientDiagnosis")
+    procedures = relationship("PatientProcedure")
 
 class PDFFile(Base):
     __tablename__ = "pdf_files"
 
     file_id = Column(Integer, primary_key=True, index=True)
-    patient_id = Column(Integer, ForeignKey("patients.patient_id"), nullable=False)
+    record_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
     filename = Column(String, nullable=False)
     file_path = Column(String, nullable=False) # Key in S3 or local path
     file_size = Column(Integer, nullable=True) # In bytes
@@ -141,6 +143,15 @@ class PDFFile(Base):
     
     # Storage linkage
     box_id = Column(Integer, ForeignKey("physical_boxes.box_id"), nullable=True)
+    
+    # Billing captures (Historical)
+    price_per_file = Column(Float, default=100.0)
+    included_pages = Column(Integer, default=20)
+    price_per_extra_page = Column(Float, default=1.0)
+    file_size_mb = Column(Float, default=0.0)
+    
+    payment_date = Column(DateTime(timezone=True), nullable=True)
+    tags = Column(String, nullable=True) # comma separated
     
     # Relationships
     patient = relationship("Patient", back_populates="files")
@@ -309,6 +320,8 @@ class AccountingVendor(Base):
     gst_number = Column(String, nullable=True)
     address = Column(String, nullable=True)
     phone = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    contact_person = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
 
 class AccountingExpense(Base):
@@ -320,6 +333,9 @@ class AccountingExpense(Base):
     category = Column(String, nullable=False)
     date = Column(DateTime, server_default=func.now())
     payment_status = Column(String, default="UNPAID") # PAID, UNPAID
+    payment_method = Column(String, default="Cash") 
+    reference_number = Column(String, nullable=True) 
+    tax_amount = Column(Float, default=0.0)
     description = Column(String, nullable=True)
 
 class AccountingTransaction(Base):
@@ -448,3 +464,38 @@ class InventoryLog(Base):
     
     item = relationship("InventoryItem")
     user = relationship("User")
+
+class ICD11Code(Base):
+    __tablename__ = "icd11_codes"
+    code = Column(String, primary_key=True, index=True)
+    description = Column(String, nullable=False)
+    chapter = Column(String, nullable=True)
+
+class PatientDiagnosis(Base):
+    __tablename__ = "patient_diagnoses"
+    diagnosis_id = Column(Integer, primary_key=True, index=True)
+    record_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    code = Column(String, ForeignKey("icd11_codes.code"), nullable=False)
+    notes = Column(Text, nullable=True)
+    diagnosed_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    diagnosed_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    icd_code = relationship("ICD11Code")
+    doctor = relationship("User")
+
+class ICD11ProcedureCode(Base):
+    __tablename__ = "icd11_procedure_codes"
+    code = Column(String, primary_key=True, index=True)
+    description = Column(String, nullable=False)
+
+class PatientProcedure(Base):
+    __tablename__ = "patient_procedures"
+    procedure_id = Column(Integer, primary_key=True, index=True)
+    record_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    code = Column(String, ForeignKey("icd11_procedure_codes.code"), nullable=False)
+    notes = Column(Text, nullable=True)
+    performed_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    performed_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    procedure_code = relationship("ICD11ProcedureCode")
+    doctor = relationship("User")
