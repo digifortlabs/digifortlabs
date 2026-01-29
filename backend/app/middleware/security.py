@@ -75,14 +75,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if request.url.scheme == "https":
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         
-        # Content Security Policy
+        # Content Security Policy (Relaxed for production stabilization)
         csp = (
-            "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-            "font-src 'self' https://fonts.gstatic.com; "
-            "img-src 'self' data: https:; "
-            "connect-src 'self' https://digifortlabs.com https://icdaccessmanagement.who.int https://id.who.int; "
+            "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; "
+            "connect-src * 'unsafe-inline'; "
             "frame-ancestors 'none';"
         )
         response.headers["Content-Security-Policy"] = csp

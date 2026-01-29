@@ -77,10 +77,9 @@ async def login_for_access_token(
                 detail=f"Account locked due to multiple failed attempts. Try again in {remaining_mins + 1} minutes."
             )
         else:
-            # Lock expired, reset counters
+            # Lock expired, reset counters (don't commit yet, wait for full success)
             user.locked_until = None
             user.failed_login_attempts = 0
-            db.commit()
 
     # 2. Verify Password
     if not verify_password(form_data.password, user.hashed_password):
@@ -91,6 +90,7 @@ async def login_for_access_token(
         if user.failed_login_attempts >= 5:
             # Requirements #11: Lockout + Email
             user.locked_until = datetime.utcnow() + timedelta(minutes=15)
+            # Commit lockout immediately to prevent further attempts
             db.commit()
             
             # Send Lockout Email
@@ -153,13 +153,16 @@ async def login_for_access_token(
     expires_delta = None
     if user.role == UserRole.SUPER_ADMIN:
         expires_delta = timedelta(days=30)
-        print(f"[AUTH] granting long-lived session (30 days) to superadmin: {user.email}")
 
     # Add Hospital Name if available
     if user.hospital:
         token_data["hospital_name"] = user.hospital.legal_name
 
     access_token = create_access_token(data=token_data, expires_delta=expires_delta)
+    
+    # Final Commit for Everything at the very end
+    db.commit()
+    
     return {"access_token": access_token, "token_type": "bearer"}
 
 
@@ -266,9 +269,11 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
             detail="System is currently under maintenance. Please try again later.",
         )
     
-    # Update Last Active Timestamp
+    # Update Last Active Timestamp (Optimized: only if > 5 mins since last update)
     from datetime import datetime
-    user.last_active_at = datetime.utcnow()
-    db.commit()
+    now = datetime.utcnow()
+    if not user.last_active_at or (now - user.last_active_at).total_seconds() > 300:
+        user.last_active_at = now
+        db.commit()
     
     return user

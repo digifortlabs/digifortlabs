@@ -49,9 +49,14 @@ app.add_middleware(BandwidthMiddleware)
 
 # IMPORTANT: CORS must be added LAST to be the outermost middleware 
 # and handle preflight requests before security headers or rate limits.
+cors_origins = [str(origin) for origin in settings.BACKEND_CORS_ORIGINS]
+# Ensure production domains are always included if not matched
+if "https://digifortlabs.com" not in cors_origins:
+    cors_origins.extend(["https://digifortlabs.com", "http://digifortlabs.com", "https://www.digifortlabs.com"])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
