@@ -25,8 +25,12 @@ async def health_check():
 @router.get("/settings")
 async def get_settings(db: Session = Depends(get_db)):
     # All users can arguably see settings (like announcement), but only admin can edit.
-    settings = db.query(SystemSetting).all()
-    return {s.key: s.value for s in settings}
+    try:
+        settings = db.query(SystemSetting).all()
+        return {s.key: s.value for s in settings}
+    except Exception as e:
+        print(f"Settings Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/settings/{key}")
 async def update_setting(key: str, update: SettingUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -80,7 +84,7 @@ async def run_bulk_ocr(
     count = 0
     for file in candidates:
         file.processing_stage = 'analyzing'
-        background_tasks.add_task(run_post_confirmation_ocr, file.file_id, db) # Note: db session sharing might be tricky in bg tasks, ideally new session
+        background_tasks.add_task(run_post_confirmation_ocr, file.file_id) # Fixed: Do not pass DB session
         count += 1
     
     db.commit() # Save 'analyzing' state
@@ -107,42 +111,48 @@ async def get_ocr_status(
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.PLATFORM_STAFF]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    pending = db.query(PDFFile).filter(
-        PDFFile.upload_status == 'confirmed',
-        PDFFile.is_searchable == False,
-        PDFFile.processing_stage != 'analyzing'
-    ).count()
+    try:
+        pending = db.query(PDFFile).filter(
+            PDFFile.upload_status == 'confirmed',
+            PDFFile.is_searchable == False,
+            PDFFile.processing_stage != 'analyzing'
+        ).count()
 
-    analyzing = db.query(PDFFile).filter(
-        PDFFile.processing_stage == 'analyzing'
-    ).count()
+        analyzing = db.query(PDFFile).filter(
+            PDFFile.processing_stage == 'analyzing'
+        ).count()
 
-    completed = db.query(PDFFile).filter(
-        PDFFile.is_searchable == True
-    ).count()
+        completed = db.query(PDFFile).filter(
+            PDFFile.is_searchable == True
+        ).count()
 
-    return {
-        "pending_ocr": pending,
-        "analyzing": analyzing,
-        "completed_ocr": completed
-    }
+        return {
+            "pending_ocr": pending,
+            "analyzing": analyzing,
+            "completed_ocr": completed
+        }
+    except Exception as e:
+        print(f"OCR Status Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/ocr-logs")
 async def get_ocr_logs(current_user: User = Depends(get_current_user)):
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.PLATFORM_STAFF]:
         raise HTTPException(status_code=403, detail="Not authorized")
         
-    log_file = "backend/logs/ocr_debug.log"
+    log_file = os.path.join(os.getcwd(), "backend", "logs", "ocr_debug.log")
     logs = []
     try:
-        import os
         if os.path.exists(log_file):
             with open(log_file, "r", encoding="utf-8") as f:
                 logs = f.readlines()
                 # Get last 50 lines
                 logs = logs[-50:]
                 logs = [l.strip() for l in logs]
+        else:
+             logs = ["Log file not found."]
     except Exception as e:
+        print(f"Error reading logs: {e}")
         logs = [f"Error reading logs: {e}"]
         
     return {"logs": logs}
