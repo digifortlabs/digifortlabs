@@ -617,7 +617,7 @@ async def get_unbilled_files(hospital_id: int, db: Session = Depends(get_db)):
 
     pfiles = db.query(PDFFile).join(Patient).filter(
         Patient.hospital_id == hospital_id,
-        PDFFile.processing_stage.in_(['completed', 'analyzing']), # Allow analyzing if pages are counted
+        PDFFile.upload_status == 'confirmed',  # Only confirmed files (not drafts)
         not_(PDFFile.file_id.in_(billed_file_ids))
     ).all()
     
