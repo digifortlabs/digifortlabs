@@ -1133,6 +1133,182 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                     </div>
                 </div>
 
+
+
+                {/* Clinical Diagnoses Card */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                    <div className="flex justify-between items-center mb-4 border-b pb-2">
+                        <h2 className="text-lg font-semibold flex items-center gap-2">
+                            <Stethoscope className="text-indigo-600" size={20} /> Clinical Diagnoses
+                        </h2>
+                        {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'website_staff' || userRole === 'superadmin') && (
+                            <button
+                                onClick={() => setIsAddingDiag(!isAddingDiag)}
+                                className={`text-xs px-3 py-1.5 rounded-lg border font-bold transition-all ${isAddingDiag ? 'bg-red-50 text-red-600 border-red-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'}`}
+                            >
+                                {isAddingDiag ? 'Cancel' : <><Plus size={14} /> Add</>}
+                            </button>
+                        )}
+                    </div>
+
+                    {isAddingDiag && (
+                        <div className="mb-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 animate-in fade-in slide-in-from-top-2">
+                            <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Search ICD-11 Database</p>
+                            {!selectedCode ? (
+                                <>
+                                    <div className="relative">
+                                        {isSearchingDiag ? (
+                                            <Loader2 className="absolute left-3 top-2.5 text-indigo-400 animate-spin" size={16} />
+                                        ) : (
+                                            <Search className="absolute left-3 top-2.5 text-indigo-400" size={16} />
+                                        )}
+                                        <input
+                                            autoFocus
+                                            className="w-full border border-indigo-200 p-2 pl-10 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            placeholder="Search diagnosis (e.g. Diabetes, Fever)..."
+                                            value={diagSearch}
+                                            onChange={e => searchDiagnoses(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="mt-2 max-h-48 overflow-y-auto bg-white rounded-lg border border-indigo-100 shadow-sm">
+                                        {diagResults.length > 0 ? diagResults.map(r => (
+                                            <div key={r.code} onClick={() => setSelectedCode(r)} className="p-3 hover:bg-indigo-50 cursor-pointer border-b last:border-0 border-slate-50 flex flex-col">
+                                                <span className="font-bold text-indigo-700 text-xs">{r.code}</span>
+                                                <span className="text-sm text-slate-700">{r.description}</span>
+                                            </div>
+                                        )) : diagSearch.length >= 2 ? (
+                                            <div className="p-4 text-center text-slate-400 text-xs italic">No matching codes found.</div>
+                                        ) : null}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="space-y-3">
+                                    <div className="bg-white p-3 rounded-lg border border-indigo-200">
+                                        <span className="font-black text-indigo-700 text-xs">{selectedCode.code}</span>
+                                        <p className="text-sm font-bold text-slate-800">{selectedCode.description}</p>
+                                    </div>
+                                    <textarea
+                                        className="w-full border border-indigo-200 p-3 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-20"
+                                        placeholder="Add clinical notes (optional)..."
+                                        value={diagNotes}
+                                        onChange={e => setDiagNotes(e.target.value)}
+                                    />
+                                    <div className="flex gap-2">
+                                        <button onClick={addDiagnosis} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 w-full transition-all">Add to Record</button>
+                                        <button onClick={() => setSelectedCode(null)} className="text-slate-500 px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50 w-full transition-all">Cancel</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {diagnoses.length > 0 ? (
+                        <div className="space-y-2">
+                            {diagnoses.map(diag => (
+                                <div key={diag.diagnosis_id} className="p-3 bg-slate-50 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-100 flex justify-between group">
+                                    <div>
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 rounded text-xs">{diag.code}</span>
+                                            <span className="font-semibold text-slate-700 text-sm">{diag.description}</span>
+                                        </div>
+                                        {diag.notes && <p className="text-xs text-slate-500 mt-1 italic">"{diag.notes}"</p>}
+                                    </div>
+                                    {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'website_admin') && (
+                                        <button onClick={() => deleteDiagnosis(diag.diagnosis_id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : <p className="text-sm text-slate-400 italic">No diagnoses recorded.</p>}
+                </div>
+
+                {/* Clinical Procedures Card */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                    <div className="flex justify-between items-center mb-4 border-b pb-2">
+                        <h2 className="text-lg font-semibold flex items-center gap-2">
+                            <Syringe className="text-emerald-600" size={20} /> Procedures
+                        </h2>
+                        {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'superadmin') && (
+                            <button
+                                onClick={() => setIsAddingProc(!isAddingProc)}
+                                className={`text-xs px-3 py-1.5 rounded-lg border font-bold transition-all ${isAddingProc ? 'bg-red-50 text-red-600 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100'}`}
+                            >
+                                {isAddingProc ? 'Cancel' : <><Plus size={14} /> Add</>}
+                            </button>
+                        )}
+                    </div>
+
+                    {isAddingProc && (
+                        <div className="mb-4 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-top-2">
+                            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2">Search Procedures</p>
+                            {!selectedProcCode ? (
+                                <>
+                                    <div className="relative">
+                                        {isSearchingProc ? (
+                                            <Loader2 className="absolute left-3 top-2.5 text-emerald-400 animate-spin" size={16} />
+                                        ) : (
+                                            <Search className="absolute left-3 top-2.5 text-emerald-400" size={16} />
+                                        )}
+                                        <input
+                                            autoFocus
+                                            className="w-full border border-emerald-200 p-2 pl-10 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                                            placeholder="Search procedure (e.g. Surgery, X-Ray)..."
+                                            value={procSearch}
+                                            onChange={e => searchProcedures(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="mt-2 max-h-48 overflow-y-auto bg-white rounded-lg border border-emerald-100 shadow-sm">
+                                        {procResults.length > 0 ? procResults.map(r => (
+                                            <div key={r.code} onClick={() => setSelectedProcCode(r)} className="p-3 hover:bg-emerald-50 cursor-pointer border-b last:border-0 border-slate-50 flex flex-col">
+                                                <span className="font-bold text-emerald-700 text-xs">{r.code}</span>
+                                                <span className="text-sm text-slate-700">{r.description}</span>
+                                            </div>
+                                        )) : procSearch.length >= 2 ? (
+                                            <div className="p-4 text-center text-slate-400 text-xs italic">No matching procedures found.</div>
+                                        ) : null}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="space-y-3">
+                                    <div className="bg-white p-3 rounded-lg border border-emerald-200">
+                                        <span className="font-black text-emerald-700 text-xs">{selectedProcCode.code}</span>
+                                        <p className="text-sm font-bold text-slate-800">{selectedProcCode.description}</p>
+                                    </div>
+                                    <textarea
+                                        className="w-full border border-emerald-200 p-3 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none h-20"
+                                        placeholder="Add procedure notes..."
+                                        value={procNotes}
+                                        onChange={e => setProcNotes(e.target.value)}
+                                    />
+                                    <div className="flex gap-2">
+                                        <button onClick={addProcedure} className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-700 w-full transition-all">Add to Record</button>
+                                        <button onClick={() => setSelectedProcCode(null)} className="text-slate-500 px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50 w-full transition-all">Cancel</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {procedures.length > 0 ? (
+                        <div className="space-y-2">
+                            {procedures.map((proc, idx) => (
+                                <div key={idx} className="p-3 bg-slate-50 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-100 flex justify-between group">
+                                    <div>
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 rounded text-xs">{proc.code}</span>
+                                            <span className="font-semibold text-slate-700 text-sm">{proc.description}</span>
+                                        </div>
+                                        {proc.notes && <p className="text-xs text-slate-500 mt-1 italic">"{proc.notes}"</p>}
+                                    </div>
+                                    {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'website_admin') && (
+                                        <button onClick={() => deleteProcedure(proc.procedure_id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : <p className="text-sm text-slate-400 italic">No procedures recorded.</p>}
+                </div>
+
                 {/* Digitized Files Section */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
                     <h2 className="text-base font-semibold mb-3 border-b pb-2">Digitized Files ({(patient.files || []).length})</h2>
@@ -1327,180 +1503,6 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                             )}
                         </div>
                     )}
-                </div>
-
-                {/* Clinical Diagnoses Card */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                    <div className="flex justify-between items-center mb-4 border-b pb-2">
-                        <h2 className="text-lg font-semibold flex items-center gap-2">
-                            <Stethoscope className="text-indigo-600" size={20} /> Clinical Diagnoses
-                        </h2>
-                        {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'website_staff' || userRole === 'superadmin') && (
-                            <button
-                                onClick={() => setIsAddingDiag(!isAddingDiag)}
-                                className={`text-xs px-3 py-1.5 rounded-lg border font-bold transition-all ${isAddingDiag ? 'bg-red-50 text-red-600 border-red-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'}`}
-                            >
-                                {isAddingDiag ? 'Cancel' : <><Plus size={14} /> Add</>}
-                            </button>
-                        )}
-                    </div>
-
-                    {isAddingDiag && (
-                        <div className="mb-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 animate-in fade-in slide-in-from-top-2">
-                            <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Search ICD-11 Database</p>
-                            {!selectedCode ? (
-                                <>
-                                    <div className="relative">
-                                        {isSearchingDiag ? (
-                                            <Loader2 className="absolute left-3 top-2.5 text-indigo-400 animate-spin" size={16} />
-                                        ) : (
-                                            <Search className="absolute left-3 top-2.5 text-indigo-400" size={16} />
-                                        )}
-                                        <input
-                                            autoFocus
-                                            className="w-full border border-indigo-200 p-2 pl-10 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                            placeholder="Search diagnosis (e.g. Diabetes, Fever)..."
-                                            value={diagSearch}
-                                            onChange={e => searchDiagnoses(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="mt-2 max-h-48 overflow-y-auto bg-white rounded-lg border border-indigo-100 shadow-sm">
-                                        {diagResults.length > 0 ? diagResults.map(r => (
-                                            <div key={r.code} onClick={() => setSelectedCode(r)} className="p-3 hover:bg-indigo-50 cursor-pointer border-b last:border-0 border-slate-50 flex flex-col">
-                                                <span className="font-bold text-indigo-700 text-xs">{r.code}</span>
-                                                <span className="text-sm text-slate-700">{r.description}</span>
-                                            </div>
-                                        )) : diagSearch.length >= 2 ? (
-                                            <div className="p-4 text-center text-slate-400 text-xs italic">No matching codes found.</div>
-                                        ) : null}
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="space-y-3">
-                                    <div className="bg-white p-3 rounded-lg border border-indigo-200">
-                                        <span className="font-black text-indigo-700 text-xs">{selectedCode.code}</span>
-                                        <p className="text-sm font-bold text-slate-800">{selectedCode.description}</p>
-                                    </div>
-                                    <textarea
-                                        className="w-full border border-indigo-200 p-3 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-20"
-                                        placeholder="Add clinical notes (optional)..."
-                                        value={diagNotes}
-                                        onChange={e => setDiagNotes(e.target.value)}
-                                    />
-                                    <div className="flex gap-2">
-                                        <button onClick={addDiagnosis} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 w-full transition-all">Add to Record</button>
-                                        <button onClick={() => setSelectedCode(null)} className="text-slate-500 px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50 w-full transition-all">Cancel</button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {diagnoses.length > 0 ? (
-                        <div className="space-y-2">
-                            {diagnoses.map(diag => (
-                                <div key={diag.diagnosis_id} className="p-3 bg-slate-50 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-100 flex justify-between group">
-                                    <div>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 rounded text-xs">{diag.code}</span>
-                                            <span className="font-semibold text-slate-700 text-sm">{diag.description}</span>
-                                        </div>
-                                        {diag.notes && <p className="text-xs text-slate-500 mt-1 italic">"{diag.notes}"</p>}
-                                    </div>
-                                    {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'website_admin') && (
-                                        <button onClick={() => deleteDiagnosis(diag.diagnosis_id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    ) : <p className="text-sm text-slate-400 italic">No diagnoses recorded.</p>}
-                </div>
-
-                {/* Clinical Procedures Card */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                    <div className="flex justify-between items-center mb-4 border-b pb-2">
-                        <h2 className="text-lg font-semibold flex items-center gap-2">
-                            <Syringe className="text-emerald-600" size={20} /> Procedures
-                        </h2>
-                        {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'superadmin') && (
-                            <button
-                                onClick={() => setIsAddingProc(!isAddingProc)}
-                                className={`text-xs px-3 py-1.5 rounded-lg border font-bold transition-all ${isAddingProc ? 'bg-red-50 text-red-600 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100'}`}
-                            >
-                                {isAddingProc ? 'Cancel' : <><Plus size={14} /> Add</>}
-                            </button>
-                        )}
-                    </div>
-
-                    {isAddingProc && (
-                        <div className="mb-4 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-top-2">
-                            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2">Search Procedures</p>
-                            {!selectedProcCode ? (
-                                <>
-                                    <div className="relative">
-                                        {isSearchingProc ? (
-                                            <Loader2 className="absolute left-3 top-2.5 text-emerald-400 animate-spin" size={16} />
-                                        ) : (
-                                            <Search className="absolute left-3 top-2.5 text-emerald-400" size={16} />
-                                        )}
-                                        <input
-                                            autoFocus
-                                            className="w-full border border-emerald-200 p-2 pl-10 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                                            placeholder="Search procedure (e.g. Surgery, X-Ray)..."
-                                            value={procSearch}
-                                            onChange={e => searchProcedures(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="mt-2 max-h-48 overflow-y-auto bg-white rounded-lg border border-emerald-100 shadow-sm">
-                                        {procResults.length > 0 ? procResults.map(r => (
-                                            <div key={r.code} onClick={() => setSelectedProcCode(r)} className="p-3 hover:bg-emerald-50 cursor-pointer border-b last:border-0 border-slate-50 flex flex-col">
-                                                <span className="font-bold text-emerald-700 text-xs">{r.code}</span>
-                                                <span className="text-sm text-slate-700">{r.description}</span>
-                                            </div>
-                                        )) : procSearch.length >= 2 ? (
-                                            <div className="p-4 text-center text-slate-400 text-xs italic">No matching procedures found.</div>
-                                        ) : null}
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="space-y-3">
-                                    <div className="bg-white p-3 rounded-lg border border-emerald-200">
-                                        <span className="font-black text-emerald-700 text-xs">{selectedProcCode.code}</span>
-                                        <p className="text-sm font-bold text-slate-800">{selectedProcCode.description}</p>
-                                    </div>
-                                    <textarea
-                                        className="w-full border border-emerald-200 p-3 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none h-20"
-                                        placeholder="Add procedure notes..."
-                                        value={procNotes}
-                                        onChange={e => setProcNotes(e.target.value)}
-                                    />
-                                    <div className="flex gap-2">
-                                        <button onClick={addProcedure} className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-700 w-full transition-all">Add to Record</button>
-                                        <button onClick={() => setSelectedProcCode(null)} className="text-slate-500 px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50 w-full transition-all">Cancel</button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {procedures.length > 0 ? (
-                        <div className="space-y-2">
-                            {procedures.map((proc, idx) => (
-                                <div key={idx} className="p-3 bg-slate-50 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-100 flex justify-between group">
-                                    <div>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 rounded text-xs">{proc.code}</span>
-                                            <span className="font-semibold text-slate-700 text-sm">{proc.description}</span>
-                                        </div>
-                                        {proc.notes && <p className="text-xs text-slate-500 mt-1 italic">"{proc.notes}"</p>}
-                                    </div>
-                                    {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'website_admin') && (
-                                        <button onClick={() => deleteProcedure(proc.procedure_id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    ) : <p className="text-sm text-slate-400 italic">No procedures recorded.</p>}
                 </div>
 
                 <div className="mt-12 pt-8 border-t border-red-100 flex justify-center">
