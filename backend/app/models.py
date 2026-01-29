@@ -348,3 +348,15 @@ class AvailableInvoiceNumber(Base):
     __table_args__ = (
         UniqueConstraint('number', 'invoice_type', 'financial_year', name='uix_available_invoice'),
     )
+
+class BandwidthUsage(Base):
+    __tablename__ = "bandwidth_usage"
+    id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    month_year = Column(String, index=True) # e.g. "2026-01"
+    used_mb = Column(Float, default=0.0)
+    quota_limit_mb = Column(Float, default=1000.0)
+    
+    __table_args__ = (
+        UniqueConstraint('hospital_id', 'month_year', name='uix_hospital_month_bandwidth'),
+    )
