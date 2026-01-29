@@ -410,7 +410,7 @@ def generate_invoice(
                 invoice_type = 'nongst'
             
             # OPTIMIZED: Check cache table for available numbers (O(1) instead of O(n))
-            from .models import AvailableInvoiceNumber
+            from ..models import AvailableInvoiceNumber
             available = db.query(AvailableInvoiceNumber).filter(
                 AvailableInvoiceNumber.invoice_type == invoice_type,
                 AvailableInvoiceNumber.financial_year == config.current_fy
@@ -764,16 +764,54 @@ def delete_invoice(
             "payment_date": None
         }, synchronize_session=False)
 
+    # --- GAP FILLING LOGIC ---
+    # Recycle the invoice number for reuse
+    try:
+        config = db.query(AccountingConfig).first()
+        if config and invoice.invoice_number:
+            # Format: PREFIX/FY/NUMBER
+            parts = invoice.invoice_number.split('/')
+            if len(parts) == 3:
+                raw_number = int(parts[2])
+                fy = parts[1]
+                
+                # Determine type by prefix
+                inv_type = 'gst'
+                if parts[0] == config.invoice_prefix_nongst or parts[0] == "BOS":
+                    inv_type = 'nongst'
+                
+                from ..models import AvailableInvoiceNumber
+                # Add to pool if not already there
+                exists = db.query(AvailableInvoiceNumber).filter(
+                    AvailableInvoiceNumber.number == raw_number,
+                    AvailableInvoiceNumber.invoice_type == inv_type,
+                    AvailableInvoiceNumber.financial_year == fy
+                ).first()
+                
+                if not exists:
+                    pool_entry = AvailableInvoiceNumber(
+                        number=raw_number,
+                        invoice_type=inv_type,
+                        financial_year=fy
+                    )
+                    db.add(pool_entry)
+                    db.commit()
+    except Exception as e:
+        print(f"Non-critical error recycling invoice number: {e}")
+    # -------------------------
+
     # Delete Invoice (Cascade will delete items)
     db.delete(invoice)
     db.commit()
     
-    # Check if table is empty, if so, reset counters
+    # Check if table is empty, if so, reset pool and counters
     if db.query(Invoice).count() == 0:
-        config = db.query(AccountingConfig).first()
         if config:
             config.next_invoice_number = 1
             config.next_invoice_number_nongst = 1
+            
+            from ..models import AvailableInvoiceNumber
+            db.query(AvailableInvoiceNumber).delete() # Clear pool
             db.commit()
             
-    return {"message": "Invoice deleted, ledger updated, and items reset"}
+    return {"message": "Invoice deleted, number recycled, ledger updated, and items reset"}
