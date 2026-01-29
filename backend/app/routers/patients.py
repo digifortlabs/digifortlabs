@@ -1,7 +1,7 @@
 import datetime
 import os
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, Response
 from pydantic import BaseModel
