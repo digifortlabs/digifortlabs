@@ -67,14 +67,14 @@ class Hospital(Base):
     # Relationships
     users = relationship("User", back_populates="hospital")
     patients = relationship("Patient", back_populates="hospital")
-    inventory = relationship("Rack", back_populates="hospital")
+    inventory = relationship("PhysicalRack", back_populates="hospital")
     audit_logs = relationship("AuditLog", back_populates="hospital")
     invoices = relationship("Invoice", back_populates="hospital")
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     full_name = Column(String, nullable=False)
     phone = Column(String, nullable=True)
@@ -98,6 +98,7 @@ class Patient(Base):
     patient_id = Column(Integer, primary_key=True, index=True)
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
     patient_u_id = Column(String, unique=True, index=True, nullable=False) # MRD NUMBER
+    uhid = Column(String, index=True, nullable=True) # Alternate ID
     full_name = Column(String, nullable=False)
     gender = Column(String, nullable=True)
     age = Column(Integer, nullable=True)
@@ -107,6 +108,11 @@ class Patient(Base):
     total_bill_amount = Column(Float, nullable=True)
     diagnosis = Column(Text, nullable=True)
     is_deleted = Column(Boolean, default=False)
+    
+    # Storage linkage
+    physical_box_id = Column(Integer, ForeignKey("physical_boxes.box_id"), nullable=True)
+    
+    patient_category = Column(String, default="STANDARD") # STANDARD, MLC, BIRTH, DEATH
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
@@ -165,7 +171,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     log_id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=True)
     action = Column(String, nullable=False) # LOGIN, UPLOAD, VIEW_RECORD, DOWNLOAD, etc.
     module = Column(String, nullable=True) # AUTH, PATIENTS, BILLING
@@ -193,14 +199,19 @@ class Warehouse(Base):
     location = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     
-    racks = relationship("Rack", back_populates="warehouse")
+    racks = relationship("PhysicalRack", back_populates="warehouse")
 
-class Rack(Base):
-    __tablename__ = "racks"
+class PhysicalRack(Base):
+    __tablename__ = "physical_racks"
     rack_id = Column(Integer, primary_key=True, index=True)
-    warehouse_id = Column(Integer, ForeignKey("warehouses.warehouse_id"), nullable=False)
-    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=True)
-    name = Column(String, nullable=False) # e.g., R-01
+    warehouse_id = Column(Integer, ForeignKey("warehouses.warehouse_id"), nullable=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    label = Column(String, nullable=False) # e.g., RACK-A1-01
+    aisle = Column(Integer, default=1)
+    capacity = Column(Integer, default=500)
+    total_rows = Column(Integer, default=5)
+    total_columns = Column(Integer, default=10)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     warehouse = relationship("Warehouse", back_populates="racks")
     hospital = relationship("Hospital", back_populates="inventory")
@@ -209,20 +220,51 @@ class Rack(Base):
 class PhysicalBox(Base):
     __tablename__ = "physical_boxes"
     box_id = Column(Integer, primary_key=True, index=True)
-    rack_id = Column(Integer, ForeignKey("racks.rack_id"), nullable=False)
-    name = Column(String, unique=True, nullable=False) # e.g., BX-1002
+    rack_id = Column(Integer, ForeignKey("physical_racks.rack_id"), nullable=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    label = Column(String, unique=True, nullable=False) # e.g., BX-1002
+    location_code = Column(String, nullable=True)
+    status = Column(String, default="OPEN") # OPEN, CLOSED
+    is_open = Column(Boolean, default=False)
     capacity = Column(Integer, default=100)
-    status = Column(String, default="open") # open, full
+    rack_row = Column(Integer, nullable=True)
+    rack_column = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     sealed_date = Column(DateTime, nullable=True)
     
-    rack = relationship("Rack", back_populates="boxes")
+    rack = relationship("PhysicalRack", back_populates="boxes")
+    hospital = relationship("Hospital")
     files = relationship("PDFFile", back_populates="box")
+
+class PhysicalMovementLog(Base):
+    __tablename__ = "physical_movement_logs"
+    log_id = Column(Integer, primary_key=True, index=True)
+    action_type = Column(String, nullable=False) # CHECK-IN, CHECK-OUT
+    uhid = Column(String, nullable=False)
+    patient_name = Column(String, nullable=True)
+    destination = Column(String, nullable=True)
+    performed_by_user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    status = Column(String, default="Success")
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+
+class FileRequest(Base):
+    __tablename__ = "file_requests"
+    request_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    box_id = Column(Integer, ForeignKey("physical_boxes.box_id"), nullable=False)
+    requester_name = Column(String, nullable=False)
+    status = Column(String, default="Pending") # Pending, Completed, Rejected
+    request_date = Column(DateTime(timezone=True), server_default=func.now())
+    processed_date = Column(DateTime, nullable=True)
+    
+    hospital = relationship("Hospital")
+    box = relationship("PhysicalBox")
 
 class QAEntry(Base):
     __tablename__ = "qa_entries"
     qa_id = Column(Integer, primary_key=True, index=True)
     file_id = Column(Integer, ForeignKey("pdf_files.file_id"), nullable=False)
-    reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    reviewer_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     status = Column(String, default="pending") # pending, approved, rejected
     comments = Column(String, nullable=True)
     
@@ -360,3 +402,49 @@ class BandwidthUsage(Base):
     __table_args__ = (
         UniqueConstraint('hospital_id', 'month_year', name='uix_hospital_month_bandwidth'),
     )
+
+class PasswordResetOTP(Base):
+    __tablename__ = "password_reset_otps"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, index=True, nullable=False)
+    otp_code = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    is_used = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class QAIssue(Base):
+    __tablename__ = "qa_issues"
+    issue_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    filename = Column(String, nullable=True)
+    issue_type = Column(String, nullable=False) # 'data_error', 'image_blur', etc.
+    details = Column(Text, nullable=True)
+    severity = Column(String, default="medium") # 'low', 'medium', 'high', 'critical'
+    status = Column(String, default="open") # 'open', 'resolved', 'ignored'
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    hospital = relationship("Hospital")
+
+class InventoryItem(Base):
+    __tablename__ = "inventory_items"
+    item_id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, index=True, nullable=False)
+    category = Column(String, default="Consumables")
+    unit_price = Column(Float, default=0.0)
+    reorder_point = Column(Integer, default=10)
+    unit = Column(String, default="units") # 'pcs', 'boxes', 'rolls'
+    current_stock = Column(Integer, default=0)
+    last_updated = Column(DateTime, onupdate=func.now())
+
+class InventoryLog(Base):
+    __tablename__ = "inventory_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(Integer, ForeignKey("inventory_items.item_id"), nullable=False)
+    change_type = Column(String, nullable=False) # 'IN', 'OUT', 'ADJUST'
+    quantity = Column(Integer, nullable=False)
+    description = Column(String, nullable=True)
+    performed_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    
+    item = relationship("InventoryItem")
+    user = relationship("User")
