@@ -185,6 +185,12 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
     const [isSearchingDiag, setIsSearchingDiag] = useState(false);
     const [isSearchingProc, setIsSearchingProc] = useState(false);
 
+    // Desktop App Integration
+    const [isPollingForDesktop, setIsPollingForDesktop] = useState(false);
+    const [showToast, setShowToast] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
+    const prevFileCountRef = useRef(0);
+
     const addDoctorTag = (name: string) => {
         const trimmed = name.trim();
         if (!trimmed) return;
@@ -309,15 +315,35 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
         const token = localStorage.getItem('token');
         if (!token || !id || !patient) return;
 
+        // Update ref if patient changes (initial load or manual refresh)
+        // Only update ref if we are NOT polling for a specific event to avoid race conditions with the check below,
+        // or ensure we handle it correctly. Actually, we should update ref on every patient update EXCEPT when we are about to check.
+        // Simplified: Just check difference.
+        if (patient.files) {
+            const currentCount = patient.files.length;
+            if (isPollingForDesktop && currentCount > prevFileCountRef.current) {
+                // New file detected!
+                setToastMessage("File uploaded successfully via Desktop App!");
+                setShowToast(true);
+                setTimeout(() => setShowToast(false), 5000);
+                // Optional: Stop polling or keep polling for more?
+                // Let's keep polling for a bit in case they scan multiple pages
+            }
+            prevFileCountRef.current = currentCount;
+        }
+
         const hasProcessing = patient.files.some(f => f.processing_stage === 'analyzing' || f.upload_status === 'draft');
 
-        if (hasProcessing) {
+        // Poll if: 
+        // 1. Files are processing/analyzing
+        // 2. We just launched the Desktop App (isPollingForDesktop is true)
+        if (hasProcessing || isPollingForDesktop) {
             const interval = setInterval(() => {
                 fetchPatient(token, id);
-            }, 5000);
+            }, 3000); // Faster polling (3s) for better UX
             return () => clearInterval(interval);
         }
-    }, [patient, id]);
+    }, [patient, id, isPollingForDesktop]);
 
     // Handlers (Copy-pasted logic mostly)
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1223,6 +1249,10 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                                             const token = localStorage.getItem('token');
                                             const protocolUrl = `digifort://upload?token=${token}&patient_id=${patient.record_id}&patient_name=${encodeURIComponent(patient.full_name)}&mrd=${patient.patient_u_id}&api_url=${API_URL}`;
                                             window.open(protocolUrl, '_self');
+                                            setIsPollingForDesktop(true);
+                                            setToastMessage("Waiting for scanner uploads...");
+                                            setShowToast(true);
+                                            setTimeout(() => setShowToast(false), 3000);
                                         }}
                                         className="bg-blue-600 text-white px-3 py-1.5 rounded-full text-xs font-bold hover:bg-blue-700 flex items-center gap-2"
                                     >
@@ -1580,6 +1610,22 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                             onCancel={() => setShowScanner(false)}
                         />
                     </div>
+                </div>
+            )}
+
+            {/* Custom Toast Notification */}
+            {showToast && (
+                <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in z-[100] border border-slate-700">
+                    <div className="bg-green-500 rounded-full p-1">
+                        <CheckCircle size={16} className="text-white" />
+                    </div>
+                    <div>
+                        <p className="font-bold text-sm tracking-wide">{toastMessage}</p>
+                        {isPollingForDesktop && <p className="text-[10px] text-slate-400 font-medium">Synced with Desktop App</p>}
+                    </div>
+                    <button onClick={() => setShowToast(false)} className="text-slate-400 hover:text-white ml-2">
+                        <X size={14} />
+                    </button>
                 </div>
             )}
         </div>
