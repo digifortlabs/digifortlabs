@@ -146,18 +146,11 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
         # Actually, let's just use a special local prefix for drafts in the database
         # and let the s3_manager handle the physical write to Local Storage
         
-        # Save to Local Storage (as drafts)
+        # Save to Storage (S3 Enforced)
         with open(processed_path, 'rb') as f:
-            # We temporarily switch s3_manager to local mode if we want to save S3 costs for drafts
-            # OR we just store it in a 'drafts/' prefix in S3. 
-            # User specifically said "move file AFTER clicking confirm to S3".
-            # So let's force local for drafts.
-            
-            # Temporary "Force Local" for drafts
-            original_mode = s3_manager.mode
-            s3_manager.mode = "local" 
+            # Removed "Force Local" logic as per user request (store only in S3)
+            # Drafts will now reside in S3 under drafts/ bucket prefix
             success, location = s3_manager.upload_file(f, s3_key)
-            s3_manager.mode = original_mode # Restore
             
         if success:
             db_file.s3_key = s3_key
@@ -1322,11 +1315,17 @@ async def delete_file(
     try:
         s3_manager = S3Manager()
         location = db_file.storage_path
-        if location and location.startswith("local://"):
-            file_path = location.replace("local://", "")
-            s3_manager.delete_file(file_path)
-            print(f"✅ Deleted from storage: {file_path}")
-        elif db_file.s3_key:
+        
+        # Check if legacy local file exists and delete it
+        if location and os.path.isabs(location) and os.path.exists(location):
+            try:
+                os.remove(location)
+                print(f"✅ Deleted legacy local file: {location}")
+            except Exception as e:
+                print(f"⚠️ Failed to delete local file: {e}")
+
+        # Always try S3 deletion if key exists (Normal flow)
+        if db_file.s3_key:
              s3_manager.delete_file(db_file.s3_key)
 
     except Exception as e:
