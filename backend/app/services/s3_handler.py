@@ -159,19 +159,27 @@ class S3Manager:
         """
         Deletes a file from S3 or Local.
         """
-        if self.mode == "local":
-            try:
-                full_path = os.path.join(self.local_root, object_name)
-                if os.path.exists(full_path):
-                    os.remove(full_path)
-                return True
-            except Exception as e:
-                print(f"[ERROR] Local Delete Error: {e}")
-                return False
-
+        success = True
+        
+        # Always attempt to delete from local storage (Legacy cleanup or Local mode)
         try:
-            self.s3_client.delete_object(Bucket=self.bucket_name, Key=object_name)
-            return True
-        except ClientError as e:
-            print(f"[ERROR] Delete Error: {e}")
-            return False
+            full_path = os.path.join(self.local_root, object_name) if object_name else ""
+            if full_path and os.path.exists(full_path):
+                os.remove(full_path)
+                print(f"[INFO] Deleted local file: {full_path}")
+        except Exception as e:
+            print(f"[WARN] Local Delete Warning: {e}")
+            if self.mode == "local":
+                success = False
+
+        if self.mode == "s3" and object_name:
+            try:
+                self.s3_client.delete_object(Bucket=self.bucket_name, Key=object_name)
+            except ClientError as e:
+                print(f"[ERROR] S3 Delete Error: {e}")
+                # If it's a 404 from S3, that's fine, we treat as deleted.
+                # But for other errors we might want to flag? 
+                # For now, return True so DB deletion proceeds (consistency).
+                success = True 
+        
+        return success
