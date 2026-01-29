@@ -186,7 +186,7 @@ def get_invoices(
     if status:
         query = query.filter(Invoice.status == status)
         
-    invoices = query.order_by(Invoice.created_at.desc()).all()
+    invoices = query.order_by(Invoice.bill_date.desc()).all()
     
     # Format response to include hospital name
     results = []

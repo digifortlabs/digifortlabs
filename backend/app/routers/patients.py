@@ -269,7 +269,7 @@ class FileData(BaseModel):
     file_id: int
     filename: str
     upload_date: datetime.datetime
-    file_size_mb: float
+    file_size_mb: Union[float, None] = 0.0
     page_count: int = 0
     upload_status: str
     tags: Optional[str] = None
@@ -284,6 +284,9 @@ class FileData(BaseModel):
     price_per_file: float = 100.0
     included_pages: int = 20
     price_per_extra_page: float = 1.0
+
+    class Config:
+        from_attributes = True
 
 # Response Models
 from typing import List, Optional, Union

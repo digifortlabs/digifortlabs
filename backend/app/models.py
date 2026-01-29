@@ -146,6 +146,19 @@ class Patient(Base):
     files = relationship("PDFFile", back_populates="patient", cascade="all, delete-orphan")
     diagnoses = relationship("PatientDiagnosis")
     procedures = relationship("PatientProcedure")
+    box = relationship("PhysicalBox", back_populates="patients")
+
+    @property
+    def box_label(self):
+        return self.box.label if self.box else None
+
+    @property
+    def box_location_code(self):
+        return self.box.location_code if self.box else None
+
+    @property
+    def mother_details(self):
+        return None # Placeholder
 
 class PDFFile(Base):
     __tablename__ = "pdf_files"
@@ -278,6 +291,7 @@ class PhysicalBox(Base):
     rack = relationship("PhysicalRack", back_populates="boxes")
     hospital = relationship("Hospital")
     files = relationship("PDFFile", back_populates="box")
+    patients = relationship("Patient", back_populates="box")
 
 class PhysicalMovementLog(Base):
     __tablename__ = "physical_movement_logs"
