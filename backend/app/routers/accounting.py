@@ -220,51 +220,7 @@ def get_invoice_details(
         ))
     return res
 
-@router.delete("/{invoice_id}")
-def cancel_invoice(
-    invoice_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Delete a pending invoice and unlock its files."""
-    if current_user.role != "superadmin":
-        raise HTTPException(status_code=403, detail="Only Super Admins can cancel invoices")
-        
-    invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
-    if not invoice:
-        raise HTTPException(status_code=404, detail="Invoice not found")
-        
-    if invoice.status == "PAID":
-        raise HTTPException(status_code=400, detail="Cannot cancel an already paid invoice")
-        
-    # Check if registration fee was marked paid
-    if any(item.description == "One-time Registration Fee" for item in invoice.items):
-        if invoice.hospital:
-            invoice.hospital.is_reg_fee_paid = False
-        
-        
-    # Reset is_paid status for all files in this invoice (just in case)
-    items = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).all()
-    file_ids = [item.file_id for item in items if item.file_id is not None]
-    
-    if file_ids:
-        db.query(PDFFile).filter(PDFFile.file_id.in_(file_ids)).update({
-            "is_paid": False,
-            "payment_date": None
-        }, synchronize_session=False)
 
-    # Delete associated Ledger Entry
-    db.query(AccountingTransaction).filter(
-        AccountingTransaction.voucher_type == "INVOICE",
-        AccountingTransaction.voucher_id == invoice_id
-    ).delete()
-    
-    # Explicitly delete items (Safety against cascade failure)
-    db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).delete()
-
-    db.delete(invoice)
-    db.commit()
-    return {"message": "Invoice cancelled and deleted successfully"}
 
 @router.put("/{invoice_id}", response_model=InvoiceResponse)
 def update_invoice(
