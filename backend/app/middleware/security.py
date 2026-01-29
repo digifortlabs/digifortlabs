@@ -23,6 +23,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.auth_paths = ["/auth/login", "/auth/verify-otp", "/auth/forgot-password"]
     
     async def dispatch(self, request: Request, call_next):
+        # Skip rate limiting for preflight requests
+        if request.method == "OPTIONS":
+            return await call_next(request)
+            
         client_ip = request.client.host
         path = request.url.path
         current_time = time.time()
