@@ -103,9 +103,10 @@ python3 -c "import os; from app.database import engine; conn = engine.connect();
 echo "🚀 [6/7] Finalizing System Launch..."
 
 # Backend Command with Proxy Headers for Production
-UVICORN_CMD="$PROJECT_ROOT/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'"
+# We use the full path to uvicorn inside the venv and set the CWD explicitly
 pm2 delete backend 2>/dev/null || true
-pm2 start "$UVICORN_CMD" --name "backend"
+pm2 start "$PROJECT_ROOT/backend/.venv/bin/uvicorn" --name "backend" -- \
+    app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'
 
 # Nginx Validation & Reload
 echo "🛡️ Validating Nginx Configuration..."
