@@ -174,7 +174,25 @@ export default function AccountingSettings() {
                         </div>
                     </div>
 
-                    <div className="pt-6 border-t border-slate-100">
+                    <div className="pt-6 border-t border-slate-100 space-y-3">
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                if (!confirm("⚠️ RESET ALL COUNTERS?\n\nThis will reset Invoice, Receipt, and Expense counters to 1.\n\nAre you sure?")) return;
+                                try {
+                                    await apiFetch('/accounting/config/reset-counters', { method: 'POST' });
+                                    // Refresh config
+                                    const data = await apiFetch('/accounting-adv/config');
+                                    setConfig(data);
+                                    alert("✅ All counters have been reset to 1!");
+                                } catch (error) {
+                                    alert("Failed to reset counters");
+                                }
+                            }}
+                            className="w-full py-4 bg-amber-50 text-amber-600 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-amber-100 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <RefreshCcw size={16} /> Reset All Counters to 1
+                        </button>
                         <button
                             type="button"
                             onClick={handleFYClose}

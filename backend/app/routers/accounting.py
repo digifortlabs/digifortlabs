@@ -139,6 +139,32 @@ def update_accounting_config(
     db.commit()
     return config
 
+@router.post("/config/reset-counters")
+def reset_invoice_counters(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Reset all invoice/receipt/expense counters to 1. Use with caution!"""
+    if current_user.role != "superadmin":
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    config = db.query(AccountingConfig).first()
+    if not config:
+        raise HTTPException(status_code=404, detail="Accounting config not found")
+    
+    config.next_invoice_number = 1
+    config.next_invoice_number_nongst = 1
+    config.next_receipt_number = 1
+    config.next_expense_number = 1
+    
+    db.commit()
+    return {
+        "message": "All counters reset to 1",
+        "next_invoice_number": 1,
+        "next_receipt_number": 1,
+        "next_expense_number": 1
+    }
+
 # --- Endpoints ---
 
 @router.get("/", response_model=List[InvoiceResponse])
