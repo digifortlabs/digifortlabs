@@ -17,18 +17,29 @@ class AIService:
                     if 'generateContent' in m.supported_generation_methods:
                         print(f"  - {m.name} (Supports content generation)")
                 
-                # Heuristic: Try to find the best available multimodal model
-                flash_models = [m for m in available if "flash" in m.lower()]
-                pro_models = [m for m in available if "pro" in m.lower()]
+                # Heuristic: Prioritize PRO models as requested
+                # Sort available models to get the latest versions (usually higher numbers)
+                available.sort(reverse=True)
                 
-                if "models/gemini-1.5-flash-8b" in available:
-                    self.model_name = "gemini-1.5-flash-8b"
-                elif flash_models:
-                    self.model_name = flash_models[0].replace("models/", "")
+                pro_models = [m for m in available if "pro" in m.lower() and "vision" not in m.lower()] 
+                flash_models = [m for m in available if "flash" in m.lower()]
+                
+                # Preference: Gemini 1.5 Pro or newer
+                selected = None
+                
+                # Check for explicit high-tier models first
+                latest_pros = [m for m in pro_models if "1.5" in m or "2.0" in m or "2.5" in m]
+                
+                if latest_pros:
+                    selected = latest_pros[0]
                 elif pro_models:
-                    self.model_name = pro_models[0].replace("models/", "")
+                    selected = pro_models[0]
+                elif flash_models:
+                    selected = flash_models[0]
                 else:
-                    self.model_name = "gemini-1.5-flash" # Fallback
+                    selected = "models/gemini-1.5-pro-latest" # Hard fallback
+                
+                self.model_name = selected.replace("models/", "")
                 
                 print(f"🚀 Gemini: Automatically selected model: {self.model_name}")
             except Exception as e:
