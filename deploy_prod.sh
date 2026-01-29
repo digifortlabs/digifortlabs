@@ -15,9 +15,19 @@ echo "🚀 Starting Deployment in $PROJECT_ROOT"
 # --- 0. FORCE GIT SYNC ---
 echo "🔄 [0/6] Syncing with Repository (origin/master)..."
 cd $PROJECT_ROOT
+# BACKUP ENV to safety
+if [ -f .env ]; then cp .env /tmp/digifort_root.env.backup; echo "🔒 Backed up root .env"; fi
+if [ -f backend/.env ]; then cp backend/.env /tmp/digifort_backend.env.backup; echo "🔒 Backed up backend .env"; fi
+
 git fetch origin
 git reset --hard origin/master
-echo "✅ Git Sync Complete. Current commit: $(git rev-parse --short HEAD)"
+git clean -fd
+
+# RESTORE ENV
+if [ -f /tmp/digifort_root.env.backup ]; then mv /tmp/digifort_root.env.backup .env; echo "🔓 Restored root .env"; fi
+if [ -f /tmp/digifort_backend.env.backup ]; then mv /tmp/digifort_backend.env.backup backend/.env; echo "🔓 Restored backend .env"; fi
+
+echo "✅ Git Sync & Clean Complete. Current commit: $(git rev-parse --short HEAD)"
 
 # --- 1. SYSTEM CLEANUP ---
 echo "🧹 [1/6] Cleaning legacy files & artifacts..."
@@ -98,6 +108,7 @@ pm2 delete backend 2>/dev/null || true
 sudo fuser -k 8000/tcp 2>/dev/null || true
 
 # Virtual Env & Dependencies
+rm -rf .venv
 if [ ! -d ".venv" ]; then python3 -m venv .venv; fi
 source .venv/bin/activate
 pip install --upgrade pip
