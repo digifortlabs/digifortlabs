@@ -548,3 +548,20 @@ class AccountingConfig(Base):
     number_format = Column(String, default="{prefix}/{fy}/{number:04d}")
     
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+ 
+ 
+class AvailableInvoiceNumber(Base):
+    \"\"\"
+    Cache table for available invoice numbers from deleted invoices.
+    Enables O(1) gap filling instead of O(n) loop through all numbers.
+    \"\"\"
+    __tablename__ = \"available_invoice_numbers\"
+    id = Column(Integer, primary_key=True, index=True)
+    number = Column(Integer, nullable=False, index=True)
+    invoice_type = Column(String, nullable=False)  # 'gst' or 'nongst'
+    financial_year = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    __table_args__ = (
+        UniqueConstraint('number', 'invoice_type', 'financial_year', name='uix_available_invoice'),
+    )

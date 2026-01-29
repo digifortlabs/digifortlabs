@@ -40,7 +40,11 @@ async def latency_middleware(request, call_next):
 from fastapi.middleware.cors import CORSMiddleware
 
 from .middleware.bandwidth import BandwidthMiddleware
+from .middleware.security import RateLimitMiddleware, SecurityHeadersMiddleware
 
+# Add security middleware
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=60, auth_requests_per_minute=5)
 app.add_middleware(BandwidthMiddleware)
 
 # Debug CORS
@@ -52,6 +56,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# Request size limits (100MB for file uploads)
+app.router.route_class = type(
+    "CustomRoute",
+    (app.router.route_class,),
+    {"max_request_body_size": 100 * 1024 * 1024}  # 100MB
 )
 
 
