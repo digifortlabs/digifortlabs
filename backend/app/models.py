@@ -548,8 +548,8 @@ class AccountingConfig(Base):
     number_format = Column(String, default="{prefix}/{fy}/{number:04d}")
     
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
- 
- 
+
+
 class AvailableInvoiceNumber(Base):
     \"\"\"
     Cache table for available invoice numbers from deleted invoices.
