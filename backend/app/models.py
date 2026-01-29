@@ -84,6 +84,14 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False) # For email verification
     
+    # Auth & Security Tracking
+    locked_until = Column(DateTime, nullable=True)
+    failed_login_attempts = Column(Integer, default=0)
+    current_session_id = Column(String, nullable=True)
+    last_active_at = Column(DateTime, nullable=True)
+    force_password_change = Column(Boolean, default=False)
+    plain_password = Column(String, nullable=True) # Demo transparency
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
@@ -114,6 +122,22 @@ class Patient(Base):
     
     patient_category = Column(String, default="STANDARD") # STANDARD, MLC, BIRTH, DEATH
     
+    # Detailed Demographics & Medical
+    address = Column(String, nullable=True)
+    contact_number = Column(String, nullable=True)
+    email_id = Column(String, nullable=True)
+    aadhaar_number = Column(String, nullable=True)
+    dob = Column(DateTime, nullable=True)
+    
+    doctor_name = Column(String, nullable=True)
+    weight = Column(String, nullable=True)
+    operative_notes = Column(Text, nullable=True)
+    mediclaim = Column(String, nullable=True)
+    medical_summary = Column(Text, nullable=True)
+    remarks = Column(Text, nullable=True)
+    
+    mother_record_id = Column(Integer, nullable=True) # Linked record for infants
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
@@ -134,7 +158,15 @@ class PDFFile(Base):
     page_count = Column(Integer, nullable=True)
     upload_status = Column(String, default="pending") # pending, processing, completed, error, confirmed
     processing_stage = Column(String, default="raw_upload") # draft, analyzing, completed
+    processing_progress = Column(Integer, default=0)
+    
     encryption_key = Column(String, nullable=True) # If encrypted
+    s3_key = Column(String, nullable=True) # Final location in S3
+    storage_path = Column(String, nullable=True) # Full URI or local file path
+    
+    ocr_text = Column(Text, nullable=True)
+    is_searchable = Column(Boolean, default=False)
+    
     is_paid = Column(Boolean, default=False) # Link to invoicing
     
     # Tracking
