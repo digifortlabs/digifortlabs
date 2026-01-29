@@ -186,6 +186,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
     const [isSearchingProc, setIsSearchingProc] = useState(false);
 
     // Desktop App Integration
+    const [isPollingForDesktop, setIsPollingForDesktop] = useState(false);
     const [showToast, setShowToast] = useState(false);
     const [toastMessage, setToastMessage] = useState("");
     const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
