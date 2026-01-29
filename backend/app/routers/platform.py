@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -11,6 +12,15 @@ router = APIRouter()
 
 class SettingUpdate(BaseModel):
     value: str
+
+@router.get("/health")
+async def health_check():
+    """System health check for monitoring and load balancers."""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "version": "1.0.0"
+    }
 
 @router.get("/settings")
 async def get_settings(db: Session = Depends(get_db)):

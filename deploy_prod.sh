@@ -115,20 +115,20 @@ pm2 save
 
 # --- 7. POST-DEPLOYMENT HEALTH CHECK ---
 echo "🏥 [7/7] Performing Health Check..."
-sleep 5 # Wait for backend to warm up
+sleep 12 # Increased warm-up time
 
 HEALTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" https://digifortlabs.com/api/platform/health || echo "fail")
 
 if [ "$HEALTH_CHECK" == "200" ]; then
     echo "---------------------------------------------------"
-    echo "✨ DEPLOYMENT SUCCESSFUL! SYSTEM LIVE AT 9.8 SCORE"
+    echo "✨ DEPLOYMENT SUCCESSFUL! SYSTEM LIVE"
     echo "---------------------------------------------------"
     echo "URL: https://digifortlabs.com"
     echo "Commit: $(git rev-parse --short HEAD)"
 else
-    echo "⚠️  WARNING: Health check returned $HEALTH_CHECK. Please verify manually."
-    echo "Backend Logs:"
-    pm2 logs backend --lines 20 --no-colors
+    echo "⚠️  WARNING: Health check returned $HEALTH_CHECK. System may still be starting or failed."
+    echo "🔍 Fetching last 50 lines of Backend Logs..."
+    pm2 logs backend --lines 50 --no-daemon
 fi
 
 pm2 status
