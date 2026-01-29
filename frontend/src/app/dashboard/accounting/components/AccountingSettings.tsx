@@ -21,7 +21,7 @@ export default function AccountingSettings() {
     useEffect(() => {
         async function fetchConfig() {
             try {
-                const data = await apiFetch('/accounting-adv/config');
+                const data = await apiFetch('/accounting/config');
                 setConfig(data);
             } catch (error) {
                 console.error("Failed to fetch accounting config:", error);
@@ -36,7 +36,7 @@ export default function AccountingSettings() {
         e.preventDefault();
         setSaving(true);
         try {
-            await apiFetch('/accounting-adv/config', {
+            await apiFetch('/accounting/config', {
                 method: 'POST',
                 body: JSON.stringify(config)
             });
@@ -182,7 +182,7 @@ export default function AccountingSettings() {
                                 try {
                                     await apiFetch('/accounting/config/reset-counters', { method: 'POST' });
                                     // Refresh config
-                                    const data = await apiFetch('/accounting-adv/config');
+                                    const data = await apiFetch('/accounting/config');
                                     setConfig(data);
                                     alert("✅ All counters have been reset to 1!");
                                 } catch (error) {
