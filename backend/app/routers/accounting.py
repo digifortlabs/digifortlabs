@@ -399,25 +399,44 @@ def generate_invoice(
             # to prevent gaps/jumps unless explicitly handled. 
             # User must manually update config if they want to skip ahead.
         else:
-            # Generate Invoice Number based on GST vs Non-GST
+            # Determine prefix and current counter based on GST vs Non-GST
             if req.is_gst_bill:
                 prefix = config.invoice_prefix
-                number = config.next_invoice_number
+                current_counter = config.next_invoice_number
             else:
                 prefix = config.invoice_prefix_nongst or "BOS"
-                number = config.next_invoice_number_nongst or 1
-                
+                current_counter = config.next_invoice_number_nongst or 1
+            
+            # Find the next available number (check for gaps from deleted invoices)
+            next_number = current_counter
+            found_gap = False
+            
+            # Check for gaps in the sequence from 1 to current_counter
+            for check_num in range(1, current_counter):
+                test_invoice_number = config.number_format.format(
+                    prefix=prefix,
+                    fy=config.current_fy,
+                    number=check_num
+                )
+                # If this number doesn't exist in the database, use it (gap found)
+                if not db.query(Invoice).filter(Invoice.invoice_number == test_invoice_number).first():
+                    next_number = check_num
+                    found_gap = True
+                    break
+            
+            # Generate the invoice number
             invoice_number = config.number_format.format(
                 prefix=prefix,
                 fy=config.current_fy,
-                number=number
+                number=next_number
             )
             
-            # Increment counter
-            if req.is_gst_bill:
-                config.next_invoice_number += 1
-            else:
-                config.next_invoice_number_nongst = (config.next_invoice_number_nongst or 1) + 1
+            # Only increment counter if we didn't fill a gap
+            if not found_gap:
+                if req.is_gst_bill:
+                    config.next_invoice_number += 1
+                else:
+                    config.next_invoice_number_nongst = (config.next_invoice_number_nongst or 1) + 1
         
         # Check for collision (Manual or Auto)
         if db.query(Invoice).filter(Invoice.invoice_number == invoice_number).first():
