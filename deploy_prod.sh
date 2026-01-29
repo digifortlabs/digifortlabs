@@ -103,9 +103,9 @@ python3 -c "import os; from app.database import engine; conn = engine.connect();
 echo "🚀 [6/7] Finalizing System Launch..."
 
 # Backend Command with Proxy Headers for Production
-# We use the full path to uvicorn inside the venv and set the CWD explicitly
+# Explicitly use the virtualenv python to avoid PM2 Node.js detection errors
 pm2 delete backend 2>/dev/null || true
-pm2 start "$PROJECT_ROOT/backend/.venv/bin/uvicorn" --name "backend" -- \
+pm2 start "$PROJECT_ROOT/backend/.venv/bin/python" --name "backend" -- -m uvicorn \
     app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'
 
 # Nginx Validation & Reload
