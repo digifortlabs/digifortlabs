@@ -42,14 +42,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from .middleware.bandwidth import BandwidthMiddleware
 from .middleware.security import RateLimitMiddleware, SecurityHeadersMiddleware
 
-# Add security middleware
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware, requests_per_minute=60, auth_requests_per_minute=5)
-app.add_middleware(BandwidthMiddleware)
-
 # Debug CORS
 print(f"Loaded CORS Origins: {settings.BACKEND_CORS_ORIGINS}")
 
+# IMPORTANT: CORS must be added FIRST to handle preflight requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[str(origin) for origin in settings.BACKEND_CORS_ORIGINS],
@@ -57,6 +53,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add security middleware AFTER CORS
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=60, auth_requests_per_minute=5)
+app.add_middleware(BandwidthMiddleware)
 
 # Request size limits (100MB for file uploads)
 app.router.route_class = type(
