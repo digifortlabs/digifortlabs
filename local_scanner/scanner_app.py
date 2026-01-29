@@ -35,14 +35,16 @@ except Exception as e:
     logger.warning(f"Failed to enable OpenCL: {e}")
 
 COLORS = {
-    "bg": "#f8f9fa",            # Light Grey/White Background
-    "panel": "#ffffff",         # Pure White Panels
-    "fg": "#1e293b",            # Slate 800 Text (Dark Blue-Grey)
-    "accent": "#0ea5e9",        # Sky 500 (Medical Blue)
-    "accent_hover": "#0284c7",  # Sky 600
-    "border": "#e2e8f0",        # Slate 200
+    "bg": "#0f172a",            # Slate 900 (Deep Background)
+    "panel": "#1e293b",         # Slate 800 (Component Background)
+    "fg": "#f1f5f9",            # Slate 100 (Primary Text)
+    "fg_dim": "#94a3b8",        # Slate 400 (Secondary Text)
+    "accent": "#38bdf8",        # Sky 400 (Primary Action)
+    "accent_hover": "#0ea5e9",  # Sky 500
+    "border": "#334155",        # Slate 700
     "danger": "#ef4444",        # Red 500
-    "success": "#22c55e"        # Green 500
+    "success": "#10b981",       # Emerald 500
+    "input_bg": "#334155"       # Slate 700 (Inputs)
 }
 
 # =============================================================================
@@ -351,55 +353,82 @@ class EditorWindow(tk.Toplevel):
 
     def setup_ui(self):
         # Toolbar (Left)
-        tools = tk.Frame(self, width=300, bg=COLORS["panel"], highlightthickness=1, highlightbackground=COLORS["border"])
+        tools = tk.Frame(self, width=320, bg=COLORS["panel"], highlightthickness=0)
         tools.pack(side=tk.LEFT, fill=tk.Y)
-        tools.pack_propagate(False)
+        tools.pack_propagate(False) # Strict width
 
-        tk.Label(tools, text="IMAGE EDITOR", fg=COLORS["fg"], bg=COLORS["panel"], font=("Segoe UI", 12, "bold")).pack(pady=20)
+        # Border separator
+        tk.Frame(tools, width=1, bg=COLORS["border"]).pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Content Container in Toolbar
+        content = tk.Frame(tools, bg=COLORS["panel"], padx=20, pady=20)
+        content.pack(fill=tk.BOTH, expand=True)
+
+        tk.Label(content, text="IMAGE EDITOR", fg=COLORS["accent"], bg=COLORS["panel"], 
+                 font=("Segoe UI", 11, "bold"), anchor="w").pack(fill=tk.X, pady=(0, 20))
         
-        # Controls
-        self.ctrl_frame = tk.Frame(tools, bg=COLORS["panel"], padx=15)
+        # Controls Group
+        self.ctrl_frame = tk.Frame(content, bg=COLORS["panel"])
         self.ctrl_frame.pack(fill=tk.X)
 
-        tk.Label(self.ctrl_frame, text="Brightness", fg=COLORS["fg"], bg=COLORS["panel"]).pack(anchor="w")
-        tk.Scale(self.ctrl_frame, from_=0.5, to=1.5, resolution=0.1, orient=tk.HORIZONTAL, 
-                 variable=self.brightness, command=lambda x: self.update_preview(), 
-                 bg=COLORS["panel"], highlightthickness=0, troughcolor=COLORS["border"]).pack(fill=tk.X, pady=(0, 15))
-        
-        tk.Label(self.ctrl_frame, text="Contrast", fg=COLORS["fg"], bg=COLORS["panel"]).pack(anchor="w")
-        tk.Scale(self.ctrl_frame, from_=0.5, to=1.5, resolution=0.1, orient=tk.HORIZONTAL, 
-                 variable=self.contrast, command=lambda x: self.update_preview(), 
-                 bg=COLORS["panel"], highlightthickness=0, troughcolor=COLORS["border"]).pack(fill=tk.X, pady=(0, 15))
+        def create_slider(parent, label, variable, from_, to_):
+            frame = tk.Frame(parent, bg=COLORS["panel"], pady=10)
+            frame.pack(fill=tk.X)
+            
+            hdr = tk.Frame(frame, bg=COLORS["panel"])
+            hdr.pack(fill=tk.X, pady=(0, 5))
+            tk.Label(hdr, text=label, fg=COLORS["fg"], bg=COLORS["panel"], font=("Segoe UI", 10)).pack(side=tk.LEFT)
+            val_lbl = tk.Label(hdr, textvariable=variable, fg=COLORS["accent"], bg=COLORS["panel"], font=("Segoe UI", 10, "bold"))
+            val_lbl.pack(side=tk.RIGHT)
 
-        tk.Label(self.ctrl_frame, text="Color Mode", fg=COLORS["fg"], bg=COLORS["panel"]).pack(anchor="w")
+            tk.Scale(frame, from_=from_, to=to_, resolution=0.1, orient=tk.HORIZONTAL, 
+                     variable=variable, command=lambda x: self.update_preview(), 
+                     bg=COLORS["panel"], fg=COLORS["fg"], highlightthickness=0, 
+                     troughcolor=COLORS["input_bg"], activebackground=COLORS["accent"], borderwidth=0).pack(fill=tk.X)
+
+        create_slider(self.ctrl_frame, "Brightness", self.brightness, 0.5, 1.5)
+        create_slider(self.ctrl_frame, "Contrast", self.contrast, 0.5, 1.5)
+
+        ttk.Separator(content, orient='horizontal').pack(fill=tk.X, pady=20)
+
+        # Color Modes
+        tk.Label(content, text="COLOR MODE", fg=COLORS["fg_dim"], bg=COLORS["panel"], 
+                 font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 10))
+        
+        mode_frame = tk.Frame(content, bg=COLORS["panel"])
+        mode_frame.pack(fill=tk.X)
+        
         for m in ["Color", "Gray", "B&W"]:
-            tk.Radiobutton(self.ctrl_frame, text=m, variable=self.mode, value=m, 
-                          command=self.update_preview, bg=COLORS["panel"], fg=COLORS["fg"], selectcolor=COLORS["bg"]).pack(anchor="w", pady=2)
+            rb = tk.Radiobutton(mode_frame, text=m, variable=self.mode, value=m, 
+                           command=self.update_preview, bg=COLORS["panel"], fg=COLORS["fg"], 
+                           selectcolor=COLORS["bg"], activebackground=COLORS["panel"], 
+                           activeforeground=COLORS["accent"], font=("Segoe UI", 10), indicatoron=1)
+            rb.pack(anchor="w", pady=2)
 
-        ttk.Separator(tools, orient='horizontal').pack(fill=tk.X, pady=20, padx=15)
+        ttk.Separator(content, orient='horizontal').pack(fill=tk.X, pady=20)
 
-        self.btn_rot_r = tk.Button(tools, text="Rotate Right ⟳", command=lambda: self.rotate(90),
-                 bg=COLORS["bg"], fg=COLORS["fg"], bd=1, relief="solid")
-        self.btn_rot_r.pack(fill=tk.X, padx=20, pady=5)
+        # Actions
+        btn_style = {"font": ("Segoe UI", 10), "bd": 0, "padx": 15, "pady": 8, "cursor": "hand2"}
+
+        self.btn_rot_r = tk.Button(content, text="⟳ Rotate Right", command=lambda: self.rotate(90),
+                 bg=COLORS["input_bg"], fg=COLORS["fg"], **btn_style)
+        self.btn_rot_r.pack(fill=tk.X, pady=5)
                  
-        self.btn_rot_l = tk.Button(tools, text="Rotate Left ⟲", command=lambda: self.rotate(-90),
-                 bg=COLORS["bg"], fg=COLORS["fg"], bd=1, relief="solid")
-        self.btn_rot_l.pack(fill=tk.X, padx=20, pady=5)
-        
-        # CROP BUTTON
-        ttk.Separator(tools, orient='horizontal').pack(fill=tk.X, pady=20, padx=15)
-        self.btn_crop = tk.Button(tools, text="✂ Manual Crop", command=self.toggle_crop,
-                 bg=COLORS["accent"], fg="white", bd=0, font=("Segoe UI", 10))
-        self.btn_crop.pack(fill=tk.X, padx=20, pady=5)
+        self.btn_crop = tk.Button(content, text="✂ Manual Crop", command=self.toggle_crop,
+                 bg=COLORS["input_bg"], fg=COLORS["fg"], **btn_style)
+        self.btn_crop.pack(fill=tk.X, pady=5)
 
-        # Save Actions
-        tk.Button(tools, text="✔ SAVE CHANGES", bg=COLORS["success"], fg="white", 
-                 font=("Segoe UI", 10, "bold"), bd=0, padx=10, pady=10,
-                 command=self.save).pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=10)
+        # Bottom Buttons
+        btn_frame = tk.Frame(tools, bg=COLORS["panel"], padx=20, pady=20)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X)
+
+        tk.Button(btn_frame, text="✔ Save Changes", bg=COLORS["success"], fg="#ffffff", 
+                 font=("Segoe UI", 10, "bold"), bd=0, padx=10, pady=12, cursor="hand2",
+                 command=self.save).pack(fill=tk.X, pady=(0, 10))
                  
-        tk.Button(tools, text="✕ CANCEL", bg=COLORS["danger"], fg="white", 
-                 font=("Segoe UI", 10, "bold"), bd=0, padx=10, pady=10,
-                 command=self.destroy).pack(side=tk.BOTTOM, fill=tk.X, padx=20, pady=(0, 5))
+        tk.Button(btn_frame, text="✕ Cancel", bg=COLORS["panel"], fg=COLORS["danger"], 
+                 font=("Segoe UI", 10), bd=1, relief="solid", padx=10, pady=10, cursor="hand2",
+                 command=self.destroy).pack(fill=tk.X)
 
         # Preview Area
         self.canvas = tk.Canvas(self, bg=COLORS["bg"], highlightthickness=0, cursor="crosshair")
@@ -573,8 +602,11 @@ import glob
 
 class ScannerApp:
     def __init__(self, root, args):
+        global APP_VERSION
+        APP_VERSION = "1.0.0"
+        
         self.root = root
-        self.root.title("Digifort Medical Scanner") # Updated Title
+        self.root.title(f"Digifort Medical Scanner v{APP_VERSION}") # Updated Title
         self.root.geometry("1400x900")
         self.root.state('zoomed')
         self.root.configure(bg=COLORS["bg"])
@@ -632,6 +664,9 @@ class ScannerApp:
         self.cb_cam.set("Searching for cameras...")
         self.cb_cam['state'] = 'disabled'
         threading.Thread(target=self.discover_cameras, daemon=True).start()
+        
+        # Check Updates
+        threading.Thread(target=self.check_updates, daemon=True).start()
 
     def discover_cameras(self):
         cams = self.camera.get_available_cameras()
@@ -661,83 +696,101 @@ class ScannerApp:
         s = ttk.Style()
         s.theme_use('clam')
         
-        # Medical Theme Styles
+        # --- DARK MODERN THEME ---
         s.configure(".", background=COLORS["bg"], foreground=COLORS["fg"])
-        s.configure("TLabel", background=COLORS["bg"], foreground=COLORS["fg"], font=("Segoe UI", 9))
-        s.configure("TCombobox", fieldbackground="#ffffff", background=COLORS["panel"])
-        s.configure("Accent.TButton", background=COLORS["accent"], foreground="white", font=("Segoe UI", 10, "bold"), borderwidth=0)
-        s.map("Accent.TButton", background=[("active", COLORS["accent_hover"])])
+        s.configure("TLabel", background=COLORS["panel"], foreground=COLORS["fg"], font=("Segoe UI", 9))
         
+        # Combobox
+        s.configure("TCombobox", fieldbackground=COLORS["input_bg"], background=COLORS["input_bg"], 
+                    foreground=COLORS["fg"], arrowcolor=COLORS["accent"], bordercolor=COLORS["border"])
+        s.map("TCombobox", fieldbackground=[("readonly", COLORS["input_bg"])], selectbackground=[("readonly", COLORS["input_bg"])])
+        
+        # Separator
+        s.configure("TSeparator", background=COLORS["border"])
+        
+        # Accent Button
+        s.configure("Accent.TButton", background=COLORS["accent"], foreground="#FFFFFF", 
+                   font=("Segoe UI", 10, "bold"), borderwidth=0, padding=10)
+        s.map("Accent.TButton", background=[("active", COLORS["accent_hover"]), ("pressed", COLORS["accent_hover"])])
+        
+        # Danger Button
         s.configure("Danger.TButton", background=COLORS["danger"], foreground="white", font=("Segoe UI", 9, "bold"))
+        
+        # Frame
+        s.configure("TFrame", background=COLORS["panel"])
         
         # =====================================================================
         # LAYOUT: LEFT SIDEBAR | CENTER PREVIEW | BOTTOM FOOTER
         # =====================================================================
         
         # --- LEFT SIDEBAR (Settings & Pages) ---
-        sb = tk.Frame(self.root, width=320, bg=COLORS["panel"], highlightthickness=1, highlightbackground=COLORS["border"])
+        sb = tk.Frame(self.root, width=340, bg=COLORS["panel"], highlightthickness=0)
         sb.pack(side=tk.LEFT, fill=tk.Y)
         sb.pack_propagate(False)
 
+        # Border
+        tk.Frame(sb, width=1, bg=COLORS["border"]).pack(side=tk.RIGHT, fill=tk.Y)
+
         # Header
-        tk.Label(sb, text="DIGIFORT SCANNER", font=("Segoe UI", 14, "bold"), 
-                 bg=COLORS["accent"], fg="white", pady=15).pack(fill=tk.X)
+        hdr = tk.Frame(sb, bg=COLORS["panel"], padx=20, pady=25)
+        hdr.pack(fill=tk.X)
+        tk.Label(hdr, text="DIGIFORT SCANNER", font=("Segoe UI", 14, "bold"), 
+                 bg=COLORS["panel"], fg=COLORS["fg"]).pack(anchor="w")
+        tk.Label(hdr, text="Medical Records Digitaization", font=("Segoe UI", 9), 
+                 bg=COLORS["panel"], fg=COLORS["accent"]).pack(anchor="w")
+
+        # Scrollable Settings Area
+        settings_canvas = tk.Canvas(sb, bg=COLORS["panel"], highlightthickness=0)
+        settings_canvas.pack(fill=tk.BOTH, expand=True)
         
-        # Settings Container
-        settings_frame = tk.Frame(sb, bg=COLORS["panel"], padx=10, pady=10)
-        settings_frame.pack(fill=tk.X)
+        # We need a scrollbar only if height is small, but for now just pack frames
+        # Actually standard pack is fine for this height.
+        settings_canvas.destroy() # Revert to frame for simplicity unless complex
+        
+        content = tk.Frame(sb, bg=COLORS["panel"], padx=20)
+        content.pack(fill=tk.BOTH, expand=True)
+
+        # Camera Section
+        def section_lbl(text):
+            tk.Label(content, text=text, font=("Segoe UI", 8, "bold"), 
+                     fg=COLORS["fg_dim"], bg=COLORS["panel"]).pack(anchor="w", pady=(20, 10))
+
+        section_lbl("Input Source")
         
         # Camera Select
-        ttk.Label(settings_frame, text="Camera Source", font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        self.cb_cam = ttk.Combobox(settings_frame, state="readonly")
-        self.cb_cam.pack(fill=tk.X, pady=(2, 10))
+        self.cb_cam = ttk.Combobox(content, state="readonly", style="TCombobox")
+        self.cb_cam.pack(fill=tk.X, ipady=2, pady=(0, 5))
         self.cb_cam.bind("<<ComboboxSelected>>", lambda e: self.start_live())
 
-        # Resolution
-        # ttk.Label(settings_frame, text="Resolution", font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        self.cb_res = ttk.Combobox(settings_frame, values=["16MP (4:3)", "4K (16:9)", "1080p"], state="readonly")
+        # Res + Focus Row
+        row_src = tk.Frame(content, bg=COLORS["panel"])
+        row_src.pack(fill=tk.X)
+        
+        self.cb_res = ttk.Combobox(row_src, values=["16MP (4:3)", "4K (16:9)", "1080p"], state="readonly", style="TCombobox", width=10)
         self.cb_res.current(0)
-        self.cb_res.pack(fill=tk.X, pady=(0, 10))
+        self.cb_res.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=2)
         self.cb_res.bind("<<ComboboxSelected>>", lambda e: self.start_live())
         
-        ttk.Button(settings_frame, text="🎯 Trigger Focus", command=self.trigger_focus).pack(fill=tk.X)
+        tk.Button(row_src, text="⌖ Focus", command=self.trigger_focus, 
+                 bg=COLORS["input_bg"], fg=COLORS["fg"], bd=0, padx=10, pady=2, 
+                 cursor="hand2", font=("Segoe UI", 9)).pack(side=tk.LEFT, padx=(5, 0), fill=tk.Y)
 
-        ttk.Separator(settings_frame, orient='horizontal').pack(fill=tk.X, pady=15)
 
-        # Enhancements
-        ttk.Label(settings_frame, text="Enhancements", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 5))
-        
-        ttk.Checkbutton(settings_frame, text="Live Crop Guide", variable=self.auto_crop).pack(anchor="w")
-        
-        tk.Label(settings_frame, text="Brightness", bg=COLORS["panel"], fg=COLORS["fg"]).pack(anchor="w", pady=(5,0))
-        tk.Scale(settings_frame, from_=0.5, to=2.0, resolution=0.1, orient=tk.HORIZONTAL, 
-                 variable=self.live_brightness, bg=COLORS["panel"], highlightthickness=0, troughcolor=COLORS["border"]).pack(fill=tk.X)
-                 
-        tk.Label(settings_frame, text="Contrast", bg=COLORS["panel"], fg=COLORS["fg"]).pack(anchor="w")
-        tk.Scale(settings_frame, from_=0.5, to=2.0, resolution=0.1, orient=tk.HORIZONTAL, 
-                 variable=self.live_contrast, bg=COLORS["panel"], highlightthickness=0, troughcolor=COLORS["border"]).pack(fill=tk.X)
 
-        # Pages List Header
-        list_header = tk.Frame(sb, bg=COLORS["accent"], height=30)
-        list_header.pack(fill=tk.X, pady=(10, 0))
-        tk.Label(list_header, text="SCANNED PAGES", bg=COLORS["accent"], fg="white", font=("Segoe UI", 9, "bold")).pack(pady=5)
+        section_lbl("Session Gallery")
         
-        self.size_lbl = tk.Label(sb, text="Total: 0.0 MB", bg=COLORS["panel"], fg="#666", font=("Segoe UI", 8))
-        self.size_lbl.pack(pady=(2, 5))
+        self.size_lbl = tk.Label(content, text="0 Pages | 0.0 MB", bg=COLORS["panel"], fg=COLORS["fg_dim"], font=("Segoe UI", 9))
+        self.size_lbl.pack(anchor="w", pady=(0, 5))
 
-        # Scrollable Thumbnail List
-        self.list_container = tk.Frame(sb, bg=COLORS["panel"])
-        self.list_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Thumbnail List
+        list_frame_container = tk.Frame(content, bg=COLORS["input_bg"], highlightthickness=1, highlightbackground=COLORS["border"])
+        list_frame_container.pack(fill=tk.BOTH, expand=True, pady=(0, 20))
         
-        self.canvas_list = tk.Canvas(self.list_container, bg=COLORS["panel"], highlightthickness=0)
-        self.scrollbar_list = ttk.Scrollbar(self.list_container, orient="vertical", command=self.canvas_list.yview)
-        self.list_frame = tk.Frame(self.canvas_list, bg=COLORS["panel"])
+        self.canvas_list = tk.Canvas(list_frame_container, bg=COLORS["input_bg"], highlightthickness=0)
+        self.scrollbar_list = ttk.Scrollbar(list_frame_container, orient="vertical", command=self.canvas_list.yview)
+        self.list_frame = tk.Frame(self.canvas_list, bg=COLORS["input_bg"])
         
-        self.list_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas_list.configure(scrollregion=self.canvas_list.bbox("all"))
-        )
-        
+        self.list_frame.bind("<Configure>", lambda e: self.canvas_list.configure(scrollregion=self.canvas_list.bbox("all")))
         self.canvas_window = self.canvas_list.create_window((0, 0), window=self.list_frame, anchor="nw")
         self.canvas_list.bind("<Configure>", lambda e: self.canvas_list.itemconfig(self.canvas_window, width=e.width))
         self.canvas_list.configure(yscrollcommand=self.scrollbar_list.set)
@@ -745,61 +798,137 @@ class ScannerApp:
         self.canvas_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.scrollbar_list.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Bind Mousewheel
         def _on_mousewheel(event):
             self.canvas_list.yview_scroll(int(-1*(event.delta/120)), "units")
         self.canvas_list.bind_all("<MouseWheel>", _on_mousewheel)
 
-        ttk.Button(sb, text="UPLOAD ALL PAGES", style="Accent.TButton", command=self.upload).pack(fill=tk.X, padx=15, pady=20)
+        # Upload Button
+        ttk.Button(sb, text="UPLOAD SESSION", style="Accent.TButton", command=self.upload).pack(fill=tk.X, padx=20, pady=20)
 
         # --- CENTER \ BOTTOM LAYOUT ---
         right_panel = tk.Frame(self.root, bg=COLORS["bg"])
         right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         
         # Toolbar (Top)
-        top_bar = tk.Frame(right_panel, bg="white", height=50, padx=10)
+        top_bar = tk.Frame(right_panel, bg=COLORS["panel"], height=60, padx=20)
         top_bar.pack(side=tk.TOP, fill=tk.X)
+        top_bar.pack_propagate(False)
         
         # Color Modes
-        tk.Label(top_bar, text="Mode:", bg="white", fg="#888").pack(side=tk.LEFT, padx=(0, 5))
+        tk.Label(top_bar, text="MODE", fg=COLORS["fg_dim"], bg=COLORS["panel"], font=("Segoe UI", 8, "bold")).pack(side=tk.LEFT, padx=(0, 10))
         for m in ["Color", "Gray", "B&W"]:
             tk.Radiobutton(top_bar, text=m, variable=self.color_mode, value=m, 
-                          bg="white", fg=COLORS["fg"], selectcolor="#e6f7ff", font=("Segoe UI", 9)).pack(side=tk.LEFT, padx=5)
+                          bg=COLORS["panel"], fg=COLORS["fg"], selectcolor=COLORS["bg"], 
+                          activebackground=COLORS["panel"], activeforeground=COLORS["accent"],
+                          font=("Segoe UI", 9), indicatoron=0, padx=10, pady=4, borderwidth=0).pack(side=tk.LEFT, padx=2)
 
-        tk.Frame(top_bar, width=1, bg=COLORS["border"]).pack(side=tk.LEFT, fill=tk.Y, padx=15, pady=10)
+        tk.Frame(top_bar, width=1, height=30, bg=COLORS["border"]).pack(side=tk.LEFT, padx=20)
 
-        tk.Button(top_bar, text="⟳ Rotate", command=self.rotate_live, bg="white", bd=1, relief="solid", fg=COLORS["fg"]).pack(side=tk.LEFT, padx=5)
-        tk.Button(top_bar, text="⛶ Fit/Fill", command=self.toggle_fit, bg="white", bd=1, relief="solid", fg=COLORS["fg"]).pack(side=tk.LEFT, padx=5)
+        # Toggles
+        def toggle_btn(text, cmd):
+            tk.Button(top_bar, text=text, command=cmd, bg=COLORS["input_bg"], fg=COLORS["fg"], 
+                     bd=0, padx=12, pady=5, font=("Segoe UI", 9)).pack(side=tk.LEFT, padx=4)
+
+        toggle_btn("⟳ Rotate", self.rotate_live)
+        toggle_btn("⛶ Fit/Fill", self.toggle_fit)
         
-        tk.Frame(top_bar, width=1, bg=COLORS["border"]).pack(side=tk.LEFT, fill=tk.Y, padx=15, pady=10)
+        tk.Frame(top_bar, width=1, height=30, bg=COLORS["border"]).pack(side=tk.LEFT, padx=20)
         
-        self.btn_focus = tk.Button(top_bar, text="🎯 AF: ON", command=self.toggle_focus, bg="white", bd=1, relief="solid").pack(side=tk.LEFT, padx=5)
-        self.btn_light = tk.Button(top_bar, text="💡 Light", command=self.toggle_light, bg="white", bd=1, relief="solid").pack(side=tk.LEFT, padx=5)
+        self.btn_focus = tk.Button(top_bar, text="AF: ON", command=self.toggle_focus, 
+                                  bg=COLORS["success"], fg="#ffffff", bd=0, padx=12, pady=5, font=("Segoe UI", 9, "bold"))
+        self.btn_focus.pack(side=tk.LEFT, padx=4)
+        
+
 
         # Main Canvas (Preview)
-        self.canvas = tk.Canvas(right_panel, bg="#333", highlightthickness=0) # Grey background for contrast with paper
+        self.canvas = tk.Canvas(right_panel, bg="#000000", highlightthickness=0)
         self.canvas.pack(fill=tk.BOTH, expand=True)
         
-        # --- FOOTER BAR (Capture Button) ---
-        footer = tk.Frame(right_panel, bg="white", height=80, padx=20, pady=10)
+        # Floating Capture Button (Bottom Center Overlay)
+        # Since we can't do true overlay easily without place() which might mess up resize,
+        # we'll use a footer bar but style it to look integrated.
+        
+        footer = tk.Frame(right_panel, bg=COLORS["panel"], height=90)
         footer.pack(side=tk.BOTTOM, fill=tk.X)
+        footer.pack_propagate(False)
         
         # Center the Capture Button
-        btn_container = tk.Frame(footer, bg="white")
-        btn_container.pack(side=tk.TOP, fill=tk.Y)
+        btn_container = tk.Frame(footer, bg=COLORS["panel"])
+        btn_container.pack(expand=True)
         
-        self.btn_cap = tk.Button(btn_container, text="CAPTURE PAGE (Space)", 
+        self.btn_cap = tk.Button(btn_container, text="CAPTURE PAGE", 
                                  bg=COLORS["accent"], fg="white", 
-                                 font=("Segoe UI", 12, "bold"), 
+                                 font=("Segoe UI", 13, "bold"), 
                                  command=self.capture, 
-                                 relief="flat", padx=30, pady=10)
-        self.btn_cap.pack(side=tk.LEFT, padx=20)
-        
+                                 relief="flat", padx=40, pady=15, cursor="hand2")
+        self.btn_cap.pack()
+        tk.Label(btn_container, text="Press <Space> to capture", fg=COLORS["fg_dim"], bg=COLORS["panel"], font=("Segoe UI", 9)).pack(pady=(5,0))
         
         # Keybinds
         self.root.bind("<space>", lambda e: self.capture())
         self.root.bind("<Escape>", lambda e: self.restart_app())
         self.root.bind("<Return>", lambda e: self.upload())
+        self.root.bind("<Delete>", lambda e: self.delete_last_page())
+        self.root.bind("<BackSpace>", lambda e: self.trigger_focus())
+
+    def delete_last_page(self):
+        if self.image_paths:
+            self.delete(len(self.image_paths) - 1)
+
+    def check_updates(self):
+        try:
+            url = f"{self.api_url}/platform/desktop-version"
+            res = requests.get(url, timeout=3)
+            if res.status_code == 200:
+                data = res.json()
+                latest = data.get("latest_version", APP_VERSION)
+                msg = data.get("message", "A new version is available.")
+                
+                # Simple string compare works if version format is strictly maintained, e.g. "1.0.1" > "1.0.0"
+                if latest > APP_VERSION:
+                    if messagebox.askyesno("Update Available", f"Version {latest} is available.\n\n{msg}\n\nUpdate now?"):
+                        self.perform_update(latest)
+        except: pass
+
+    def perform_update(self, version):
+        try:
+            url = f"{self.api_url}/platform/scanner-download"
+            res = requests.get(url, timeout=10)
+            if res.status_code == 200:
+                # Save to .new file
+                new_file = os.path.abspath(__file__) + ".new"
+                with open(new_file, "wb") as f:
+                    f.write(res.content)
+                
+                # Verify it's a valid python file? (Simple check)
+                if b"import " in res.content[:100] or b"# " in res.content[:100]:
+                    # Create a temporary updater script
+                    updater_code = f"""
+import os
+import time
+import sys
+import subprocess
+
+time.sleep(1) # Wait for parent to exit
+try:
+    os.replace(r'{new_file}', r'{os.path.abspath(__file__)}')
+    subprocess.Popen([sys.executable, r'{os.path.abspath(__file__)}'] + sys.argv[1:])
+except Exception as e:
+    with open('update_error.log', 'w') as f: f.write(str(e))
+"""
+                    updater_path = os.path.join(tempfile.gettempdir(), "digifort_updater.py")
+                    with open(updater_path, "w") as f:
+                        f.write(updater_code)
+                    
+                    subprocess.Popen([sys.executable, updater_path])
+                    self.root.quit() # Exit main app
+                else:
+                    messagebox.showerror("Update Error", "Downloaded file seems invalid.")
+            else:
+                 messagebox.showerror("Update Failed", "Could not download update.")
+        except Exception as e:
+            messagebox.showerror("Update Error", str(e))
+
 
     def loop(self):
         if self.camera.is_running:
@@ -983,11 +1112,7 @@ class ScannerApp:
             self.canvas.configure(bg="#222")
             self.root.after(200, lambda: self.canvas.configure(bg=orig_bg))
 
-    def toggle_light(self):
-        self.light_level = (self.light_level + 1) % 4
-        self.camera.set_light(self.light_level)
-        levels = ["Off", "Low", "Med", "High"]
-        self.btn_light.config(text=f"💡 {levels[self.light_level]}")
+
 
     def restart_app(self):
         try:
@@ -1038,7 +1163,23 @@ class ScannerApp:
         img.save(filepath, format="JPEG", quality=65, optimize=True)
         
         self.image_paths.append(filepath)
-        self.refresh_sidebar()
+        self.refresh_sidebar(scroll_to_end=True)
+        
+        # Feedback (Sound + Flash)
+        try:
+            import winsound
+            winsound.Beep(1000, 100) # 1000Hz, 100ms
+        except: 
+            self.root.bell()
+            
+        self.flash_effect()
+
+    def flash_effect(self):
+        try:
+            flash = tk.Frame(self.canvas, bg="white")
+            flash.place(relx=0, rely=0, relwidth=1, relheight=1)
+            self.root.after(100, flash.destroy)
+        except: pass
 
     def loop(self):
         if self.camera.is_running:
@@ -1103,7 +1244,7 @@ class ScannerApp:
         
         self.root.after(30, self.loop)
 
-    def refresh_sidebar(self):
+    def refresh_sidebar(self, scroll_to_end=False):
         for w in self.list_frame.winfo_children(): w.destroy()
         
         total_size_mb = 0.0
@@ -1159,6 +1300,10 @@ class ScannerApp:
                 logger.error(f"Error loading thumb {filepath}: {e}")
         
         self.size_lbl.config(text=f"Total: {total_size_mb:.1f} MB ({len(self.image_paths)} pgs)")
+
+        if scroll_to_end:
+            self.root.update_idletasks() # Ensure dimensions are updated
+            self.canvas_list.yview_moveto(1)
 
     def move_up(self, idx):
         if idx > 0:

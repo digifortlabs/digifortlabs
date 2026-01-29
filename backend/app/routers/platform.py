@@ -136,3 +136,28 @@ async def get_ocr_logs(current_user: User = Depends(get_current_user)):
         logs = [f"Error reading logs: {e}"]
         
     return {"logs": logs}
+
+@router.get("/desktop-version")
+async def get_desktop_version():
+    """
+    Returns the latest version of the desktop scanner app.
+    Used by the app to check for updates on startup.
+    """
+    return {
+        "latest_version": "1.0.0", # Can be bumped to force update
+        "message": "Please download the latest version from the dashboard."
+    }
+
+from fastapi.responses import FileResponse
+import os
+
+@router.get("/scanner-download")
+async def download_scanner_app():
+    """
+    Downloads the current source code of the scanner app from the server.
+    """
+    file_path = "local_scanner/scanner_app.py" # Assuming backend running from root
+    if os.path.exists(file_path):
+        return FileResponse(file_path, media_type='application/x-python-code', filename="scanner_app.py")
+    else:
+        raise HTTPException(status_code=404, detail="Scanner app source not found on server.")
