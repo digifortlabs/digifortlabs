@@ -132,3 +132,5 @@ else
 fi
 
 pm2 status
+
+df -h
