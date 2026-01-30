@@ -64,6 +64,7 @@ import ProfitAndLoss from './components/ProfitAndLoss';
 import AccountingSettings from './components/AccountingSettings';
 import VendorManager from './components/VendorManager';
 import InventoryManager from './components/InventoryManager';
+import AgingReport from './components/AgingReport';
 
 export default function AccountingPage() {
     const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -85,7 +86,7 @@ export default function AccountingPage() {
     const [deleteLoading, setDeleteLoading] = useState<number | null>(null);
     const [emailLoading, setEmailLoading] = useState<number | null>(null);
     const [editInvoice, setEditInvoice] = useState<Invoice | null>(null);
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'parties' | 'expenses' | 'reports' | 'setup' | 'vendors' | 'inventory'>('invoices');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'parties' | 'expenses' | 'reports' | 'setup' | 'vendors' | 'inventory' | 'aging'>('invoices');
 
     const fetchInvoices = async () => {
         setLoading(true);
@@ -490,13 +491,14 @@ export default function AccountingPage() {
             )}
 
             {/* Advanced Accounting Components */}
-            {activeTab === 'dashboard' && <FinancialDashboard />}
+            {activeTab === 'dashboard' && <FinancialDashboard onViewAging={() => setActiveTab('aging')} />}
             {activeTab === 'parties' && <HospitalLedgerList />}
             {activeTab === 'vendors' && <VendorManager />}
             {activeTab === 'inventory' && <InventoryManager />}
             {activeTab === 'expenses' && <ExpenseManager />}
             {activeTab === 'reports' && <ProfitAndLoss />}
             {activeTab === 'setup' && <AccountingSettings />}
+            {activeTab === 'aging' && <AgingReport onBack={() => setActiveTab('dashboard')} />}
 
             {/* Modals */}
             <InvoiceGenerationModal

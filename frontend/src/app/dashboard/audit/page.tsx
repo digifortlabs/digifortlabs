@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { API_URL } from '../../../config/api';
+import { formatDateTime } from '@/lib/dateFormatter';
 import { Search, Calendar, Filter, Download, ShieldCheck, User, Clock, Activity, ArrowLeft, ArrowRight } from 'lucide-react';
 
 export default function AuditPage() {
@@ -17,6 +18,7 @@ export default function AuditPage() {
     const [endDate, setEndDate] = useState('');
     const [actionFilter, setActionFilter] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [expandedLogId, setExpandedLogId] = useState<number | null>(null);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -224,21 +226,25 @@ export default function AuditPage() {
                                     else if (log.action.includes('DOWNLOAD')) actionColor = "bg-amber-50 text-amber-600";
 
                                     return (
-                                        <tr key={log.log_id} className="hover:bg-slate-50 transition-colors group">
-                                            <td className="px-8 py-5 first:pl-10">
+                                        <tr
+                                            key={log.log_id}
+                                            onClick={() => setExpandedLogId(expandedLogId === log.log_id ? null : log.log_id)}
+                                            className={`hover:bg-slate-50 transition-colors group cursor-pointer ${expandedLogId === log.log_id ? 'bg-slate-50 shadow-inner' : ''}`}
+                                        >
+                                            <td className="px-8 py-5 first:pl-10 align-top">
                                                 <div className="flex items-center gap-3">
                                                     <Clock size={16} className="text-slate-300 group-hover:text-indigo-400 transition-colors" />
                                                     <span className="font-medium text-slate-600 text-sm font-mono">
-                                                        {new Date(log.timestamp).toLocaleString()}
+                                                        {formatDateTime(log.timestamp)}
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="px-8 py-5">
+                                            <td className="px-8 py-5 align-top">
                                                 <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide border border-transparent ${actionColor}`}>
                                                     {log.action.replace(/_/g, ' ')}
                                                 </span>
                                             </td>
-                                            <td className="px-8 py-5">
+                                            <td className="px-8 py-5 align-top">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 font-bold text-xs uppercase">
                                                         {(log.user_email || 'S').substring(0, 1)}
@@ -246,10 +252,23 @@ export default function AuditPage() {
                                                     <span className="font-bold text-slate-700 text-sm">{log.user_email}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-8 py-5">
-                                                <p className="text-sm font-medium text-slate-600 leading-relaxed truncate max-w-md" title={log.details}>
-                                                    {log.details}
-                                                </p>
+                                            <td className="px-8 py-5 align-top">
+                                                <div className="transition-all duration-300 ease-in-out">
+                                                    {expandedLogId === log.log_id ? (
+                                                        <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm">
+                                                            <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">
+                                                                {log.details}
+                                                            </p>
+                                                            <div className="mt-2 text-xs text-indigo-500 font-bold">
+                                                                ID: {log.target_id || 'N/A'} • IP: {log.ip_address || 'Unknown'}
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-sm font-medium text-slate-600 leading-relaxed truncate max-w-md" title="Click to expand">
+                                                            {log.details}
+                                                        </p>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );

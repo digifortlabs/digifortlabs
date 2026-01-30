@@ -468,9 +468,10 @@ def generate_invoice(
 
         for f in files:
             # Calculate cost logic
-            base_price = f.patient.price_per_file if f.patient else 100.0
-            included = f.patient.included_pages if f.patient else 20
-            extra_rate = f.patient.price_per_extra_page if f.patient else 1.0
+            # Use pricing from PDFFile (historical capture) or fall back to defaults
+            base_price = f.price_per_file if f.price_per_file is not None else 100.0
+            included = f.included_pages if f.included_pages is not None else 20
+            extra_rate = f.price_per_extra_page if f.price_per_extra_page is not None else 1.0
             page_count = f.page_count or 0
             extra_pages = max(0, page_count - included)
             file_cost = base_price + (extra_pages * extra_rate)
@@ -667,10 +668,10 @@ async def get_unbilled_files(hospital_id: int, db: Session = Depends(get_db)):
     results = []
     for f in pfiles:
         # Calculate cost logic (mirroring reports logic)
-        # Price settings are on the Patient -> Hospital model
-        base_price = f.patient.price_per_file if f.patient else 100.0
-        included = f.patient.included_pages if f.patient else 20
-        extra_rate = f.patient.price_per_extra_page if f.patient else 1.0
+        # Use pricing from PDFFile (snapshot) or defaults
+        base_price = f.price_per_file if f.price_per_file is not None else 100.0
+        included = f.included_pages if f.included_pages is not None else 20
+        extra_rate = f.price_per_extra_page if f.price_per_extra_page is not None else 1.0
         page_count = f.page_count or 0
         extra_pages = max(0, page_count - included)
         file_cost = base_price + (extra_pages * extra_rate)

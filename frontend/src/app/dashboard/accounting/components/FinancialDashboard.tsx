@@ -23,7 +23,7 @@ interface Stats {
     cash_in_hand: number;
 }
 
-export default function FinancialDashboard() {
+export default function FinancialDashboard({ onViewAging }: { onViewAging: () => void }) {
     const [stats, setStats] = useState<Stats | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -108,7 +108,7 @@ export default function FinancialDashboard() {
                     </h4>
                     <div className="space-y-4">
                         <p className="text-slate-400 text-sm italic">Connect with hospitals to clear pending invoices...</p>
-                        <button className="text-xs font-bold text-indigo-600 hover:underline">View Aging Report &rarr;</button>
+                        <button onClick={onViewAging} className="text-xs font-bold text-indigo-600 hover:underline">View Aging Report &rarr;</button>
                     </div>
                 </div>
 

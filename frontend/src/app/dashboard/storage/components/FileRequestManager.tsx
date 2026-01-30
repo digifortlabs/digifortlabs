@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Search, Plus, Clock, CheckCircle2, AlertCircle, Box } from 'lucide-react';
 import { API_URL } from '../../../../config/api';
+import { formatDate } from '../../../../lib/dateFormatter';
 
 export default function FileRequestManager() {
     const [requests, setRequests] = useState<any[]>([]);
@@ -213,7 +214,7 @@ export default function FileRequestManager() {
                                                 {req.box_label}
                                             </td>
                                             <td className="p-6 text-sm font-medium text-slate-600">{req.requester_name}</td>
-                                            <td className="p-6 text-sm text-slate-400">{new Date(req.request_date).toLocaleDateString()}</td>
+                                            <td className="p-6 text-sm text-slate-400">{formatDate(req.request_date)}</td>
                                             <td className="p-6 text-right">
                                                 <div className="flex items-center justify-end gap-2">
                                                     {canManageRequests && req.status === 'Pending' && (
@@ -312,7 +313,7 @@ export default function FileRequestManager() {
                                                 {req.box_label}
                                             </td>
                                             <td className="p-6 text-sm font-medium text-slate-600">{req.requester_name}</td>
-                                            <td className="p-6 text-sm text-slate-400">{new Date(req.request_date).toLocaleDateString()}</td>
+                                            <td className="p-6 text-sm text-slate-400">{formatDate(req.request_date)}</td>
                                             <td className="p-6 text-right">
                                                 {req.status === 'Delivered' && (
                                                     <button

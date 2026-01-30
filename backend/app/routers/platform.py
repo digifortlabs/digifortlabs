@@ -27,7 +27,8 @@ async def get_settings(db: Session = Depends(get_db)):
     # All users can arguably see settings (like announcement), but only admin can edit.
     try:
         settings = db.query(SystemSetting).all()
-        return {s.key: s.value for s in settings}
+        # Filter out any unexpected None entries to prevent AttributeError
+        return {s.key: s.value for s in settings if s}
     except Exception as e:
         print(f"Settings Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

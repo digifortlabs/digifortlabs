@@ -36,11 +36,13 @@ async def login_for_access_token(
     db: Session = Depends(get_db)
 ):
     print(f"🔐 [AUTH] Login attempt for: {form_data.username}")
-    start_time = time.time()
     
     # Authenticate User
     from sqlalchemy import func
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
+    
+    # Define IST Timezone
+    IST = timezone(timedelta(hours=5, minutes=30))
 
     user = db.query(User).filter(func.lower(User.email) == func.lower(form_data.username)).first()
     if not user:
@@ -53,22 +55,15 @@ async def login_for_access_token(
     
     # 1. Check Lockout Status
     if user.locked_until:
-        # Ensure UTC Awareness
-        now = datetime.utcnow()
-        if user.locked_until.tzinfo is None:
-             # Assume stored time is naive UTC
-             pass 
+        # Current time in IST
+        current_time = datetime.now(IST)
         
-        # Safer comparison: Convert both to naive or both to aware. 
-        # Using naive execution for simplicity as DB usually returns naive for 'timestamp without time zone'
-        # OR returns aware for 'timestamp with time zone'.
-        # Best fix:
+        # Ensure lock_time is aware (if stored as naive, assume it was IST)
         lock_time = user.locked_until
-        current_time = datetime.utcnow()
-        
-        # If lock_time is aware, make current_time aware
-        if lock_time.tzinfo:
-            current_time = current_time.replace(tzinfo=lock_time.tzinfo)
+        if lock_time.tzinfo is None:
+            lock_time = lock_time.replace(tzinfo=IST)
+        else:
+            lock_time = lock_time.astimezone(IST)
             
         if lock_time > current_time:
             remaining_mins = int((lock_time - current_time).total_seconds() / 60)
@@ -77,7 +72,7 @@ async def login_for_access_token(
                 detail=f"Account locked due to multiple failed attempts. Try again in {remaining_mins + 1} minutes."
             )
         else:
-            # Lock expired, reset counters (don't commit yet, wait for full success)
+            # Lock expired, reset counters
             user.locked_until = None
             user.failed_login_attempts = 0
 
@@ -87,10 +82,9 @@ async def login_for_access_token(
         user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
         db.commit()
 
-        if user.failed_login_attempts >= 5:
-            # Requirements #11: Lockout + Email
-            user.locked_until = datetime.utcnow() + timedelta(minutes=15)
-            # Commit lockout immediately to prevent further attempts
+        if user.failed_login_attempts >= 6:
+            # Requirements: Lockout 30 mins after 6 attempts (in IST)
+            user.locked_until = datetime.now(IST) + timedelta(minutes=30)
             db.commit()
             
             # Send Lockout Email
@@ -102,17 +96,17 @@ async def login_for_access_token(
 
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Account locked for 15 minutes due to too many failed login attempts."
+                detail="Account locked for 30 minutes due to too many failed login attempts."
             )
         
-        remaining_attempts = 5 - user.failed_login_attempts
+        remaining_attempts = 6 - user.failed_login_attempts
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Incorrect username or password. {remaining_attempts} attempts remaining.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Check if Hospital is Suspended (Skip for Super Admin who has no hospital)
+    # Check if Hospital is Suspended
     if user.hospital_id:
         if user.hospital and not user.hospital.is_active:
              raise HTTPException(
@@ -120,7 +114,6 @@ async def login_for_access_token(
                 detail="Your organization's access has been suspended. Contact Platform Support.",
             )
 
-    # Success: Reset counters
     # Success: Reset counters & Update Session
     if (user.failed_login_attempts or 0) > 0 or user.locked_until:
         user.failed_login_attempts = 0
@@ -136,11 +129,10 @@ async def login_for_access_token(
     # Audit Log (Non-blocking add)
     log_audit(db, user.user_id, "LOGIN_SUCCESS", "User logged in successfully")
     
-    # Final Commit for Everything (Login count reset, Session ID, Audit Log)
+    # Final Commit
     db.commit()
-    # -----------------------------
 
-    # Create Token with Role and Session ID
+    # Create Token
     token_data = {
         "sub": user.email, 
         "role": user.role, 
@@ -149,18 +141,15 @@ async def login_for_access_token(
         "force_password_change": user.force_password_change or False
     }
 
-    # Custom expiration for Super Admin
     expires_delta = None
     if user.role == UserRole.SUPER_ADMIN:
         expires_delta = timedelta(days=30)
 
-    # Add Hospital Name if available
     if user.hospital:
         token_data["hospital_name"] = user.hospital.legal_name
 
     access_token = create_access_token(data=token_data, expires_delta=expires_delta)
     
-    # Final Commit for Everything at the very end
     db.commit()
     
     return {"access_token": access_token, "token_type": "bearer"}
@@ -171,17 +160,25 @@ async def request_password_reset(request: PasswordResetRequest, db: Session = De
     from sqlalchemy import func
     user = db.query(User).filter(func.lower(User.email) == func.lower(request.email)).first()
     if not user:
-        # Security: Do not reveal if user exists
         return {"message": "If this email is registered, you will receive an OTP shortly."}
     
     # Generate OTP
     import random
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     from ..models import PasswordResetOTP
     from ..services.email_service import EmailService
 
+    IST = timezone(timedelta(hours=5, minutes=30))
+
+    # Invalidate previous active OTPs
+    db.query(PasswordResetOTP).filter(
+        func.lower(PasswordResetOTP.email) == func.lower(request.email),
+        PasswordResetOTP.is_used == False
+    ).update({PasswordResetOTP.is_used: True}, synchronize_session=False)
+
     otp_code = str(random.randint(100000, 999999))
-    expires_at = datetime.utcnow() + timedelta(minutes=10)
+    # Expires in 10 mins (IST)
+    expires_at = datetime.now(IST) + timedelta(minutes=10)
 
     # Save to DB
     otp_entry = PasswordResetOTP(
@@ -200,16 +197,19 @@ async def request_password_reset(request: PasswordResetRequest, db: Session = De
 
 @router.post("/reset-password")
 async def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_db)):
-    from datetime import datetime
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import func
     from ..models import PasswordResetOTP
     from ..utils import get_password_hash
-
+    
+    IST = timezone(timedelta(hours=5, minutes=30))
+    
     # Find Valid OTP
     otp_entry = db.query(PasswordResetOTP).filter(
         func.lower(PasswordResetOTP.email) == func.lower(data.email),
         PasswordResetOTP.otp_code == data.otp,
         PasswordResetOTP.is_used == False,
-        PasswordResetOTP.expires_at > datetime.utcnow()
+        PasswordResetOTP.expires_at > datetime.now(IST)
     ).first()
 
     if not otp_entry:
@@ -223,12 +223,17 @@ async def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_d
     user.hashed_password = get_password_hash(data.new_password)
     user.plain_password = data.new_password # Demo transparency
     
+    # Unlock account if it was locked
+    user.locked_until = None
+    user.failed_login_attempts = 0
+
     # Mark OTP as used
     otp_entry.is_used = True
     
     db.commit()
 
     return {"message": "Password updated successfully"}
+
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
@@ -251,8 +256,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         raise credentials_exception
     
-    # Single Session Verification - ENABLED (Bypassed for Super Admin)
-    # This allows superadmins to log in from multiple devices/browsers simultaneously.
+    # Single Session Verification
     if user.role != UserRole.SUPER_ADMIN:
         if user.current_session_id and session_id != user.current_session_id:
             raise HTTPException(
@@ -269,10 +273,17 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
             detail="System is currently under maintenance. Please try again later.",
         )
     
-    # Update Last Active Timestamp (Optimized: only if > 5 mins since last update)
-    from datetime import datetime
-    now = datetime.utcnow()
-    if not user.last_active_at or (now - user.last_active_at).total_seconds() > 300:
+    # Update Last Active Timestamp (IST)
+    from datetime import datetime, timezone, timedelta
+    IST = timezone(timedelta(hours=5, minutes=30))
+    now = datetime.now(IST)
+    
+    # Needs checking if last_active_at is naive
+    last_active = user.last_active_at
+    if last_active and last_active.tzinfo is None:
+        last_active = last_active.replace(tzinfo=IST)
+        
+    if not last_active or (now - last_active).total_seconds() > 300:
         user.last_active_at = now
         db.commit()
     

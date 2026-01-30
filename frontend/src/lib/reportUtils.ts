@@ -2,6 +2,7 @@
  * Report Generation Utilities
  * Provides CSV and PDF export capabilities for dashboard data
  */
+import { formatDate, formatDateTime } from './dateFormatter';
 
 /**
  * Convert array of objects to CSV string
@@ -98,7 +99,7 @@ export function exportPatientList(patients: any[]): void {
         'Gender': p.gender || 'N/A',
         'Contact': p.contact_number || 'N/A',
         'Status': p.status || 'Active',
-        'Created Date': p.created_at ? new Date(p.created_at).toLocaleDateString() : 'N/A'
+        'Created Date': formatDate(p.created_at)
     }));
 
     const csv = arrayToCSV(patientData);
@@ -129,7 +130,7 @@ export function exportAuditLogs(logs: any[]): void {
  * Creates a formatted HTML document and triggers print dialog
  */
 export function generatePDFReport(stats: any, hospitalName?: string): void {
-    const timestamp = new Date().toLocaleString();
+    const timestamp = formatDateTime(new Date());
     const reportTitle = hospitalName
         ? `${hospitalName} - Dashboard Report`
         : 'Platform Dashboard Report';

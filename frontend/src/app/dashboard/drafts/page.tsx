@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { API_URL } from '../../../config/api';
+import { formatDate } from '../../../lib/dateFormatter';
 
 export default function DraftsPage() {
     const router = useRouter();
@@ -98,7 +99,7 @@ export default function DraftsPage() {
                                     </Link>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {new Date(d.upload_date).toLocaleDateString()}
+                                    {formatDate(d.upload_date)}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex justify-end gap-2">
                                     <button

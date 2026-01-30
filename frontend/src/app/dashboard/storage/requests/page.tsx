@@ -12,6 +12,8 @@ interface Request {
     request_date: string;
 }
 
+import { formatDate } from '../../../../lib/dateFormatter';
+
 export default function RequestsPage() {
     const router = useRouter();
     const [userRole, setUserRole] = useState('');
@@ -103,7 +105,7 @@ export default function RequestsPage() {
                                     </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {new Date(req.request_date).toLocaleDateString()}
+                                    {formatDate(req.request_date)}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-center">
                                     <div className="flex items-center justify-center gap-2">

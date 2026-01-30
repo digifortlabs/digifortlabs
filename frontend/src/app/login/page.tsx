@@ -49,8 +49,9 @@ function LoginForm() {
             console.log(`🟢 [Login] Response Status: ${res.status}`);
 
             if (!res.ok) {
-                console.error('[Login] Failed:', res.status, res.statusText);
-                throw new Error('Invalid credentials');
+                const errorData = await res.json();
+                console.error('[Login] Failed:', res.status, errorData);
+                throw new Error(errorData.detail || 'Invalid credentials');
             }
 
             const data = await res.json();
@@ -58,9 +59,9 @@ function LoginForm() {
             localStorage.setItem('token', data.access_token);
             router.push('/dashboard');
 
-        } catch (err) {
+        } catch (err: any) {
             console.error('[Login] Error:', err);
-            setError('Invalid email or password. Please try again.');
+            setError(err.message || 'Invalid email or password. Please try again.');
         } finally {
             setLoading(false);
         }

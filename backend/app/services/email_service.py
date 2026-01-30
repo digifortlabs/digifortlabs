@@ -112,8 +112,13 @@ class EmailService:
             server.quit()
             
             print(f"[EMAIL SERVICE] OTP Sent to {email}")
+            return True
         except Exception as e:
             print(f"[EMAIL SERVICE] Failed to send OTP to {email}: {str(e)}")
+            # FALLBACK FOR LOCAL TESTING
+            print("\n" + "="*60)
+            print(f"📧 [FALLBACK] OTP for {email}: {otp_code}")
+            print("="*60 + "\n")
             return False
 
     @staticmethod

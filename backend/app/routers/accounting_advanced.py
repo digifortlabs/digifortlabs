@@ -140,10 +140,14 @@ def get_ledger(
         v = db.query(AccountingVendor).filter(AccountingVendor.vendor_id == party_id).first()
         party_name = v.name if v else "Unknown Vendor"
 
-    transactions = db.query(AccountingTransaction).filter(
-        AccountingTransaction.party_type == party_type,
-        AccountingTransaction.party_id == party_id
-    ).order_by(AccountingTransaction.date.asc()).all()
+    query = db.query(AccountingTransaction).filter(AccountingTransaction.party_type == party_type)
+    
+    if party_id == 0:
+        query = query.filter(AccountingTransaction.party_id.is_(None))
+    else:
+        query = query.filter(AccountingTransaction.party_id == party_id)
+        
+    transactions = query.order_by(AccountingTransaction.date.asc()).all()
 
     # Calculate balances
     total_debit = sum(t.debit for t in transactions)
@@ -303,4 +307,76 @@ def list_vendors(db: Session = Depends(get_db), current_user: User = Depends(get
         raise HTTPException(status_code=403, detail="Access denied")
     return db.query(AccountingVendor).all()
 
+@router.put("/expenses/{expense_id}")
+def update_expense(
+    expense_id: int,
+    req: ExpenseCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update an existing expense and its linked transactions."""
+    if current_user.role != "superadmin":
+        raise HTTPException(status_code=403, detail="Access denied")
 
+    expense = db.query(AccountingExpense).filter(AccountingExpense.expense_id == expense_id).first()
+    if not expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    # Update Expense Record
+    expense.description = req.description
+    expense.amount = req.amount
+    expense.category = req.category
+    expense.payment_method = req.payment_method
+    expense.date = req.date or expense.date
+    
+    # Update Related Ledger Entries (Reset amounts)
+    internal_txn = db.query(AccountingTransaction).filter(
+        AccountingTransaction.voucher_type == "EXPENSE",
+        AccountingTransaction.voucher_id == expense_id,
+        AccountingTransaction.party_type == "INTERNAL"
+    ).first()
+    
+    if internal_txn:
+        internal_txn.debit = req.amount + req.tax_amount
+        internal_txn.description = f"Expense: {req.description} ({req.category})"
+        internal_txn.date = expense.date
+
+    # If linked to vendor, update that too
+    if expense.vendor_id:
+        vendor_txn = db.query(AccountingTransaction).filter(
+            AccountingTransaction.voucher_type == "EXPENSE",
+            AccountingTransaction.voucher_id == expense_id,
+            AccountingTransaction.party_type == "VENDOR"
+        ).first()
+        if vendor_txn:
+            vendor_txn.credit = req.amount + req.tax_amount
+            vendor_txn.description = f"Purchase/Expense: {req.description}"
+            vendor_txn.date = expense.date
+
+    db.commit()
+    return {"message": "Expense updated successfully"}
+
+@router.delete("/expenses/{expense_id}")
+def delete_expense(
+    expense_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete an expense and remove it from the ledger."""
+    if current_user.role != "superadmin":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    expense = db.query(AccountingExpense).filter(AccountingExpense.expense_id == expense_id).first()
+    if not expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    # Delete Linked Transactions First
+    db.query(AccountingTransaction).filter(
+        AccountingTransaction.voucher_type == "EXPENSE",
+        AccountingTransaction.voucher_id == expense_id
+    ).delete()
+
+    # Delete Expense
+    db.delete(expense)
+    db.commit()
+    return {"message": "Expense deleted successfully"}

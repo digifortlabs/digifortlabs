@@ -7,6 +7,7 @@ import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Act
 import DigitizationScanner from '@/components/Scanner/DigitizationScanner';
 
 import { API_URL } from '@/config/api';
+import { formatDate } from '@/lib/dateFormatter';
 
 interface FileData {
     file_id: number;
@@ -670,7 +671,7 @@ function PatientDetailContent() {
                         {patient.discharge_date && (
                             <div>
                                 <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Discharged</span>
-                                <p className="font-semibold text-gray-700">{new Date(patient.discharge_date).toLocaleDateString()}</p>
+                                <p className="font-semibold text-gray-700">{formatDate(patient.discharge_date)}</p>
                             </div>
                         )}
                     </div>
@@ -724,7 +725,7 @@ function PatientDetailContent() {
                                         <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
                                     </div>
                                     <div className="text-right">
-                                        <span className="text-xs text-gray-400 block">{new Date(file.upload_date).toLocaleDateString()}</span>
+                                        <span className="text-xs text-gray-400 block">{formatDate(file.upload_date)}</span>
                                         {file.upload_status === 'draft' && <span className="text-[10px] font-bold text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full">DRAFT</span>}
                                     </div>
                                 </div>
