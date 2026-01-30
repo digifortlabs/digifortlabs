@@ -55,6 +55,11 @@ class EmailService:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         try:
+            # Validate credentials
+            if not SMTP_USERNAME or not SMTP_PASSWORD:
+                print("[EMAIL SERVICE] SMTP Credentials missing. Using Fallback mode.")
+                raise Exception("SMTP_USERNAME or SMTP_PASSWORD not set in environment settings")
+
             msg = MIMEMultipart()
             msg['From'] = SENDER_EMAIL
             msg['To'] = email
