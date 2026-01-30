@@ -11,6 +11,8 @@ set -e
 # Define root directory
 PROJECT_ROOT="/home/ec2-user/digifortlabs"
 echo "🚀 [START] Beginning Deployment Sequence for DIGIFORT LABS"
+# Set Timezone to IST (Asia/Kolkata)
+sudo timedatectl set-timezone Asia/Kolkata || true
 echo "📅 Time: $(date)"
 
 # --- 0. PRE-FLIGHT CHECK & BACKUP ---
