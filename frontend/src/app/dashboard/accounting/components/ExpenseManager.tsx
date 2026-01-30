@@ -17,6 +17,7 @@ import { apiFetch } from '@/config/api';
 import { format } from 'date-fns';
 
 interface Expense {
+    id?: number; // Added for unique React key
     expense_id: number;
     description: string;
     amount: number;
