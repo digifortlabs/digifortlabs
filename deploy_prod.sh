@@ -79,7 +79,8 @@ npm install --frozen-lockfile || npm install
 npm run build
 
 # Start with PM2
-pm2 start npm --name "frontend" -- start || pm2 restart frontend
+pm2 delete frontend 2>/dev/null || true
+pm2 start npm --name "frontend" -- start
 echo "✅ Frontend build successfully deployed."
 
 # --- 5. BACKEND SETUP ---
