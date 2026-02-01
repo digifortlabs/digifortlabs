@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL } from '../../../../config/api';
 import { toTitleCase, toUpperCaseMRD } from '@/lib/formatters';
-import { Search, Upload, X, Plus, FileText, Trash2, CheckCircle, AlertCircle, Loader2, PlayCircle, FileType, Building2, User, Camera } from 'lucide-react';
+import { Search, Upload, X, Plus, FileText, Trash2, CheckCircle, AlertCircle, Loader2, PlayCircle, FileType, Building2, User, Camera, Monitor } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import DigitizationScanner from '@/components/Scanner/DigitizationScanner';
 
@@ -38,6 +38,7 @@ export default function PatientUploadPage() {
     const [isUploadingGlobal, setIsUploadingGlobal] = useState(false);
 
     const [showScanner, setShowScanner] = useState(false);
+    const [isLaunchingDesktopApp, setIsLaunchingDesktopApp] = useState(false);
     const abortControllers = useRef<{ [key: string]: XMLHttpRequest }>({});
 
     useEffect(() => {
@@ -131,6 +132,10 @@ export default function PatientUploadPage() {
     );
 
     const handleOpenNativeScanner = () => {
+        if (!selectedPatient) {
+            alert("Please select a patient first.");
+            return;
+        }
         const token = localStorage.getItem('token') || '';
         const patientId = selectedPatient?.record_id || '';
         const patientName = selectedPatient?.full_name || '';
@@ -140,6 +145,7 @@ export default function PatientUploadPage() {
         const url = `digifort://upload?token=${token}&patient_id=${patientId}&patient_name=${encodeURIComponent(patientName)}&mrd=${encodeURIComponent(mrd)}&api_url=${encodeURIComponent(API_URL)}`;
 
         window.location.href = url;
+        setIsLaunchingDesktopApp(true);
     };
 
     const handleScannerComplete = (file: File) => {
@@ -702,6 +708,46 @@ export default function PatientUploadPage() {
                 </div>
             )}
 
+            {/* Desktop App Launch Overlay */}
+            {isLaunchingDesktopApp && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/90 backdrop-blur-md animate-in fade-in zoom-in duration-300">
+                    <div className="bg-white rounded-[2.5rem] p-12 max-w-lg w-full text-center shadow-2xl relative overflow-hidden border border-white/20">
+                        {/* Decorative background element */}
+                        <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl"></div>
+                        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl"></div>
+
+                        <div className="relative z-10">
+                            <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner">
+                                <Monitor className="text-indigo-600 animate-pulse" size={40} />
+                            </div>
+
+                            <h2 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">Scanner App Active</h2>
+
+                            <div className="flex flex-col gap-2 mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                                <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Active Session</p>
+                                <p className="text-xl font-bold text-slate-800">{selectedPatient?.full_name}</p>
+                                <p className="text-sm font-mono font-bold text-indigo-600">{selectedPatient?.patient_u_id}</p>
+                            </div>
+
+                            <p className="text-slate-500 font-medium mb-10 leading-relaxed px-4">
+                                The desktop scanner app has been launched. Please complete your scanning process there.
+                            </p>
+
+                            <button
+                                onClick={() => setIsLaunchingDesktopApp(false)}
+                                className="w-full bg-slate-900 hover:bg-slate-800 text-white py-5 rounded-2xl font-bold shadow-xl shadow-slate-200 transition-all active:scale-[0.98] flex items-center justify-center gap-3 group"
+                            >
+                                <CheckCircle size={20} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+                                Finished Scanning
+                            </button>
+
+                            <p className="mt-6 text-xs text-slate-400 font-medium">
+                                Once you close the app, click the button above to return.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

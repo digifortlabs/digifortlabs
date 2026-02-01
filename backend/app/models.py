@@ -160,6 +160,18 @@ class Patient(Base):
     def mother_details(self):
         return None # Placeholder
 
+    @property
+    def price_per_file(self):
+        return self.hospital.price_per_file if self.hospital else 100.0
+
+    @property
+    def included_pages(self):
+        return self.hospital.included_pages if self.hospital else 20
+
+    @property
+    def price_per_extra_page(self):
+        return self.hospital.price_per_extra_page if self.hospital else 1.0
+
 class PDFFile(Base):
     __tablename__ = "pdf_files"
 

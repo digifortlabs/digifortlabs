@@ -270,7 +270,7 @@ class FileData(BaseModel):
     filename: str
     upload_date: datetime.datetime
     file_size_mb: Union[float, None] = 0.0
-    page_count: int = 0
+    page_count: Union[int, None] = 0
     upload_status: str
     tags: Optional[str] = None
     ocr_text: Optional[str] = None
@@ -316,9 +316,17 @@ class PatientResponse(BaseModel):
     files: List[FileData] = []
     
     # Billing info (inherited from hospital)
-    price_per_file: float = 100.0
-    included_pages: int = 20
-    price_per_extra_page: float = 1.0
+    @property
+    def price_per_file(self) -> float:
+        return self.hospital.price_per_file if self.hospital else 100.0
+    
+    @property
+    def included_pages(self) -> int:
+        return self.hospital.included_pages if self.hospital else 20
+    
+    @property
+    def price_per_extra_page(self) -> float:
+        return self.hospital.price_per_extra_page if self.hospital else 1.0
 
     # New Medical Fields
     doctor_name: Optional[str] = None
@@ -566,10 +574,10 @@ async def upload_patient_file(
             upload_status="draft", # Force draft for Review Step
             processing_stage="queued",
             processing_progress=0,
-            # Capture Historical Pricing
-            price_per_file=patient.price_per_file,
-            included_pages=patient.included_pages,
-            price_per_extra_page=patient.price_per_extra_page
+            # Capture Historical Pricing from Hospital
+            price_per_file=patient.hospital.price_per_file if patient.hospital else 100.0,
+            included_pages=patient.hospital.included_pages if patient.hospital else 20,
+            price_per_extra_page=patient.hospital.price_per_extra_page if patient.hospital else 1.0
         )
         db.add(new_file)
         db.commit()
@@ -881,8 +889,10 @@ async def extract_patient_details_from_file(
             raise HTTPException(status_code=400, detail="Unsupported file format. Use PDF or Image.")
 
         if not extracted_json:
+            print(f"❌ Extraction failed. AI returned empty result for {filename}")
             raise HTTPException(status_code=500, detail="AI extraction failed. Please ensure the document is clear and contains patient details.")
 
+        print(f"✅ Extraction Successful: {extracted_json.get('full_name')}")
         return extracted_json
     except HTTPException as he:
         raise he

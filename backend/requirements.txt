@@ -28,3 +28,4 @@ pytesseract
 pdf2image
 Pillow
 google-generativeai
+pylsd-nova

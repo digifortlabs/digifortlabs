@@ -23,6 +23,28 @@ from typing import List, Optional, Tuple, Any
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("DigifortScanner")
+APP_VERSION = "1.0.0"
+
+def is_frozen():
+    return getattr(sys, 'frozen', False)
+
+def get_app_path():
+    if is_frozen():
+        return sys.executable
+    return os.path.abspath(__file__)
+
+def compare_versions(v1, v2):
+    """Returns True if v1 > v2 using semantic comparison"""
+    try:
+        parts1 = [int(x) for x in str(v1).split('.')]
+        parts2 = [int(x) for x in str(v2).split('.')]
+        # Pad with zeros to handle different lengths
+        max_len = max(len(parts1), len(parts2))
+        parts1 += [0] * (max_len - len(parts1))
+        parts2 += [0] * (max_len - len(parts2))
+        return parts1 > parts2
+    except:
+        return str(v1) > str(v2)
 
 # Enable GPU Acceleration via OpenCL (Transparent API)
 try:
@@ -602,9 +624,6 @@ import glob
 
 class ScannerApp:
     def __init__(self, root, args):
-        global APP_VERSION
-        APP_VERSION = "1.0.0"
-        
         self.root = root
         self.root.title(f"Digifort Medical Scanner v{APP_VERSION}") # Updated Title
         self.root.geometry("1400x900")
@@ -646,6 +665,8 @@ class ScannerApp:
         
         self.token = params.get('token', '')
         self.patient_id = params.get('patient_id', 'demo')
+        self.patient_name = params.get('patient_name', 'Walk-in Patient')
+        self.mrd_number = params.get('mrd', 'N/A')
         self.api_url = params.get('api_url', 'http://localhost:8000')
         
         self.live_brightness = tk.DoubleVar(value=1.0)
@@ -736,8 +757,16 @@ class ScannerApp:
         hdr.pack(fill=tk.X)
         tk.Label(hdr, text="DIGIFORT SCANNER", font=("Segoe UI", 14, "bold"), 
                  bg=COLORS["panel"], fg=COLORS["fg"]).pack(anchor="w")
-        tk.Label(hdr, text="Medical Records Digitaization", font=("Segoe UI", 9), 
+        tk.Label(hdr, text="Medical Records Digitization", font=("Segoe UI", 9), 
                  bg=COLORS["panel"], fg=COLORS["accent"]).pack(anchor="w")
+        
+        # Patient Info Display
+        p_info = tk.Frame(hdr, bg=COLORS["input_bg"], padx=10, pady=8, highlightthickness=1, highlightbackground=COLORS["border"])
+        p_info.pack(fill=tk.X, pady=(15, 0))
+        tk.Label(p_info, text=f"Patient: {self.patient_name}", font=("Segoe UI", 9, "bold"), 
+                 bg=COLORS["input_bg"], fg=COLORS["fg"], anchor="w").pack(fill=tk.X)
+        tk.Label(p_info, text=f"MRD: {self.mrd_number}", font=("Consolas", 8), 
+                 bg=COLORS["input_bg"], fg=COLORS["accent"], anchor="w").pack(fill=tk.X)
 
         # Scrollable Settings Area
         settings_canvas = tk.Canvas(sb, bg=COLORS["panel"], highlightthickness=0)
@@ -884,44 +913,61 @@ class ScannerApp:
                 latest = data.get("latest_version", APP_VERSION)
                 msg = data.get("message", "A new version is available.")
                 
-                # Simple string compare works if version format is strictly maintained, e.g. "1.0.1" > "1.0.0"
-                if latest > APP_VERSION:
+                if compare_versions(latest, APP_VERSION):
                     if messagebox.askyesno("Update Available", f"Version {latest} is available.\n\n{msg}\n\nUpdate now?"):
                         self.perform_update(latest)
-        except: pass
+        except Exception as e:
+            logger.error(f"Update check failed: {e}")
 
     def perform_update(self, version):
         try:
             url = f"{self.api_url}/platform/scanner-download"
-            res = requests.get(url, timeout=10)
+            res = requests.get(url, timeout=30) # Increased timeout for binary
             if res.status_code == 200:
-                # Save to .new file
-                new_file = os.path.abspath(__file__) + ".new"
+                current_app = get_app_path()
+                new_file = current_app + ".new"
                 with open(new_file, "wb") as f:
                     f.write(res.content)
                 
-                # Verify it's a valid python file? (Simple check)
-                if b"import " in res.content[:100] or b"# " in res.content[:100]:
-                    # Create a temporary updater script
-                    updater_code = f"""
-import os
-import time
-import sys
-import subprocess
+                # Verify downloaded content (EXE or Script)
+                valid = False
+                if is_frozen():
+                    # EXE starts with MZ header
+                    valid = res.content.startswith(b'MZ')
+                else:
+                    # Python script
+                    valid = b"import " in res.content[:500] or b"#" in res.content[:500]
 
-time.sleep(1) # Wait for parent to exit
+                if valid:
+                    # Create a temporary updater script
+                    if platform.system() == "Windows":
+                        # Batch script is more reliable for replacing running EXEs on Windows
+                        updater_script = os.path.join(tempfile.gettempdir(), "digifort_updater.bat")
+                        with open(updater_script, "w") as f:
+                            f.write(f"""@echo off
+timeout /t 2 /nobreak > nul
+move /y "{new_file}" "{current_app}"
+start "" "{current_app}" {" ".join(sys.argv[1:])}
+del "%~f0"
+""")
+                        subprocess.Popen(updater_script, shell=True)
+                    else:
+                        # Python fallback for other OS
+                        updater_code = f"""
+import os, time, sys, subprocess
+time.sleep(2)
 try:
-    os.replace(r'{new_file}', r'{os.path.abspath(__file__)}')
-    subprocess.Popen([sys.executable, r'{os.path.abspath(__file__)}'] + sys.argv[1:])
+    os.replace(r'{new_file}', r'{current_app}')
+    subprocess.Popen([r'{current_app}'] + sys.argv[1:])
 except Exception as e:
     with open('update_error.log', 'w') as f: f.write(str(e))
 """
-                    updater_path = os.path.join(tempfile.gettempdir(), "digifort_updater.py")
-                    with open(updater_path, "w") as f:
-                        f.write(updater_code)
+                        updater_path = os.path.join(tempfile.gettempdir(), "digifort_updater.py")
+                        with open(updater_path, "w") as f: f.write(updater_code)
+                        subprocess.Popen([sys.executable, updater_path])
                     
-                    subprocess.Popen([sys.executable, updater_path])
-                    self.root.quit() # Exit main app
+                    self.root.quit()
+                    sys.exit(0)
                 else:
                     messagebox.showerror("Update Error", "Downloaded file seems invalid.")
             else:

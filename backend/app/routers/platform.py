@@ -175,10 +175,15 @@ import os
 @router.get("/scanner-download")
 async def download_scanner_app():
     """
-    Downloads the current source code of the scanner app from the server.
+    Downloads the current scanner app.
+    Prioritizes the compiled .exe if it exists in the dist folder.
     """
-    file_path = "local_scanner/scanner_app.py" # Assuming backend running from root
-    if os.path.exists(file_path):
-        return FileResponse(file_path, media_type='application/x-python-code', filename="scanner_app.py")
+    exe_path = "local_scanner/dist/DigifortScanner.exe"
+    py_path = "local_scanner/scanner_app.py"
+    
+    if os.path.exists(exe_path):
+        return FileResponse(exe_path, media_type='application/octet-stream', filename="DigifortScanner.exe")
+    elif os.path.exists(py_path):
+        return FileResponse(py_path, media_type='application/x-python-code', filename="scanner_app.py")
     else:
-        raise HTTPException(status_code=404, detail="Scanner app source not found on server.")
+        raise HTTPException(status_code=404, detail="Scanner app not found on server.")
