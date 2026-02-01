@@ -11,8 +11,12 @@ import os
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from backend/.env
+# Get the script directory and navigate to backend/.env
+script_dir = os.path.dirname(os.path.abspath(__file__))
+backend_dir = os.path.join(script_dir, '..', '..')
+env_path = os.path.join(backend_dir, '.env')
+load_dotenv(env_path)
 
 # Database connection
 DATABASE_URL = os.getenv("DATABASE_URL")
