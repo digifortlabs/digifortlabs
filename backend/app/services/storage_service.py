@@ -164,7 +164,7 @@ class StorageService:
         year_str = date_source.strftime("%Y")
         month_str = date_source.strftime("%m")
         
-        def sanitize(n): return re.sub(r'[^\w\s-]', '', n).replace(' ', '_')
+        def sanitize(n): return re.sub(r'[^\w\s-]', '_', n).replace(' ', '_')
         hospital_name = sanitize(patient.hospital.legal_name or f"Hospital_{patient.hospital_id}")
         mrd_number = sanitize(patient.patient_u_id)
         
@@ -218,7 +218,7 @@ class StorageService:
         year_str = date_source.strftime("%Y")
         month_str = date_source.strftime("%m")
         
-        def sanitize(n): return re.sub(r'[^\w\s-]', '', n).replace(' ', '_')
+        def sanitize(n): return re.sub(r'[^\w\s-]', '_', n).replace(' ', '_')
         hospital_name = sanitize(patient.hospital.legal_name or f"Hospital_{patient.hospital_id}")
         mrd_number = sanitize(patient.patient_u_id)
         

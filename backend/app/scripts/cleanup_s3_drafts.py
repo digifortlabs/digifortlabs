@@ -80,13 +80,55 @@ def delete_s3_object(key):
         print(f"❌ Error deleting {key}: {e}")
         return False
 
+
+from app.models import PDFFile
+from app.services.storage_service import StorageService
+
+def force_confirm_pending_drafts():
+    """Found all files stuck in 'draft' status in DB and move them to final storage."""
+    print("\\n🚀 FORCE CONFIRM: Checking for pending drafts in database...")
+    db = SessionLocal()
+    try:
+        # Find all files marked as draft
+        drafts = db.query(PDFFile).filter(PDFFile.upload_status == 'draft').all()
+        print(f"📄 Found {len(drafts)} files in 'draft' status.")
+        
+        success_count = 0
+        fail_count = 0
+        
+        for file in drafts:
+            print(f"   🔄 Migrating File ID {file.file_id} (Key: {file.s3_key})...")
+            
+            # Use StorageService to migrate
+            # We use migrate_s3_draft_to_final which handles S3 move + DB update
+            success, msg = StorageService.migrate_s3_draft_to_final(db, file.file_id)
+            
+            if success:
+                print(f"      ✅ Success: {msg}")
+                success_count += 1
+            else:
+                print(f"      ❌ Failed: {msg}")
+                # If it failed because "Not a draft file" but status is draft, 
+                # check if it already exists in final location or handle gracefully
+                fail_count += 1
+                
+        print(f"🏁 Force Confirm Complete: {success_count} migrated, {fail_count} failed.\\n")
+        
+    except Exception as e:
+        print(f"❌ Error in force confirm: {e}")
+    finally:
+        db.close()
+
 def cleanup_drafts():
     """Main cleanup function."""
     print("🔍 Starting S3 draft cleanup...")
     print(f"📦 Bucket: {BUCKET_NAME}")
     
+    # 1. Force Confirm Pending Drafts
+    force_confirm_pending_drafts()
+    
     # Get confirmed files from database
-    print("\n📊 Fetching confirmed files from database...")
+    print("\\n📊 Fetching confirmed files from database...")
     confirmed_files = get_all_confirmed_file_ids()
     print(f"✅ Found {len(confirmed_files)} confirmed files in database")
     
@@ -102,6 +144,11 @@ def cleanup_drafts():
     total_deleted = 0
     total_size_freed = 0
     
+    for folder in draft_folders:
+        print(f"\\n🔍 Checking {folder}...")
+        objects = list_s3_objects(folder)
+        print(f"📁 Found {len(objects)} objects in {folder}")
+        
     for folder in draft_folders:
         print(f"\n🔍 Checking {folder}...")
         objects = list_s3_objects(folder)
@@ -140,26 +187,42 @@ def cleanup_drafts():
                             total_size_freed += size
                 else:
                     # Orphaned draft file (no database record)
-                    # Check if older than 7 days
-                    last_modified = obj['LastModified']
-                    age_days = (datetime.now(last_modified.tzinfo) - last_modified).days
+                    # RECOVER IT regardless of age
+                    print(f"⚠️  Orphan found (No DB Record): {key}")
                     
-                    if age_days > 7:
-                        print(f"🗑️  Deleting orphaned draft (>{age_days} days old): {key}")
-                        if delete_s3_object(key):
-                            total_deleted += 1
-                            total_size_freed += size
-                    else:
-                        print(f"⏳ Keeping recent draft ({age_days} days old): {key}")
+                    # Attempt to extract Hospital Name to give it a home
+                    # Keys are usually: drafts_backup/drafts/Hospital_Name/...
+                    parts = key.split('/')
+                    # [drafts_backup, drafts, Hospital_Name, file.enc]
+                    
+                    hospital_folder = "Recovered_Unknown"
+                    filename = parts[-1]
+                    
+                    # Try to find the hospital part
+                    for p in parts:
+                        if "Hospital" in p or "hospital" in p or "Center" in p or "Clinic" in p:
+                            hospital_folder = p
+                            break
+                    # If looking at typical structure: 
+                    if len(parts) >= 3 and parts[-2] != "drafts" and parts[-2] != "draft":
+                         hospital_folder = parts[-2]
+
+                    # Construct Recovery Path
+                    recovery_key = f"{hospital_folder}/Recovered_Drafts/{filename}"
+                    
+                    print(f"🚑 Recovering to: {recovery_key}")
+                    if move_s3_object(key, recovery_key):
+                         total_moved += 1
+                         total_size_freed += size
                         
             except Exception as e:
                 print(f"⚠️  Skipping {key}: {e}")
     
     # Summary
     print("\n" + "="*60)
-    print("✅ CLEANUP SUMMARY")
+    print("✅ CLEANUP & RECOVERY SUMMARY")
     print("="*60)
-    print(f"📦 Files moved to final storage: {total_moved}")
+    print(f"📦 Files moved/recovered: {total_moved}")
     print(f"🗑️  Files deleted: {total_deleted}")
     print(f"💾 Space freed: {total_size_freed / (1024**3):.2f} GB")
     print("="*60)
