@@ -20,7 +20,7 @@ export default function DownloadsPage() {
                     </p>
                     <div className="flex items-center gap-4 pt-4">
                         <a
-                            href="/DigifortScanner_Setup.exe"
+                            href="/DigifortScanner_Setup_v2.1.exe"
                             download
                             className="flex items-center gap-3 px-6 py-3.5 bg-white text-slate-900 rounded-xl font-bold hover:bg-indigo-50 transition-all hover:scale-105 shadow-xl shadow-white/10"
                         >
@@ -28,7 +28,7 @@ export default function DownloadsPage() {
                             Download for Windows
                         </a>
                         <div className="text-xs text-slate-500 font-mono">
-                            v2.0 • 64-bit • 45.4MB
+                            v2.1 • 64-bit • 45.4MB
                         </div>
                     </div>
                 </div>
