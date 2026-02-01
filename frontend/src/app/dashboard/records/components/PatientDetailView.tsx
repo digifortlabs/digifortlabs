@@ -344,6 +344,9 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
         // 1. Files are processing/analyzing
         // 2. We just launched the Desktop App (isPollingForDesktop is true)
         if (hasProcessing || isPollingForDesktop) {
+            if (isPollingForDesktop) {
+                triggerToast("Waiting for scanner uploads...", "info");
+            }
             const interval = setInterval(() => {
                 fetchPatient(token, id);
             }, 3000); // Faster polling (3s) for better UX
@@ -1429,7 +1432,10 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                                     <button
                                         onClick={() => {
                                             const token = localStorage.getItem('token');
-                                            const protocolUrl = `digifort://upload?token=${token}&patient_id=${patient.record_id}&patient_name=${encodeURIComponent(patient.full_name)}&mrd=${patient.patient_u_id}&api_url=${API_URL}`;
+                                            // Encode Base64 to handle special characters and spaces safely in protocol URI
+                                            const pNameB64 = btoa(unescape(encodeURIComponent(patient.full_name || '')));
+                                            const pmrdB64 = btoa(unescape(encodeURIComponent(patient.patient_u_id || '')));
+                                            const protocolUrl = `digifort://upload?token=${token}&patient_id=${patient.record_id}&patient_name_b64=${pNameB64}&mrd_b64=${pmrdB64}&api_url=${API_URL}`;
                                             window.open(protocolUrl, '_self');
                                             setIsPollingForDesktop(true);
                                             triggerToast("Waiting for scanner uploads...", "info");

@@ -14,6 +14,7 @@ import platform
 import queue
 import logging
 import numpy as np
+import base64
 from collections import deque
 from typing import List, Optional, Tuple, Any
 
@@ -665,8 +666,21 @@ class ScannerApp:
         
         self.token = params.get('token', '')
         self.patient_id = params.get('patient_id', 'demo')
-        self.patient_name = params.get('patient_name', 'Walk-in Patient')
-        self.mrd_number = params.get('mrd', 'N/A')
+        
+        # Decode Base64 Metadata
+        patient_name_b64 = params.get('patient_name_b64', '')
+        mrd_b64 = params.get('mrd_b64', '')
+        
+        try:
+            self.patient_name = base64.b64decode(patient_name_b64).decode('utf-8') if patient_name_b64 else params.get('patient_name', 'Walk-in Patient')
+        except:
+            self.patient_name = params.get('patient_name', 'Walk-in Patient')
+            
+        try:
+            self.mrd_number = base64.b64decode(mrd_b64).decode('utf-8') if mrd_b64 else params.get('mrd', 'N/A')
+        except:
+            self.mrd_number = params.get('mrd', 'N/A')
+            
         self.api_url = params.get('api_url', 'http://localhost:8000')
         
         self.live_brightness = tk.DoubleVar(value=1.0)
