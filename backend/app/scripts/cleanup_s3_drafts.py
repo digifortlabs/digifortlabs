@@ -8,30 +8,30 @@ import boto3
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 import os
+import sys
 from datetime import datetime
-from dotenv import load_dotenv
 
-# Load environment variables from backend/.env
-# Get the script directory and navigate to backend/.env
+# Add parent directory to path to import app modules
 script_dir = os.path.dirname(os.path.abspath(__file__))
-backend_dir = os.path.join(script_dir, '..', '..')
-env_path = os.path.join(backend_dir, '.env')
-load_dotenv(env_path)
+app_dir = os.path.join(script_dir, '..', '..')
+sys.path.insert(0, app_dir)
+
+from app.core.config import settings
 
 # Database connection
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = settings.DATABASE_URL
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 
 # S3 connection
 s3_client = boto3.client(
     's3',
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-    region_name=os.getenv("AWS_REGION", "ap-south-1")
+    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+    region_name=settings.AWS_REGION
 )
 
-BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+BUCKET_NAME = settings.AWS_BUCKET_NAME
 
 def get_all_confirmed_file_ids():
     """Get all file IDs that have been confirmed (not in drafts table)."""
