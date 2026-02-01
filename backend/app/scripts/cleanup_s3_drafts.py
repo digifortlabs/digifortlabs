@@ -9,6 +9,10 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 import os
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Database connection
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -29,8 +33,8 @@ def get_all_confirmed_file_ids():
     """Get all file IDs that have been confirmed (not in drafts table)."""
     db = SessionLocal()
     try:
-        # Get all file IDs from the main files table (confirmed files)
-        result = db.execute(text("SELECT file_id, s3_key FROM files"))
+        # Get all file IDs from the main pdf_files table (confirmed files)
+        result = db.execute(text("SELECT file_id, s3_key FROM pdf_files WHERE upload_status = 'confirmed'"))
         confirmed_files = {row[0]: row[1] for row in result.fetchall()}
         return confirmed_files
     finally:
