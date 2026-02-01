@@ -31,6 +31,7 @@ export default function ExpenseManager() {
     const [vendors, setVendors] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
 
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
 
@@ -77,6 +78,8 @@ export default function ExpenseManager() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (submitting) return;
+        setSubmitting(true);
         try {
             const payload = {
                 ...formData,
@@ -107,6 +110,8 @@ export default function ExpenseManager() {
             fetchData();
         } catch (error) {
             alert("Failed to save expense");
+        } finally {
+            setSubmitting(false);
         }
     }
 
@@ -337,9 +342,10 @@ export default function ExpenseManager() {
                             </div>
                             <button
                                 type="submit"
-                                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200"
+                                disabled={submitting}
+                                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {editingExpense ? 'Update Bill' : 'Record Purchase Bill'}
+                                {submitting ? <Loader2 className="animate-spin" size={20} /> : (editingExpense ? 'Update Bill' : 'Record Purchase Bill')}
                             </button>
                         </form>
                     </div>

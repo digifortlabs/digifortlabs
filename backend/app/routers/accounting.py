@@ -9,7 +9,7 @@ from sqlalchemy import func, not_
 from ..database import get_db
 from ..models import (
     Invoice, InvoiceItem, PDFFile, Hospital, User, Patient,
-    AccountingVendor, AccountingExpense, AccountingTransaction, AccountingConfig
+    AccountingVendor, AccountingExpense, AccountingTransaction, AccountingConfig, UserRole
 )
 from .auth import get_current_user
 from ..services.email_service import EmailService
@@ -40,10 +40,11 @@ class InvoiceResponse(BaseModel):
     gst_rate: float = 18.0
     status: str
     bill_date: Optional[datetime]
-    created_at: datetime
-    due_date: Optional[datetime]
-    payment_date: Optional[datetime]
-    transaction_id: Optional[str]
+    created_at: Optional[datetime] = None
+    due_date: Optional[datetime] = None
+    payment_date: Optional[datetime] = None
+    payment_method: Optional[str] = None
+    transaction_id: Optional[str] = None
     
     # Hospital Details for Bill Preview
     hospital_gst: Optional[str] = None
@@ -56,7 +57,15 @@ class InvoiceResponse(BaseModel):
     bank_account_no: Optional[str] = None
     bank_ifsc: Optional[str] = None
     amount_in_words: Optional[str] = None
+    company_name: Optional[str] = "Digifort Labs"
+    company_address: Optional[str] = "Vapi, Gujarat, India"
     company_gst: Optional[str] = None
+    company_email: Optional[str] = "info@digifortlabs.com"
+    company_website: Optional[str] = "www.digifortlabs.com"
+    company_bank_name: Optional[str] = None
+    company_bank_acc: Optional[str] = None
+    company_bank_ifsc: Optional[str] = None
+    is_gst_bill: bool = True
     
     items: List[InvoiceItemResponse] = []
 
@@ -85,17 +94,26 @@ class ReceivePaymentRequest(BaseModel):
     payment_method: str
     payment_date: Optional[datetime] = None
 
+class UpdateInvoiceItem(BaseModel):
+    item_id: Optional[int] = None
+    description: str
+    amount: float
+    discount: float = 0.0
+    hsn_code: Optional[str] = "998311"
+
 class UpdateInvoiceRequest(BaseModel):
     invoice_number: Optional[str] = None
     due_date: Optional[datetime] = None
     bill_date: Optional[datetime] = None
     status: Optional[str] = None # e.g. CANCELLED
+    is_gst_bill: Optional[bool] = None
+    items: Optional[List[UpdateInvoiceItem]] = None
 
 # --- Configuration Endpoints ---
 
 @router.get("/config")
 def get_accounting_config(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != "superadmin":
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
         raise HTTPException(status_code=403, detail="Access denied")
     
     config = db.query(AccountingConfig).first()
@@ -109,11 +127,20 @@ def get_accounting_config(db: Session = Depends(get_db), current_user: User = De
 
 class ConfigUpdate(BaseModel):
     current_fy: Optional[str] = None
+    company_name: Optional[str] = None
+    company_address: Optional[str] = None
     company_gst: Optional[str] = None
+    company_email: Optional[str] = None
+    company_website: Optional[str] = None
+    company_bank_name: Optional[str] = None
+    company_bank_acc: Optional[str] = None
+    company_bank_ifsc: Optional[str] = None
     invoice_prefix: Optional[str] = None
+    invoice_prefix_nongst: Optional[str] = None
     receipt_prefix: Optional[str] = None
     expense_prefix: Optional[str] = None
     next_invoice_number: Optional[int] = None
+    next_invoice_number_nongst: Optional[int] = None
     next_receipt_number: Optional[int] = None
     next_expense_number: Optional[int] = None
     number_format: Optional[str] = None
@@ -125,7 +152,7 @@ def update_accounting_config(
     current_user: User = Depends(get_current_user)
 ):
     """Update accounting settings."""
-    if current_user.role != "superadmin":
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
         raise HTTPException(status_code=403, detail="Access denied")
     
     config = db.query(AccountingConfig).first()
@@ -145,7 +172,7 @@ def reset_invoice_counters(
     current_user: User = Depends(get_current_user)
 ):
     """Reset all invoice/receipt/expense counters to 1. Use with caution!"""
-    if current_user.role != "superadmin":
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
         raise HTTPException(status_code=403, detail="Access denied")
     
     config = db.query(AccountingConfig).first()
@@ -177,10 +204,11 @@ def get_invoices(
     """Retrieve all invoices with optional filters."""
     query = db.query(Invoice).join(Hospital)
     
-    # Filter by hospital
-    if current_user.role != "superadmin":
-        query = query.filter(Invoice.hospital_id == current_user.hospital_id)
-    elif hospital_id:
+    # Restricted to Super Admin / Platform Staff
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    if hospital_id:
         query = query.filter(Invoice.hospital_id == hospital_id)
         
     if status:
@@ -197,6 +225,7 @@ def get_invoices(
         res.bank_name = inv.hospital.bank_name if inv.hospital else None
         res.bank_account_no = inv.hospital.bank_account_no if inv.hospital else None
         res.bank_ifsc = inv.hospital.bank_ifsc if inv.hospital else None
+        res.is_gst_bill = (inv.gst_rate or 0) > 0
         results.append(res)
         
     return results
@@ -212,7 +241,7 @@ def get_invoice_details(
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
         
-    if current_user.role != "superadmin" and invoice.hospital_id != current_user.hospital_id:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
         raise HTTPException(status_code=403, detail="Access denied")
         
     res = InvoiceResponse.model_validate(invoice)
@@ -227,10 +256,21 @@ def get_invoice_details(
     res.hospital_pincode = getattr(invoice.hospital, 'pincode', None) if invoice.hospital else None
     res.hospital_pan = getattr(invoice.hospital, 'pan_number', None) if invoice.hospital else None
     res.amount_in_words = number_to_words(invoice.total_amount)
+    res.is_gst_bill = (invoice.gst_rate or 0) > 0
     
-    # Add Company GST from Config
+    # Add Company Details from Config
     config = db.query(AccountingConfig).first()
-    res.company_gst = config.company_gst if config else "24AAFCD9999A1ZP" # Fallback to old hardcoded for now
+    if config:
+        res.company_name = config.company_name
+        res.company_address = config.company_address
+        res.company_gst = config.company_gst
+        res.company_email = config.company_email
+        res.company_website = config.company_website
+        res.company_bank_name = config.company_bank_name
+        res.company_bank_acc = config.company_bank_acc
+        res.company_bank_ifsc = config.company_bank_ifsc
+    else:
+        res.company_gst = "24AAFCD9999A1ZP" # Fallback
     
     # Populate items
     res.items = []
@@ -255,38 +295,97 @@ def update_invoice(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Update metadata for an existing invoice."""
-    if current_user.role != "superadmin":
+    """Update metadata, items, and taxes for an existing invoice."""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
         raise HTTPException(status_code=403, detail="Only Super Admins can update invoices")
         
     invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
-        
-    if req.due_date:
-        invoice.due_date = req.due_date
-    if req.bill_date:
-        invoice.bill_date = req.bill_date
-    if req.invoice_number:
-        invoice.invoice_number = req.invoice_number
-    if req.status:
-        invoice.status = req.status
-        
-    db.commit()
-    db.refresh(invoice)
 
-    # Sync Ledger Entry (Debit)
-    txn = db.query(AccountingTransaction).filter(
-        AccountingTransaction.voucher_type == "INVOICE",
-        AccountingTransaction.voucher_id == invoice.invoice_id
-    ).first()
-    
-    if txn:
-        txn.debit = invoice.total_amount
-        txn.voucher_number = invoice.invoice_number
-        txn.date = invoice.bill_date or txn.date
+    if invoice.status == "PAID" and current_user.role != UserRole.SUPER_ADMIN:
+        raise HTTPException(status_code=400, detail="Only Super Admins can modify a PAID invoice.")
+
+    try:
+        # 1. Update Basic Meta
+        if req.invoice_number:
+            invoice.invoice_number = req.invoice_number
+        if req.bill_date:
+            invoice.bill_date = req.bill_date
+        if req.due_date:
+            invoice.due_date = req.due_date
+        if req.status:
+            invoice.status = req.status
+            
+        # 2. Update GST state if provided
+        if req.is_gst_bill is not None:
+            invoice.gst_rate = 18.0 if req.is_gst_bill else 0.0
+
+        # 3. Update Items (Complete Replacement for simplicity/safety)
+        if req.items is not None:
+            # Note: We don't restore PDFFile.is_paid here because usually items are removed 
+            # and added back, or just modified. If an item is PERMANENTLY removed, 
+            # the user should use the dedicated item delete endpoint to handle file cleanup.
+            # However, for 'Manage Invoice' UI, we might need a sync logic.
+            
+            # Simple approach: Delete existing and add new
+            db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).delete()
+            
+            subtotal = 0.0
+            for item in req.items:
+                net_amount = item.amount - item.discount
+                subtotal += net_amount
+                
+                inv_item = InvoiceItem(
+                    invoice_id=invoice_id,
+                    amount=item.amount,
+                    discount=item.discount,
+                    description=item.description,
+                    hsn_code=item.hsn_code or "998311"
+                )
+                db.add(inv_item)
+            
+            # Recalculate Totals
+            rate = invoice.gst_rate or 0.0
+            tax = (subtotal * rate) / 100
+            grand = round(subtotal + tax)
+            
+            invoice.total_amount = grand
+            invoice.tax_amount = tax
+            
+        elif req.is_gst_bill is not None:
+            # Case where only GST flag was toggled but items stayed same
+            # We need subtotal to recalculate tax
+            items = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).all()
+            subtotal = sum((i.amount - i.discount) for i in items)
+            
+            rate = invoice.gst_rate or 0.0
+            tax = (subtotal * rate) / 100
+            grand = round(subtotal + tax)
+            
+            invoice.total_amount = grand
+            invoice.tax_amount = tax
+
         db.commit()
-    return get_invoice_details(invoice_id, db, current_user)
+        db.refresh(invoice)
+
+        # 4. Sync Ledger Entry
+        txn = db.query(AccountingTransaction).filter(
+            AccountingTransaction.voucher_type == "INVOICE",
+            AccountingTransaction.voucher_id == invoice.invoice_id
+        ).first()
+        
+        if txn:
+            txn.debit = invoice.total_amount
+            txn.voucher_number = invoice.invoice_number
+            txn.date = invoice.bill_date or txn.date
+            db.commit()
+            
+        return get_invoice_details(invoice_id, db, current_user)
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
 
 @router.delete("/items/{item_id}")
 def delete_invoice_item(
@@ -295,7 +394,7 @@ def delete_invoice_item(
     current_user: User = Depends(get_current_user)
 ):
     """Remove a single item from an invoice and recalculate totals."""
-    if current_user.role != "superadmin":
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
         raise HTTPException(status_code=403, detail="Only Super Admins can edit invoices")
         
     item = db.query(InvoiceItem).filter(InvoiceItem.item_id == item_id).first()
@@ -319,9 +418,9 @@ def delete_invoice_item(
     db.flush() # Ensure item is gone for total calculation
     
     # Recalculate Totals
-    new_subtotal = sum(i.amount for i in invoice.items)
+    new_subtotal = sum((i.amount - i.discount) for i in invoice.items)
     invoice.tax_amount = (new_subtotal * invoice.gst_rate) / 100
-    invoice.total_amount = new_subtotal + invoice.tax_amount
+    invoice.total_amount = round(new_subtotal + invoice.tax_amount)
     
     db.commit()
 
@@ -368,7 +467,7 @@ def generate_invoice(
 ):
     """Generate a new invoice for a set of files."""
     try:
-        if current_user.role != "superadmin":
+        if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
             raise HTTPException(status_code=403, detail="Only Super Admins can generate invoices")
             
         hospital = db.query(Hospital).filter(Hospital.hospital_id == req.hospital_id).first()
@@ -512,7 +611,7 @@ def generate_invoice(
         # Calculate GST (18% if GST Bill, else 0%)
         gst_rate = 18.0 if req.is_gst_bill else 0.0
         tax_amount = (total_amount * gst_rate) / 100
-        grand_total = total_amount + tax_amount
+        grand_total = round(total_amount + tax_amount)
 
         # Create Invoice
         new_invoice = Invoice(
@@ -586,6 +685,20 @@ def generate_invoice(
         res.bank_name = hospital.bank_name
         res.bank_account_no = hospital.bank_account_no
         res.bank_ifsc = hospital.bank_ifsc
+        res.amount_in_words = number_to_words(grand_total)
+        res.is_gst_bill = req.is_gst_bill
+
+        # Add Company Details from Config
+        if config:
+            res.company_name = config.company_name
+            res.company_address = config.company_address
+            res.company_gst = config.company_gst
+            res.company_email = config.company_email
+            res.company_website = config.company_website
+            res.company_bank_name = config.company_bank_name
+            res.company_bank_acc = config.company_bank_acc
+            res.company_bank_ifsc = config.company_bank_ifsc
+        
         return res
         
     except Exception as e:
@@ -612,7 +725,7 @@ def receive_payment(
     current_user: User = Depends(get_current_user)
 ):
     """Record payment for an invoice."""
-    if current_user.role != "superadmin":
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
         raise HTTPException(status_code=403, detail="Only Super Admins can process payments")
         
     invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
@@ -695,6 +808,8 @@ def send_invoice_email(
     current_user: User = Depends(get_current_user)
 ):
     """Send the invoice details to the hospital admin via email."""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+        raise HTTPException(status_code=403, detail="Only Super Admins can send invoice emails")
     invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -734,7 +849,7 @@ def delete_invoice(
     current_user: User = Depends(get_current_user)
 ):
     """Delete an invoice and reset associated files to 'unpaid'."""
-    if current_user.role != "superadmin":
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
         raise HTTPException(status_code=403, detail="Only Super Admins can delete invoices")
         
     invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()

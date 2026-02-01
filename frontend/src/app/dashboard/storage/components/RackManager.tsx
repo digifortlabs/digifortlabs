@@ -12,10 +12,11 @@ interface RackManagerProps {
 const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) => {
     const [rackForm, setRackForm] = useState({ label: '', aisle: 1, capacity: 100 });
     const [isCreatingRack, setIsCreatingRack] = useState(false);
+    const [hospitals, setHospitals] = useState<any[]>([]); // For Admin Selection
 
     // Box Create State (Restored)
     const [selectedRackForBox, setSelectedRackForBox] = useState<any>(null);
-    const [boxForm, setBoxForm] = useState({ label: '', capacity: 500 });
+    const [boxForm, setBoxForm] = useState({ label: '', capacity: 500, category: 'IPD', hospital_id: '' });
     const [isCreatingBox, setIsCreatingBox] = useState(false);
 
     // Box View State
@@ -126,13 +127,15 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                     label: boxForm.label,
                     capacity: boxForm.capacity,
                     rack_id: selectedRackForBox.rack_id,
-                    location_code: locationCode
+                    location_code: locationCode,
+                    category: boxForm.category,
+                    hospital_id: boxForm.hospital_id || selectedRackForBox.hospital_id
                 })
             });
             if (res.ok) {
                 setIsCreatingBox(false);
                 setSelectedRackForBox(null);
-                setBoxForm({ label: '', capacity: 500 });
+                setBoxForm({ label: '', capacity: 500, category: 'IPD', hospital_id: '' });
                 refreshData();
             }
         } catch (e) { console.error(e); }
@@ -302,6 +305,7 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
             {isCreatingRack && (
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-indigo-100">
                     <div className="grid grid-cols-3 gap-4 mb-4">
+
                         <input type="text" placeholder="Rack Label (Empty = Auto)" className="p-3 border rounded-xl" value={rackForm.label} onChange={e => setRackForm({ ...rackForm, label: e.target.value })} />
                         <select className="p-3 border rounded-xl" value={rackForm.aisle} onChange={e => setRackForm({ ...rackForm, aisle: parseInt(e.target.value) })}>
                             {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>Aisle {n}</option>)}
@@ -317,6 +321,46 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                     <div className="bg-white rounded-[1.5rem] p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95">
                         <h3 className="text-lg font-bold text-slate-800 mb-4">Create New Box</h3>
                         <div className="space-y-3 mb-6">
+                            {/* Hospital Selection (New) */}
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Target Hospital</label>
+                                <select
+                                    className="w-full p-2.5 border rounded-lg bg-slate-50 font-medium text-sm"
+                                    value={boxForm.hospital_id}
+                                    onChange={async (e) => {
+                                        const hId = e.target.value;
+                                        setBoxForm({ ...boxForm, hospital_id: hId });
+
+                                        // Update label if rack and category are known
+                                        if (selectedRackForBox && hId) {
+                                            const token = localStorage.getItem('token');
+                                            try {
+                                                const res = await fetch(
+                                                    `${API_URL}/storage/next-sequence?hospital_id=${hId}&category=${boxForm.category}`,
+                                                    { headers: { Authorization: `Bearer ${token}` } }
+                                                );
+                                                if (res.ok) {
+                                                    const data = await res.json();
+                                                    setBoxForm(prev => ({ ...prev, label: data.full_label }));
+                                                }
+                                            } catch (e) { console.error(e); }
+                                        }
+                                    }}
+                                    onFocus={async () => {
+                                        if (hospitals.length === 0) {
+                                            const token = localStorage.getItem('token');
+                                            try {
+                                                const res = await fetch(`${API_URL}/hospitals`, { headers: { Authorization: `Bearer ${token}` } });
+                                                if (res.ok) setHospitals(await res.json());
+                                            } catch (e) { console.error(e); }
+                                        }
+                                    }}
+                                >
+                                    <option value="">-- Select Hospital --</option>
+                                    {hospitals.map(h => <option key={h.hospital_id} value={h.hospital_id}>{h.legal_name}</option>)}
+                                </select>
+                            </div>
+
                             <div>
                                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Select Rack</label>
                                 <select
@@ -329,18 +373,14 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                         // Fetch auto-generated label
                                         if (rack) {
                                             const token = localStorage.getItem('token');
-                                            const now = new Date();
-                                            const year = now.getFullYear();
-                                            const month = String(now.getMonth() + 1).padStart(2, '0');
-
                                             try {
                                                 const res = await fetch(
-                                                    `${API_URL}/storage/next-sequence?hospital_id=${rack.hospital_id}&year=${year}&month=${month}`,
+                                                    `${API_URL}/storage/next-sequence?hospital_id=${boxForm.hospital_id || rack.hospital_id}&category=${boxForm.category}`,
                                                     { headers: { Authorization: `Bearer ${token}` } }
                                                 );
                                                 if (res.ok) {
                                                     const data = await res.json();
-                                                    setBoxForm({ ...boxForm, label: data.full_label });
+                                                    setBoxForm(prev => ({ ...prev, label: data.full_label }));
                                                 }
                                             } catch (e) {
                                                 console.error(e);
@@ -350,10 +390,48 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                 >
                                     <option value="">-- Choose a Rack --</option>
                                     {racks.map(r => (
-                                        <option key={r.rack_id} value={r.rack_id}>{r.label} (Aisle {r.aisle})</option>
+                                        <option key={r.rack_id} value={r.rack_id}>
+                                            {r.label} (Aisle {r.aisle}) {r.hospital_name ? `[Dedicated: ${r.hospital_name}]` : '[Shared Rack]'}
+                                        </option>
                                     ))}
                                 </select>
                             </div>
+
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Category (MRD Type)</label>
+                                <select
+                                    className="w-full p-2.5 border rounded-lg bg-slate-50 font-medium text-sm"
+                                    value={boxForm.category}
+                                    onChange={async (e) => {
+                                        const newCat = e.target.value;
+                                        setBoxForm({ ...boxForm, category: newCat });
+
+                                        // Update label if rack is selected
+                                        if (selectedRackForBox) {
+                                            const token = localStorage.getItem('token');
+                                            try {
+                                                const res = await fetch(
+                                                    `${API_URL}/storage/next-sequence?hospital_id=${boxForm.hospital_id || selectedRackForBox.hospital_id}&category=${newCat}`,
+                                                    { headers: { Authorization: `Bearer ${token}` } }
+                                                );
+                                                if (res.ok) {
+                                                    const data = await res.json();
+                                                    setBoxForm(prev => ({ ...prev, category: newCat, label: data.full_label }));
+                                                }
+                                            } catch (e) {
+                                                console.error(e);
+                                            }
+                                        }
+                                    }}
+                                >
+                                    <option value="IPD">IPD (Inpatient)</option>
+                                    <option value="OPD">OPD (Outpatient)</option>
+                                    <option value="MCL">MCL (Medico-Legal)</option>
+                                    <option value="BRT">Birth Records</option>
+                                    <option value="DHT">Death Records</option>
+                                </select>
+                            </div>
+
                             <input type="text" placeholder="Box Label (Empty = Auto)" className="w-full p-2.5 border rounded-lg text-sm" value={boxForm.label} onChange={e => setBoxForm({ ...boxForm, label: e.target.value })} />
                             <input type="number" placeholder="Capacity" className="w-full p-2.5 border rounded-lg text-sm" value={boxForm.capacity} onChange={e => setBoxForm({ ...boxForm, capacity: parseInt(e.target.value) || 0 })} />
                         </div>
@@ -409,6 +487,8 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                                     refreshData();
                                                 } else {
                                                     alert(data.detail || "Failed to assign all files.");
+                                                    // Refresh state in case it was closed in background
+                                                    handleViewBox(viewingBox);
                                                 }
                                             } catch (e) { console.error(e); }
                                             finally { setIsAddingString(false); }
@@ -451,7 +531,15 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                 <div className="flex justify-between items-start">
                                     <div className="flex items-center gap-4">
                                         <div>
-                                            <h3 className="text-lg font-black text-slate-800">{viewingBox.label}</h3>
+                                            <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                                                {viewingBox.label}
+                                                <span className={`text-[10px] px-2 py-0.5 rounded-full border ${viewingBox.category === 'MCL' ? 'bg-red-50 text-red-600 border-red-200' :
+                                                    viewingBox.category === 'DHT' ? 'bg-slate-100 text-slate-600 border-slate-200' :
+                                                        'bg-blue-50 text-blue-600 border-blue-200'
+                                                    }`}>
+                                                    {viewingBox.category || 'IPD'}
+                                                </span>
+                                            </h3>
                                             <div className="flex items-center gap-2">
                                                 <p className="text-[10px] font-bold text-slate-400">{viewingBox.location_code}</p>
                                                 <span className="text-[10px] text-slate-300">|</span>
@@ -481,9 +569,28 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                                 )}
                                             </div>
                                         </div>
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${viewingBox.status === 'OPEN' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
-                                            {viewingBox.status}
-                                        </span>
+                                        <button
+                                            onClick={async () => {
+                                                if (!confirm(`Mark box ${viewingBox.label} as ${viewingBox.status === 'OPEN' ? 'CLOSED' : 'OPEN'}?`)) return;
+                                                const token = localStorage.getItem('token');
+                                                try {
+                                                    const res = await fetch(`${API_URL}/storage/boxes/${viewingBox.box_id}/status`, {
+                                                        method: 'PATCH',
+                                                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                                        body: JSON.stringify({ is_open: viewingBox.status !== 'OPEN' })
+                                                    });
+
+                                                    if (res.ok) {
+                                                        const data = await res.json();
+                                                        setViewingBox({ ...viewingBox, status: data.is_open ? 'OPEN' : 'CLOSED' });
+                                                        refreshData();
+                                                    }
+                                                } catch (e) { console.error(e); }
+                                            }}
+                                            className={`text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer hover:opacity-80 transition ${viewingBox.status === 'OPEN' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}
+                                        >
+                                            {viewingBox.status} {viewingBox.status === 'OPEN' ? '(Click to Close)' : '(Click to Open)'}
+                                        </button>
                                     </div>
                                     <button onClick={() => setViewingBox(null)} className="p-1.5 bg-white rounded-full text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition border border-slate-200">
                                         <X size={16} />

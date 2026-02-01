@@ -20,7 +20,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.requests_per_minute = requests_per_minute
         self.auth_requests_per_minute = auth_requests_per_minute
         self.request_counts = defaultdict(list)
-        self.auth_paths = ["/auth/login", "/auth/verify-otp", "/auth/forgot-password"]
+        self.auth_paths = ["/auth/token", "/auth/login", "/auth/verify-otp", "/auth/forgot-password", "/auth/request-password-reset"]
     
     async def dispatch(self, request: Request, call_next):
         # Skip rate limiting for preflight requests

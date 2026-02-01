@@ -19,7 +19,13 @@ function LoginForm() {
 
     useEffect(() => {
         const errorMsg = searchParams.get('error');
-        if (errorMsg) {
+        const reason = searchParams.get('reason');
+
+        if (reason === 'maintenance') {
+            setError('🔧 System is currently under maintenance. Please try again later.');
+        } else if (reason === 'inactivity') {
+            setError('⏱️ You were logged out due to inactivity. Please log in again.');
+        } else if (errorMsg) {
             setError(errorMsg);
         }
     }, [searchParams]);
@@ -57,6 +63,7 @@ function LoginForm() {
             const data = await res.json();
             console.log("🟢 [Login] Success, Token received.");
             localStorage.setItem('token', data.access_token);
+            localStorage.setItem('userEmail', email); // Store for Secure View Watermark
             router.push('/dashboard');
 
         } catch (err: any) {

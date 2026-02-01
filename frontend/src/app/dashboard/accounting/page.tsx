@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
     Receipt,
     Search,
@@ -67,8 +68,10 @@ import InventoryManager from './components/InventoryManager';
 import AgingReport from './components/AgingReport';
 
 export default function AccountingPage() {
+    const router = useRouter();
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isAuthorized, setIsAuthorized] = useState(false);
     const [filterStatus, setFilterStatus] = useState<string>('ALL');
     const [searchTerm, setSearchTerm] = useState('');
     const [stats, setStats] = useState({
@@ -111,8 +114,25 @@ export default function AccountingPage() {
     };
 
     useEffect(() => {
-        fetchInvoices();
-    }, []);
+        const token = localStorage.getItem('token');
+        if (!token) {
+            router.push('/login');
+            return;
+        }
+
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.role !== 'superadmin') {
+                router.push('/dashboard');
+                return;
+            }
+            setIsAuthorized(true);
+            fetchInvoices();
+        } catch (e) {
+            console.error("Failed to parse token", e);
+            router.push('/dashboard');
+        }
+    }, [router]);
 
     const handleSendEmail = async (invoiceId: number) => {
         setEmailLoading(invoiceId);
@@ -188,6 +208,14 @@ export default function AccountingPage() {
                 return null;
         }
     };
+
+    if (!isAuthorized) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <Loader2 className="animate-spin text-indigo-600" size={40} />
+            </div>
+        );
+    }
 
     return (
         <div className="w-full mx-auto space-y-8 pb-12">

@@ -28,7 +28,6 @@ import {
     AppWindow // Replacement
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { exportDashboardMetrics, generatePDFReport } from '@/lib/reportUtils';
 
 export default function CommandCenter() {
     const router = useRouter();
@@ -186,12 +185,12 @@ export default function CommandCenter() {
                     <div className="bg-emerald-50 px-4 py-2 rounded-xl flex items-center gap-2 border border-emerald-100">
                         <ShieldCheck className="text-emerald-600 w-4 h-4" />
                         <div className="flex flex-col">
-                           
+
                             <span className="text-xs font-black text-emerald-700 leading-none">
                                 <div className="flex flex-col">
-                                    <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider leading-none">Login Time</span>
+                                    <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider leading-none">Last Login</span>
                                     <span className="text-xs font-black text-emerald-700 leading-none">
-                                        {stats?.system?.uptime ? formatDateTime(stats.system.uptime) : '...'}
+                                        {stats?.system?.uptime ? formatDateTime(stats.system.uptime) : 'Initial Session'}
                                     </span>
                                 </div>
                             </span>
@@ -208,27 +207,6 @@ export default function CommandCenter() {
                         </div>
                     </div>
 
-                    {/* Export Buttons - Show for detailed view or admins */}
-                    {(isDetailedView || userRole === 'website_admin' || userRole === 'hospital_admin') && stats && (
-                        <>
-                            <button
-                                onClick={() => exportDashboardMetrics(stats, stats?.hospital_name)}
-                                className="bg-white px-4 py-2 rounded-xl flex items-center gap-2 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors shadow-sm"
-                                title="Export to CSV"
-                            >
-                                <Package className="text-indigo-600 w-4 h-4" />
-                                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Export CSV</span>
-                            </button>
-                            <button
-                                onClick={() => generatePDFReport(stats, stats?.hospital_name)}
-                                className="bg-indigo-600 px-4 py-2 rounded-xl flex items-center gap-2 border border-indigo-700 hover:bg-indigo-700 transition-colors shadow-sm"
-                                title="Generate PDF Report"
-                            >
-                                <FileText className="text-white w-4 h-4" />
-                                <span className="text-xs font-bold text-white uppercase tracking-wider">PDF Report</span>
-                            </button>
-                        </>
-                    )}
                 </div>
             </div>
 

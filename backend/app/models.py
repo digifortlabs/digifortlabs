@@ -88,7 +88,9 @@ class User(Base):
     locked_until = Column(DateTime, nullable=True)
     failed_login_attempts = Column(Integer, default=0)
     current_session_id = Column(String, nullable=True)
-    last_active_at = Column(DateTime, nullable=True)
+    last_active_at = Column(DateTime(timezone=True), nullable=True)
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
+    previous_login_at = Column(DateTime(timezone=True), nullable=True)
     force_password_change = Column(Boolean, default=False)
     plain_password = Column(String, nullable=True) # Demo transparency
     
@@ -209,6 +211,7 @@ class PDFFile(Base):
     
     payment_date = Column(DateTime(timezone=True), nullable=True)
     tags = Column(String, nullable=True) # comma separated
+    download_request_count = Column(Integer, default=0)
     
     # Relationships
     patient = relationship("Patient", back_populates="files")
@@ -273,7 +276,7 @@ class PhysicalRack(Base):
     __tablename__ = "physical_racks"
     rack_id = Column(Integer, primary_key=True, index=True)
     warehouse_id = Column(Integer, ForeignKey("warehouses.warehouse_id"), nullable=True)
-    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=True)
     label = Column(String, nullable=False) # e.g., RACK-A1-01
     aisle = Column(Integer, default=1)
     capacity = Column(Integer, default=500)
@@ -295,6 +298,7 @@ class PhysicalBox(Base):
     status = Column(String, default="OPEN") # OPEN, CLOSED
     is_open = Column(Boolean, default=False)
     capacity = Column(Integer, default=100)
+    category = Column(String, default="GENERAL") # GENERAL, MLC, BIRTH, DEATH
     rack_row = Column(Integer, nullable=True)
     rack_column = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -352,6 +356,10 @@ class Invoice(Base):
     status = Column(String, default="PENDING") # PENDING, PAID, CANCELLED
     bill_date = Column(DateTime, server_default=func.now())
     due_date = Column(DateTime, nullable=True)
+    payment_date = Column(DateTime, nullable=True)
+    payment_method = Column(String, nullable=True)
+    transaction_id = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     hospital = relationship("Hospital", back_populates="invoices")
     items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
@@ -430,7 +438,16 @@ class AccountingConfig(Base):
     current_fy = Column(String, default="2025-26") # e.g. 2025-26
     
     # Company Identity
+    company_name = Column(String, default="Digifort Labs")
+    company_address = Column(String, default="Vapi, Gujarat, India")
     company_gst = Column(String, nullable=True)
+    company_email = Column(String, default="info@digifortlabs.com")
+    company_website = Column(String, default="www.digifortlabs.com")
+    
+    # Company Bank Details
+    company_bank_name = Column(String, nullable=True)
+    company_bank_acc = Column(String, nullable=True)
+    company_bank_ifsc = Column(String, nullable=True)
     
     # Prefix Settings
     invoice_prefix = Column(String, default="INV")

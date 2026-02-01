@@ -148,7 +148,7 @@ export default function RecordsList() {
     const resetForm = () => {
         setNewPatient({
             full_name: '', patient_u_id: '', uhid: '', age: '', gender: '', address: '', contact_number: '', email_id: '',
-            aadhaar_number: '', patient_category: 'STANDARD', dob: '', admission_date: '', discharge_date: '',
+            aadhaar_number: '', patient_category: 'IPD', dob: '', admission_date: '', discharge_date: '',
             mother_record_id: '', doctor_name: '', weight: '', mediclaim: '', diagnosis: ''
         });
         setIsExistingPatient(false);
@@ -593,13 +593,13 @@ export default function RecordsList() {
                     <p className="text-slate-500 mt-2">Manage patient files and digital records.</p>
                 </div>
 
-                <div className="flex gap-3 w-full md:w-auto flex-wrap items-center">
+                <div className="flex gap-2 w-full md:w-auto flex-wrap items-center">
                     {/* Hospital Selector for Platform Admins */}
                     {(userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff') && (
-                        <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-3 rounded-xl shadow-sm">
-                            <Building2 size={18} className="text-indigo-600" />
+                        <div className="flex flex-1 md:flex-none items-center gap-2 bg-white border border-slate-200 px-3 md:px-4 py-3 rounded-xl shadow-sm min-w-[200px]">
+                            <Building2 size={18} className="text-indigo-600 flex-shrink-0" />
                             <select
-                                className="bg-transparent font-bold text-slate-700 outline-none pr-2"
+                                className="bg-transparent font-bold text-slate-700 outline-none pr-2 text-sm md:text-base w-full"
                                 value={selectedHospitalId || ''}
                                 onChange={(e) => {
                                     const val = e.target.value;
@@ -614,8 +614,8 @@ export default function RecordsList() {
                         </div>
                     )}
 
-                    <div className="relative flex-1 md:w-96">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <div className="relative flex-1 md:w-80 min-w-[240px]">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input
                             type="text"
                             placeholder="Search Patients..."
@@ -739,15 +739,15 @@ export default function RecordsList() {
                                                     <td className="p-3 align-middle">
                                                         <div className="flex items-center gap-2">
                                                             <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[9px] font-black border
-                                                        ${p.patient_category === 'MLC' ? 'bg-red-50 text-red-600 border-red-200' :
-                                                                    p.patient_category === 'BIRTH' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                                                                        p.patient_category === 'DEATH' ? 'bg-slate-900 text-white border-slate-700' :
+                                                        ${p.patient_category === 'MCL' ? 'bg-red-50 text-red-600 border-red-200' :
+                                                                    p.patient_category === 'BRT' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                                                                        p.patient_category === 'DHT' ? 'bg-slate-900 text-white border-slate-700' :
                                                                             'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>
                                                                 {p.full_name?.[0]}
                                                             </div>
-                                                            <span className={`text-sm font-bold text-slate-900 truncate max-w-[12rem] ${p.patient_category === 'MLC' ? 'text-red-700' : ''}`}>
+                                                            <span className={`text-sm font-bold text-slate-900 truncate max-w-[12rem] ${p.patient_category === 'MCL' ? 'text-red-700' : ''}`}>
                                                                 {p.full_name}
-                                                                {p.patient_category === 'MLC' && <span className="ml-1 text-[9px] bg-red-100 text-red-700 px-1 rounded border border-red-200">MLC</span>}
+                                                                {p.patient_category === 'MCL' && <span className="ml-1 text-[9px] bg-red-100 text-red-700 px-1 rounded border border-red-200">MCL</span>}
                                                             </span>
                                                         </div>
                                                     </td>
@@ -967,8 +967,8 @@ export default function RecordsList() {
                                     <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                                         <User size={12} /> Patient Identity (UHID)
                                     </h3>
-                                    <div className="grid grid-cols-12 gap-3">
-                                        <div className="col-span-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                                        <div className="md:col-span-4">
                                             <label className="block text-xs font-bold text-slate-700 mb-1">UHID</label>
                                             <div className="relative">
                                                 <input type="text" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-mono text-indigo-700 font-bold text-sm"
@@ -985,7 +985,7 @@ export default function RecordsList() {
                                             </div>
                                         </div>
 
-                                        <div className="col-span-8 relative">
+                                        <div className="md:col-span-8 relative">
                                             <label className="block text-xs font-bold text-slate-700 mb-1">Full Name <span className="text-red-500">*</span></label>
                                             <input
                                                 type="text"
@@ -1017,7 +1017,7 @@ export default function RecordsList() {
                                             )}
                                         </div>
 
-                                        <div className="col-span-3">
+                                        <div className="md:col-span-3">
                                             <label className="block text-xs font-bold text-slate-700 mb-1">Age <span className="text-red-500">*</span></label>
                                             <div className="flex gap-1">
                                                 <input
@@ -1040,7 +1040,7 @@ export default function RecordsList() {
                                             </div>
                                         </div>
 
-                                        <div className="col-span-4">
+                                        <div className="md:col-span-4">
                                             <label className="block text-xs font-bold text-slate-700 mb-1">Gender <span className="text-red-500">*</span></label>
                                             <select required className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm"
                                                 value={newPatient.gender} onChange={e => setNewPatient({ ...newPatient, gender: e.target.value })}>
@@ -1051,19 +1051,19 @@ export default function RecordsList() {
                                             </select>
                                         </div>
 
-                                        <div className="col-span-5">
+                                        <div className="md:col-span-5">
                                             <label className="block text-xs font-bold text-slate-700 mb-1">DOB</label>
                                             <input type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm"
                                                 value={newPatient.dob} onChange={e => calculateAge(e.target.value)} />
                                         </div>
 
-                                        <div className="col-span-6">
+                                        <div className="md:col-span-6">
                                             <label className="block text-xs font-bold text-slate-700 mb-1">Mobile <span className="text-red-500">*</span></label>
                                             <input required type="tel" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm font-mono"
                                                 value={newPatient.contact_number} onChange={e => setNewPatient({ ...newPatient, contact_number: e.target.value })} placeholder="Mobile Number" />
                                         </div>
 
-                                        <div className="col-span-6">
+                                        <div className="md:col-span-6">
                                             <label className="block text-xs font-bold text-slate-700 mb-1">Address</label>
                                             <input type="text" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm"
                                                 value={newPatient.address}
@@ -1123,8 +1123,8 @@ export default function RecordsList() {
                                     <h3 className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-2">
                                         <FileText size={12} /> Visit Details
                                     </h3>
-                                    <div className="grid grid-cols-12 gap-3">
-                                        <div className="col-span-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                                        <div className="md:col-span-6">
                                             <label className="block text-xs font-bold text-slate-700 mb-1">MRD No. <span className="text-red-500">*</span></label>
                                             <input required type="text" className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 font-mono font-black text-slate-800 text-sm ${isMRDDuplicate ? 'border-red-500' : 'border-slate-200'}`}
                                                 value={newPatient.patient_u_id}
@@ -1152,7 +1152,7 @@ export default function RecordsList() {
                                             )}
                                         </div>
 
-                                        <div className="col-span-6">
+                                        <div className="md:col-span-6">
                                             <label className="block text-xs font-bold text-slate-700 mb-1">Category <span className="text-red-500">*</span></label>
                                             <select
                                                 required
@@ -1160,19 +1160,20 @@ export default function RecordsList() {
                                                 value={newPatient.patient_category}
                                                 onChange={e => setNewPatient({ ...newPatient, patient_category: e.target.value })}
                                             >
-                                                <option value="STANDARD">Normal</option>
-                                                <option value="MLC">MLC</option>
-                                                <option value="BIRTH">Birth</option>
-                                                <option value="DEATH">Death</option>
+                                                <option value="IPD">IPD</option>
+                                                <option value="OPD">OPD</option>
+                                                <option value="MCL">MCL (Medico-Legal)</option>
+                                                <option value="BRT">Birth</option>
+                                                <option value="DHT">Death</option>
                                             </select>
                                         </div>
-                                        <div className="col-span-6">
+                                        <div className="md:col-span-6">
                                             <label className="block text-xs font-bold text-slate-700 mb-1">Admission Date</label>
                                             <input type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
                                                 value={newPatient.admission_date} onChange={e => setNewPatient(prev => ({ ...prev, admission_date: e.target.value }))} />
                                         </div>
 
-                                        <div className="col-span-6">
+                                        <div className="md:col-span-6">
                                             <label className="block text-xs font-bold text-slate-700 mb-1">Discharge Date <span className="text-red-500">*</span></label>
                                             <input required type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
                                                 value={newPatient.discharge_date} onChange={e => setNewPatient(prev => ({ ...prev, discharge_date: e.target.value }))} />
@@ -1196,7 +1197,7 @@ export default function RecordsList() {
                                             </datalist>
                                         </div>
 
-                                        <div className="col-span-6">
+                                        <div className="md:col-span-6">
                                             <label className="block text-xs font-bold text-slate-700 mb-1">Weight</label>
                                             <input type="text" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
                                                 placeholder="e.g. 65kg"
@@ -1204,7 +1205,7 @@ export default function RecordsList() {
                                                 onChange={e => setNewPatient(prev => ({ ...prev, weight: e.target.value }))} />
                                         </div>
 
-                                        <div className="col-span-6">
+                                        <div className="md:col-span-6">
                                             <label className="block text-xs font-bold text-slate-700 mb-1">Mediclaim</label>
                                             <input type="text" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
                                                 placeholder="Yes / No"

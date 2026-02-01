@@ -183,3 +183,47 @@ class S3Manager:
                 success = True 
         
         return success
+
+    def get_object_info(self, object_name: str):
+        """
+        Returns StorageClass and Restore status for an object.
+        """
+        if self.mode != "s3":
+            return {"StorageClass": "STANDARD", "Restore": None}
+            
+        try:
+            response = self.s3_client.head_object(Bucket=self.bucket_name, Key=object_name)
+            return {
+                "StorageClass": response.get('StorageClass', 'STANDARD'),
+                "Restore": response.get('Restore'),
+                "IsGlacier": response.get('StorageClass') in ['GLACIER', 'DEEP_ARCHIVE']
+            }
+        except Exception as e:
+            print(f"[ERROR] Head Object Error: {e}")
+            return None
+
+    def initiate_restoration(self, object_name: str, days: int = 1, tier: str = 'Standard'):
+        """
+        Initiates restoration for a Glacier/Deep Archive object.
+        """
+        if self.mode != "s3":
+            return False, "Not in S3 mode"
+            
+        try:
+            self.s3_client.restore_object(
+                Bucket=self.bucket_name,
+                Key=object_name,
+                RestoreRequest={
+                    'Days': days,
+                    'GlacierJobParameters': {
+                        'Tier': tier
+                    }
+                }
+            )
+            return True, "Restoration initiated"
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'RestoreAlreadyInProgress':
+                return True, "Restoration already in progress"
+            return False, str(e)
+        except Exception as e:
+            return False, str(e)

@@ -1,12 +1,15 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { API_URL } from '../../../config/api';
 import { Boxes, ShieldAlert, Download, RefreshCw, FileText, Stethoscope, Calendar, Building2, Filter, Search, ArrowUpDown } from 'lucide-react';
 
 export default function ReportsPage() {
+    const router = useRouter();
     const [activeTab, setActiveTab] = useState('clinical'); // inventory, audit, clinical
+    const [isAuthorized, setIsAuthorized] = useState(false);
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [summary, setSummary] = useState<any>(null);
@@ -52,16 +55,25 @@ export default function ReportsPage() {
 
     useEffect(() => {
         const token = localStorage.getItem('token');
-        if (token) {
-            try {
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                setUserRole(payload.role || '');
-                if (payload.role === 'superadmin') {
-                    fetchHospitals(token);
-                }
-            } catch (e) { console.error(e); }
+        if (!token) {
+            router.push('/login');
+            return;
         }
-    }, []);
+
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.role !== 'superadmin') {
+                router.push('/dashboard');
+                return;
+            }
+            setUserRole(payload.role || '');
+            setIsAuthorized(true);
+            fetchHospitals(token);
+        } catch (e) {
+            console.error(e);
+            router.push('/dashboard');
+        }
+    }, [router]);
 
     const fetchHospitals = async (token: string) => {
         try {
@@ -137,6 +149,14 @@ export default function ReportsPage() {
             alert("Export Error");
         }
     };
+
+    if (!isAuthorized) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <RefreshCw className="animate-spin text-indigo-600" size={40} />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-slate-50 relative font-sans">

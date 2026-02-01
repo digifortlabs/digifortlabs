@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import imageCompression from 'browser-image-compression';
-import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download, FileText, Pencil, Archive, Box, AlertCircle, Info } from 'lucide-react';
+import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download, FileText, Pencil, Archive, Box, AlertCircle, Info, Shield } from 'lucide-react';
 import DigitizationScanner from '../../../../components/Scanner/DigitizationScanner'; // Ensure this path is correct relative to this file
+import SecurePDFViewer from '@/components/SecurePDFViewer';
 import { API_URL } from '../../../../config/api';
 import { formatDate } from '@/lib/dateFormatter';
 
@@ -23,6 +24,8 @@ interface FileData {
     included_pages?: number;
     price_per_extra_page?: number;
     processing_stage?: string;
+    is_glacier?: boolean;
+    restore_status?: string | null;
 }
 
 interface PatientDetail {
@@ -125,6 +128,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
     const id = String(patientId);
 
     const [viewTextFile, setViewTextFile] = useState<FileData | null>(null);
+    const [viewSecureFile, setViewSecureFile] = useState<FileData | null>(null);
     const [patient, setPatient] = useState<PatientDetail | null>(null);
     const [userRole, setUserRole] = useState('');
 
@@ -623,6 +627,31 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
         } catch (e) { console.error(e); }
     };
 
+    const handleRestoreFile = async (fileId: number, tier: string = 'Expedited') => {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        try {
+            const res = await fetch(`${API_URL}/patients/files/${fileId}/restore?tier=${tier}`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                triggerToast(data.message, "success");
+                // Refresh data to show status
+                fetchPatient(token, patientId.toString());
+            } else {
+                const errorData = await res.json();
+                triggerToast(errorData.detail || "Restoration request failed", "error");
+            }
+        } catch (e) {
+            console.error(e);
+            triggerToast("An error occurred", "error");
+        }
+    };
+
     const handleRunOCR = async (fileId: number) => {
         if (!confirm("Run OCR on this file? This will process the file in the background.")) return;
         const token = localStorage.getItem('token');
@@ -955,7 +984,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                                             placeholder="e.g. Yes/No/Policy No."
                                         />
                                     </div>
-                                    <div className="col-span-3">
+                                    <div className="md:col-span-3 col-span-2">
                                         <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Address</label>
                                         <input
                                             type="text"
@@ -980,11 +1009,11 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                                             onChange={e => setEditData({ ...editData, remarks: e.target.value })}
                                         />
                                     </div>
-                                    <div className="col-span-4 flex justify-end">
+                                    <div className="md:col-span-4 col-span-2 flex justify-end">
                                         <button
                                             onClick={handleSaveProfile}
                                             disabled={isSavingProfile}
-                                            className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-black shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all flex items-center gap-2"
+                                            className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-black shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all flex items-center gap-2 w-full md:w-auto justify-center"
                                         >
                                             {isSavingProfile ? <><Loader2 className="animate-spin" size={20} /> Saving...</> : 'Save Patient Record'}
                                         </button>
@@ -1353,27 +1382,29 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
 
                                     {/* Action Buttons */}
                                     <div className="flex flex-col gap-2">
-                                        <button
-                                            onClick={async () => {
-                                                const token = localStorage.getItem('token');
-                                                const apiUrl = API_URL;
-                                                if (!token) return;
-                                                try {
-                                                    const res = await fetch(`${apiUrl}/patients/files/${file.file_id}/url`, {
-                                                        headers: { Authorization: `Bearer ${token}` }
-                                                    });
-                                                    if (res.ok) {
-                                                        const data = await res.json();
-                                                        window.open(`${data.url}?token=${token}`, '_blank');
-                                                    } else {
-                                                        triggerToast("Could not access file", "error");
-                                                    }
-                                                } catch (e) { console.error(e); }
-                                            }}
-                                            className="w-full py-2 bg-blue-50 text-blue-600 rounded-md text-sm font-medium hover:bg-blue-100"
-                                        >
-                                            View Document
-                                        </button>
+                                        {file.is_glacier && file.restore_status !== 'AVAILABLE' ? (
+                                            <button
+                                                disabled={file.restore_status === 'RETRIEVING'}
+                                                onClick={() => handleRestoreFile(file.file_id)}
+                                                className={`w-full py-2 rounded-md text-sm font-bold flex items-center justify-center gap-2 border shadow-sm transition-all
+                                                    ${file.restore_status === 'RETRIEVING'
+                                                        ? 'bg-amber-50 text-amber-600 border-amber-200 cursor-wait'
+                                                        : 'bg-amber-600 text-white border-amber-500 hover:bg-amber-700 hover:shadow-amber-500/20'}`}
+                                            >
+                                                {file.restore_status === 'RETRIEVING' ? (
+                                                    <><Loader2 size={14} className="animate-spin" /> Retrieving from Archive...</>
+                                                ) : (
+                                                    <><Download size={14} /> Retrieve from Archive</>
+                                                )}
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => setViewSecureFile(file)}
+                                                className="w-full py-2 bg-blue-600/10 text-blue-600 rounded-md text-sm font-bold hover:bg-blue-600 hover:text-white flex items-center justify-center gap-2 transition-all border border-blue-200"
+                                            >
+                                                <Shield size={14} /> Secure View
+                                            </button>
+                                        )}
 
                                         <button
                                             onClick={() => setViewTextFile(file)}
@@ -1623,6 +1654,15 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                         />
                     </div>
                 </div>
+            )}
+
+            {/* Secure PDF Viewer Overlay */}
+            {viewSecureFile && (
+                <SecurePDFViewer
+                    fileId={viewSecureFile.file_id}
+                    filename={viewSecureFile.filename}
+                    onClose={() => setViewSecureFile(null)}
+                />
             )}
 
             {/* Custom Toast Notification */}

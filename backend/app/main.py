@@ -11,6 +11,24 @@ setup_logging()
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
+# --- AUTO MIGRATION (Fix for UndefinedColumn Errors) ---
+from sqlalchemy import text
+def run_migrations():
+    print("🐘 Running auto-migrations...")
+    try:
+        with engine.connect() as conn:
+            # 1. Add download_request_count to pdf_files
+            conn.execute(text("ALTER TABLE pdf_files ADD COLUMN IF NOT EXISTS download_request_count INTEGER DEFAULT 0"))
+            # 2. Add login tracking to users
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS previous_login_at TIMESTAMPTZ"))
+            conn.commit()
+            print("✅ Auto-migrations completed successfully.")
+    except Exception as e:
+        print(f"⚠️ Auto-migration skipped or failed: {e}")
+
+run_migrations()
+
 app = FastAPI(
     title="THE DIGIFORT LABS - Hospital Archive",
     description="Secure PDF Archival System for Hospitals ",
@@ -44,15 +62,20 @@ from .middleware.security import RateLimitMiddleware, SecurityHeadersMiddleware
 
 # Add security middleware
 app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware, requests_per_minute=60, auth_requests_per_minute=5)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=60, auth_requests_per_minute=15)
 app.add_middleware(BandwidthMiddleware)
 
 # IMPORTANT: CORS must be added LAST to be the outermost middleware 
 # and handle preflight requests before security headers or rate limits.
 cors_origins = [str(origin) for origin in settings.BACKEND_CORS_ORIGINS]
 # Ensure production domains are always included if not matched
+# Ensure production domains and localhost are always included
 if "https://digifortlabs.com" not in cors_origins:
     cors_origins.extend(["https://digifortlabs.com", "http://digifortlabs.com", "https://www.digifortlabs.com"])
+
+# Explicitly add localhost:3000 for frontend development
+if "http://localhost:3000" not in cors_origins:
+    cors_origins.append("http://localhost:3000")
 
 app.add_middleware(
     CORSMiddleware,

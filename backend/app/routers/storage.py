@@ -43,6 +43,7 @@ class RackCreate(BaseModel):
     capacity: int = 500
     total_rows: int = 5
     total_columns: int = 10
+    hospital_id: Optional[int] = None # For Super Admin
 
 class RackUpdate(BaseModel):
     label: Optional[str] = None
@@ -53,11 +54,12 @@ class RackUpdate(BaseModel):
 
 class RackResponse(BaseModel):
     rack_id: int
-    hospital_id: int
+    hospital_id: Optional[int] = None
     label: str
     aisle: int
     capacity: int
     total_rows: int = 5
+    hospital_name: Optional[str] = None
     total_columns: int = 10
     created_at: datetime
     
@@ -70,7 +72,8 @@ class BoxCreate(BaseModel):
     location_code: str
     hospital_id: Optional[int] = None # Required for Super Admin
     rack_id: Optional[int] = None
-    capacity: Optional[int] = 500 
+    capacity: Optional[int] = 500
+    category: Optional[str] = "GENERAL"
 
 class BoxUpdate(BaseModel):
     label: Optional[str] = None
@@ -80,6 +83,7 @@ class BoxUpdate(BaseModel):
     rack_row: Optional[int] = None
     rack_column: Optional[int] = None
     capacity: Optional[int] = None
+    category: Optional[str] = None
 
 class BoxResponse(BaseModel):
     box_id: int
@@ -89,6 +93,7 @@ class BoxResponse(BaseModel):
     status: str
     patient_count: int = 0
     capacity: int = 500
+    category: str = "GENERAL"
     rack_id: Optional[int] = None
     rack_row: Optional[int] = None
     rack_column: Optional[int] = None
@@ -141,8 +146,14 @@ def create_rack(rack: RackCreate, db: Session = Depends(get_db), current_user: U
         raise HTTPException(status_code=403, detail="Not authorized")
         
     target_hospital_id = current_user.hospital_id
-    if current_user.role == UserRole.SUPER_ADMIN and not target_hospital_id:
-         target_hospital_id = 1 
+    if current_user.role == UserRole.SUPER_ADMIN:
+         if rack.hospital_id:
+             target_hospital_id = rack.hospital_id
+         # else: target_hospital_id = None (Shared rack)
+    else:
+        # Standard users create racks for their own hospital if not super admin
+        if not target_hospital_id:
+             target_hospital_id = 1
 
     # --- AUTO-NAMING LOGIC (RACK) ---
     final_label = rack.label
@@ -151,23 +162,28 @@ def create_rack(rack: RackCreate, db: Session = Depends(get_db), current_user: U
         # Logic: RACK-{AISLE_CODE}-{SEQ}
         # e.g., Aisle 1 -> RACK-A1-01
         
-        # Count existing racks in this aisle
-        count_in_aisle = db.query(PhysicalRack).filter(
-            PhysicalRack.hospital_id == target_hospital_id,
+        # Count existing racks in this aisle (Across all hospitals or per hospital?)
+        # Since racks are now potentially global/shared, let's count all racks in this aisle.
+        query = db.query(PhysicalRack).filter(
             PhysicalRack.aisle == rack.aisle
-        ).count()
+        )
+        if target_hospital_id and current_user.role != UserRole.SUPER_ADMIN:
+            # For non-superadmins, they only interact with their hospital's sequential naming?
+            # Actually, label collision should be warehouse-wide.
+            pass
+        
+        count_in_aisle = query.count()
         
         seq = count_in_aisle + 1
         final_label = f"RACK-A{rack.aisle}-{str(seq).zfill(2)}"
         
         # Safety check for collision (increment if needed)
-        while db.query(PhysicalRack).filter(PhysicalRack.hospital_id == target_hospital_id, PhysicalRack.label == final_label).first():
+        while db.query(PhysicalRack).filter(PhysicalRack.label == final_label).first():
             seq += 1
             final_label = f"RACK-A{rack.aisle}-{str(seq).zfill(2)}"
 
-    # Check for duplicate label
+    # Check for duplicate label (Global check)
     exists = db.query(PhysicalRack).filter(
-        PhysicalRack.hospital_id == target_hospital_id, 
         PhysicalRack.label == final_label
     ).first()
     
@@ -232,11 +248,25 @@ def delete_rack(rack_id: int, db: Session = Depends(get_db), current_user: User 
 
 @router.get("/racks", response_model=List[RackResponse])
 def get_racks(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    target_hospital_id = current_user.hospital_id
-    if current_user.role == UserRole.SUPER_ADMIN and not target_hospital_id:
-        target_hospital_id = 1 
-        
-    return db.query(PhysicalRack).filter(PhysicalRack.hospital_id == target_hospital_id).all()
+    query = db.query(PhysicalRack)
+    racks = query.all()
+    
+    # Enrich with hospital_name
+    results = []
+    for r in racks:
+        h_name = r.hospital.legal_name if r.hospital else None
+        results.append(RackResponse(
+            rack_id=r.rack_id,
+            hospital_id=r.hospital_id,
+            label=r.label,
+            aisle=r.aisle,
+            capacity=r.capacity,
+            total_rows=r.total_rows,
+            hospital_name=h_name,
+            total_columns=r.total_columns,
+            created_at=r.created_at
+        ))
+    return results
 
 
 @router.get("/layout")
@@ -244,12 +274,8 @@ def get_warehouse_layout(db: Session = Depends(get_db), current_user: User = Dep
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.WAREHOUSE_MANAGER, UserRole.PLATFORM_STAFF, UserRole.HOSPITAL_ADMIN]:
         return []
 
-    target_hospital_id = current_user.hospital_id
-    if current_user.role == UserRole.SUPER_ADMIN and not target_hospital_id:
-        target_hospital_id = 1
-
-    # Fetch all racks
-    db_racks = db.query(PhysicalRack).filter(PhysicalRack.hospital_id == target_hospital_id).all()
+    # Fetch all racks (Racks are now shared warehouse resources)
+    db_racks = db.query(PhysicalRack).all()
     
     if not db_racks:
         return []
@@ -398,6 +424,26 @@ def bulk_assign_files(req: BulkAssignRequest, db: Session = Depends(get_db), cur
         if p.physical_box_id == box.box_id:
             errors.append(f"{ident}: Already in this box")
             continue
+
+        # Strict Category Check
+        # Normalize Legacy Categories
+        normalize_map = {
+            "STANDARD": "IPD",
+            "GENERAL": "IPD",
+            "MLC": "MCL",
+            "BIRTH": "BRT",
+            "DEATH": "DHT"
+        }
+        
+        p_raw = (p.patient_category or "IPD").upper()
+        p_cat = normalize_map.get(p_raw, p_raw) # Default to self if not in map (e.g., already IPD, OPD)
+        
+        b_raw = (box.category or "IPD").upper()
+        b_cat = normalize_map.get(b_raw, b_raw)
+        
+        if p_cat != b_cat:
+            errors.append(f"{ident}: Mismatch - File is {p_cat}, Box is {b_cat}")
+            continue
             
         p.physical_box_id = box.box_id
         success_count += 1
@@ -526,6 +572,7 @@ def get_boxes(db: Session = Depends(get_db), current_user: User = Depends(get_cu
             status=b.status,
             patient_count=count,
             capacity=b.capacity or 100, 
+            category=b.category or "GENERAL",
             rack_id=b.rack_id,
             rack_row=b.rack_row,
             rack_column=b.rack_column,
@@ -540,10 +587,13 @@ def create_box(box: BoxCreate, db: Session = Depends(get_db), current_user: User
     
     target_hospital_id = current_user.hospital_id
     if current_user.role == UserRole.SUPER_ADMIN:
-        if box.rack_id:
-             rack = db.query(PhysicalRack).filter(PhysicalRack.rack_id == box.rack_id).first()
-             if rack: target_hospital_id = rack.hospital_id
-        if not target_hospital_id and box.hospital_id: target_hospital_id = box.hospital_id
+        # Prioritize box.hospital_id if provided by super admin
+        if box.hospital_id:
+            target_hospital_id = box.hospital_id
+        elif box.rack_id:
+             rack_obj = db.query(PhysicalRack).filter(PhysicalRack.rack_id == box.rack_id).first()
+             if rack_obj: target_hospital_id = rack_obj.hospital_id
+        
         if not target_hospital_id: target_hospital_id = 1
 
     # --- AUTO-NAMING ---
@@ -613,6 +663,7 @@ def create_box(box: BoxCreate, db: Session = Depends(get_db), current_user: User
         rack_row=assigned_row,
         rack_column=assigned_col,
         capacity=box.capacity or 500,
+        category=box.category or "GENERAL",
         status="OPEN"
     )
 
@@ -628,6 +679,7 @@ def create_box(box: BoxCreate, db: Session = Depends(get_db), current_user: User
         status=new_box.status,
         patient_count=0,
         capacity=new_box.capacity,
+        category=new_box.category,
         rack_id=new_box.rack_id,
         rack_row=new_box.rack_row,
         rack_column=new_box.rack_column,
@@ -678,10 +730,9 @@ def update_box(box_id: int, box_update: BoxUpdate, db: Session = Depends(get_db)
         location_code=db_box.location_code,
         status=db_box.status,
         patient_count=count,
-        rack_id=db_box.rack_id,
-        rack_row=db_box.rack_row,
-        rack_column=db_box.rack_column,
         capacity=db_box.capacity,
+        category=db_box.category or "GENERAL",
+        rack_id=db_box.rack_id,
         created_at=db_box.created_at
     )
 
@@ -695,17 +746,45 @@ def delete_box(box_id: int, db: Session = Depends(get_db), current_user: User = 
     if current_user.role not in [UserRole.SUPER_ADMIN] and db_box.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # Check if empty (optional but recommended in plan)
-    has_patients = db.query(Patient).filter(Patient.physical_box_id == box_id).first()
-    if has_patients:
-        raise HTTPException(status_code=400, detail="Cannot delete box with assigned patients. Please unassign patients first.")
+    # 1. Check for Patients
+    has_patients = db.query(Patient).filter(Patient.physical_box_id == box_id).count()
+    if has_patients > 0:
+        raise HTTPException(status_code=400, detail=f"Cannot delete: Box contains {has_patients} patient records.")
 
-    db.delete(db_box)
-    db.commit()
+    # 2. Check for PDF Files (orphaned from patient but linked to box)
+    has_files = db.query(PDFFile).filter(PDFFile.box_id == box_id).count()
+    if has_files > 0:
+        raise HTTPException(status_code=400, detail=f"Cannot delete: Box contains {has_files} PDF files.")
+
+    # 3. Check for File Requests (History)
+    has_requests = db.query(FileRequest).filter(FileRequest.box_id == box_id).count()
+    if has_requests > 0:
+        # Check for ACTIVE requests
+        active_requests = db.query(FileRequest).filter(
+            FileRequest.box_id == box_id, 
+            FileRequest.status.in_([ "Pending", "In Transit", "Approved"])
+        ).count()
+        
+        if active_requests > 0:
+             raise HTTPException(status_code=400, detail=f"Cannot delete: Box has {active_requests} ACTIVE file requests.")
+             
+        # If only historical (Returned/Rejected/Completed), detach them
+        # We keep the history but remove the link to this specific physical box
+        db.query(FileRequest).filter(FileRequest.box_id == box_id).update({FileRequest.box_id: None})
+        db.commit()
+
+    try:
+        db.delete(db_box)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        # Fallback for other unknown FKs
+        raise HTTPException(status_code=400, detail=f"Database Integrity Error: {str(e)}")
+        
     return {"status": "success", "message": "Box deleted successfully"}
 
 @router.get("/next-sequence")
-def get_next_sequence(hospital_id: int, year: str, month: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_next_sequence(hospital_id: int, category: str = "GENERAL", db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Auth check
     if current_user.role not in [UserRole.SUPER_ADMIN] and hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -713,17 +792,31 @@ def get_next_sequence(hospital_id: int, year: str, month: str, db: Session = Dep
     # 1. Get Hospital City for Code
     hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
     if not hospital:
-        return {"next_sequence": "001", "full_label": f"XX/{year}/{month}/001"}
+        return {"next_sequence": "001", "full_label": f"XX/GEN/001"}
         
-    city_name = hospital.city or "Unknown"
-    # Generate City Code: First 2 letters in Upper Case. If < 2 letters, pad X
-    city_code = city_name[:2].upper()
-    if len(city_code) < 2:
-        city_code = (city_code + "XX")[:2]
-        
-    # Format: CITY/YEAR/MONTH/SEQ
-    # Search Pattern: CITY/YEAR/MONTH/%
-    prefix = f"{city_code}/{year}/{month}/"
+    # Generate Hospital Code: First 2 letters of Legal Name
+    # Example: "Varun Hospital" -> "VA"
+    raw_name = hospital.legal_name or "Unknown"
+    hospital_code = raw_name.replace(" ", "")[:2].upper()
+    
+    if len(hospital_code) < 2:
+        hospital_code = (hospital_code + "XX")[:2]
+    
+    # Generate Category Code
+    # Mapped Short Codes for Label Generation
+    # User Requested: OPD, IPD, MCL, BRT, DHT
+    cat_map = {
+        "OPD": "OPD",       # Outpatient
+        "IPD": "IPD",       # Inpatient
+        "MLC": "MCL",       # Medico-Legal (User Code: MCL)
+        "BIRTH": "BRT",     # Birth
+        "DEATH": "DHT"      # Death (User Code: DHT)
+    }
+    cat_code = cat_map.get(category.upper(), "IPD") # Default to IPD if unknown
+
+    # Format: HOSP/TYPE/SEQ
+    # Example: VA/GEN/0001
+    prefix = f"{hospital_code}/{cat_code}/"
     pattern = f"{prefix}%"
     
     boxes = db.query(PhysicalBox).filter(
@@ -734,10 +827,11 @@ def get_next_sequence(hospital_id: int, year: str, month: str, db: Session = Dep
     max_seq = 0
     for b in boxes:
         try:
-            # Label: VP/2026/01/0001
-            # Split by '/'
+            # Label: VA/GEN/0001
             parts = b.label.split('/')
-            if len(parts) >= 4:
+            
+            # Expecting 3 parts
+            if len(parts) == 3:
                 seq_str = parts[-1]
                 seq_num = int(seq_str)
                 if seq_num > max_seq:
@@ -745,7 +839,7 @@ def get_next_sequence(hospital_id: int, year: str, month: str, db: Session = Dep
         except (ValueError, IndexError):
             continue
             
-    next_seq = str(max_seq + 1).zfill(4) # 4 digits as per request example 0001
+    next_seq = str(max_seq + 1).zfill(4)
     full_label = f"{prefix}{next_seq}"
     
     return {"next_sequence": next_seq, "full_label": full_label}
@@ -815,11 +909,22 @@ def get_requests(db: Session = Depends(get_db), current_user: User = Depends(get
     reqs = query.all()
     # Need to join box to get label
     results = []
+    
+    show_box_info = current_user.role in [UserRole.SUPER_ADMIN, UserRole.WAREHOUSE_MANAGER, UserRole.PLATFORM_STAFF]
+    
     for r in reqs:
         box = db.query(PhysicalBox).filter(PhysicalBox.box_id == r.box_id).first()
+        
+        display_label = "Unknown"
+        if box:
+            if show_box_info:
+                display_label = box.label
+            else:
+                display_label = f"Box #{box.box_id} (Restricted)"
+
         results.append(RequestResponse(
             request_id=r.request_id,
-            box_label=box.label if box else "Unknown",
+            box_label=display_label,
             requester_name=r.requester_name,
             status=r.status,
             request_date=r.request_date
@@ -959,7 +1064,8 @@ def search_files(q: str, db: Session = Depends(get_db), current_user: User = Dep
     if not q or len(q) < 2:
         return []
         
-    query = db.query(Patient).join(PhysicalBox, Patient.physical_box_id == PhysicalBox.box_id).join(PhysicalRack, PhysicalBox.rack_id == PhysicalRack.rack_id)
+    # Use outerjoin to include patients even if they don't have boxes yet
+    query = db.query(Patient).outerjoin(PhysicalBox, Patient.physical_box_id == PhysicalBox.box_id).outerjoin(PhysicalRack, PhysicalBox.rack_id == PhysicalRack.rack_id)
     
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
         query = query.filter(Patient.hospital_id == current_user.hospital_id)
@@ -973,9 +1079,13 @@ def search_files(q: str, db: Session = Depends(get_db), current_user: User = Dep
     ).limit(20).all()
     
     data = []
+    
+    # Redact for Hospital Users
+    show_location = current_user.role in [UserRole.SUPER_ADMIN, UserRole.WAREHOUSE_MANAGER, UserRole.PLATFORM_STAFF]
+
     for p in results:
-        box = p.physical_box
-        rack = box.rack if box else None
+        box = p.physical_box if hasattr(p, 'physical_box') else None
+        rack = box.rack if (box and hasattr(box, 'rack')) else None
         
         data.append({
             "record_id": p.record_id,
@@ -983,12 +1093,14 @@ def search_files(q: str, db: Session = Depends(get_db), current_user: User = Dep
             "uhid": p.uhid,
             "mrd_id": p.patient_u_id,
             "location": {
-                "aisle": rack.aisle if rack else 0,
-                "rack": rack.label if rack else "Unknown",
-                "box": box.label if box else "Unknown",
-                "box_id": box.box_id if box else None,
-                "status": box.status if box else "CLOSED"
-            }
+                "aisle": rack.aisle if (rack and show_location) else 0,
+                "rack": rack.label if (rack and show_location) else "RESTRICTED",
+                "box": box.label if (box and show_location) else "RESTRICTED",
+                "box_id": box.box_id if box else None, # Required for Request Logic
+                "status": box.status if box else "NOT_ARCHIVED",
+                "category": box.category if box else None
+            },
+            "physical_box_id": box.box_id if box else None
         })
         
     return data

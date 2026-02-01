@@ -7,7 +7,7 @@ from sqlalchemy import func, desc
 
 from ..database import get_db
 from ..models import (
-    User, Hospital, AccountingVendor, AccountingExpense, AccountingTransaction, Invoice, AccountingConfig
+    User, Hospital, AccountingVendor, AccountingExpense, AccountingTransaction, Invoice, AccountingConfig, UserRole
 )
 from .auth import get_current_user
 
@@ -39,6 +39,7 @@ class TransactionResponse(BaseModel):
     party_type: str
     party_id: Optional[int]
     voucher_type: str
+    voucher_id: Optional[int]
     voucher_number: Optional[str]
     debit: float
     credit: float
@@ -83,8 +84,8 @@ def create_receipt_voucher(
     Generic Receipt Voucher: Record money received from a party.
     Unlike 'receive-payment', this doesn't need to be tied to a specific invoice.
     """
-    if current_user.role != "superadmin":
-        raise HTTPException(status_code=403, detail="Access denied")
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+         raise HTTPException(status_code=403, detail="Access denied")
 
     # Get Config
     config = db.query(AccountingConfig).first()
@@ -127,10 +128,9 @@ def get_ledger(
     current_user: User = Depends(get_current_user)
 ):
     """Retrieve full Statement of Account for a Hospital or Vendor."""
-    if current_user.role != "superadmin":
-        # Hospitals can only see their own ledger
-        if party_type != "HOSPITAL" or party_id != current_user.hospital_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+    # Restricted to Super Admin / Platform Staff
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     party_name = "Unknown"
     if party_type == "HOSPITAL":
@@ -168,8 +168,8 @@ def create_expense(
     current_user: User = Depends(get_current_user)
 ):
     """Log a business expense."""
-    if current_user.role != "superadmin":
-        raise HTTPException(status_code=403, detail="Access denied")
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+         raise HTTPException(status_code=403, detail="Access denied")
 
     # Get Config
     config = db.query(AccountingConfig).first()
@@ -239,8 +239,8 @@ def get_accounting_overview(
     current_user: User = Depends(get_current_user)
 ):
     """Professional Financial Dashboard Summary."""
-    if current_user.role != "superadmin":
-        raise HTTPException(status_code=403, detail="Access denied")
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+         raise HTTPException(status_code=403, detail="Access denied")
 
     # 1. Total Receivables (Balance from all Hospital Ledgers)
     h_transactions = db.query(AccountingTransaction).filter(AccountingTransaction.party_type == "HOSPITAL").all()
@@ -292,8 +292,8 @@ def create_vendor(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != "superadmin":
-        raise HTTPException(status_code=403, detail="Access denied")
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+         raise HTTPException(status_code=403, detail="Access denied")
 
     vendor = AccountingVendor(**req.dict())
     db.add(vendor)
@@ -303,8 +303,8 @@ def create_vendor(
 
 @router.get("/vendors")
 def list_vendors(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != "superadmin":
-        raise HTTPException(status_code=403, detail="Access denied")
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+         raise HTTPException(status_code=403, detail="Access denied")
     return db.query(AccountingVendor).all()
 
 @router.put("/expenses/{expense_id}")
@@ -315,8 +315,8 @@ def update_expense(
     current_user: User = Depends(get_current_user)
 ):
     """Update an existing expense and its linked transactions."""
-    if current_user.role != "superadmin":
-        raise HTTPException(status_code=403, detail="Access denied")
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+         raise HTTPException(status_code=403, detail="Access denied")
 
     expense = db.query(AccountingExpense).filter(AccountingExpense.expense_id == expense_id).first()
     if not expense:
@@ -363,8 +363,8 @@ def delete_expense(
     current_user: User = Depends(get_current_user)
 ):
     """Delete an expense and remove it from the ledger."""
-    if current_user.role != "superadmin":
-        raise HTTPException(status_code=403, detail="Access denied")
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+         raise HTTPException(status_code=403, detail="Access denied")
 
     expense = db.query(AccountingExpense).filter(AccountingExpense.expense_id == expense_id).first()
     if not expense:

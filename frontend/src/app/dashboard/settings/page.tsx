@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 import { API_URL } from '../../../config/api';
 
 import { Loader2 } from 'lucide-react';
+import CompanyProfileSettings from './components/CompanyProfileSettings';
+import LoginActivityPanel from './components/LoginActivityPanel';
 
 export default function SettingsPage() {
     const router = useRouter();
@@ -581,6 +583,16 @@ export default function SettingsPage() {
                         )}
                     </div>
                 </div>
+            )}
+
+            {/* Platform Company Profile (Visible ONLY to Super Admin) */}
+            {['website_admin', 'superadmin'].includes(userRole) && (
+                <CompanyProfileSettings />
+            )}
+
+            {/* Login Activity (Visible to Admins) */}
+            {['website_admin', 'superadmin', 'hospital_admin'].includes(userRole) && (
+                <LoginActivityPanel />
             )}
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl mb-6">

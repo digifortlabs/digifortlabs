@@ -1,15 +1,22 @@
+import uuid
+import random
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-import logging
-import time
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
 from ..database import get_db
-from ..models import SystemSetting, User, UserRole
+from ..models import SystemSetting, User, UserRole, PasswordResetOTP
 from ..utils import create_access_token, verify_password
+from ..audit import log_audit
+from ..services.email_service import EmailService
+
+# Define IST Timezone globally
+IST = timezone(timedelta(hours=5, minutes=30))
 
 router = APIRouter(tags=["auth"])
 
@@ -37,13 +44,7 @@ async def login_for_access_token(
 ):
     print(f"🔐 [AUTH] Login attempt for: {form_data.username}")
     
-    # Authenticate User
-    from sqlalchemy import func
-    from datetime import datetime, timedelta, timezone
-    
-    # Define IST Timezone
-    IST = timezone(timedelta(hours=5, minutes=30))
-
+    # Query user (Case insensitive)
     user = db.query(User).filter(func.lower(User.email) == func.lower(form_data.username)).first()
     if not user:
         # Security: Generic invalid credentials
@@ -89,7 +90,6 @@ async def login_for_access_token(
             
             # Send Lockout Email
             try:
-                from ..services.email_service import EmailService
                 EmailService.send_account_locked_email(user.email, "Multiple failed login attempts")
             except Exception as e:
                 print(f"[AUTH] Failed to send lockout email: {e}")
@@ -119,26 +119,25 @@ async def login_for_access_token(
         user.failed_login_attempts = 0
         user.locked_until = None
     
-    import uuid
     new_session_id = str(uuid.uuid4())
     user.current_session_id = new_session_id
-
-    # --- NOTIFICATIONS & AUDIT ---
-    from ..audit import log_audit
     
+    # --- NOTIFICATIONS & AUDIT ---
     # Audit Log (Non-blocking add)
     log_audit(db, user.user_id, "LOGIN_SUCCESS", "User logged in successfully")
-    
-    # Final Commit
-    db.commit()
 
+    # Update Login Timestamps
+    user.previous_login_at = user.last_login_at
+    user.last_login_at = datetime.now(IST)
+    
     # Create Token
     token_data = {
         "sub": user.email, 
         "role": user.role, 
         "hospital_id": user.hospital_id,
         "session_id": new_session_id,
-        "force_password_change": user.force_password_change or False
+        "force_password_change": user.force_password_change or False,
+        "previous_login": user.previous_login_at.isoformat() if user.previous_login_at else None
     }
 
     expires_delta = None
@@ -150,6 +149,7 @@ async def login_for_access_token(
 
     access_token = create_access_token(data=token_data, expires_delta=expires_delta)
     
+    # Final Commit for Session & Audit
     db.commit()
     
     return {"access_token": access_token, "token_type": "bearer"}
@@ -157,19 +157,10 @@ async def login_for_access_token(
 
 @router.post("/request-password-reset")
 async def request_password_reset(request: PasswordResetRequest, db: Session = Depends(get_db)):
-    from sqlalchemy import func
     user = db.query(User).filter(func.lower(User.email) == func.lower(request.email)).first()
     if not user:
         return {"message": "If this email is registered, you will receive an OTP shortly."}
     
-    # Generate OTP
-    import random
-    from datetime import datetime, timedelta, timezone
-    from ..models import PasswordResetOTP
-    from ..services.email_service import EmailService
-
-    IST = timezone(timedelta(hours=5, minutes=30))
-
     # Invalidate previous active OTPs
     db.query(PasswordResetOTP).filter(
         func.lower(PasswordResetOTP.email) == func.lower(request.email),
@@ -197,12 +188,8 @@ async def request_password_reset(request: PasswordResetRequest, db: Session = De
 
 @router.post("/reset-password")
 async def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_db)):
-    from datetime import datetime, timezone, timedelta
-    from sqlalchemy import func
     from ..models import PasswordResetOTP
     from ..utils import get_password_hash
-    
-    IST = timezone(timedelta(hours=5, minutes=30))
     
     # Find Valid OTP
     otp_entry = db.query(PasswordResetOTP).filter(
@@ -274,8 +261,6 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         )
     
     # Update Last Active Timestamp (IST)
-    from datetime import datetime, timezone, timedelta
-    IST = timezone(timedelta(hours=5, minutes=30))
     now = datetime.now(IST)
     
     # Needs checking if last_active_at is naive

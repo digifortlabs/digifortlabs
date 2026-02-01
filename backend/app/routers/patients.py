@@ -280,10 +280,11 @@ class FileData(BaseModel):
     processing_stage: Optional[str] = None
     processing_progress: Optional[int] = 0
 
-    # Historical Pricing captured at upload
-    price_per_file: float = 100.0
-    included_pages: int = 20
     price_per_extra_page: float = 1.0
+    
+    # Storage Class Info
+    is_glacier: bool = False
+    restore_status: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -766,12 +767,22 @@ def get_patient(patient_id: int, db: Session = Depends(get_db), current_user: Us
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
         
-    # Filter files in response based on status
-    # Filter files: Admin/MRD see drafts (to review uploads). Website Staff/Dat Users?
-    # For now, allow all hospital staff to see drafts to facilitate the review flow.
-    # if current_user.role not in [UserRole.WAREHOUSE_MANAGER, UserRole.HOSPITAL_ADMIN]:
-    #      patient.files = [f for f in patient.files if f.upload_status == 'confirmed']
-         
+    # Populate S3 Glacier Status
+    s3_manager = S3Manager()
+    for f in (patient.files or []):
+        if f.upload_status == 'confirmed' and f.s3_key:
+            info = s3_manager.get_object_info(f.s3_key)
+            if info:
+                f.is_glacier = info.get("IsGlacier", False)
+                r_str = info.get("Restore", "")
+                if r_str:
+                    if 'ongoing-request="true"' in r_str:
+                        f.restore_status = "RETRIEVING"
+                    else:
+                        f.restore_status = "AVAILABLE"
+                else:
+                    f.restore_status = None
+
     return patient
 
 @router.get("/check/uhid/{uhid_no}")
@@ -1064,6 +1075,18 @@ def serve_file(
         print(f"Audit log failed: {e}")
 
     s3_manager = S3Manager()
+    
+    # Check if file is in Glacier
+    obj_info = s3_manager.get_object_info(pdf_file.s3_key)
+    if obj_info and obj_info.get("IsGlacier"):
+        # If it's Glacier, check if it's currently restored
+        restore_status = obj_info.get("Restore", "")
+        if not restore_status or 'ongoing-request="true"' in restore_status:
+            raise HTTPException(
+                status_code=403, 
+                detail="This file is archived in Glacier (Cold Storage). Please request 'Retrieval' to view it. Restoration takes 3-5 hours (Standard) or 1-5 mins (Expedited)."
+            )
+
     encrypted_bytes = s3_manager.get_file_bytes(pdf_file.s3_key)
     
     if not encrypted_bytes:
@@ -1073,7 +1096,7 @@ def serve_file(
         decrypted_bytes = decrypt_data(encrypted_bytes)
         return Response(
             content=decrypted_bytes,
-            media_type="application/pdf",
+            media_type="application/pdf" if ".pdf" in pdf_file.filename.lower() else "video/mp4",
             headers={
                 "Content-Disposition": f'inline; filename="{pdf_file.filename}"'
             }
@@ -1094,6 +1117,90 @@ def get_file_status(file_id: int, db: Session = Depends(get_db), current_user: U
         "progress": file.processing_progress,
         "error": None # Ideally capture error message in DB if failed
     }
+
+@router.post("/files/{file_id}/restore")
+def request_restore_from_glacier(
+    file_id: int, 
+    background_tasks: BackgroundTasks,
+    tier: str = 'Standard', # Standard, Expedited, Bulk
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Request S3 to restore a file from Glacier/Cold Storage.
+    Emails the hospital admin once ready.
+    """
+    pdf_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+    if not pdf_file:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    # Check permissions
+    if current_user.hospital_id and pdf_file.patient.hospital_id != current_user.hospital_id:
+        if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+            raise HTTPException(status_code=403, detail="Not authorized")
+            
+    s3_manager = S3Manager()
+    info = s3_manager.get_object_info(pdf_file.s3_key)
+    if not info or not info.get("IsGlacier"):
+        return {"status": "success", "message": "File is already in Standard storage, no restoration needed."}
+        
+    success, msg = s3_manager.initiate_restoration(pdf_file.s3_key, tier=tier)
+    if not success:
+        raise HTTPException(status_code=500, detail=f"S3 Restoration failed: {msg}")
+        
+    # Send to Hospital Admin's registered email
+    hospital_email = pdf_file.patient.hospital.email
+    
+    # Trigger monitoring task
+    background_tasks.add_task(monitor_restoration_and_email, file_id, hospital_email)
+    
+    return {
+        "status": "success", 
+        "message": f"Restoration ({tier}) initiated. Once complete, the file will be sent to {hospital_email}."
+    }
+
+def monitor_restoration_and_email(file_id: int, hospital_email: str):
+    """
+    Background worker to poll S3 and email file when ready.
+    Designed for 'Expedited' tier mostly (polls for 10 mins).
+    """
+    import time
+    from ..services.email_service import EmailService
+    
+    # We use a fresh session for background task
+    db = SessionLocal()
+    s3_manager = S3Manager()
+    try:
+        # Check every 60s for 1 hour. 
+        # For 'Standard', it will likely timeout if we don't have a persistent worker, 
+        # but for demo/expedited it will work.
+        for _ in range(60): 
+            f = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+            if not f: break
+            
+            info = s3_manager.get_object_info(f.s3_key)
+            if not info: break
+            
+            restore_str = info.get('Restore', '')
+            if restore_str and 'ongoing-request="false"' in restore_str:
+                # READY!
+                content = s3_manager.get_file_bytes(f.s3_key)
+                if content:
+                    decrypted = decrypt_data(content)
+                    EmailService.send_file_retrieval_success_email(
+                        recipient_email=hospital_email,
+                        hospital_name=f.patient.hospital.legal_name,
+                        patient_name=f.patient.full_name,
+                        mrd_number=f.patient.patient_u_id,
+                        filename=f.filename,
+                        file_content=decrypted
+                    )
+                break
+            time.sleep(60)
+    except Exception as e:
+        print(f"❌ monitor_restoration error: {e}")
+    finally:
+        db.close()
 
 @router.post("/files/{file_id}/cancel")
 def cancel_upload(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -1351,3 +1458,67 @@ def delete_patient(
     log_audit(db, current_user.user_id, "PATIENT_DELETED", f"Deleted patient: {patient.full_name}", hospital_id=current_user.hospital_id)
 
     return {"status": "success", "message": "Patient deleted successfully"}
+
+@router.post("/files/{file_id}/request-download")
+def request_file_download(
+    file_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Sends a download request email to a custom address and CCs the hospital admin.
+    """
+    pdf_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+    if not pdf_file:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    # Check permissions (only for their own hospital)
+    if current_user.hospital_id and pdf_file.patient.hospital_id != current_user.hospital_id:
+        if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+            raise HTTPException(status_code=403, detail="Not authorized")
+            
+    # Get hospital admin email (from Hospital table)
+    hospital = pdf_file.patient.hospital
+    admin_email = hospital.email
+    
+    # Custom mail ID (Target for the request)
+    # Using a placeholder, should ideally be in settings
+    custom_target_email = "requests@digifortlabs.com"
+    
+    # Check limit for hospital users
+    is_hospital_user = current_user.role in [UserRole.HOSPITAL_ADMIN, UserRole.HOSPITAL_STAFF]
+    if is_hospital_user:
+        if pdf_file.download_request_count is None:
+            pdf_file.download_request_count = 0
+            
+        if pdf_file.download_request_count >= 5:
+            raise HTTPException(
+                status_code=403, 
+                detail="Security Limit: Download requests for this file have reached the maximum limit of 5. Please contact support."
+            )
+    
+    success = EmailService.send_download_request_email(
+        custom_email=custom_target_email,
+        admin_email=admin_email,
+        hospital_name=hospital.legal_name,
+        patient_name=pdf_file.patient.full_name,
+        mrd_id=pdf_file.patient.patient_u_id,
+        filename=pdf_file.filename,
+        requester_email=current_user.email
+    )
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to send download request email")
+    
+    # Increment count for hospital users
+    if is_hospital_user:
+        pdf_file.download_request_count = (pdf_file.download_request_count or 0) + 1
+        db.commit()
+        
+    remaining = 5 - (pdf_file.download_request_count or 0) if is_hospital_user else "Unlimited"
+    
+    return {
+        "status": "success", 
+        "message": f"Download request sent to {custom_target_email}. Hospital admin ({admin_email}) has been CC'd.",
+        "remaining_requests": remaining
+    }

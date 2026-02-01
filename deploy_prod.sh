@@ -109,7 +109,7 @@ echo "🚀 [6/7] Finalizing System Launch..."
 # Explicitly use the virtualenv python to avoid PM2 Node.js detection errors
 pm2 delete backend 2>/dev/null || true
 pm2 start "$PROJECT_ROOT/backend/.venv/bin/python" --name "backend" -- -m uvicorn \
-    app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips '*'
+    app.main:app --host 0.0.0.0 --port 8000 --workers 4 --proxy-headers --forwarded-allow-ips '*'
 
 # Nginx Validation & Reload
 echo "🛡️ Validating Nginx Configuration..."

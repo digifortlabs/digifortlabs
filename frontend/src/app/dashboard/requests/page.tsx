@@ -11,6 +11,7 @@ export default function FileRequests() {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [userRole, setUserRole] = useState<string>('');
+    const [processingId, setProcessingId] = useState<number | null>(null);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -40,28 +41,25 @@ export default function FileRequests() {
     const activeRequests = requests.filter(r => ['Pending', 'In Transit', 'Approved', 'Pending Approval', 'Return Requested'].includes(r.status));
     const historyRequests = requests.filter(r => ['Delivered', 'Rejected', 'Cancelled', 'Returned'].includes(r.status));
 
-    // super_admin is mapped to 'website_admin' string usually, but let's check both
-    const canManageRequests = ['website_admin', 'super_admin', 'mrd_staff', 'platform_staff'].includes(userRole);
+    // roles allowed to process/approve requests (Admin + Warehouse)
+    const canManageRequests = ['superadmin', 'superadmin_staff', 'warehouse_manager', 'website_admin', 'platform_staff'].includes(userRole);
 
     const searchPatients = async (query: string) => {
-        if (!query) { setSearchResults([]); return; }
+        if (!query || query.length < 2) { setSearchResults([]); return; }
         const token = localStorage.getItem('token');
         try {
-            // Re-using existing patient search/list endpoint? 
-            // We likely need a search endpoint. For now, we might fetch all (inefficient) or use a search param if supported.
-            // Let's assume GET /patients/?search=query logic or similar. 
-            // Checking backend: Listing patients supports filtering? No.
-            // So we will just fetch all patients for now (for the hospital).
-            const res = await fetch(`${API_URL}/patients/`, {
+            const res = await fetch(`${API_URL}/storage/search?q=${encodeURIComponent(query)}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) {
                 const data = await res.json();
-                const filtered = data.filter((p: any) =>
-                    p.full_name.toLowerCase().includes(query.toLowerCase()) ||
-                    p.patient_u_id.includes(query)
-                );
-                setSearchResults(filtered);
+                // Map storage search results to the format expected by the UI
+                const mapped = data.map((item: any) => ({
+                    ...item,
+                    full_name: item.patient_name,
+                    physical_box_id: item.location?.box_id
+                }));
+                setSearchResults(mapped);
             }
         } catch (err) {
             console.error(err);
@@ -75,6 +73,8 @@ export default function FileRequests() {
         }
 
         const token = localStorage.getItem('token');
+        setProcessingId(patient.record_id);
+
         try {
             const res = await fetch(`${API_URL}/storage/requests`, {
                 method: 'POST',
@@ -98,6 +98,8 @@ export default function FileRequests() {
             }
         } catch (err) {
             console.error(err);
+        } finally {
+            setProcessingId(null);
         }
     };
 
@@ -316,13 +318,41 @@ export default function FileRequests() {
                                             </td>
                                             <td className="p-6 text-sm font-medium text-slate-600">{req.requester_name}</td>
                                             <td className="p-6 text-sm text-slate-400">{formatDate(req.request_date)}</td>
-                                            <td className="p-6 text-right">
+                                            <td className="p-6 text-right flex justify-end gap-2">
                                                 {req.status === 'Delivered' && (
                                                     <button
                                                         onClick={() => updateStatus(req.request_id, 'Return Requested')}
                                                         className="px-3 py-1 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100 transition"
                                                     >
                                                         Return to Warehouse
+                                                    </button>
+                                                )}
+
+                                                {(req.status === 'Returned' || req.status === 'Rejected') && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (!confirm("Are you sure you want to delete this request history? This cannot be undone.")) return;
+                                                            const token = localStorage.getItem('token');
+                                                            try {
+                                                                const res = await fetch(`${API_URL}/storage/requests/${req.request_id}`, {
+                                                                    method: 'DELETE',
+                                                                    headers: { Authorization: `Bearer ${token}` }
+                                                                });
+                                                                if (res.ok) {
+                                                                    fetchRequests();
+                                                                    alert("Request deleted successfully");
+                                                                } else {
+                                                                    const d = await res.json();
+                                                                    alert(d.detail || "Failed to delete");
+                                                                }
+                                                            } catch (e) {
+                                                                console.error(e);
+                                                                alert("Network error");
+                                                            }
+                                                        }}
+                                                        className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition"
+                                                    >
+                                                        Delete
                                                     </button>
                                                 )}
                                             </td>
@@ -366,9 +396,13 @@ export default function FileRequests() {
                                     {patient.physical_box_id ? (
                                         <button
                                             onClick={() => handleRequest(patient)}
-                                            className="px-4 py-2 bg-indigo-50 text-indigo-700 font-bold rounded-lg text-sm group-hover:bg-indigo-600 group-hover:text-white transition"
+                                            disabled={processingId === patient.record_id}
+                                            className={`px-4 py-2 font-bold rounded-lg text-sm transition ${processingId === patient.record_id
+                                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                                : 'bg-indigo-50 text-indigo-700 group-hover:bg-indigo-600 group-hover:text-white'
+                                                }`}
                                         >
-                                            Request File
+                                            {processingId === patient.record_id ? 'Requesting...' : 'Request File'}
                                         </button>
                                     ) : (
                                         <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-full">

@@ -200,3 +200,55 @@ def update_user(user_id: int, data: UserUpdate, db: Session = Depends(get_db), c
         print(f"Audit Log Error: {e}")
 
     return {"message": "User updated"}
+
+class LoginActivityResponse(BaseModel):
+    user_id: int
+    email: str
+    role: UserRole
+    hospital_name: Optional[str] = None
+    last_login_at: Optional[str] = None
+    previous_login_at: Optional[str] = None
+    last_active_at: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+@router.get("/login-activity", response_model=List[LoginActivityResponse])
+def get_login_activity(
+    limit: int = 50,
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """Get recent login activity for admins and staff."""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    from sqlalchemy import or_
+    
+    # Build query based on role
+    if current_user.role == UserRole.SUPER_ADMIN:
+        # Super Admin sees all users
+        users = db.query(User).filter(
+            User.last_login_at.isnot(None)
+        ).order_by(User.last_login_at.desc()).limit(limit).all()
+    else:
+        # Hospital Admin sees only their hospital users
+        users = db.query(User).filter(
+            User.hospital_id == current_user.hospital_id,
+            User.last_login_at.isnot(None)
+        ).order_by(User.last_login_at.desc()).limit(limit).all()
+    
+    # Format response
+    result = []
+    for user in users:
+        result.append({
+            "user_id": user.user_id,
+            "email": user.email,
+            "role": user.role,
+            "hospital_name": user.hospital.legal_name if user.hospital else "Platform Staff",
+            "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+            "previous_login_at": user.previous_login_at.isoformat() if user.previous_login_at else None,
+            "last_active_at": user.last_active_at.isoformat() if user.last_active_at else None
+        })
+    
+    return result

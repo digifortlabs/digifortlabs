@@ -710,3 +710,157 @@ class EmailService:
             import traceback
             traceback.print_exc()
             return False
+
+    @staticmethod
+    def send_file_retrieval_success_email(recipient_email: str, hospital_name: str, patient_name: str, mrd_number: str, filename: str, file_content: bytes):
+        """
+        Sends a retrieved archival file as an attachment.
+        """
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.application import MIMEApplication
+        from datetime import datetime
+        from app.core.config import settings
+
+        SMTP_SERVER = settings.SMTP_SERVER
+        SMTP_PORT = settings.SMTP_PORT
+        SMTP_USERNAME = settings.SMTP_USERNAME
+        SMTP_PASSWORD = settings.SMTP_PASSWORD
+        SENDER_EMAIL = settings.SENDER_EMAIL
+
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = f"Digifort Archive <{SENDER_EMAIL}>"
+            msg['To'] = recipient_email
+            msg['Subject'] = f"RETRIEVED RECORD: {patient_name} ({mrd_number})"
+
+            body = f"""
+            <html>
+            <body style="font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; line-height: 1.6;">
+                <div style="max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+                    <div style="background: #1e293b; color: #fff; padding: 25px; text-align: center;">
+                        <h2 style="margin: 0;">Digifort Archive Service</h2>
+                    </div>
+                    <div style="padding: 30px;">
+                        <p>Hello <strong>{hospital_name} Admin</strong>,</p>
+                        <p>Your request to retrieve an archived medical record has been processed successfully.</p>
+                        
+                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                            <p style="margin: 0 0 10px 0;"><strong>Patient Record Details:</strong></p>
+                            <table style="width: 100%; font-size: 14px;">
+                                <tr><td style="color: #64748b; width: 120px;">Patient Name:</td><td>{patient_name}</td></tr>
+                                <tr><td style="color: #64748b;">MRD Number:</td><td>{mrd_number}</td></tr>
+                                <tr><td style="color: #64748b;">Filename:</td><td>{filename}</td></tr>
+                            </table>
+                        </div>
+
+                        <p>The requested file is attached to this email. For security reasons, please ensure this record is stored in compliance with medical data privacy regulations.</p>
+                        
+                        <p style="font-size: 14px; color: #64748b; margin-top: 30px;">
+                            Thank you for using Digifort Labs Archive Management.
+                        </p>
+                    </div>
+                    <div style="background: #f1f5f9; padding: 15px; text-align: center; font-size: 12px; color: #94a3b8;">
+                        &copy; {datetime.now().year} Digifort Labs. All rights reserved.
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            msg.attach(MIMEText(body, 'html'))
+
+            # Attachment
+            part = MIMEApplication(file_content, Name=filename)
+            part['Content-Disposition'] = f'attachment; filename="{filename}"'
+            msg.attach(part)
+
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.sendmail(SENDER_EMAIL, recipient_email, msg.as_string())
+            server.quit()
+            
+            print(f"✅ [EMAIL SERVICE] Retrieved file sent to {recipient_email}")
+            return True
+
+        except Exception as e:
+            print(f"❌ [EMAIL SERVICE] Failed to send retrieved file to {recipient_email}: {str(e)}")
+            return False
+
+    @staticmethod
+    def send_download_request_email(custom_email: str, admin_email: str, hospital_name: str, patient_name: str, mrd_id: str, filename: str, requester_email: str):
+        """
+        Sends a download request notification to a custom email with hospital admin in CC.
+        """
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from datetime import datetime
+        from app.core.config import settings
+
+        SMTP_SERVER = settings.SMTP_SERVER
+        SMTP_PORT = settings.SMTP_PORT
+        SMTP_USERNAME = settings.SMTP_USERNAME
+        SMTP_PASSWORD = settings.SMTP_PASSWORD
+        SENDER_EMAIL = settings.SENDER_EMAIL
+
+        try:
+            # Check if SMTP is configured
+            if not SMTP_SERVER or not SMTP_USERNAME:
+                print(f"⚠️ [EMAIL SERVICE] SMTP not configured. Mocking email to {custom_email}")
+                print(f"Subject: DOWNLOAD REQUEST: {patient_name} - {hospital_name}")
+                return True
+
+            msg = MIMEMultipart()
+            msg['From'] = f"Digifort Request <{SENDER_EMAIL}>"
+            msg['To'] = custom_email
+            msg['Cc'] = admin_email
+            msg['Subject'] = f"DOWNLOAD REQUEST: {patient_name} - {hospital_name}"
+
+            body = f"""
+            <html>
+            <body style="font-family: sans-serif; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+                    <div style="background: #f43f5e; color: #fff; padding: 20px; text-align: center;">
+                        <h2 style="margin: 0;">Record Access Request</h2>
+                    </div>
+                    <div style="padding: 20px;">
+                        <p>A new request has been made to download a secure medical record.</p>
+                        
+                        <div style="background: #f9fafb; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f43f5e;">
+                            <p><strong>Hospital:</strong> {hospital_name}</p>
+                            <p><strong>Patient:</strong> {patient_name} (MRD: {mrd_id})</p>
+                            <p><strong>File:</strong> {filename}</p>
+                            <p><strong>Requested By:</strong> {requester_email}</p>
+                            <p><strong>Timestamp:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                        </div>
+                        
+                        <p>This email has been sent to the central processing unit and CC'd to the Hospital Administrator.</p>
+                        <p>Please review local policies before fulfilling this request.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            msg.attach(MIMEText(body, 'html'))
+
+            recipients = [custom_email]
+            if admin_email:
+                recipients.append(admin_email)
+
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.sendmail(SENDER_EMAIL, recipients, msg.as_string())
+            server.quit()
+            
+            print(f"✅ [EMAIL SERVICE] Download request sent to {custom_email} (CC: {admin_email})")
+            return True
+        except Exception as e:
+            print(f"❌ [EMAIL SERVICE] Failed to send download request: {e}")
+            # If in development, return True even if email fails to allow testing
+            if settings.ENVIRONMENT != "production":
+                print("⚠️ [DEV MODE] Ignoring email failure")
+                return True
+            return False

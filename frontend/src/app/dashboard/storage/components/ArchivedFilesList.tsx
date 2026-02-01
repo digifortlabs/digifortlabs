@@ -272,7 +272,7 @@ export default function ArchivedFilesList({ boxes = [], refreshData }: ArchivedF
                                 <option value="">Select a Box...</option>
                                 {availableBoxes.map(b => (
                                     <option key={b.box_id} value={b.box_id}>
-                                        {b.label} ({b.patient_count}/{b.capacity})
+                                        {b.hospital_name ? `${b.hospital_name} - ` : ''}{b.label} [{b.category || 'IPD'}] ({b.patient_count}/{b.capacity})
                                     </option>
                                 ))}
                             </select>

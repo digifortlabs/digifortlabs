@@ -178,17 +178,14 @@ class StorageService:
         success, location = s3_manager.upload_file(io.BytesIO(encrypted_bytes), new_s3_key)
         
         if success:
-            # 4. Delete Local Draft
+            # 4. Success: Update DB and Cleanup source
             old_key = f.s3_key
             f.s3_key = new_s3_key
             f.storage_path = location
             f.upload_status = 'confirmed'
             
-            # Delete from local disk
-            original_mode = s3_manager.mode
-            s3_manager.mode = "local"
+            # Delete old draft from storage (respects current mode S3/Local)
             s3_manager.delete_file(old_key)
-            s3_manager.mode = original_mode
             db.commit()
             return True, "Migrated successfully"
             

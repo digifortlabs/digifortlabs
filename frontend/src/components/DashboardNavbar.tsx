@@ -35,6 +35,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                 }
                 if (decoded.sub) {
                     setUserEmail(decoded.sub);
+                    localStorage.setItem('userEmail', decoded.sub);
                 }
             } catch (e) {
                 console.error("Error decoding token", e);
@@ -80,8 +81,8 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                     <div className="flex items-center gap-2 lg:gap-8">
                         {/* Brand */}
                         <div className="flex-shrink-0 flex items-center">
-                            <div className="bg-white rounded-lg px-2 py-1">
-                                <img src="/logo/longlogo.png" alt="Digifort Labs" className="h-8 w-auto object-contain" />
+                            <div className="bg-white rounded-lg px-1.5 py-1 md:px-2 md:py-1 transition-all">
+                                <img src="/logo/longlogo.png" alt="Digifort Labs" className="h-6 md:h-8 w-auto object-contain" />
                             </div>
                         </div>
 
@@ -124,7 +125,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             )}
 
                             {/* Reports & Accounting */}
-                            {(isSuperAdmin || isHospitalAdmin) && (
+                            {isSuperAdmin && (
                                 <>
                                     <Link
                                         href="/dashboard/reports"
@@ -378,7 +379,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                         )}
 
                         {/* Reports & Accounting Link - Admins */}
-                        {(userRole === 'superadmin' || userRole === 'hospital_admin') && (
+                        {userRole === 'superadmin' && (
                             <>
                                 <Link
                                     href="/dashboard/reports"
