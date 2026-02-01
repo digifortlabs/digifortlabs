@@ -939,8 +939,11 @@ def confirm_upload(file_id: int, background_tasks: BackgroundTasks, db: Session 
     if not f: 
         raise HTTPException(status_code=404, detail="File not found or access denied")
         
-    # Migration Logic: Local Draft -> S3 Archive via StorageService
-    if "drafts/" in (f.s3_key or ""):
+    # Migration Logic: Handle both local drafts/ and S3 draft/ folders
+    s3_key = f.s3_key or ""
+    
+    # Case 1: Local drafts/ folder (legacy)
+    if "drafts/" in s3_key:
         success, msg = StorageService.migrate_to_s3(db, file_id)
         if not success:
             # If S3 migration failed, we still mark as confirmed locally
@@ -951,7 +954,20 @@ def confirm_upload(file_id: int, background_tasks: BackgroundTasks, db: Session 
         
         background_tasks.add_task(run_post_confirmation_ocr, file_id)
         return {"status": "success", "message": "File confirmed and archived to S3. OCR is running in background."}
+    
+    # Case 2: S3 draft/ or draft_backup/ folders (current uploads)
+    elif "draft/" in s3_key or "draft_backup/" in s3_key:
+        success, msg = StorageService.migrate_s3_draft_to_final(db, file_id)
+        if not success:
+            f.upload_status = 'confirmed'
+            db.commit()
+            background_tasks.add_task(run_post_confirmation_ocr, file_id)
+            return {"status": "partial", "message": f"Confirmed, but migration error: {msg}"}
+        
+        background_tasks.add_task(run_post_confirmation_ocr, file_id)
+        return {"status": "success", "message": "File confirmed and moved to final storage. OCR is running in background."}
 
+    # Case 3: Already in final storage
     f.upload_status = 'confirmed'
     db.commit()
     background_tasks.add_task(run_post_confirmation_ocr, file_id)

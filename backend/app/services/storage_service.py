@@ -192,6 +192,68 @@ class StorageService:
         return False, "Upload failed"
 
     @staticmethod
+    def migrate_s3_draft_to_final(db: Session, file_id: int):
+        """
+        Migrates a file from S3 draft/ or draft_backup/ to final storage hierarchy.
+        """
+        from ..models import PDFFile
+        from ..services.s3_handler import S3Manager
+        import os, uuid, re
+
+        f = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+        if not f:
+            return False, "File not found"
+        
+        s3_key = f.s3_key or ""
+        if "draft/" not in s3_key and "draft_backup/" not in s3_key:
+            return False, "Not a draft file"
+
+        s3_manager = S3Manager()
+        if s3_manager.mode != "s3":
+            return False, "S3 not configured"
+
+        # 1. Generate final storage key
+        patient = f.patient
+        date_source = patient.discharge_date or patient.created_at or datetime.now()
+        year_str = date_source.strftime("%Y")
+        month_str = date_source.strftime("%m")
+        
+        def sanitize(n): return re.sub(r'[^\w\s-]', '', n).replace(' ', '_')
+        hospital_name = sanitize(patient.hospital.legal_name or f"Hospital_{patient.hospital_id}")
+        mrd_number = sanitize(patient.patient_u_id)
+        
+        # Extract unique ID from current key or generate new
+        unique_id = s3_key.split('_')[-1].split('.')[0] if '_' in s3_key else uuid.uuid4().hex[:8]
+        ext = os.path.splitext(s3_key)[1]  # includes .enc
+        
+        new_s3_key = f"{hospital_name}/{year_str}/{month_str}/{mrd_number}_{unique_id}"
+        if not new_s3_key.endswith(".enc"): 
+            new_s3_key += ext
+
+        # 2. Move file in S3 (copy + delete)
+        try:
+            # Copy to new location
+            s3_manager.s3_client.copy_object(
+                Bucket=s3_manager.bucket_name,
+                CopySource={'Bucket': s3_manager.bucket_name, 'Key': s3_key},
+                Key=new_s3_key
+            )
+            
+            # Delete old draft
+            s3_manager.delete_file(s3_key)
+            
+            # 3. Update database
+            f.s3_key = new_s3_key
+            f.storage_path = f"s3://{s3_manager.bucket_name}/{new_s3_key}"
+            f.upload_status = 'confirmed'
+            db.commit()
+            
+            return True, "Migrated from draft to final storage"
+            
+        except Exception as e:
+            return False, f"S3 migration failed: {str(e)}"
+
+    @staticmethod
     def process_auto_confirmations(db: Session):
         """
         Finds drafts older than 24 hours and migrates them to S3.
