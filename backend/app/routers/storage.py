@@ -1134,12 +1134,26 @@ def confirm_all_drafts(hospital_id: Optional[int] = None, db: Session = Depends(
     failed = 0
     
     for f in drafts:
-        success, msg = StorageService.migrate_to_s3(db, f.file_id)
+        s3_key = f.s3_key or ""
+        success = False
+        msg = ""
+        
+        # Handle local drafts/
+        if "drafts/" in s3_key:
+            success, msg = StorageService.migrate_to_s3(db, f.file_id)
+        # Handle S3 draft/ or draft_backup/
+        elif "draft/" in s3_key or "draft_backup/" in s3_key:
+            success, msg = StorageService.migrate_s3_draft_to_final(db, f.file_id)
+        else:
+            # Already in final storage, just mark as confirmed
+            f.upload_status = 'confirmed'
+            db.commit()
+            success = True
+        
         if success:
             count += 1
         else:
-            # Fallback: Force confirm locally if migration fails (to fix stats)
-            # OR log it. For now, forcing confirm to satisfy "Add to stats" request
+            # Fallback: Force confirm locally if migration fails
             f.upload_status = 'confirmed'
             db.commit() 
             failed += 1
@@ -1148,5 +1162,5 @@ def confirm_all_drafts(hospital_id: Optional[int] = None, db: Session = Depends(
         "status": "success", 
         "confirmed_count": count, 
         "forced_count": failed,
-        "message": f"Confirmed {count + failed} files."
+        "message": f"Confirmed {count + failed} files. {count} migrated to final storage, {failed} confirmed in place."
     }
