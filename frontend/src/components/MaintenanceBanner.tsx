@@ -58,6 +58,8 @@ export default function MaintenanceBanner() {
                             }
                         }
                     }
+                } else {
+                    console.error("Failed to fetch platform settings:", res.status, res.statusText);
                 }
             } catch (error) {
                 console.error("Failed to fetch platform settings:", error);
