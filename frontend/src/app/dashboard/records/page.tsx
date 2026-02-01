@@ -884,7 +884,7 @@ export default function RecordsList() {
                                 </h2>
                                 <div className="flex gap-2">
                                     {/* AI Features - Restricted to Authorized Roles */}
-                                    {(['superadmin', 'superadmin_staff', 'website_admin', 'website_staff'].includes(userProfile?.role)) && (
+                                    {(['superadmin', 'platform_staff', 'website_admin'].includes(userProfile?.role)) && (
                                         <>
                                             <label className={`flex items-center gap-2 px-3 py-1 rounded-lg border cursor-pointer transition-all ${isExtracting ? 'bg-indigo-50 border-indigo-200 cursor-wait' : 'bg-indigo-50/20 border-slate-200 hover:bg-indigo-50 hover:border-indigo-200'}`}>
                                                 {isExtracting ? (
