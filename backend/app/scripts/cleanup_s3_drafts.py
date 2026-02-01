@@ -90,8 +90,14 @@ def cleanup_drafts():
     confirmed_files = get_all_confirmed_file_ids()
     print(f"✅ Found {len(confirmed_files)} confirmed files in database")
     
-    # Check draft folders
-    draft_folders = ['draft/', 'draft_backup/']
+    # Check draft folders (including nested variations)
+    draft_folders = [
+        'draft/',
+        'draft_backup/',
+        'drafts/',
+        'drafts_backup/',
+        'drafts_backup/drafts/'  # Nested structure found in actual bucket
+    ]
     total_moved = 0
     total_deleted = 0
     total_size_freed = 0
