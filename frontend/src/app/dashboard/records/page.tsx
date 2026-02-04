@@ -797,8 +797,10 @@ export default function RecordsList() {
                                                     <td className="p-3 hidden md:table-cell align-middle">
                                                         {p.physical_box_id ? (
                                                             <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 uppercase tracking-wide">Archived</span>
-                                                        ) : (
+                                                        ) : p.files && p.files.length > 0 ? (
                                                             <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 uppercase tracking-wide">Digital</span>
+                                                        ) : (
+                                                            <span className="text-[9px] font-black text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 uppercase tracking-wide">Physical</span>
                                                         )}
                                                     </td>
 

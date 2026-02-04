@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL } from '../../config/api';
 import { formatDateTime, formatDate } from '@/lib/dateFormatter';
@@ -25,9 +25,11 @@ import {
     IndianRupee, // Changed from DollarSign
     Package,
     ChevronRight,
-    AppWindow // Replacement
+    AppWindow, // Replacement
+    Loader2 // Added for loading states
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import ConfirmationModal from '@/components/ConfirmationModal';
 
 export default function CommandCenter() {
     const router = useRouter();
@@ -47,6 +49,37 @@ export default function CommandCenter() {
     // Patient List State
     const [patients, setPatients] = useState<any[]>([]);
     const [loadingPatients, setLoadingPatients] = useState(false);
+
+    // UI states
+    const [isConfirmingAll, setIsConfirmingAll] = useState(false);
+    const [showToast, setShowToast] = useState(false);
+    const [toastMessage, setToastMessage] = useState("");
+    const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
+
+    const triggerToast = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
+        setToastMessage(msg);
+        setToastType(type);
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 4000);
+    };
+
+    // Global Confirmation Modal State
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: (input?: string) => any;
+        type?: 'danger' | 'warning' | 'info' | 'success';
+        confirmText?: string;
+        requiresInput?: boolean;
+        inputPlaceholder?: string;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => { },
+        type: 'danger'
+    });
 
     useEffect(() => {
         // Simulations and Fetching
@@ -551,25 +584,36 @@ export default function CommandCenter() {
                                     icon={<CheckCircle2 size={18} />}
                                     label="Confirm Pending Uploads"
                                     className="col-span-2 bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-100"
-                                    onClick={async () => {
-                                        if (!confirm("Are you sure you want to confirm all pending uploads immediately? This will finalize their storage locations.")) return;
-                                        try {
-                                            const token = localStorage.getItem('token');
-                                            const res = await fetch(`${API_URL}/storage/confirm-all${hospitalId ? `?hospital_id=${hospitalId}` : ''}`, {
-                                                method: 'POST',
-                                                headers: { Authorization: `Bearer ${token}` }
-                                            });
-                                            const data = await res.json();
+                                    disabled={isConfirmingAll}
+                                    onClick={() => {
+                                        setConfirmModal({
+                                            isOpen: true,
+                                            title: "Confirm All Drafts",
+                                            message: "Are you sure you want to confirm all pending uploads immediately? This will finalize their storage locations.",
+                                            type: 'success',
+                                            confirmText: "Confirm All",
+                                            onConfirm: async () => {
+                                                setIsConfirmingAll(true);
+                                                try {
+                                                    const token = localStorage.getItem('token');
+                                                    const res = await fetch(`${API_URL}/storage/confirm-all${hospitalId ? `?hospital_id=${hospitalId}` : ''}`, {
+                                                        method: 'POST',
+                                                        headers: { Authorization: `Bearer ${token}` }
+                                                    });
+                                                    const data = await res.json();
 
-                                            if (!res.ok) {
-                                                throw new Error(data.detail || data.message || "Request failed");
+                                                    if (!res.ok) {
+                                                        throw new Error(data.detail || data.message || "Request failed");
+                                                    }
+
+                                                    triggerToast(data.message || `Successfully confirmed ${data.confirmed_count || 0} files!`, "success");
+                                                    setTimeout(() => window.location.reload(), 2000);
+                                                } catch (e: any) {
+                                                    triggerToast(e.message || "Failed to confirm uploads", "error");
+                                                    setIsConfirmingAll(false);
+                                                }
                                             }
-
-                                            alert(data.message || "Operation successful");
-                                            window.location.reload();
-                                        } catch (e: any) {
-                                            alert(e.message || "Failed to confirm uploads");
-                                        }
+                                        });
                                     }}
                                 />
                             </div>
@@ -582,30 +626,41 @@ export default function CommandCenter() {
                                 {/* Universal Admin Action: Confirm Uploads */}
                                 {(userRole === 'hospital_admin' || userRole === 'superadmin_staff') && (
                                     <button
-                                        onClick={async () => {
-                                            if (!confirm("Are you sure you want to confirm all pending uploads immediately? This will finalize their storage locations.")) return;
-                                            try {
-                                                const token = localStorage.getItem('token');
-                                                const res = await fetch(`${API_URL}/storage/confirm-all${hospitalId ? `?hospital_id=${hospitalId}` : ''}`, {
-                                                    method: 'POST',
-                                                    headers: { Authorization: `Bearer ${token}` }
-                                                });
-                                                const data = await res.json();
+                                        disabled={isConfirmingAll}
+                                        onClick={() => {
+                                            setConfirmModal({
+                                                isOpen: true,
+                                                title: "Confirm All Drafts",
+                                                message: "Are you sure you want to confirm all pending uploads immediately? This will finalize their storage locations.",
+                                                type: 'success',
+                                                confirmText: "Confirm All",
+                                                onConfirm: async () => {
+                                                    setIsConfirmingAll(true);
+                                                    try {
+                                                        const token = localStorage.getItem('token');
+                                                        const res = await fetch(`${API_URL}/storage/confirm-all${hospitalId ? `?hospital_id=${hospitalId}` : ''}`, {
+                                                            method: 'POST',
+                                                            headers: { Authorization: `Bearer ${token}` }
+                                                        });
+                                                        const data = await res.json();
 
-                                                if (!res.ok) {
-                                                    throw new Error(data.detail || data.message || "Request failed");
+                                                        if (!res.ok) {
+                                                            throw new Error(data.detail || data.message || "Request failed");
+                                                        }
+
+                                                        triggerToast(data.message || `Successfully confirmed ${data.confirmed_count || 0} files!`, "success");
+                                                        setTimeout(() => window.location.reload(), 2000);
+                                                    } catch (e: any) {
+                                                        triggerToast(e.message || "Failed to confirm uploads", "error");
+                                                        setIsConfirmingAll(false);
+                                                    }
                                                 }
-
-                                                alert(data.message || "Operation successful");
-                                                window.location.reload();
-                                            } catch (e: any) {
-                                                alert(e.message || "Failed to confirm uploads");
-                                            }
+                                            });
                                         }}
-                                        className="col-span-2 bg-indigo-600 text-white p-4 rounded-xl flex items-center justify-center gap-2 font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100"
+                                        className="col-span-2 bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-100 p-4 rounded-2xl flex items-center justify-center gap-2 font-bold text-xs"
                                     >
-                                        <CheckCircle2 size={20} />
-                                        Confirm Pending Uploads
+                                        <CheckCircle2 size={18} />
+                                        {isConfirmingAll ? <Loader2 size={14} className="animate-spin" /> : "Confirm All Pending Uploads"}
                                     </button>
                                 )}
 
@@ -741,6 +796,33 @@ export default function CommandCenter() {
                         </div>
                     )
                 }
+
+                {/* Toast Notification */}
+                {showToast && (
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-bottom-5">
+                        <div className={`px-6 py-3 rounded-2xl shadow-2xl border flex items-center gap-3 ${toastType === 'success' ? 'bg-emerald-500 border-emerald-400 text-white' :
+                            toastType === 'error' ? 'bg-red-500 border-red-400 text-white' :
+                                'bg-indigo-600 border-indigo-500 text-white'
+                            }`}>
+                            {toastType === 'success' && <CheckCircle2 size={18} />}
+                            {toastType === 'error' && <AlertTriangle size={18} />}
+                            <span className="text-sm font-bold tracking-tight">{toastMessage}</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Global Confirmation Modal */}
+                <ConfirmationModal
+                    isOpen={confirmModal.isOpen}
+                    title={confirmModal.title}
+                    message={confirmModal.message}
+                    confirmText={confirmModal.confirmText}
+                    type={confirmModal.type}
+                    onConfirm={confirmModal.onConfirm}
+                    onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                    requiresInput={confirmModal.requiresInput}
+                    inputPlaceholder={confirmModal.inputPlaceholder}
+                />
 
             </div>
         </div>

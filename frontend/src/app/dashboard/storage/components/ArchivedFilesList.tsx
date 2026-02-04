@@ -42,7 +42,13 @@ export default function ArchivedFilesList({ boxes = [], refreshData }: ArchivedF
                     const archived = data.filter((p: any) => p.physical_box_id !== null);
                     setArchivedFiles(archived);
                 } else {
-                    setArchivedFiles(data);
+                    // Filter: Only show patients with AT LEAST ONE file for unassigned archiving
+                    // This matches the user request: "box it contain pdf of patient"
+                    const unassignedWithFiles = data.filter((p: any) =>
+                        p.physical_box_id === null &&
+                        (p.files || []).length > 0
+                    );
+                    setArchivedFiles(unassignedWithFiles);
                 }
             }
         } catch (err) {

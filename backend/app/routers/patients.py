@@ -269,7 +269,7 @@ def process_pdf_background_legacy(file_id: int, file_bytes: bytes):
 class FileData(BaseModel):
     file_id: int
     filename: str
-    upload_date: datetime.datetime
+    upload_date: Optional[datetime.datetime] = None
     file_size_mb: Union[float, None] = 0.0
     page_count: Union[int, None] = 0
     upload_status: str

@@ -7,6 +7,7 @@ interface InactivityConfig {
     timeoutMinutes: number;
     warningMinutes: number;
     excludeRoles?: string[];
+    forcedRoles?: string[]; // Roles that must confirm session regardless of activity
 }
 
 export function useInactivityLogout(config: InactivityConfig) {
@@ -17,7 +18,25 @@ export function useInactivityLogout(config: InactivityConfig) {
     const warningTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    const resetTimer = () => {
+    const resetTimer = (isActivity: boolean = false) => {
+        // Get Role
+        const token = localStorage.getItem('token');
+        let role = '';
+        if (token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                role = payload.role || '';
+            } catch (e) {
+                console.error("Token parse error in inactivity check", e);
+            }
+        }
+
+        // If this is a natural activity event (mouse/keyboard) AND 
+        // the user role is in forcedRoles, DO NOT reset the timer.
+        if (isActivity && config.forcedRoles?.includes(role)) {
+            return;
+        }
+
         // Clear existing timers
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);
@@ -25,20 +44,8 @@ export function useInactivityLogout(config: InactivityConfig) {
         setShowWarning(false);
 
         // Check if user should be excluded
-        const token = localStorage.getItem('token');
-        if (token) {
-            try {
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                const role = payload.role || '';
-
-                // Skip auto-logout for excluded roles (e.g., Super Admin)
-                if (config.excludeRoles?.includes(role)) {
-                    return;
-                }
-            } catch (e) {
-                console.error("Token parse error in inactivity check", e);
-                return;
-            }
+        if (role && config.excludeRoles?.includes(role)) {
+            return;
         }
 
         // Set warning timer (e.g., 2 minutes before logout)
@@ -69,25 +76,27 @@ export function useInactivityLogout(config: InactivityConfig) {
     };
 
     const extendSession = () => {
-        resetTimer();
+        resetTimer(false); // Forced reset on explicit confirmation
     };
 
     useEffect(() => {
         // Events that indicate user activity
         const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
 
-        // Reset timer on any activity
+        // Reset timer on any activity (only for non-forced roles)
+        const activityHandler = () => resetTimer(true);
+
         events.forEach(event => {
-            window.addEventListener(event, resetTimer);
+            window.addEventListener(event, activityHandler);
         });
 
         // Start initial timer
-        resetTimer();
+        resetTimer(false);
 
         // Cleanup
         return () => {
             events.forEach(event => {
-                window.removeEventListener(event, resetTimer);
+                window.removeEventListener(event, activityHandler);
             });
             if (timeoutRef.current) clearTimeout(timeoutRef.current);
             if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);

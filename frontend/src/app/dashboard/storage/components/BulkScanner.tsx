@@ -163,7 +163,15 @@ const BulkScanner: React.FC<BulkScannerProps> = ({ boxes, refreshData }) => {
     };
 
     const handleBulkSave = async () => {
-        if (!bulkBoxId || bulkScannedItems.length === 0) return;
+        if (!bulkBoxId || isNaN(bulkBoxId)) {
+            alert("Error: Invalid Box Selection");
+            return;
+        }
+        if (bulkScannedItems.length === 0) {
+            alert("Error: No items scanned");
+            return;
+        }
+
         setIsBulkSaving(true);
         const token = localStorage.getItem('token');
 
@@ -245,8 +253,8 @@ const BulkScanner: React.FC<BulkScannerProps> = ({ boxes, refreshData }) => {
                                     <HardDrive size={14} /> Storage Usage
                                 </span>
                                 <span className={`text-xs font-black ${(targetBox.patient_count + bulkScannedItems.length) >= targetBox.capacity
-                                        ? "text-red-500"
-                                        : "text-slate-800"
+                                    ? "text-red-500"
+                                    : "text-slate-800"
                                     }`}>
                                     {targetBox.patient_count + bulkScannedItems.length} / {targetBox.capacity} Files
                                 </span>
@@ -254,8 +262,8 @@ const BulkScanner: React.FC<BulkScannerProps> = ({ boxes, refreshData }) => {
                             <div className="h-4 bg-slate-100 rounded-full overflow-hidden">
                                 <div
                                     className={`h-full transition-all duration-500 ${(targetBox.patient_count + bulkScannedItems.length) >= targetBox.capacity
-                                            ? "bg-red-500 animate-pulse"
-                                            : "bg-indigo-500"
+                                        ? "bg-red-500 animate-pulse"
+                                        : "bg-indigo-500"
                                         }`}
                                     style={{ width: `${Math.min(100, ((targetBox.patient_count + bulkScannedItems.length) / targetBox.capacity) * 100)}%` }}
                                 ></div>

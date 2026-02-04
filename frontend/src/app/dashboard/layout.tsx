@@ -22,7 +22,8 @@ export default function DashboardLayout({
     const { showWarning, timeLeft, extendSession } = useInactivityLogout({
         timeoutMinutes: 30,
         warningMinutes: 2,
-        excludeRoles: ['superadmin']
+        excludeRoles: ['superadmin'],
+        forcedRoles: ['hospital_admin', 'mrd_staff']
     });
 
     useEffect(() => {

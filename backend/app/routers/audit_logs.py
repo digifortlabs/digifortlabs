@@ -69,7 +69,7 @@ def get_audit_logs(
         
         for log in logs:
             writer.writerow([
-                log.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                log.timestamp.strftime("%Y-%m-%d %H:%M:%S") if log.timestamp else "N/A",
                 log.user.email if log.user else "System",
                 log.action,
                 log.details,

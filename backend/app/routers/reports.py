@@ -220,7 +220,7 @@ def get_audit_report(
     data = []
     for log in logs:
         row = {
-            "timestamp": log.timestamp.strftime("%d/%m/%Y %H:%M:%S"),
+            "timestamp": log.timestamp.strftime("%d/%m/%Y %H:%M:%S") if log.timestamp else "N/A",
             "user": log.user.email if log.user else "System",
             "action": log.action,
             "details": log.details,

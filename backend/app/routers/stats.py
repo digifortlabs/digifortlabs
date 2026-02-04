@@ -146,7 +146,7 @@ def get_dashboard_stats(
             "id": log.log_id,
             "action": log.action.replace("FILE_", ""), # Remove prefix for cleaner UI
             "details": log.details,
-            "time": log.timestamp.strftime("%H:%M")
+            "time": log.timestamp.strftime("%H:%M") if log.timestamp else "N/A"
         } for log in recent_audits]
     except Exception as e:
         db.rollback()
@@ -308,7 +308,7 @@ def get_dashboard_stats(
                 "action": action_type,
                 "patient": patient_name,
                 "details": log.details,
-                "time": log.timestamp.strftime("%H:%M"),
+                "time": log.timestamp.strftime("%H:%M") if log.timestamp else "N/A",
                 "user": log.user.email if log.user else "System"
             })
     except Exception as e:

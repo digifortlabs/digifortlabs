@@ -295,6 +295,10 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
     };
 
     const handleAssignFile = async (identifier: string) => {
+        if (!viewingBox?.box_id || isNaN(viewingBox.box_id)) {
+            alert("Error: No box selected or invalid box ID");
+            return;
+        }
         setIsAddingString(true);
         const token = localStorage.getItem('token');
         try {

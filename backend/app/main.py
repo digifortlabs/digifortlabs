@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from .core.config import settings
 from .database import Base, engine
@@ -106,8 +106,8 @@ async def global_exception_handler(request: Request, exc: Exception):
     
     # Manually add CORS headers since middleware might be bypassed on error
     origin = request.headers.get("origin")
-    if origin in cors_origins:
-        response.headers["Access-Control-Allow-Origin"] = origin
+    if "*" in cors_origins or origin in cors_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin or "*"
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Methods"] = "*"
         response.headers["Access-Control-Allow-Headers"] = "*"
@@ -122,9 +122,11 @@ async def validation_exception_handler(request: Request, exc: ResponseValidation
         content={"detail": "Data formatting error in server response.", "errors": exc.errors()}
     )
     origin = request.headers.get("origin")
-    if origin in cors_origins:
-        response.headers["Access-Control-Allow-Origin"] = origin
+    if "*" in cors_origins or origin in cors_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin or "*"
         response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
     return response
 
 # Request size limits (100MB for file uploads)

@@ -61,7 +61,7 @@ class RackResponse(BaseModel):
     total_rows: int = 5
     hospital_name: Optional[str] = None
     total_columns: int = 10
-    created_at: datetime
+    created_at: Optional[datetime] = None
     
     class Config:
         from_attributes = True
@@ -97,7 +97,7 @@ class BoxResponse(BaseModel):
     rack_id: Optional[int] = None
     rack_row: Optional[int] = None
     rack_column: Optional[int] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -369,10 +369,14 @@ def bulk_assign_files(req: BulkAssignRequest, db: Session = Depends(get_db), cur
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.WAREHOUSE_MANAGER, UserRole.HOSPITAL_ADMIN, UserRole.PLATFORM_STAFF]:
         raise HTTPException(status_code=403, detail="Not authorized")
         
+    print(f"[DEBUG] Bulk Assign: box_id={req.box_id}, identifiers={req.identifiers}, user={current_user.email}")
+    
     box = db.query(PhysicalBox).filter(PhysicalBox.box_id == req.box_id).first()
     if not box:
+        print(f"[DEBUG] Bulk Assign: Box {req.box_id} NOT FOUND")
         raise HTTPException(status_code=404, detail="Box not found")
         
+    print(f"[DEBUG] Bulk Assign: Box {box.box_id} found. is_open={box.is_open}, capacity={box.capacity}")
     if not box.is_open:
         raise HTTPException(status_code=400, detail="This box is CLOSED. Please open it first.")
 
@@ -419,6 +423,13 @@ def bulk_assign_files(req: BulkAssignRequest, db: Session = Depends(get_db), cur
         
         if not p:
             errors.append(f"{ident}: Not Found")
+            continue
+
+        # --- NEW: MUST HAVE PDF TO ASSIGN ---
+        # The user requested: "only i can add file to box it contain pdf of patient"
+        # This translates to: Patient record MUST have at least one file entry in PDFFile table.
+        if not p.files or len(p.files) == 0:
+            errors.append(f"{ident}: No digital files found. Please upload PDFs first.")
             continue
             
         if p.physical_box_id == box.box_id:
@@ -523,7 +534,7 @@ def get_movement_logs(limit: int = 50, db: Session = Depends(get_db), current_us
             uhid=log.uhid,
             name=log.patient_name,
             dest=log.destination,
-            time=log.timestamp.strftime("%I:%M %p"),
+            time=log.timestamp.strftime("%I:%M %p") if log.timestamp else "N/A",
             status=log.status
         ) for log in logs
     ]
