@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Info, CheckCircle, X, HelpCircle, AlertOctagon } from 'lucide-react';
+import { AlertTriangle, Info, CheckCircle, X, HelpCircle, AlertOctagon, Loader2 } from 'lucide-react';
 
 interface ConfirmationModalProps {
     isOpen: boolean;
@@ -12,6 +12,8 @@ interface ConfirmationModalProps {
     type?: 'danger' | 'warning' | 'info' | 'success';
     requiresInput?: boolean;
     inputPlaceholder?: string;
+    isLoading?: boolean;
+    closeOnConfirm?: boolean;
 }
 
 const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
@@ -24,7 +26,9 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
     cancelText = "Cancel",
     type = 'danger',
     requiresInput = false,
-    inputPlaceholder = ""
+    inputPlaceholder = "",
+    isLoading = false,
+    closeOnConfirm = true
 }) => {
     const [isVisible, setIsVisible] = useState(false);
     const [inputValue, setInputValue] = useState("");
@@ -64,7 +68,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
             {/* Backdrop */}
             <div
                 className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
-                onClick={onClose}
+                onClick={isLoading ? undefined : onClose}
             />
 
             {/* Modal Content */}
@@ -96,6 +100,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                                     placeholder={inputPlaceholder}
                                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-center font-bold text-slate-800 placeholder:font-normal"
                                     autoFocus
+                                    disabled={isLoading}
                                 />
                             </div>
                         )}
@@ -103,23 +108,32 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                         <div className="flex gap-3 w-full">
                             <button
                                 onClick={onClose}
-                                className="flex-1 px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-700 font-bold hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 transition-colors"
+                                disabled={isLoading}
+                                className="flex-1 px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-700 font-bold hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 transition-colors disabled:opacity-50"
                             >
                                 {cancelText}
                             </button>
                             <button
-                                onClick={() => { onConfirm(inputValue); onClose(); }}
-                                disabled={requiresInput && !inputValue}
-                                className={`flex-1 px-4 py-2.5 text-white rounded-xl font-bold shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${getConfirmBtnClass()}`}
+                                onClick={() => {
+                                    onConfirm(inputValue);
+                                    if (closeOnConfirm) onClose();
+                                }}
+                                disabled={isLoading || (requiresInput && !inputValue)}
+                                className={`flex-1 px-4 py-2.5 text-white rounded-xl font-bold shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${getConfirmBtnClass()}`}
                             >
-                                {confirmText}
+                                {isLoading ? (
+                                    <>
+                                        <Loader2 size={18} className="animate-spin" />
+                                        Processing...
+                                    </>
+                                ) : confirmText}
                             </button>
                         </div>
                     </div>
                 </div>
 
                 <div className="absolute top-4 right-4">
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+                    <button onClick={onClose} disabled={isLoading} className="text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50">
                         <X size={20} />
                     </button>
                 </div>

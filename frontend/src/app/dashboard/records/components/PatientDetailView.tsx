@@ -185,12 +185,16 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
         confirmText?: string;
         requiresInput?: boolean;
         inputPlaceholder?: string;
+        isLoading?: boolean;
+        closeOnConfirm?: boolean;
     }>({
         isOpen: false,
         title: '',
         message: '',
         onConfirm: () => { },
-        type: 'danger'
+        type: 'danger',
+        isLoading: false,
+        closeOnConfirm: true
     });
 
     // Camera Modal for adding files
@@ -1891,6 +1895,8 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                 type={confirmModal.type}
                 confirmText={confirmModal.confirmText}
                 requiresInput={confirmModal.requiresInput}
+                isLoading={confirmModal.isLoading}
+                closeOnConfirm={confirmModal.closeOnConfirm}
                 inputPlaceholder={confirmModal.inputPlaceholder}
             />
         </>
