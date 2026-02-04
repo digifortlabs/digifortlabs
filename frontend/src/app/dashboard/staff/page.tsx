@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, Trash2, Mail, Shield, AlertTriangle } from 'lucide-react';
+import { Users, Plus, Trash2, Mail, Shield, AlertTriangle, Search, Edit2, Phone, Calendar, UserCheck, UserX, User } from 'lucide-react';
+import ConfirmationModal from '@/components/ConfirmationModal';
 import { API_URL } from '../../../config/api';
 
 export default function StaffManagement() {
@@ -10,6 +11,24 @@ export default function StaffManagement() {
     const [showModal, setShowModal] = useState(false);
     const [newStaff, setNewStaff] = useState({ email: '', password: '', role: 'mrd_staff' });
     const [error, setError] = useState('');
+
+    // New states for confirmation modal and potential edit mode (though edit mode is not fully implemented in this change)
+    const [editMode, setEditMode] = useState(false); // Added as per instruction, but not used in this snippet
+    const [editingUser, setEditingUser] = useState<any | null>(null); // Added as per instruction, but not used in this snippet
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        type?: 'danger' | 'warning' | 'info' | 'success';
+        confirmText?: string;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => { },
+        type: 'danger'
+    });
 
     useEffect(() => {
         fetchStaff();
@@ -57,22 +76,42 @@ export default function StaffManagement() {
     };
 
     const handleDelete = async (id: number) => {
-        if (!confirm("Are you sure you want to remove this staff member?")) return;
-        try {
-            const token = localStorage.getItem('token');
-            await fetch(`${API_URL}/users/${id}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            fetchStaff();
-        } catch (err) {
-            console.error(err);
-        }
+        setConfirmModal({
+            isOpen: true,
+            title: "Remove Staff Member",
+            message: "Are you sure you want to remove this staff member? This action cannot be undone.",
+            type: 'danger',
+            confirmText: "Remove User",
+            onConfirm: async () => {
+                const token = localStorage.getItem('token');
+                if (!token) return;
+                try {
+                    const res = await fetch(`${API_URL}/users/${id}`, {
+                        method: 'DELETE',
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.ok) {
+                        setStaff(staff.filter(u => u.user_id !== id));
+                        // Optionally add a toast notification here if a toast library is imported
+                        // toast.success("Staff member removed successfully");
+                    } else {
+                        // Optionally add a toast notification here
+                        // toast.error("Failed to remove staff member");
+                    }
+                } catch (e) {
+                    console.error(e);
+                    // Optionally add a toast notification here
+                    // toast.error("An error occurred");
+                } finally {
+                    setConfirmModal({ ...confirmModal, isOpen: false }); // Close modal after action
+                }
+            }
+        });
     };
 
     return (
-        <div className="w-full mx-auto p-6">
-            <div className="flex justify-between items-center mb-8">
+        <div className="w-full mx-auto px-6 pb-6 pt-0">
+            <div className="flex justify-between items-center mb-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
                         <Users className="text-indigo-600" /> Staff Management
@@ -164,6 +203,16 @@ export default function StaffManagement() {
                     </div>
                 </div>
             )}
+
+            <ConfirmationModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                type={confirmModal.type}
+                confirmText={confirmModal.confirmText}
+            />
         </div>
     );
 }

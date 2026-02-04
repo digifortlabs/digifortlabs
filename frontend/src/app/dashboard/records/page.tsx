@@ -584,8 +584,8 @@ export default function RecordsList() {
     }, [patients, searchTerm, sortConfig]);
 
     return (
-        <div className="w-full mx-auto p-4 sm:p-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div className="w-full mx-auto px-4 sm:px-6 pb-6 pt-0">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
                         <User className="text-indigo-600" /> Patient Records
@@ -1073,50 +1073,7 @@ export default function RecordsList() {
                                     </div>
                                 </div>
 
-                                {/* Section 1.5: Family Linkage (Optional) */}
-                                <div className="bg-pink-50/50 p-4 rounded-xl border border-pink-100">
-                                    <h3 className="text-[10px] font-black text-pink-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                        <User size={12} /> Link Mother (Optional)
-                                    </h3>
-                                    <div className="relative">
-                                        {selectedMother ? (
-                                            <div className="flex items-center justify-between bg-white border border-pink-200 p-2 rounded-lg">
-                                                <div>
-                                                    <p className="text-xs font-bold text-slate-800">{selectedMother.full_name}</p>
-                                                    <p className="text-[10px] text-slate-500">UHID: {selectedMother.uhid || 'N/A'} | MRD: {selectedMother.patient_u_id}</p>
-                                                </div>
-                                                <button type="button" onClick={removeMother} className="text-red-500 hover:text-red-700 p-1">
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="relative">
-                                                <input
-                                                    type="text"
-                                                    className="w-full px-3 py-2 bg-white border border-pink-200 rounded-lg outline-none focus:border-pink-500 text-sm font-bold placeholder-pink-300 text-slate-700"
-                                                    placeholder="Search Mother's Name / UHID..."
-                                                    value={motherSearchTerm}
-                                                    onChange={e => handleMotherSearch(e.target.value)}
-                                                />
-                                                {motherSuggestions.length > 0 && (
-                                                    <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-40 overflow-y-auto">
-                                                        {motherSuggestions.map((p, idx) => (
-                                                            <button
-                                                                key={idx}
-                                                                type="button"
-                                                                onClick={() => selectMother(p)}
-                                                                className="w-full text-left px-3 py-2 hover:bg-pink-50 transition border-b border-slate-50 last:border-0"
-                                                            >
-                                                                <p className="font-bold text-slate-800 text-xs">{p.full_name}</p>
-                                                                <p className="text-[10px] text-slate-500">{p.uhid ? `UHID:${p.uhid}` : `mrd:${p.patient_u_id}`}</p>
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+
 
                                 {/* Section 2: Admission / File Details */}
                                 <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100">

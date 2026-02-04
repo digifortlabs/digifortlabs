@@ -54,7 +54,7 @@ export default function DashboardLayout({
             <DashboardNavbar userRole={userRole} />
             <MaintenanceBanner />
             {showWarning && <InactivityWarning timeLeft={timeLeft} onExtend={extendSession} />}
-            <div className="flex-1 pt-20 px-4 sm:px-6 lg:px-8">
+            <div className="flex-1 pt-14 px-2 sm:px-4 lg:px-6">
                 {children}
             </div>
         </div>

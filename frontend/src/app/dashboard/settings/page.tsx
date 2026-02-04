@@ -388,8 +388,8 @@ export default function SettingsPage() {
     };
 
     return (
-        <div className="flex-1 p-8">
-            <h1 className="text-2xl font-bold text-gray-800 mb-6">Settings</h1>
+        <div className="flex-1 px-8 pt-0">
+            <h1 className="text-2xl font-bold text-gray-800 mb-4">Settings</h1>
 
             {mustChangePassword && (
                 <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-8 shadow-sm">

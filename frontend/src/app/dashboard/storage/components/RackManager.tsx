@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
-import { Building2, Package, ScanLine, Trash2, Printer, X, Edit2, Save } from 'lucide-react';
+import { Building2, Package, ScanLine, Trash2, Printer, X, Edit2, Save, AlertTriangle, CheckCircle, Info, AlertOctagon, AlertCircle } from 'lucide-react';
+import ConfirmationModal from '@/components/ConfirmationModal';
 import { API_URL } from '../../../../config/api';
 
 interface RackManagerProps {
@@ -29,6 +30,34 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
     const [isEditingCapacity, setIsEditingCapacity] = useState(false);
     const [editCapacityValue, setEditCapacityValue] = useState(0);
 
+    // Confirmation Modal State
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        type?: 'danger' | 'warning' | 'info' | 'success';
+        confirmText?: string;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => { },
+        type: 'danger'
+    });
+
+    // Toast Notification
+    const [showToast, setShowToast] = useState(false);
+    const [toastMessage, setToastMessage] = useState('');
+    const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
+
+    const triggerToast = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
+        setToastMessage(msg);
+        setToastType(type);
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+    };
+
     const handleUpdateCapacity = async () => {
         if (!viewingBox) return;
         const token = localStorage.getItem('token');
@@ -50,25 +79,33 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
     };
 
     const handleBulkUnassign = async () => {
-        if (!confirm(`Are you sure you want to remove ${selectedFiles.length} files from this box?`)) return;
-        const token = localStorage.getItem('token');
-        try {
-            const res = await fetch(`${API_URL}/storage/files/bulk-unassign`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ identifiers: selectedFiles })
-            });
+        setConfirmModal({
+            isOpen: true,
+            title: "Remove Files from Box",
+            message: `Are you sure you want to remove ${selectedFiles.length} files from this box?`,
+            type: 'warning',
+            confirmText: "Remove Files",
+            onConfirm: async () => {
+                const token = localStorage.getItem('token');
+                try {
+                    const res = await fetch(`${API_URL}/storage/files/bulk-unassign`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ identifiers: selectedFiles })
+                    });
 
-            if (res.ok) {
-                const data = await res.json();
-                alert(data.message);
-                setSelectedFiles([]);
-                handleViewBox(viewingBox); // Refresh list
-                refreshData(); // Refresh global stats
-            } else {
-                alert("Failed to unassign files.");
+                    if (res.ok) {
+                        const data = await res.json();
+                        triggerToast(data.message || "Files Unassigned Successfully", "success");
+                        setSelectedFiles([]);
+                        handleViewBox(viewingBox); // Refresh list
+                        refreshData(); // Refresh global stats
+                    } else {
+                        triggerToast("Failed to unassign files.", "error");
+                    }
+                } catch (e) { console.error(e); }
             }
-        } catch (e) { console.error(e); }
+        });
     };
 
     const toggleSelectAll = (checked: boolean) => {
@@ -102,16 +139,27 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
     };
 
     const handleDeleteRack = async (id: number) => {
-        if (!confirm("Are you sure you want to DELETE this Rack? This cannot be undone.")) return;
-        const token = localStorage.getItem('token');
-        try {
-            const res = await fetch(`${API_URL}/storage/racks/${id}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) refreshData();
-            else alert("Failed to delete rack. Ensure it is empty first.");
-        } catch (e) { console.error(e); }
+        setConfirmModal({
+            isOpen: true,
+            title: "Delete Rack",
+            message: "Are you sure you want to DELETE this Rack? This cannot be undone.",
+            type: 'danger',
+            confirmText: "Delete Rack",
+            onConfirm: async () => {
+                const token = localStorage.getItem('token');
+                try {
+                    const res = await fetch(`${API_URL}/storage/racks/${id}`, {
+                        method: 'DELETE',
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.ok) {
+                        refreshData();
+                        triggerToast("Rack Deleted Successfully", "success");
+                    }
+                    else triggerToast("Failed to delete rack. Ensure it is empty first.", "error");
+                } catch (e) { console.error(e); }
+            }
+        });
     };
 
     const handleCreateBox = async () => {
@@ -142,20 +190,28 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
     };
 
     const handleDeleteBox = async (id: number) => {
-        if (!confirm("Delete this Box?")) return;
-        const token = localStorage.getItem('token');
-        try {
-            const res = await fetch(`${API_URL}/storage/boxes/${id}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                refreshData();
-            } else {
-                const data = await res.json();
-                alert(data.detail || "Failed to delete box.");
+        setConfirmModal({
+            isOpen: true,
+            title: "Delete Box",
+            message: "Delete this Box?",
+            type: 'danger',
+            confirmText: "Delete Box",
+            onConfirm: async () => {
+                const token = localStorage.getItem('token');
+                try {
+                    const res = await fetch(`${API_URL}/storage/boxes/${id}`, {
+                        method: 'DELETE',
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.ok) {
+                        refreshData();
+                    } else {
+                        const data = await res.json();
+                        alert(data.detail || "Failed to delete box.");
+                    }
+                } catch (e) { console.error(e); }
             }
-        } catch (e) { console.error(e); }
+        });
     };
 
     const handleViewBox = async (box: any) => {
@@ -188,27 +244,34 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
 
     const handleRemoveAllFiles = async () => {
         if (boxFiles.length === 0) return;
-        if (!confirm(`DANGER: Are you sure you want to remove ALL ${boxFiles.length} files from this box?`)) return;
+        setConfirmModal({
+            isOpen: true,
+            title: "Remove ALL Files",
+            message: `DANGER: Are you sure you want to remove ALL ${boxFiles.length} files from this box?`,
+            type: 'danger',
+            confirmText: "Remove ALL",
+            onConfirm: async () => {
+                const token = localStorage.getItem('token');
+                const allIds = boxFiles.map(f => String(f.record_id));
 
-        const token = localStorage.getItem('token');
-        const allIds = boxFiles.map(f => String(f.record_id));
+                try {
+                    const res = await fetch(`${API_URL}/storage/files/bulk-unassign`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ identifiers: allIds })
+                    });
 
-        try {
-            const res = await fetch(`${API_URL}/storage/files/bulk-unassign`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ identifiers: allIds })
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                alert(data.message);
-                handleViewBox(viewingBox); // Refresh
-                refreshData();
-            } else {
-                alert("Failed to remove files.");
+                    if (res.ok) {
+                        const data = await res.json();
+                        alert(data.message);
+                        handleViewBox(viewingBox); // Refresh
+                        refreshData();
+                    } else {
+                        alert("Failed to remove files.");
+                    }
+                } catch (e) { console.error(e); }
             }
-        } catch (e) { console.error(e); }
+        });
     };
 
     const [addInput, setAddInput] = useState(''); // State for adding file
@@ -464,34 +527,41 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                 {unassignedFiles.length > 0 && (
                                     <button
                                         onClick={async () => {
-                                            if (!confirm(`Add ALL ${unassignedFiles.length} files to this box?`)) return;
-                                            setIsAddingString(true);
-                                            const token = localStorage.getItem('token');
-                                            try {
-                                                const allIds = unassignedFiles.map(f => String(f.record_id));
-                                                const res = await fetch(`${API_URL}/storage/files/bulk-assign`, {
-                                                    method: 'POST',
-                                                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                                                    body: JSON.stringify({
-                                                        box_id: viewingBox?.box_id,
-                                                        identifiers: allIds
-                                                    })
-                                                });
-                                                const data = await res.json();
-                                                if (res.ok) {
-                                                    alert(data.message);
-                                                    if (viewingBox) {
-                                                        handleViewBox(viewingBox);
-                                                        fetchUnassignedFiles();
-                                                    }
-                                                    refreshData();
-                                                } else {
-                                                    alert(data.detail || "Failed to assign all files.");
-                                                    // Refresh state in case it was closed in background
-                                                    handleViewBox(viewingBox);
+                                            setConfirmModal({
+                                                isOpen: true,
+                                                title: "Add All Files",
+                                                message: `Add ALL ${unassignedFiles.length} files to this box?`,
+                                                type: 'info',
+                                                confirmText: "Add All",
+                                                onConfirm: async () => {
+                                                    setIsAddingString(true);
+                                                    const token = localStorage.getItem('token');
+                                                    try {
+                                                        const allIds = unassignedFiles.map(f => String(f.record_id));
+                                                        const res = await fetch(`${API_URL}/storage/files/bulk-assign`, {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                                            body: JSON.stringify({
+                                                                box_id: viewingBox?.box_id,
+                                                                identifiers: allIds
+                                                            })
+                                                        });
+                                                        const data = await res.json();
+                                                        if (res.ok) {
+                                                            triggerToast(data.message || "All Files Assigned", "success");
+                                                            if (viewingBox) {
+                                                                handleViewBox(viewingBox);
+                                                                fetchUnassignedFiles();
+                                                            }
+                                                            refreshData();
+                                                        } else {
+                                                            triggerToast(data.detail || "Failed to assign all files.", "error");
+                                                            handleViewBox(viewingBox);
+                                                        }
+                                                    } catch (e) { console.error(e); }
+                                                    finally { setIsAddingString(false); }
                                                 }
-                                            } catch (e) { console.error(e); }
-                                            finally { setIsAddingString(false); }
+                                            });
                                         }}
                                         disabled={isAddingString || viewingBox.status !== 'OPEN'}
                                         className="text-[10px] font-bold bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg hover:bg-indigo-600 hover:text-white transition disabled:opacity-50"
@@ -571,21 +641,29 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                         </div>
                                         <button
                                             onClick={async () => {
-                                                if (!confirm(`Mark box ${viewingBox.label} as ${viewingBox.status === 'OPEN' ? 'CLOSED' : 'OPEN'}?`)) return;
-                                                const token = localStorage.getItem('token');
-                                                try {
-                                                    const res = await fetch(`${API_URL}/storage/boxes/${viewingBox.box_id}/status`, {
-                                                        method: 'PATCH',
-                                                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                                                        body: JSON.stringify({ is_open: viewingBox.status !== 'OPEN' })
-                                                    });
+                                                setConfirmModal({
+                                                    isOpen: true,
+                                                    title: viewingBox.status === 'OPEN' ? "Close Box" : "Open Box",
+                                                    message: `Mark box ${viewingBox.label} as ${viewingBox.status === 'OPEN' ? 'CLOSED' : 'OPEN'}?`,
+                                                    type: viewingBox.status === 'OPEN' ? 'warning' : 'info',
+                                                    confirmText: viewingBox.status === 'OPEN' ? "Close Box" : "Open Box",
+                                                    onConfirm: async () => {
+                                                        const token = localStorage.getItem('token');
+                                                        try {
+                                                            const res = await fetch(`${API_URL}/storage/boxes/${viewingBox.box_id}/status`, {
+                                                                method: 'PATCH',
+                                                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                                                body: JSON.stringify({ is_open: viewingBox.status !== 'OPEN' })
+                                                            });
 
-                                                    if (res.ok) {
-                                                        const data = await res.json();
-                                                        setViewingBox({ ...viewingBox, status: data.is_open ? 'OPEN' : 'CLOSED' });
-                                                        refreshData();
+                                                            if (res.ok) {
+                                                                const data = await res.json();
+                                                                setViewingBox({ ...viewingBox, status: data.is_open ? 'OPEN' : 'CLOSED' });
+                                                                refreshData();
+                                                            }
+                                                        } catch (e) { console.error(e); }
                                                     }
-                                                } catch (e) { console.error(e); }
+                                                });
                                             }}
                                             className={`text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer hover:opacity-80 transition ${viewingBox.status === 'OPEN' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}
                                         >
@@ -868,7 +946,35 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                 ))}
             </div>
 
-        </div >
+            <ConfirmationModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                type={confirmModal.type}
+                confirmText={confirmModal.confirmText}
+            />
+
+            {showToast && (
+                <div className={`fixed bottom-6 right-6 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in z-[100] border ${toastType === 'success' ? 'bg-slate-900 border-slate-700 text-white' :
+                    toastType === 'error' ? 'bg-red-50 border-red-200 text-red-900' :
+                        'bg-blue-50 border-blue-200 text-blue-900'
+                    }`}>
+                    <div className={`rounded-full p-1 ${toastType === 'success' ? 'bg-green-500' :
+                        toastType === 'error' ? 'bg-red-500' :
+                            'bg-blue-500'
+                        }`}>
+                        {toastType === 'success' && <CheckCircle size={16} className="text-white" />}
+                        {toastType === 'error' && <AlertCircle size={16} className="text-white" />}
+                        {toastType === 'info' && <Info size={16} className="text-white" />}
+                    </div>
+                    <div>
+                        <p className="font-bold text-sm tracking-wide">{toastMessage}</p>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };
 

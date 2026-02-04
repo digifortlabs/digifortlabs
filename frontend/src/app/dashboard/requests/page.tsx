@@ -150,8 +150,8 @@ export default function FileRequests() {
 
 
     return (
-        <div className="w-full mx-auto p-4 sm:p-6 text-slate-900">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+        <div className="w-full mx-auto px-4 sm:px-6 pb-6 pt-0 text-slate-900">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-black text-slate-900 flex items-center gap-3">
                         <FileText className="text-indigo-600" /> File Requests

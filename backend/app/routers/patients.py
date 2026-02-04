@@ -155,6 +155,7 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
         if success:
             db_file.s3_key = s3_key
             db_file.file_size = os.path.getsize(processed_path)
+            db_file.file_size_mb = db_file.file_size / (1024 * 1024)
             db_file.storage_path = location # Store bucket path or verify what usage expects
             
             db_file.processing_stage = 'completed'
@@ -572,6 +573,7 @@ async def upload_patient_file(
             filename=file.filename,
             s3_key="pending", # Placeholder
             file_size=os.path.getsize(tmp_path),
+            file_size_mb=os.path.getsize(tmp_path) / (1024 * 1024),
             upload_status="draft", # Force draft for Review Step
             processing_stage="queued",
             processing_progress=0,
@@ -1453,7 +1455,8 @@ def delete_patient(
     # Authorization
     is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
     
-    patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+    # Eager load files to ensure we can clean them up
+    patient = db.query(Patient).options(joinedload(Patient.files)).filter(Patient.record_id == patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
@@ -1461,8 +1464,25 @@ def delete_patient(
         raise HTTPException(status_code=403, detail="Access denied")
 
     try:
-        # DB Cascade should handle files, but explicit is better if we want to delete S3 objects.
-        # For now, just DB deletion as per request context (assuming S3 cleanup is secondary or handled by a batch job)
+        # 1. Clean up S3 Files first
+        s3_manager = S3Manager()
+        files_deleted_count = 0
+        
+        if patient.files:
+            for f in patient.files:
+                if f.s3_key:
+                    # Attempt delete from S3
+                    s3_manager.delete_file(f.s3_key)
+                    # Also try local path if distinct (legacy support)
+                    if f.storage_path and f.storage_path != f.s3_key and os.path.isabs(f.storage_path):
+                         try:
+                             if os.path.exists(f.storage_path): os.remove(f.storage_path)
+                         except: pass
+                    files_deleted_count += 1
+        
+        print(f"🗑️ Patient Deletion: Removed {files_deleted_count} associated S3 files.")
+
+        # 2. DB Deletion (Cascade will handle rows)
         db.delete(patient)
         db.commit()
     except Exception as e:

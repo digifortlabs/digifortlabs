@@ -71,8 +71,8 @@ export default function DraftsPage() {
     };
 
     return (
-        <div className="flex-1 p-8">
-            <div className="flex justify-between items-center mb-6">
+        <div className="flex-1 px-8 pt-0">
+            <div className="flex justify-between items-center mb-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">📤 Upload Draft Queue</h1>
                     <p className="text-gray-500 text-sm">Review and confirm files before they are published to the platform.</p>

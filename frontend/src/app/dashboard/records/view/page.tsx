@@ -3,8 +3,9 @@
 import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import imageCompression from 'browser-image-compression';
-import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download } from 'lucide-react';
+import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download, Info, AlertOctagon, AlertCircle } from 'lucide-react';
 import DigitizationScanner from '@/components/Scanner/DigitizationScanner';
+import ConfirmationModal from '@/components/ConfirmationModal';
 
 import { API_URL } from '@/config/api';
 import { formatDate } from '@/lib/dateFormatter';
@@ -129,6 +130,35 @@ function PatientDetailContent() {
 
     // Scanner State
     const [showScanner, setShowScanner] = useState(false);
+
+    // Global Confirmation Modal State
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: (input?: string) => void;
+        type?: 'danger' | 'warning' | 'info' | 'success';
+        confirmText?: string;
+        requiresInput?: boolean;
+        inputPlaceholder?: string;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => { },
+    });
+
+    // Toast Notification State
+    const [showToast, setShowToast] = useState(false);
+    const [toastMessage, setToastMessage] = useState('');
+    const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
+
+    const triggerToast = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
+        setToastMessage(msg);
+        setToastType(type);
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+    };
 
 
 
@@ -321,30 +351,46 @@ function PatientDetailContent() {
     };
 
     const deleteProcedure = async (procId: number) => {
-        if (!confirm("Are you sure you want to delete this procedure?")) return;
-        const token = localStorage.getItem('token') || '';
-        try {
-            const res = await fetch(`${API_URL}/icd11/patients/${id}/procedures/${procId}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                fetchProcedures(token);
-                alert("Procedure Removed.");
+        setConfirmModal({
+            isOpen: true,
+            title: "Delete Procedure",
+            message: "Are you sure you want to delete this procedure?",
+            type: 'danger',
+            confirmText: "Delete",
+            onConfirm: async () => {
+                const token = localStorage.getItem('token') || '';
+                try {
+                    const res = await fetch(`${API_URL}/icd11/patients/${id}/procedures/${procId}`, {
+                        method: 'DELETE',
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.ok) {
+                        fetchProcedures(token);
+                        triggerToast("Procedure Removed.", "info");
+                    }
+                } catch (e) { console.error(e); }
             }
-        } catch (e) { console.error(e); }
+        });
     };
 
     const deleteDiagnosis = async (diagId: number) => {
-        if (!confirm("Remove this diagnosis?")) return;
-        const token = localStorage.getItem('token');
-        try {
-            await fetch(`${API_URL}/icd11/diagnoses/patients/${id}/diagnoses/${diagId}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            fetchDiagnoses(token || '');
-        } catch (e) { console.error(e); }
+        setConfirmModal({
+            isOpen: true,
+            title: "Remove Diagnosis",
+            message: "Remove this diagnosis?",
+            type: 'warning',
+            confirmText: "Remove",
+            onConfirm: async () => {
+                const token = localStorage.getItem('token');
+                try {
+                    await fetch(`${API_URL}/icd11/diagnoses/patients/${id}/diagnoses/${diagId}`, {
+                        method: 'DELETE',
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    fetchDiagnoses(token || '');
+                } catch (e) { console.error(e); }
+            }
+        });
     };
 
     // ... (rest of render logic, replace old upload section)
@@ -619,7 +665,7 @@ function PatientDetailContent() {
     if (!patient) return <div className="p-8 text-center text-slate-500 font-medium">Loading patient record...</div>;
 
     return (
-        <div className="flex-1 p-8">
+        <div className="flex-1 px-8 pb-8 pt-2">
             <div className="mb-6 flex justify-between items-start">
                 <div className="flex-1">
                     <button onClick={() => router.back()} className="text-gray-500 hover:text-gray-700 mb-2 font-medium">← Back to List</button>
@@ -1442,6 +1488,41 @@ function PatientDetailContent() {
                     <Trash2 size={18} /> Delete Patient Record
                 </button>
             </div>
+            {/* Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                type={confirmModal.type}
+                confirmText={confirmModal.confirmText}
+                requiresInput={confirmModal.requiresInput}
+                inputPlaceholder={confirmModal.inputPlaceholder}
+            />
+
+            {/* Custom Toast Notification */}
+            {showToast && (
+                <div className={`fixed bottom-6 right-6 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in z-[100] border ${toastType === 'success' ? 'bg-slate-900 border-slate-700 text-white' :
+                    toastType === 'error' ? 'bg-red-50 border-red-200 text-red-900' :
+                        'bg-blue-50 border-blue-200 text-blue-900'
+                    }`}>
+                    <div className={`rounded-full p-1 ${toastType === 'success' ? 'bg-green-500' :
+                        toastType === 'error' ? 'bg-red-500' :
+                            'bg-blue-500'
+                        }`}>
+                        {toastType === 'success' && <CheckCircle size={16} className="text-white" />}
+                        {toastType === 'error' && <AlertCircle size={16} className="text-white" />}
+                        {toastType === 'info' && <Info size={16} className="text-white" />}
+                    </div>
+                    <div>
+                        <p className="font-bold text-sm tracking-wide">{toastMessage}</p>
+                    </div>
+                    <button onClick={() => setShowToast(false)} className="opacity-50 hover:opacity-100 ml-2">
+                        <X size={14} />
+                    </button>
+                </div>
+            )}
         </div >
     );
 }

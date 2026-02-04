@@ -113,7 +113,7 @@ export default function WarehousePage() {
     ];
 
     return (
-        <div className="bg-slate-50 min-h-screen p-4 md:p-6 font-sans text-slate-900 pb-24">
+        <div className="bg-slate-50 min-h-screen px-4 md:px-6 pb-24 pt-2 font-sans text-slate-900">
 
             {/* Header Area */}
             <div className="w-full mx-auto space-y-6">
@@ -167,7 +167,7 @@ export default function WarehousePage() {
 
                     {activeTab === 'logs' && (
                         <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 p-8">
-                            <h2 className="text-2xl font-black text-slate-800 mb-6">Movement History</h2>
+                            <h2 className="text-2xl font-black text-slate-800 mb-4">Movement History</h2>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left">
                                     <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">

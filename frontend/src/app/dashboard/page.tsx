@@ -151,10 +151,10 @@ export default function CommandCenter() {
     }, []);
 
     return (
-        <div className="p-4 sm:p-6 w-full mx-auto min-h-screen pb-20">
+        <div className="px-4 sm:px-6 pb-20 pt-0 w-full mx-auto min-h-screen">
 
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                         {isDetailedView && stats?.hospital_name ? (

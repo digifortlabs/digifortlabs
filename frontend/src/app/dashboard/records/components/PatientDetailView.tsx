@@ -4,8 +4,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import imageCompression from 'browser-image-compression';
 import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download, FileText, Pencil, Archive, Box, AlertCircle, Info, Shield } from 'lucide-react';
-import DigitizationScanner from '../../../../components/Scanner/DigitizationScanner'; // Ensure this path is correct relative to this file
+import DigitizationScanner from '../../../../components/Scanner/DigitizationScanner';
 import SecurePDFViewer from '@/components/SecurePDFViewer';
+import ConfirmationModal from '@/components/ConfirmationModal';
 import { API_URL } from '../../../../config/api';
 import { formatDate } from '@/lib/dateFormatter';
 
@@ -172,6 +173,27 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
 
     // Scanner State
     const [showScanner, setShowScanner] = useState(false);
+
+    // Global Confirmation Modal State
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: (input?: string) => void;
+        type?: 'danger' | 'warning' | 'info' | 'success';
+        confirmText?: string;
+        requiresInput?: boolean;
+        inputPlaceholder?: string;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => { },
+        type: 'danger'
+    });
+
+    // Camera Modal for adding files
+    const [showCameraModal, setShowCameraModal] = useState(false);
 
     // Storage Assign
     const [showBoxModal, setShowBoxModal] = useState(false);
@@ -543,30 +565,46 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
     };
 
     const deleteProcedure = async (procId: number) => {
-        if (!confirm("Are you sure you want to delete this procedure?")) return;
-        const token = localStorage.getItem('token') || '';
-        try {
-            const res = await fetch(`${API_URL}/icd11/procedures/patients/${id}/procedures/${procId}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                fetchProcedures(token);
-                triggerToast("Procedure Removed.", "info");
+        setConfirmModal({
+            isOpen: true,
+            title: "Delete Procedure",
+            message: "Are you sure you want to delete this procedure?",
+            type: 'danger',
+            confirmText: "Delete",
+            onConfirm: async () => {
+                const token = localStorage.getItem('token') || '';
+                try {
+                    const res = await fetch(`${API_URL}/icd11/procedures/patients/${id}/procedures/${procId}`, {
+                        method: 'DELETE',
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.ok) {
+                        fetchProcedures(token);
+                        triggerToast("Procedure Removed.", "info");
+                    }
+                } catch (e) { console.error(e); }
             }
-        } catch (e) { console.error(e); }
+        });
     };
 
     const deleteDiagnosis = async (diagId: number) => {
-        if (!confirm("Remove this diagnosis?")) return;
-        const token = localStorage.getItem('token');
-        try {
-            await fetch(`${API_URL}/icd11/diagnoses/patients/${id}/diagnoses/${diagId}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            fetchDiagnoses(token || '');
-        } catch (e) { console.error(e); }
+        setConfirmModal({
+            isOpen: true,
+            title: "Remove Diagnosis",
+            message: "Are you sure you want to remove this diagnosis?",
+            type: 'danger',
+            confirmText: "Remove",
+            onConfirm: async () => {
+                const token = localStorage.getItem('token');
+                try {
+                    await fetch(`${API_URL}/icd11/diagnoses/patients/${id}/diagnoses/${diagId}`, {
+                        method: 'DELETE',
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    fetchDiagnoses(token || '');
+                } catch (e) { console.error(e); }
+            }
+        });
     };
 
     const handleRequestDeletion = async (fileId: number) => {
@@ -575,56 +613,79 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
             ? "WARNING: This will PERMANENTLY delete the file. This action cannot be undone. Continue?"
             : "Request deletion for this file? This will require Admin approval.";
 
-        if (!confirm(confirmMsg)) return;
+        setConfirmModal({
+            isOpen: true,
+            title: isDirectDelete ? "Permanent Delete" : "Request Deletion",
+            message: confirmMsg,
+            type: 'danger',
+            confirmText: isDirectDelete ? "Delete Forever" : "Request Delete",
+            onConfirm: async () => {
+                const token = localStorage.getItem('token');
+                const apiUrl = API_URL;
+                try {
+                    const res = await fetch(`${apiUrl}/patients/files/${fileId}/request-deletion`, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    const data = await res.json();
 
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
-        try {
-            const res = await fetch(`${apiUrl}/patients/files/${fileId}/request-deletion`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            const data = await res.json();
-
-            if (res.ok) {
-                triggerToast(data.message || "Operation successful.", "success");
-                if (id) fetchPatient(token || '', id);
-            } else {
-                triggerToast(`Failed: ${data.detail || "Unknown error"}`, "error");
+                    if (res.ok) {
+                        triggerToast(data.message || "Operation successful.", "success");
+                        if (id) fetchPatient(token || '', id);
+                    } else {
+                        triggerToast(`Failed: ${data.detail || "Unknown error"}`, "error");
+                    }
+                } catch (e) { console.error(e); }
             }
-        } catch (e) { console.error(e); }
+        });
     }
 
     const handleConfirmUpload = async (fileId: number) => {
-        if (!confirm("Confirm this file for final upload? It will become visible to Admins.")) return;
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
-        try {
-            const res = await fetch(`${apiUrl}/patients/files/${fileId}/confirm`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                triggerToast("File confirmed and published!", "success");
-                if (id) fetchPatient(token || '', id);
+        setConfirmModal({
+            isOpen: true,
+            title: "Confirm Upload",
+            message: "Confirm this file for final upload? It will become visible to Admins.",
+            type: 'success',
+            confirmText: "Confirm Upload",
+            onConfirm: async () => {
+                const token = localStorage.getItem('token');
+                const apiUrl = API_URL;
+                try {
+                    const res = await fetch(`${apiUrl}/patients/files/${fileId}/confirm`, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.ok) {
+                        triggerToast("File confirmed and published!", "success");
+                        if (id) fetchPatient(token || '', id);
+                    }
+                } catch (e) { console.error(e); }
             }
-        } catch (e) { console.error(e); }
+        });
     };
 
     const handleDiscardDraft = async (fileId: number) => {
-        if (!confirm("Discard this draft? This action cannot be undone.")) return;
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
-        try {
-            const res = await fetch(`${apiUrl}/patients/files/${fileId}/draft`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                triggerToast("Draft discarded successfully", "info");
-                if (id) fetchPatient(token || '', id);
+        setConfirmModal({
+            isOpen: true,
+            title: "Discard Draft",
+            message: "Discard this draft? This action cannot be undone.",
+            type: 'warning',
+            confirmText: "Discard",
+            onConfirm: async () => {
+                const token = localStorage.getItem('token');
+                const apiUrl = API_URL;
+                try {
+                    const res = await fetch(`${apiUrl}/patients/files/${fileId}/draft`, {
+                        method: 'DELETE',
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.ok) {
+                        triggerToast("Draft discarded successfully", "info");
+                        if (id) fetchPatient(token || '', id);
+                    }
+                } catch (e) { console.error(e); }
             }
-        } catch (e) { console.error(e); }
+        });
     };
 
     const handleRestoreFile = async (fileId: number, tier: string = 'Expedited') => {
@@ -653,21 +714,29 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
     };
 
     const handleRunOCR = async (fileId: number) => {
-        if (!confirm("Run OCR on this file? This will process the file in the background.")) return;
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
-        try {
-            const res = await fetch(`${apiUrl}/patients/files/${fileId}/run-ocr`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                triggerToast("OCR Triggered! processing in background...", "info");
-                if (id) fetchPatient(token || '', id);
-            } else {
-                triggerToast("Failed to trigger OCR", "error");
+        setConfirmModal({
+            isOpen: true,
+            title: "Run OCR",
+            message: "Run OCR on this file? This will process the file in the background.",
+            type: 'info',
+            confirmText: "Run OCR",
+            onConfirm: async () => {
+                const token = localStorage.getItem('token');
+                const apiUrl = API_URL;
+                try {
+                    const res = await fetch(`${apiUrl}/patients/files/${fileId}/run-ocr`, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.ok) {
+                        triggerToast("OCR Triggered! processing in background...", "info");
+                        if (id) fetchPatient(token || '', id);
+                    } else {
+                        triggerToast("Failed to trigger OCR", "error");
+                    }
+                } catch (e) { console.error(e); }
             }
-        } catch (e) { console.error(e); }
+        });
     };
 
     const saveOCRText = async () => {
@@ -738,54 +807,87 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
             triggerToast("This patient is not assigned to any physical box.", "error");
             return;
         }
-        if (!confirm("Request the physical box containing this file?")) return;
 
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
-        try {
-            const res = await fetch(`${apiUrl}/storage/requests`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ box_id: patient.physical_box_id, requester_name: "Auto" })
-            });
+        setConfirmModal({
+            isOpen: true,
+            title: "Request Physical Box",
+            message: "Request the physical box containing this file?",
+            type: 'info',
+            confirmText: "Send Request",
+            onConfirm: async () => {
+                const token = localStorage.getItem('token');
+                const apiUrl = API_URL;
+                try {
+                    const res = await fetch(`${apiUrl}/storage/requests`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ box_id: patient.physical_box_id, requester_name: "Auto" })
+                    });
 
-            if (res.ok) {
-                triggerToast("Request sent successfully! Check the 'File Requests' page.", "success");
-            } else {
-                const data = await res.json();
-                triggerToast(`Failed: ${data.detail || "Could not send request"}`, "error");
+                    if (res.ok) {
+                        triggerToast("Request sent successfully! Check the 'File Requests' page.", "success");
+                    } else {
+                        const data = await res.json();
+                        triggerToast(`Failed: ${data.detail || "Could not send request"}`, "error");
+                    }
+                } catch (e) { console.error(e); triggerToast("Network error", "error"); }
             }
-        } catch (e) { console.error(e); triggerToast("Network error", "error"); }
+        });
     };
 
     const handleDeletePatient = async () => {
-        const input = prompt(`DANGER ZONE \n\nTo PERMANENTLY delete this patient and ALL their files, type "delete" below:`);
-        if (input !== "delete") return;
+        setConfirmModal({
+            isOpen: true,
+            title: "Delete Patient Record",
+            message: `DANGER ZONE \n\nTo PERMANENTLY delete this patient and ALL their files, type "delete" below:`,
+            type: 'danger',
+            confirmText: "Delete",
+            onConfirm: async (input: string) => {
+                if (input !== "delete") {
+                    triggerToast("Deletion cancelled. Input did not match 'delete'.", "info");
+                    return;
+                }
 
-        isDeletingRef.current = true; // Block further fetches
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
+                isDeletingRef.current = true; // Block further fetches
+                const token = localStorage.getItem('token');
+                const apiUrl = API_URL;
 
-        try {
-            const res = await fetch(`${apiUrl}/patients/${id}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
-            });
+                try {
+                    const res = await fetch(`${apiUrl}/patients/${id}`, {
+                        method: 'DELETE',
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
 
-            if (res.ok) {
-                triggerToast("Patient record deleted successfully.", "success");
-                if (onDeleteSuccess) onDeleteSuccess();
-                else if (onBack) onBack();
-            } else {
-                isDeletingRef.current = false; // Reset if failed
-                const data = await res.json();
-                triggerToast(`Failed: ${data.detail || "Unknown error"}`, "error");
-            }
-        } catch (e) {
-            isDeletingRef.current = false;
-            console.error(e);
-            triggerToast("Network error.", "error");
-        }
+                    if (res.ok) {
+                        triggerToast("Patient record deleted successfully.", "success");
+                        if (onDeleteSuccess) onDeleteSuccess();
+                        else if (onBack) onBack();
+                    } else {
+                        isDeletingRef.current = false; // Reset if failed
+                        const data = await res.json();
+                        triggerToast(`Failed: ${data.detail || "Unknown error"}`, "error");
+                    }
+                } catch (e) {
+                    isDeletingRef.current = false;
+                    console.error(e);
+                    triggerToast("Network error.", "error");
+                }
+            },
+            requiresInput: true,
+            inputPlaceholder: 'type "delete" to confirm'
+        });
+    };
+
+    const handleCameraCapture = (imageFile: File) => {
+        const queueItem: FileQueueItem = {
+            id: Math.random().toString(36).substr(2, 9),
+            originalFile: imageFile,
+            status: 'pending',
+            progress: 0
+        };
+        setFileQueue(prev => [...prev, queueItem]);
+        setShowCameraModal(false);
+        triggerToast(`Captured image added to queue!`, "success");
     };
 
     if (error) {
@@ -1167,6 +1269,214 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
 
 
 
+                {/* Digitized Files Section - Moved Above Diagnoses */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 mb-3">
+                    <div className="flex justify-between items-center mb-3 border-b pb-2">
+                        <h2 className="text-base font-semibold">Digitized Files ({(patient.files || []).length})</h2>
+                        {(userRole === 'website_staff' || userRole === 'data_uploader' || userRole === 'website_admin' || userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'superadmin' || userRole === 'superadmin_staff') && (
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setShowScanner(true)}
+                                    className="bg-purple-600 text-white px-3 py-1.5 rounded-full text-xs font-bold hover:bg-purple-700 flex items-center gap-2"
+                                >
+                                    <Camera size={14} /> Scan
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        const token = localStorage.getItem('token');
+                                        // Encode Base64 to handle special characters and spaces safely in protocol URI
+                                        const pNameB64 = btoa(unescape(encodeURIComponent(patient.full_name || '')));
+                                        const pmrdB64 = btoa(unescape(encodeURIComponent(patient.patient_u_id || '')));
+                                        const protocolUrl = `digifort://upload?token=${token}&patient_id=${patient.record_id}&patient_name_b64=${pNameB64}&mrd_b64=${pmrdB64}&api_url=${API_URL}`;
+                                        window.open(protocolUrl, '_self');
+                                        setIsPollingForDesktop(true);
+                                        triggerToast("Waiting for scanner uploads...", "info");
+                                    }}
+                                    className="bg-blue-600 text-white px-3 py-1.5 rounded-full text-xs font-bold hover:bg-blue-700 flex items-center gap-2"
+                                >
+                                    <Monitor size={14} /> Desktop App
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {(patient.files || []).length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {(patient.files || []).map((file) => (
+                                <div key={file.file_id} className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow">
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div className={`p-2 rounded-lg ${file.upload_status === 'draft' ? 'bg-orange-50 text-orange-500' : 'bg-red-50 text-red-600'}`}>
+                                            <FileType size={20} />
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-xs text-gray-400 block">{formatDate(file.upload_date)}</span>
+                                            {file.upload_status === 'draft' && <span className="text-[10px] font-bold text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full">DRAFT</span>}
+                                        </div>
+                                    </div>
+                                    <h3 className="font-medium text-gray-800 truncate" title={file.filename}>{file.filename}</h3>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <p className="text-xs text-gray-500">{file.file_size_mb ? file.file_size_mb.toFixed(2) : 0} MB</p>
+                                        <p className="text-xs font-bold text-slate-700">{file.page_count || 0} Pages</p>
+                                    </div>
+                                    <div className="flex justify-between items-center mb-4">
+                                        {file.is_searchable && (
+                                            <span
+                                                className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer hover:bg-green-200"
+                                                onClick={() => setViewTextFile(file)}
+                                                title="Text Extracted & Indexed"
+                                            >
+                                                🔍 SEARCHABLE
+                                            </span>
+                                        )}
+                                        {file.upload_status === 'confirmed' && !file.is_searchable && file.processing_stage === 'analyzing' && (
+                                            <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
+                                                <Loader2 size={10} className="animate-spin" /> ANALYZING OCR...
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Compact Action Row */}
+                                    <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-50 bg-gray-50/50 -mx-3 -mb-3 p-2 rounded-b-lg">
+                                        {file.is_glacier && file.restore_status !== 'AVAILABLE' ? (
+                                            <button
+                                                disabled={file.restore_status === 'RETRIEVING'}
+                                                onClick={() => handleRestoreFile(file.file_id)}
+                                                title={file.restore_status === 'RETRIEVING' ? 'Retrieving...' : 'Retrieve from Archive'}
+                                                className={`p-1.5 rounded-md transition-all flex items-center justify-center
+                                                    ${file.restore_status === 'RETRIEVING'
+                                                        ? 'bg-amber-50 text-amber-600 cursor-wait'
+                                                        : 'bg-white text-amber-600 hover:bg-amber-50 border border-transparent hover:border-amber-200'}`}
+                                            >
+                                                {file.restore_status === 'RETRIEVING' ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => setViewSecureFile(file)}
+                                                className="flex-1 py-1.5 bg-indigo-600 text-white rounded-md text-xs font-bold hover:bg-indigo-700 flex items-center justify-center gap-1.5 shadow-sm transition-all shadow-indigo-200"
+                                            >
+                                                <Shield size={12} /> Secure View
+                                            </button>
+                                        )}
+
+                                        <button
+                                            onClick={() => setViewTextFile(file)}
+                                            className="px-3 py-1.5 bg-white text-slate-600 border border-slate-200 rounded-md text-xs font-bold hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-all"
+                                            title="Edit OCR / Tags"
+                                        >
+                                            <FileText size={14} />
+                                        </button>
+
+                                        {/* Manual OCR Trigger */}
+                                        {(file.upload_status === 'confirmed' && (!file.is_searchable || file.processing_stage === 'failed' || file.processing_stage === 'analyzing')) && (
+                                            <button
+                                                onClick={() => handleRunOCR(file.file_id)}
+                                                className="px-3 py-1.5 bg-white text-slate-600 border border-slate-200 rounded-md text-xs font-bold hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-all"
+                                                title="Run OCR"
+                                            >
+                                                <Sparkles size={14} />
+                                            </button>
+                                        )}
+
+                                        {file.upload_status === 'draft' ? (
+                                            <div className="flex gap-1 ml-auto">
+                                                <button onClick={() => handleConfirmUpload(file.file_id)} className="px-2 py-1.5 bg-green-100 text-green-700 rounded-md text-xs font-bold hover:bg-green-200"><CheckCircle size={14} /></button>
+                                                <button onClick={() => handleDiscardDraft(file.file_id)} className="px-2 py-1.5 bg-gray-100 text-gray-500 rounded-md text-xs font-bold hover:bg-gray-200"><X size={14} /></button>
+                                            </div>
+                                        ) : (
+                                            userRole !== 'mrd_staff' && (
+                                                <button
+                                                    onClick={() => handleRequestDeletion(file.file_id)}
+                                                    className={`ml-auto p-1.5 rounded-md transition-colors ${userRole === 'hospital_admin' || userRole === 'website_admin' ? 'text-red-500 hover:bg-red-50 hover:text-red-600' : 'text-amber-500 hover:bg-amber-50 hover:text-amber-600'}`}
+                                                    title={userRole === 'hospital_admin' || userRole === 'website_admin' ? 'Delete File' : 'Request Deletion'}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-12 text-gray-500">
+                            <p>No files uploaded for this patient.</p>
+                        </div>
+                    )}
+
+                    {/* Upload Section for Staff */}
+                    {(userRole === 'website_staff' || userRole === 'data_uploader' || userRole === 'website_admin' || userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'superadmin' || userRole === 'superadmin_staff') && (
+                        <div className="mt-8 pt-8 border-t border-gray-100">
+                            <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
+                                <h3 className="text-sm font-bold text-gray-400 uppercase">Input Files</h3>
+                                <div className="flex gap-2">
+
+                                    {fileQueue.length > 0 && !isUploading && (
+                                        <button
+                                            onClick={startProcessing}
+                                            className="bg-indigo-600 text-white px-3 py-1.5 rounded-full text-xs font-bold hover:bg-indigo-700 flex items-center gap-2"
+                                        >
+                                            <PlayCircle size={14} /> Upload All
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className={`relative group transition-all duration-300 ${isUploading ? 'opacity-50 pointer-events-none grayscale' : 'opacity-100'}`}>
+                                <div className="relative bg-white border-2 border-dashed border-slate-200 hover:border-indigo-300 rounded-xl p-6 text-center transition-all cursor-pointer overflow-hidden">
+                                    <input
+                                        type="file"
+                                        multiple
+                                        accept=".pdf, .mp4, .mov, .avi, .mkv"
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                        onChange={handleFileSelect}
+                                        disabled={isUploading}
+                                    />
+                                    <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                                        <Upload className="text-indigo-600" size={20} />
+                                    </div>
+                                    <h4 className="text-sm font-black text-slate-700 mb-1">Click to Select Files</h4>
+                                </div>
+                            </div>
+
+                            {/* File Queue List */}
+                            {fileQueue.length > 0 && (
+                                <div className="mt-6 space-y-3">
+                                    {fileQueue.map((item) => (
+                                        <div key={item.id} className="bg-white border border-slate-100 rounded-xl p-3 shadow-sm relative overflow-hidden">
+                                            {(item.status === 'uploading' || item.status === 'compressing') && (
+                                                <div className="absolute bottom-0 left-0 h-1 bg-indigo-50 w-full">
+                                                    <div
+                                                        className={`h-full transition-all duration-300 ${item.status === 'compressing' ? 'bg-amber-400 w-full animate-pulse' : 'bg-indigo-500'}`}
+                                                        style={{ width: item.status === 'uploading' ? `${item.progress}%` : '100%' }}
+                                                    ></div>
+                                                </div>
+                                            )}
+                                            <div className="flex items-center gap-3 relative z-10">
+                                                <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-500 shrink-0">
+                                                    {item.originalFile.type.includes('image') ? <FileType size={14} /> : <PlayCircle size={14} />}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex justify-between items-start">
+                                                        <p className="font-bold text-xs text-slate-700 truncate">{item.originalFile.name}</p>
+                                                        {item.status === 'pending' && (
+                                                            <button onClick={() => removeFile(item.id)} className="text-slate-300 hover:text-red-500"><X size={14} /></button>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        {item.status === 'compressing' && <span className="text-[10px] text-amber-600 flex items-center gap-1"><Loader2 size={8} className="animate-spin" /> Optimizing</span>}
+                                                        {item.status === 'uploading' && <span className="text-[10px] text-indigo-600">Uploading {item.progress}%</span>}
+                                                        {item.status === 'completed' && <span className="text-[10px] text-green-600 flex items-center gap-1"><CheckCircle size={8} /> Done</span>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
                 {/* Clinical Diagnoses Card */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
                     <div className="flex justify-between items-center mb-4 border-b pb-2">
@@ -1339,207 +1649,6 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                             ))}
                         </div>
                     ) : <p className="text-sm text-slate-400 italic">No procedures recorded.</p>}
-                </div>
-
-                {/* Digitized Files Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-4">
-                    <h2 className="text-base font-semibold mb-3 border-b pb-2">Digitized Files ({(patient.files || []).length})</h2>
-
-                    {(patient.files || []).length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {(patient.files || []).map((file) => (
-                                <div key={file.file_id} className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow">
-                                    <div className="flex items-start justify-between mb-4">
-                                        <div className={`p-2 rounded-lg ${file.upload_status === 'draft' ? 'bg-orange-50 text-orange-500' : 'bg-red-50 text-red-600'}`}>
-                                            <FileType size={20} />
-                                        </div>
-                                        <div className="text-right">
-                                            <span className="text-xs text-gray-400 block">{formatDate(file.upload_date)}</span>
-                                            {file.upload_status === 'draft' && <span className="text-[10px] font-bold text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full">DRAFT</span>}
-                                        </div>
-                                    </div>
-                                    <h3 className="font-medium text-gray-800 truncate" title={file.filename}>{file.filename}</h3>
-                                    <div className="flex justify-between items-center mb-1">
-                                        <p className="text-xs text-gray-500">{file.file_size_mb ? file.file_size_mb.toFixed(2) : 0} MB</p>
-                                        <p className="text-xs font-bold text-slate-700">{file.page_count || 0} Pages</p>
-                                    </div>
-                                    <div className="flex justify-between items-center mb-4">
-                                        {file.is_searchable && (
-                                            <span
-                                                className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer hover:bg-green-200"
-                                                onClick={() => setViewTextFile(file)}
-                                                title="Text Extracted & Indexed"
-                                            >
-                                                🔍 SEARCHABLE
-                                            </span>
-                                        )}
-                                        {file.upload_status === 'confirmed' && !file.is_searchable && file.processing_stage === 'analyzing' && (
-                                            <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
-                                                <Loader2 size={10} className="animate-spin" /> ANALYZING OCR...
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* Action Buttons */}
-                                    <div className="flex flex-col gap-2">
-                                        {file.is_glacier && file.restore_status !== 'AVAILABLE' ? (
-                                            <button
-                                                disabled={file.restore_status === 'RETRIEVING'}
-                                                onClick={() => handleRestoreFile(file.file_id)}
-                                                className={`w-full py-2 rounded-md text-sm font-bold flex items-center justify-center gap-2 border shadow-sm transition-all
-                                                    ${file.restore_status === 'RETRIEVING'
-                                                        ? 'bg-amber-50 text-amber-600 border-amber-200 cursor-wait'
-                                                        : 'bg-amber-600 text-white border-amber-500 hover:bg-amber-700 hover:shadow-amber-500/20'}`}
-                                            >
-                                                {file.restore_status === 'RETRIEVING' ? (
-                                                    <><Loader2 size={14} className="animate-spin" /> Retrieving from Archive...</>
-                                                ) : (
-                                                    <><Download size={14} /> Retrieve from Archive</>
-                                                )}
-                                            </button>
-                                        ) : (
-                                            <button
-                                                onClick={() => setViewSecureFile(file)}
-                                                className="w-full py-2 bg-blue-600/10 text-blue-600 rounded-md text-sm font-bold hover:bg-blue-600 hover:text-white flex items-center justify-center gap-2 transition-all border border-blue-200"
-                                            >
-                                                <Shield size={14} /> Secure View
-                                            </button>
-                                        )}
-
-                                        <button
-                                            onClick={() => setViewTextFile(file)}
-                                            className="w-full py-2 bg-indigo-50 text-indigo-600 rounded-md text-sm font-medium hover:bg-indigo-100 flex items-center justify-center gap-2"
-                                        >
-                                            <FileText size={14} /> Edit OCR / Tags
-                                        </button>
-
-                                        {/* Manual OCR Trigger for Old/Failed/Stuck Files */}
-                                        {(file.upload_status === 'confirmed' && (!file.is_searchable || file.processing_stage === 'failed' || file.processing_stage === 'analyzing')) && (
-                                            <button
-                                                onClick={() => handleRunOCR(file.file_id)}
-                                                className="w-full py-2 bg-slate-100 text-slate-700 rounded-md text-xs font-bold hover:bg-slate-200 border border-slate-200 flex items-center justify-center gap-1"
-                                            >
-                                                <Sparkles size={12} /> Run OCR
-                                            </button>
-                                        )}
-
-                                        {file.upload_status === 'draft' ? (
-                                            <div className="flex gap-2">
-                                                <button onClick={() => handleConfirmUpload(file.file_id)} className="flex-1 py-1.5 bg-green-600 text-white rounded-md text-xs font-bold hover:bg-green-700 transition">Confirm</button>
-                                                <button onClick={() => handleDiscardDraft(file.file_id)} className="px-3 py-1.5 bg-gray-100 text-gray-500 rounded-md text-xs font-bold hover:bg-gray-200 transition">Discard</button>
-                                            </div>
-                                        ) : (
-                                            userRole !== 'mrd_staff' && (
-                                                <button
-                                                    onClick={() => handleRequestDeletion(file.file_id)}
-                                                    className={`w-full py-1.5 rounded-md text-xs font-semibold border transition ${userRole === 'hospital_admin' ? 'text-red-600 hover:bg-red-50 border-red-200' : 'text-amber-600 hover:bg-amber-50 border-amber-200'}`}
-                                                >
-                                                    {userRole === 'hospital_admin' || userRole === 'website_admin' ? 'Delete File' : 'Request Deletion'}
-                                                </button>
-                                            )
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-12 text-gray-500">
-                            <p>No files uploaded for this patient.</p>
-                        </div>
-                    )}
-
-                    {/* Upload Section for Staff */}
-                    {(userRole === 'website_staff' || userRole === 'data_uploader' || userRole === 'website_admin' || userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'superadmin' || userRole === 'superadmin_staff') && (
-                        <div className="mt-8 pt-8 border-t border-gray-100">
-                            <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
-                                <h3 className="text-sm font-bold text-gray-400 uppercase">Input Files</h3>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setShowScanner(true)}
-                                        className="bg-purple-600 text-white px-3 py-1.5 rounded-full text-xs font-bold hover:bg-purple-700 flex items-center gap-2"
-                                    >
-                                        <Camera size={14} /> Scan
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            const token = localStorage.getItem('token');
-                                            // Encode Base64 to handle special characters and spaces safely in protocol URI
-                                            const pNameB64 = btoa(unescape(encodeURIComponent(patient.full_name || '')));
-                                            const pmrdB64 = btoa(unescape(encodeURIComponent(patient.patient_u_id || '')));
-                                            const protocolUrl = `digifort://upload?token=${token}&patient_id=${patient.record_id}&patient_name_b64=${pNameB64}&mrd_b64=${pmrdB64}&api_url=${API_URL}`;
-                                            window.open(protocolUrl, '_self');
-                                            setIsPollingForDesktop(true);
-                                            triggerToast("Waiting for scanner uploads...", "info");
-                                        }}
-                                        className="bg-blue-600 text-white px-3 py-1.5 rounded-full text-xs font-bold hover:bg-blue-700 flex items-center gap-2"
-                                    >
-                                        <Monitor size={14} /> Desktop App
-                                    </button>
-                                    {fileQueue.length > 0 && !isUploading && (
-                                        <button
-                                            onClick={startProcessing}
-                                            className="bg-indigo-600 text-white px-3 py-1.5 rounded-full text-xs font-bold hover:bg-indigo-700 flex items-center gap-2"
-                                        >
-                                            <PlayCircle size={14} /> Upload All
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className={`relative group transition-all duration-300 ${isUploading ? 'opacity-50 pointer-events-none grayscale' : 'opacity-100'}`}>
-                                <div className="relative bg-white border-2 border-dashed border-slate-200 hover:border-indigo-300 rounded-xl p-6 text-center transition-all cursor-pointer overflow-hidden">
-                                    <input
-                                        type="file"
-                                        multiple
-                                        accept=".pdf, .mp4, .mov, .avi, .mkv"
-                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                                        onChange={handleFileSelect}
-                                        disabled={isUploading}
-                                    />
-                                    <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                                        <Upload className="text-indigo-600" size={20} />
-                                    </div>
-                                    <h4 className="text-sm font-black text-slate-700 mb-1">Click to Select Files</h4>
-                                </div>
-                            </div>
-
-                            {/* File Queue List */}
-                            {fileQueue.length > 0 && (
-                                <div className="mt-6 space-y-3">
-                                    {fileQueue.map((item) => (
-                                        <div key={item.id} className="bg-white border border-slate-100 rounded-xl p-3 shadow-sm relative overflow-hidden">
-                                            {(item.status === 'uploading' || item.status === 'compressing') && (
-                                                <div className="absolute bottom-0 left-0 h-1 bg-indigo-50 w-full">
-                                                    <div
-                                                        className={`h-full transition-all duration-300 ${item.status === 'compressing' ? 'bg-amber-400 w-full animate-pulse' : 'bg-indigo-500'}`}
-                                                        style={{ width: item.status === 'uploading' ? `${item.progress}%` : '100%' }}
-                                                    ></div>
-                                                </div>
-                                            )}
-                                            <div className="flex items-center gap-3 relative z-10">
-                                                <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-500 shrink-0">
-                                                    {item.originalFile.type.includes('image') ? <FileType size={14} /> : <PlayCircle size={14} />}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex justify-between items-start">
-                                                        <p className="font-bold text-xs text-slate-700 truncate">{item.originalFile.name}</p>
-                                                        {item.status === 'pending' && (
-                                                            <button onClick={() => removeFile(item.id)} className="text-slate-300 hover:text-red-500"><X size={14} /></button>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-2 mt-0.5">
-                                                        {item.status === 'compressing' && <span className="text-[10px] text-amber-600 flex items-center gap-1"><Loader2 size={8} className="animate-spin" /> Optimizing</span>}
-                                                        {item.status === 'uploading' && <span className="text-[10px] text-indigo-600">Uploading {item.progress}%</span>}
-                                                        {item.status === 'completed' && <span className="text-[10px] text-green-600 flex items-center gap-1"><CheckCircle size={8} /> Done</span>}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
                 </div>
 
                 <div className="mt-12 pt-8 border-t border-red-100 flex justify-center">

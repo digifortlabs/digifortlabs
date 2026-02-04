@@ -160,10 +160,10 @@ export default function ReportsPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 relative font-sans">
-            <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 pb-12 pt-0">
 
                 {/* Header */}
-                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-10 gap-6">
+                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-4 gap-6">
                     <div>
                         <h1 className="text-4xl font-black text-slate-800 tracking-tight flex items-center gap-3">
                             <span className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-200">

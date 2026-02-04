@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { FileText, Search, Plus, Clock, CheckCircle2, AlertCircle, Box } from 'lucide-react';
+import { FileText, Search, Plus, Clock, CheckCircle2, AlertCircle, Box, Info, CheckCircle, Trash2 } from 'lucide-react';
+import ConfirmationModal from '@/components/ConfirmationModal';
 import { API_URL } from '../../../../config/api';
 import { formatDate } from '../../../../lib/dateFormatter';
 
@@ -10,6 +11,33 @@ export default function FileRequestManager() {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [userRole, setUserRole] = useState<string>('');
+
+    // Modal & Toast State
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        type?: 'danger' | 'warning' | 'info' | 'success';
+        confirmText?: string;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => { },
+        type: 'danger'
+    });
+
+    const [showToast, setShowToast] = useState(false);
+    const [toastMessage, setToastMessage] = useState('');
+    const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
+
+    const triggerToast = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
+        setToastMessage(msg);
+        setToastType(type);
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+    };
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -83,12 +111,12 @@ export default function FileRequestManager() {
             });
 
             if (res.ok) {
-                alert("Request Submitted Successfully!");
+                triggerToast("Request Submitted Successfully!", "success");
                 setView('list');
                 fetchRequests();
             } else {
                 const d = await res.json();
-                alert(d.detail || "Failed");
+                triggerToast(d.detail || "Failed to submit request", "error");
             }
         } catch (err) {
             console.error(err);
@@ -103,10 +131,10 @@ export default function FileRequestManager() {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) {
-                alert(`Request ${status}`);
+                triggerToast(`Request ${status}`, "success");
                 fetchRequests();
             } else {
-                alert("Action Failed");
+                triggerToast("Action Failed", "error");
             }
         } catch (e) {
             console.error(e);
@@ -114,21 +142,30 @@ export default function FileRequestManager() {
     };
 
     const deleteRequest = async (id: number) => {
-        if (!confirm("Are you sure you want to delete this request?")) return;
-        const token = localStorage.getItem('token');
-        try {
-            const res = await fetch(`${API_URL}/storage/requests/${id}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                fetchRequests();
-            } else {
-                alert("Failed to delete request.");
+        setConfirmModal({
+            isOpen: true,
+            title: "Delete Request",
+            message: "Are you sure you want to delete this request?",
+            type: 'danger',
+            confirmText: "Delete",
+            onConfirm: async () => {
+                const token = localStorage.getItem('token');
+                try {
+                    const res = await fetch(`${API_URL}/storage/requests/${id}`, {
+                        method: 'DELETE',
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.ok) {
+                        triggerToast("Request Deleted", "success");
+                        fetchRequests();
+                    } else {
+                        triggerToast("Failed to delete request.", "error");
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
             }
-        } catch (e) {
-            console.error(e);
-        }
+        });
     };
 
     // Auto-search debounce
@@ -379,6 +416,35 @@ export default function FileRequestManager() {
                                 <div className="text-center p-8 text-slate-400">No patients found.</div>
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            <ConfirmationModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                type={confirmModal.type}
+                confirmText={confirmModal.confirmText}
+            />
+
+            {showToast && (
+                <div className={`fixed bottom-6 right-6 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in z-[100] border ${toastType === 'success' ? 'bg-slate-900 border-slate-700 text-white' :
+                        toastType === 'error' ? 'bg-red-50 border-red-200 text-red-900' :
+                            'bg-blue-50 border-blue-200 text-blue-900'
+                    }`}>
+                    <div className={`rounded-full p-1 ${toastType === 'success' ? 'bg-green-500' :
+                            toastType === 'error' ? 'bg-red-500' :
+                                'bg-blue-500'
+                        }`}>
+                        {toastType === 'success' && <CheckCircle size={16} className="text-white" />}
+                        {toastType === 'error' && <AlertCircle size={16} className="text-white" />}
+                        {toastType === 'info' && <Info size={16} className="text-white" />}
+                    </div>
+                    <div>
+                        <p className="font-bold text-sm tracking-wide">{toastMessage}</p>
                     </div>
                 </div>
             )}

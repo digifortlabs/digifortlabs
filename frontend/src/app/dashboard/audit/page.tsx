@@ -97,10 +97,9 @@ export default function AuditPage() {
     };
 
     return (
-        <div className="flex-1 p-4 sm:p-8 space-y-8 bg-slate-50 min-h-screen">
-
+        <div className="flex-1 px-4 sm:px-8 pb-8 pt-0 space-y-8 bg-slate-50 min-h-screen">
             {/* Header */}
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                         <span className="p-3 bg-slate-900 rounded-2xl text-white shadow-xl shadow-slate-200">

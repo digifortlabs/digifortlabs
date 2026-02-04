@@ -82,8 +82,8 @@ export default function ServerFileManager() {
     };
 
     return (
-        <div className="p-6 w-full mx-auto">
-            <div className="flex justify-between items-center mb-6">
+        <div className="px-6 pt-0 pb-6 w-full mx-auto">
+            <div className="flex justify-between items-center mb-4">
                 <div>
                     <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">
                         <HardDrive className="text-indigo-600" />

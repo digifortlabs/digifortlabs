@@ -40,8 +40,8 @@ export default function ArchiveView() {
     );
 
     return (
-        <div className="w-full mx-auto p-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div className="w-full mx-auto px-6 pt-0 pb-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
                         <Archive className="text-indigo-600" /> Physical Archive
