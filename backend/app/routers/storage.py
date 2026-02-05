@@ -1136,13 +1136,16 @@ def list_pending_drafts(hospital_id: Optional[int] = None, db: Session = Depends
     if target_hospital_id:
         query = query.join(Patient).filter(Patient.hospital_id == target_hospital_id)
         
-    drafts = query.all()
+    drafts = query.order_by(PDFFile.upload_date.desc()).all()
     
     return [
         {
             "file_id": f.file_id,
             "filename": f.filename,
+            "patient_id": f.record_id,
             "patient_name": f.patient.full_name if f.patient else "Unknown",
+            "mrn": f.patient.patient_u_id if f.patient else None,
+            "hospital_name": f.patient.hospital.legal_name if (f.patient and f.patient.hospital) else "Unknown",
             "upload_date": f.upload_date.isoformat() if f.upload_date else None
         }
         for f in drafts
@@ -1151,7 +1154,7 @@ def list_pending_drafts(hospital_id: Optional[int] = None, db: Session = Depends
 @router.post("/confirm-all")
 def confirm_all_drafts(hospital_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Auth Check: "All Admin"
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Determine Filter
@@ -1159,7 +1162,7 @@ def confirm_all_drafts(hospital_id: Optional[int] = None, db: Session = Depends(
     
     if current_user.role == UserRole.HOSPITAL_ADMIN:
         target_hospital_id = current_user.hospital_id
-    elif current_user.role == UserRole.SUPER_ADMIN and hospital_id:
+    elif (current_user.role == UserRole.SUPER_ADMIN or current_user.role == UserRole.WEBSITE_ADMIN) and hospital_id:
         target_hospital_id = hospital_id
     
     # Query Drafts

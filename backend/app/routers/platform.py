@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from datetime import datetime
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+import os
 
 from ..database import get_db
 from ..models import SystemSetting, User, UserRole
@@ -53,6 +54,35 @@ async def update_setting(key: str, update: SettingUpdate, db: Session = Depends(
         print(f"Audit Log Error: {e}")
 
     return {"status": "success", "key": key, "value": update.value}
+
+@router.post("/clear-cache")
+async def clear_system_cache(
+    request: Request,
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Clears server-side statistics and logs a system-wide cache clear event.
+    """
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Reset in-memory statistics
+    app_state = request.app.state
+    app_state.total_requests = 0
+    app_state.total_latency = 0.0
+    
+    # Log Audit
+    try:
+        log_audit(db, current_user.user_id, "SYSTEM_CACHE_CLEARED", "User triggered a manual system cache clear")
+    except Exception as e:
+        print(f"Audit Log Error: {e}")
+
+    return {
+        "status": "success",
+        "message": "System cache and metrics have been reset.",
+        "timestamp": datetime.now().isoformat()
+    }
 
 from fastapi import BackgroundTasks
 from ..models import PDFFile

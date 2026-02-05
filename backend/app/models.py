@@ -23,6 +23,7 @@ class UserRole(str, enum.Enum):
     WAREHOUSE_MANAGER = "warehouse_manager"
     HOSPITAL_ADMIN = "hospital_admin"
     HOSPITAL_STAFF = "hospital_staff"
+    WEBSITE_ADMIN = "website_admin"
 
 class Hospital(Base):
     __tablename__ = "hospitals"

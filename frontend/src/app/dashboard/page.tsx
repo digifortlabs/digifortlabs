@@ -26,7 +26,8 @@ import {
     Package,
     ChevronRight,
     AppWindow, // Replacement
-    Loader2 // Added for loading states
+    Loader2, // Added for loading states
+    Archive
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -50,13 +51,41 @@ export default function CommandCenter() {
     const [loadingPatients, setLoadingPatients] = useState(false);
     const [showToast, setShowToast] = useState(false);
     const [toastMessage, setToastMessage] = useState("");
-    const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
+    const [toastType, setToastType] = useState<'success' | 'error' | 'info' | 'warning'>('success');
 
-    const triggerToast = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
+    const triggerToast = (msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'success') => {
         setToastMessage(msg);
         setToastType(type);
         setShowToast(true);
         setTimeout(() => setShowToast(false), 4000);
+    };
+
+    const handleClearCache = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/platform/clear-cache`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (!res.ok) throw new Error("Backend clear failed");
+
+            // Clear local storage (except token)
+            Object.keys(localStorage).forEach(key => {
+                if (key !== 'token' && key !== 'userRole') localStorage.removeItem(key);
+            });
+            sessionStorage.clear();
+
+            triggerToast("System and local cache cleared. Refreshing...", "success");
+            setTimeout(() => window.location.reload(), 1500);
+        } catch (e) {
+            console.error("Clear Cache Error:", e);
+            triggerToast("Resetting local state only...", "warning");
+            Object.keys(localStorage).forEach(key => {
+                if (key !== 'token') localStorage.removeItem(key);
+            });
+            setTimeout(() => window.location.reload(), 1500);
+        }
     };
 
     // Global Confirmation Modal State
@@ -561,19 +590,25 @@ export default function CommandCenter() {
                         {(userRole === 'website_admin' || userRole === 'superadmin') && (
                             <div className="grid grid-cols-2 gap-4">
                                 <ActionButton
-                                    icon={<FileText size={18} />}
-                                    label="Pending Outstanding"
-                                    onClick={() => router.push('/dashboard/requests')}
-                                />
-                                <ActionButton
                                     icon={<RefreshCcw size={18} />}
                                     label="Clear Cache"
-                                    onClick={() => triggerToast("System cache cleared successfully.", "success")}
+                                    onClick={handleClearCache}
                                 />
                                 <ActionButton
                                     icon={<IndianRupee size={18} />}
                                     label="Accounting"
-                                    onClick={() => router.push('/dashboard/reports')}
+                                    onClick={() => router.push('/dashboard/accounting')}
+                                />
+                                <ActionButton
+                                    icon={<Archive size={18} />}
+                                    label="Physical Archive"
+                                    onClick={() => router.push('/dashboard/archive')}
+                                />
+                                <ActionButton
+                                    icon={<HardDrive size={18} />}
+                                    label="Manage Drafts"
+                                    className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 hover:border-amber-100"
+                                    onClick={() => router.push('/dashboard/drafts')}
                                 />
                                 <ActionButton
                                     icon={<CheckCircle2 size={18} />}
@@ -758,6 +793,17 @@ export default function CommandCenter() {
                                             label="View Pending"
                                             onClick={() => router.push('/dashboard/requests')}
                                         />
+                                        <ActionButton
+                                            icon={<Archive size={18} />}
+                                            label="Physical Archive"
+                                            onClick={() => router.push('/dashboard/archive')}
+                                        />
+                                        <ActionButton
+                                            icon={<HardDrive size={18} />}
+                                            label="Manage Drafts"
+                                            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 hover:border-amber-100"
+                                            onClick={() => router.push('/dashboard/drafts')}
+                                        />
                                     </>
                                 ) : (
                                     /* Hospital Admin & Staff Actions */
@@ -784,13 +830,6 @@ export default function CommandCenter() {
                                     />
                                 )}
 
-                                {(userRole === 'hospital_admin' || userRole === 'superadmin_staff') && (
-                                    <ActionButton
-                                        icon={<FileText size={18} />}
-                                        label="Digitize Records"
-                                        onClick={() => router.push('/dashboard/records/upload')}
-                                    />
-                                )}
                             </div>
                         )}
                     </div>
@@ -873,10 +912,11 @@ export default function CommandCenter() {
                     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-bottom-5">
                         <div className={`px-6 py-3 rounded-2xl shadow-2xl border flex items-center gap-3 ${toastType === 'success' ? 'bg-emerald-500 border-emerald-400 text-white' :
                             toastType === 'error' ? 'bg-red-500 border-red-400 text-white' :
-                                'bg-indigo-600 border-indigo-500 text-white'
+                                toastType === 'warning' ? 'bg-amber-500 border-amber-400 text-white' :
+                                    'bg-indigo-600 border-indigo-500 text-white'
                             }`}>
                             {toastType === 'success' && <CheckCircle2 size={18} />}
-                            {toastType === 'error' && <AlertTriangle size={18} />}
+                            {(toastType === 'error' || toastType === 'warning') && <AlertTriangle size={18} />}
                             <span className="text-sm font-bold tracking-tight">{toastMessage}</span>
                         </div>
                     </div>
