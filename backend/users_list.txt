@@ -1,1 +1,0 @@
-[('info@digifortlabs.com', 'superadmin_staff'), ('mrd@dixithospital.com', 'warehouse_manager'), ('admin@dixithospital.com', 'hospital_admin'), ('test_reset@example.com', 'hospital_admin'), ('admin@digifortlabs.com', 'superadmin'), ('admin@localhost', 'superadmin'), ('jgp1086@gmail.com', 'hospital_admin')]
