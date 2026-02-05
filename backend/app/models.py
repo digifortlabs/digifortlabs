@@ -108,7 +108,11 @@ class Patient(Base):
 
     record_id = Column(Integer, primary_key=True, index=True)
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
-    patient_u_id = Column(String, unique=True, index=True, nullable=False) # MRD NUMBER
+    patient_u_id = Column(String, index=True, nullable=False) # MRD NUMBER
+    
+    __table_args__ = (
+        UniqueConstraint('hospital_id', 'patient_u_id', name='uq_hospital_patient_mrd'),
+    )
     uhid = Column(String, index=True, nullable=True) # Alternate ID
     full_name = Column(String, nullable=False)
     gender = Column(String, nullable=True)

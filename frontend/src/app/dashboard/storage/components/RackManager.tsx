@@ -493,7 +493,7 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                 >
                                     <option value="IPD">IPD (Inpatient)</option>
                                     <option value="OPD">OPD (Outpatient)</option>
-                                    <option value="MCL">MCL (Medico-Legal)</option>
+                                    <option value="MCL">MLC (Medico-Legal)</option>
                                     <option value="BRT">Birth Records</option>
                                     <option value="DHT">Death Records</option>
                                 </select>
@@ -712,51 +712,66 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                                                 <title>Print Labels - ${viewingBox.label}</title>
                                                                 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
                                                                 <style>
-                                                                    body { font-family: sans-serif; padding: 20px; }
-                                                                    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-                                                                    .label { 
-                                                                        border: 2px solid #000; 
-                                                                        padding: 10px; 
-                                                                        border-radius: 8px; 
-                                                                        page-break-inside: avoid; 
+                                                                    @page { size: 1in 2in; margin: 0; }
+                                                                    body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: #fff; overflow: hidden; }
+                                                                    .label-page { 
+                                                                        width: 1in; 
+                                                                        height: 2in; 
+                                                                        background: #fff; 
+                                                                        display: flex; 
+                                                                        flex-direction: column; 
+                                                                        padding: 4px; 
+                                                                        box-sizing: border-box; 
+                                                                        border: 1px solid #000;
+                                                                        page-break-after: always;
                                                                         text-align: center;
-                                                                        display: flex;
-                                                                        flex-direction: column;
-                                                                        align-items: center;
+                                                                        position: relative;
+                                                                        overflow: hidden;
                                                                     }
-                                                                    .mrd { font-size: 14px; font-weight: bold; margin-bottom: 5px; }
-                                                                    .name { font-size: 12px; margin-bottom: 5px; width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-                                                                    .meta { font-size: 10px; color: #666; width: 100%; }
-                                                                    .qr { margin: 5px 0; }
+                                                                    .header { border-bottom: 1px solid #000; padding-bottom: 2px; margin-bottom: 2px; flex-shrink: 0; }
+                                                                    .header h3 { margin: 0; font-size: 7px; font-weight: 900; letter-spacing: 0.3px; text-transform: uppercase; line-height: 1.2; }
+                                                                    .type-box { background: #000; color: #fff; padding: 1px 3px; display: inline-block; font-size: 6px; font-weight: 900; margin: 2px auto; letter-spacing: 0.5px; width: fit-content; }
+                                                                    .main-info { flex: 1; display: flex; flex-direction: column; justify-content: center; overflow: hidden; padding: 2px 0; }
+                                                                    .box-title { font-size: 8px; font-weight: 900; margin-bottom: 2px; text-transform: uppercase; color: #000; }
+                                                                    h1 { font-size: 9px; margin: 0; text-transform: uppercase; line-height: 1.1; font-weight: 900; word-wrap: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+                                                                    .hospital { font-size: 6px; font-weight: 800; font-style: italic; margin-top: 1px; color: #333; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+                                                                    .qr { margin: 2px 0; display: flex; justify-content: center; flex-shrink: 0; }
+                                                                    .footer { font-size: 7px; font-weight: 900; border-top: 1px solid #000; padding-top: 2px; margin-top: auto; display: flex; justify-content: center; text-transform: uppercase; flex-shrink: 0; }
+                                                                    @media print { body { background: none; } .label-page { border: 1px solid #000; } }
                                                                 </style>
                                                             </head>
                                                             <body>
-                                                                <h1>Box: ${viewingBox.label}</h1>
-                                                                <div class="grid">
-                                                                    ${boxFiles.map(f => `
-                                                                        <div class="label">
-                                                                            <div class="mrd">${f.patient_u_id}</div>
-                                                                            <div class="name">${f.full_name}</div>
-                                                                            <div id="qr-${f.record_id}" class="qr"></div>
-                                                                            <div class="meta">RID: ${f.record_id} | ${viewingBox.location_code}</div>
-                                                                            <div style="margin-top:5px; font-size:9px; font-weight:bold; color:#4f46e5;">DigiFort Labs</div>
+                                                                ${boxFiles.map(f => `
+                                                                    <div class="label-page">
+                                                                        <div class="header">
+                                                                            <h3>DIGIFORT LABS</h3>
+                                                                            <div class="type-box">PATIENT (MED)</div>
                                                                         </div>
-                                                                    `).join('')}
-                                                                </div>
+                                                                        <div class="main-info">
+                                                                            <div class="box-title">BOX: ${viewingBox.label}</div>
+                                                                            <h1>${f.full_name}</h1>
+                                                                            <div class="hospital">${f.hospital_name || viewingBox.hospital_name || 'Digifort Labs'}</div>
+                                                                        </div>
+                                                                        <div id="qr-${f.record_id}" class="qr"></div>
+                                                                        <div class="footer">
+                                                                             <span>MRD: ${f.patient_u_id}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                `).join('')}
                                                                 <script>
                                                                     window.onload = function() {
                                                                         var files = ${JSON.stringify(boxFiles.map(f => ({ id: f.record_id, text: f.patient_u_id })))};
                                                                         files.forEach(function(f) {
                                                                             new QRCode(document.getElementById("qr-" + f.id), {
                                                                                 text: f.text,
-                                                                                width: 64,
-                                                                                height: 64,
+                                                                                width: 75,
+                                                                                height: 75,
                                                                                 colorDark : "#000000",
                                                                                 colorLight : "#ffffff",
                                                                                 correctLevel : QRCode.CorrectLevel.H
                                                                             });
                                                                         });
-                                                                        setTimeout(function() { window.print(); }, 500);
+                                                                        setTimeout(function() { window.print(); window.close(); }, 800);
                                                                     }
                                                                 </script>
                                                             </body>

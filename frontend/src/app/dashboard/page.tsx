@@ -490,9 +490,7 @@ export default function CommandCenter() {
                                                 {p.uhid && <div className="text-[10px] text-slate-400 font-bold">UHID: {p.uhid}</div>}
                                             </td>
                                             <td className="px-6 py-4 text-sm font-medium text-slate-600">
-                                                <td className="px-6 py-4 text-sm font-medium text-slate-600">
-                                                    {formatDate(p.discharge_date)}
-                                                </td>
+                                                {formatDate(p.discharge_date)}
                                             </td>
                                             <td className="px-6 py-4">
                                                 {p.physical_box_id ? (

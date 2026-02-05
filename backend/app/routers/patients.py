@@ -300,6 +300,7 @@ class PatientResponse(BaseModel):
     patient_u_id: str
     hospital_id: int
     full_name: str
+    hospital_name: Optional[str] = None
     uhid: Optional[str] = None
     age: Optional[Union[str, int]] = None
     gender: Optional[str] = None
@@ -724,12 +725,14 @@ def get_patients(
     q: Optional[str] = None, 
     unassigned_only: bool = False,
     hospital_id: Optional[int] = None, # New: Allow filtering by specific hospital
+    start_date: Optional[datetime.datetime] = None,
+    end_date: Optional[datetime.datetime] = None,
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
     is_platform = current_user.role in ["superadmin", "superadmin_staff"]
     
-    query = db.query(Patient).options(joinedload(Patient.files))
+    query = db.query(Patient).options(joinedload(Patient.files), joinedload(Patient.box))
     
     if unassigned_only:
         query = query.filter(Patient.physical_box_id == None)
@@ -744,6 +747,12 @@ def get_patients(
         if hospital_id:
             query = query.filter(Patient.hospital_id == hospital_id)
     
+    # Apply Date Filtering
+    if start_date:
+        query = query.filter(or_(Patient.discharge_date >= start_date, Patient.admission_date >= start_date))
+    if end_date:
+        query = query.filter(or_(Patient.discharge_date <= end_date, Patient.admission_date <= end_date))
+
     if q:
         query = query.filter(
             or_(
@@ -754,13 +763,21 @@ def get_patients(
             )
         )
     
-    return query.all()
+    patients = query.all()
+    for p in patients:
+        p.hospital_name = p.hospital.legal_name if p.hospital else "Unknown"
+        # Accessing properties to ensures they are populated for Pydantic if needed
+        # (Though Pydantic's from_attributes handles it)
+        _ = p.box_label
+        _ = p.box_location_code
+        
+    return patients
 
 @router.get("/{patient_id}", response_model=PatientDetailResponse)
 def get_patient(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     is_platform = current_user.role in ["superadmin", "superadmin_staff"]
     
-    query = db.query(Patient).options(joinedload(Patient.files)).filter(Patient.record_id == patient_id)
+    query = db.query(Patient).options(joinedload(Patient.files), joinedload(Patient.box)).filter(Patient.record_id == patient_id)
     if not is_platform:
         query = query.filter(Patient.hospital_id == current_user.hospital_id)
     
@@ -785,6 +802,7 @@ def get_patient(patient_id: int, db: Session = Depends(get_db), current_user: Us
                 else:
                     f.restore_status = None
 
+    patient.hospital_name = patient.hospital.legal_name if patient.hospital else "Unknown"
     return patient
 
 @router.get("/check/uhid/{uhid_no}")

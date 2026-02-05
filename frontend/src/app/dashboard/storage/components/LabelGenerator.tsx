@@ -5,23 +5,102 @@ import QRCode from "react-qr-code";
 import { API_URL } from '../../../../config/api';
 
 const PrintStyles = `
-    @page { size: 4in 6in; margin: 0; }
-    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-    .label { text-align: center; border: 4px solid #000; padding: 20px; border-radius: 12px; width: 3.5in; height: 5.5in; page-break-inside: avoid; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; }
-    h1 { font-size: 32px; margin: 0; text-transform: uppercase; line-height: 1; word-wrap: break-word; font-weight: 900; }
-    h2 { font-size: 18px; margin: 10px 0; color: #555; }
-    .qr-container { flex: 1; display: flex; align-items: center; justify-content: center; margin: 20px 0; }
-    .footer { font-size: 14px; font-weight: bold; border-top: 2px solid #000; padding-top: 10px; margin-top: 10px; }
+    @page { size: 1in 2in; margin: 0; }
+    body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: #fff; overflow: hidden; height: 100vh; width: 100vw; display: flex; align-items: center; justify-content: center; }
+    .label { 
+        text-align: center; 
+        border: 1px solid #000; 
+        padding: 4px; 
+        width: 1in; 
+        height: 2in; 
+        page-break-inside: avoid; 
+        display: flex; 
+        flex-direction: column; 
+        box-sizing: border-box; 
+        background-color: #fff;
+        overflow: hidden;
+    }
+    .header { 
+        border-bottom: 1px solid #000; 
+        padding-bottom: 2px; 
+        margin-bottom: 2px; 
+        flex-shrink: 0;
+    }
+    .header h3 { 
+        margin: 0; 
+        font-size: 7px; 
+        font-weight: 900; 
+        letter-spacing: 0.3px; 
+        text-transform: uppercase;
+        line-height: 1.2;
+    }
+    .qr-container { 
+        margin: 2px 0; 
+        display: flex; 
+        justify-content: center; 
+        align-items: center;
+        flex-shrink: 0;
+    }
+    .main-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        overflow: hidden;
+        padding: 2px 0;
+    }
+    h1 { 
+        font-size: 9px; 
+        margin: 0; 
+        text-transform: uppercase; 
+        line-height: 1.1; 
+        font-weight: 900; 
+        word-wrap: break-word;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        max-height: 20px; /* Safety for 2 lines */
+    }
+    .type-box {
+        background-color: #000;
+        color: #fff;
+        padding: 1px 3px;
+        display: inline-block;
+        font-size: 6px;
+        font-weight: 900;
+        margin: 2px auto;
+        letter-spacing: 0.5px;
+        width: fit-content;
+    }
+    h2 { font-size: 8px; margin: 0 0 2px 0; font-weight: 900; color: #000; text-align: center; text-transform: uppercase; }
+    .hospital { font-size: 6px; font-weight: 800; font-style: italic; margin-top: 1px; color: #333; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .footer { 
+        font-size: 7px; 
+        font-weight: 900; 
+        border-top: 1px solid #000; 
+        padding-top: 2px; 
+        margin-top: auto;
+        display: flex;
+        justify-content: center;
+        text-transform: uppercase;
+        flex-shrink: 0;
+    }
 `;
 
 const CategoryBadge = ({ category }: { category: string }) => {
     const cats: any = {
         'MLC': 'bg-red-100 text-red-700 border-red-200',
+        'MCL': 'bg-red-100 text-red-700 border-red-200',
         'BIRTH': 'bg-green-100 text-green-700 border-green-200',
+        'BRT': 'bg-green-100 text-green-700 border-green-200',
         'DEATH': 'bg-slate-800 text-white border-slate-900',
+        'DHT': 'bg-slate-800 text-white border-slate-900',
+        'IPD': 'bg-blue-100 text-blue-700 border-blue-200',
+        'OPD': 'bg-indigo-100 text-indigo-700 border-indigo-200',
         'STANDARD': 'bg-blue-50 text-blue-600 border-blue-100'
     };
-    const style = cats[category] || cats['STANDARD'];
+    const style = cats[category.toUpperCase()] || cats['STANDARD'];
     return <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-black border uppercase tracking-wider ${style}`}>{category}</span>;
 };
 
@@ -32,12 +111,18 @@ const LabelGenerator = () => {
     const [uhidSearch, setUhidSearch] = useState('');
     const [selectedPatient, setSelectedPatient] = useState<any>(null);
 
-    // Box/Rack Logic
+    // Search Results State
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+
+    // Filter/Selection Logic
     const [searchQuery, setSearchQuery] = useState('');
     const [foundItem, setFoundItem] = useState<any>(null);
 
     const handleSearchPatient = async () => {
         if (!uhidSearch) return;
+        setIsSearching(true);
+        setSearchResults([]);
         const token = localStorage.getItem('token');
         try {
             const res = await fetch(`${API_URL}/patients/?q=${encodeURIComponent(uhidSearch)}`, {
@@ -45,49 +130,50 @@ const LabelGenerator = () => {
             });
             if (res.ok) {
                 const results = await res.json();
-                if (results.length > 0) {
-                    const patient = results[0];
-                    setSelectedPatient({
-                        title: patient.full_name,
-                        subtext: patient.uhid,
-                        code: patient.patient_u_id,
-                        type: 'PATIENT'
-                    });
-                } else { alert("No patient found."); setSelectedPatient(null); }
+                setSearchResults(results.map((p: any) => ({
+                    ...p,
+                    displayTitle: p.full_name,
+                    displaySub: p.uhid || p.patient_u_id,
+                    displayCode: p.patient_u_id,
+                    displayHospital: p.hospital_name || 'Digifort Labs',
+                    displayType: 'PATIENT (MED)',
+                    displayBox: p.box_label
+                })));
+                if (results.length === 0) alert("No patient found.");
             }
         } catch (e) { console.error(e); }
+        finally { setIsSearching(false); }
     };
 
     const handleSearchBoxOrRack = async () => {
         if (!searchQuery) return;
+        setIsSearching(true);
+        setSearchResults([]);
         const token = localStorage.getItem('token');
         const endpoint = mode === 'BOX' ? '/storage/boxes' : '/storage/racks';
 
-        // Note: The backend doesn't have a direct search for boxes/racks by label easily in one call without filtering client side 
-        // OR we use the new search endpoint? The new search endpoint returns hierarchies for files, not empty boxes.
-        // Let's use the list endpoint and filter client side for now (simpler for this specific task)
         try {
             const res = await fetch(`${API_URL}${endpoint}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.ok) {
                 const list = await res.json();
-                const match = list.find((i: any) => i.label.toLowerCase().includes(searchQuery.toLowerCase()));
+                const matches = list.filter((i: any) => i.label.toLowerCase().includes(searchQuery.toLowerCase()));
 
-                if (match) {
-                    setFoundItem({
-                        title: match.label,
-                        subtext: mode === 'BOX' ? match.location_code : `Aisle ${match.aisle}`,
-                        code: match.label, // The QR Content
-                        type: mode
-                    });
-                    setSearchQuery('');
-                } else {
-                    alert("Not found. Try exact label.");
-                    setFoundItem(null);
-                }
+                setSearchResults(matches.map((m: any) => ({
+                    ...m,
+                    displayTitle: m.label,
+                    displaySub: mode === 'BOX' ? m.location_code : `Aisle ${m.aisle}`,
+                    displayCode: m.label,
+                    displayHospital: m.hospital_name || 'Digifort Labs',
+                    displayType: mode,
+                    displayBox: mode === 'BOX' ? m.label : null
+                })));
+
+                if (matches.length === 0) alert("Not found. Try exact label.");
             }
         } catch (e) { console.error(e); }
+        finally { setIsSearching(false); }
     };
 
     const activeItem = mode === 'PATIENT' ? selectedPatient : foundItem;
@@ -105,18 +191,20 @@ const LabelGenerator = () => {
                 </head>
                 <body>
                     <div class="label">
-                        <div style="text-align:center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 10px;">
-                            <h3 style="margin:0; font-size: 18px; font-weight: 900; letter-spacing: 2px;">DIGIFORT LABS</h3>
+                        <div class="header">
+                            <h3>DIGIFORT LABS</h3>
+                            <div class="type-box">${activeItem.type}</div>
                         </div>
-                        <div style="text-align:center;">
-                            <h1>${activeItem.type}</h1>
-                            <h2>${activeItem.subtext || ''}</h2>
+                        <div class="main-info">
+                            ${activeItem.box ? `<h2 style="font-size: 8px; font-weight: 900; margin: 0 0 2px 0; color: #000;">BOX: ${activeItem.box}</h2>` : ''}
+                            <h1>${activeItem.title}</h1>
+                            <div class="hospital">${activeItem.hospital || ''}</div>
                         </div>
                         <div class="qr-container">
                              ${qrHtml}
                         </div>
-                        <div style="text-align:center;">
-                             <h1>${activeItem.title}</h1>
+                        <div class="footer">
+                             <span style="width: 100%; text-align: center;">MRD: ${activeItem.code}</span>
                         </div>
                     </div>
                     <script>
@@ -173,9 +261,51 @@ const LabelGenerator = () => {
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
                         />
-                        <button onClick={handleSearchBoxOrRack} className="bg-indigo-600 text-white px-8 rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100">
-                            Search
+                        <button onClick={handleSearchBoxOrRack} className="bg-indigo-600 text-white px-8 rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 disabled:opacity-50" disabled={isSearching}>
+                            {isSearching ? '...' : 'Search'}
                         </button>
+                    </div>
+                )}
+
+                {/* Results List */}
+                {searchResults.length > 0 && (
+                    <div className="mt-4 space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Search Results ({searchResults.length})</p>
+                        {searchResults.map((item, idx) => (
+                            <button
+                                key={idx}
+                                onClick={() => {
+                                    const formatted = {
+                                        title: item.displayTitle,
+                                        subtext: item.displaySub,
+                                        code: item.displayCode,
+                                        hospital: item.displayHospital,
+                                        type: item.displayType,
+                                        box: item.displayBox
+                                    };
+                                    if (mode === 'PATIENT') setSelectedPatient(formatted);
+                                    else setFoundItem(formatted);
+                                }}
+                                className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${(activeItem?.code === item.displayCode && activeItem?.title === item.displayTitle)
+                                    ? 'bg-indigo-50 border-indigo-200 shadow-sm'
+                                    : 'bg-white border-slate-100 hover:border-indigo-100 hover:bg-slate-50'
+                                    }`}
+                            >
+                                <div className="text-left">
+                                    <p className="font-black text-slate-900 text-sm uppercase">{item.displayTitle}</p>
+                                    <p className="text-xs font-bold text-slate-500">{item.displaySub}</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-black text-indigo-600 uppercase">{item.displayHospital}</p>
+                                        <p className="text-[9px] font-bold text-slate-400">MRD: {item.displayCode}</p>
+                                    </div>
+                                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:text-indigo-600 transition">
+                                        <QrIcon size={14} />
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
                     </div>
                 )}
 
@@ -185,22 +315,38 @@ const LabelGenerator = () => {
             <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden flex flex-col items-center justify-center">
                 <h2 className="text-lg font-bold mb-8 text-slate-400 flex items-center gap-2 w-full"><Printer size={18} /> Printer Preview</h2>
                 {activeItem ? (
-                    <div className="bg-white p-6 rounded-2xl max-w-[280px] w-full text-slate-900 shadow-xl transform hover:scale-105 transition duration-500">
-                        <div className="border-b-4 border-black pb-3 mb-3 text-center">
-                            <p className="text-xs font-black uppercase tracking-[2px] mb-1">DIGIFORT LABS</p>
-                            <p className="text-xl font-black uppercase">{activeItem.type}</p>
+                    <div className="bg-white rounded-lg w-[1.5in] h-[3in] text-slate-900 shadow-2xl flex flex-col p-3 box-border overflow-hidden border border-slate-100">
+                        <div className="border-b-[1.5px] border-black pb-1 mb-1 text-center flex-shrink-0">
+                            <p className="text-[7px] font-black uppercase tracking-[1px]">DIGIFORT LABS</p>
+                            <div className="bg-black text-white px-1.5 py-0.5 inline-block text-[6px] font-black uppercase tracking-widest mt-1">
+                                {activeItem.type}
+                            </div>
                         </div>
-                        <div className="bg-white p-2 mb-3 flex justify-center" id="real-qr-code">
+
+                        <div className="main-info flex-1 flex flex-col justify-center text-center overflow-hidden py-2">
+                            {activeItem.box && (
+                                <p className="text-[8px] font-black text-slate-800 uppercase mb-1 tracking-tight">BOX: {activeItem.box}</p>
+                            )}
+                            <h4
+                                className="font-black text-[11px] uppercase leading-[1.1] mb-1 overflow-hidden"
+                                style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
+                            >
+                                {activeItem.title}
+                            </h4>
+                            <p className="text-[6px] font-bold text-slate-500 italic mt-1 truncate">{activeItem.hospital}</p>
+                        </div>
+
+                        <div className="bg-white p-1 mb-2 flex justify-center flex-shrink-0" id="real-qr-code">
                             <QRCode
-                                size={150}
-                                style={{ height: "auto", maxWidth: "100%", width: "100%" }}
+                                size={120}
+                                style={{ height: "auto", maxWidth: "80px", width: "100%" }}
                                 value={activeItem.code || "UNKNOWN"}
                                 viewBox={`0 0 256 256`}
                             />
                         </div>
-                        <div className="text-center">
-                            <h4 className="font-black text-2xl uppercase leading-tight mb-2">{activeItem.title}</h4>
-                            <p className="text-sm font-bold text-slate-500">{activeItem.subtext}</p>
+
+                        <div className="border-t border-black pt-1 flex justify-center text-[7px] font-black uppercase flex-shrink-0">
+                            <span>MRD: {activeItem.code}</span>
                         </div>
                     </div>
                 ) : (

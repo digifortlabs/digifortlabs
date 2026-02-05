@@ -88,6 +88,7 @@ class BoxUpdate(BaseModel):
 class BoxResponse(BaseModel):
     box_id: int
     hospital_name: Optional[str] = None
+    hospital_id: Optional[int] = None
     label: str
     location_code: Optional[str] = None # Hidden for Hospital Staff
     status: str
@@ -578,6 +579,7 @@ def get_boxes(db: Session = Depends(get_db), current_user: User = Depends(get_cu
         results.append(BoxResponse(
             box_id=b.box_id,
             hospital_name=hospital_name,
+            hospital_id=b.hospital_id,
             label=b.label,
             location_code=b.location_code if show_location else "RESTRICTED",
             status=b.status,
@@ -685,6 +687,7 @@ def create_box(box: BoxCreate, db: Session = Depends(get_db), current_user: User
     return BoxResponse(
         box_id=new_box.box_id,
         hospital_name=new_box.hospital.legal_name if new_box.hospital else "Unknown",
+        hospital_id=new_box.hospital_id,
         label=new_box.label,
         location_code=new_box.location_code,
         status=new_box.status,
@@ -821,7 +824,10 @@ def get_next_sequence(hospital_id: int, category: str = "GENERAL", db: Session =
         "IPD": "IPD",       # Inpatient
         "MLC": "MCL",       # Medico-Legal (User Code: MCL)
         "BIRTH": "BRT",     # Birth
-        "DEATH": "DHT"      # Death (User Code: DHT)
+        "DEATH": "DHT",     # Death (User Code: DHT)
+        "BRT": "BRT",
+        "DHT": "DHT",
+        "MCL": "MCL"
     }
     cat_code = cat_map.get(category.upper(), "IPD") # Default to IPD if unknown
 
@@ -872,7 +878,9 @@ def get_box_patients(box_id: int, db: Session = Depends(get_db), current_user: U
             "record_id": p.record_id,
             "patient_u_id": p.patient_u_id,
             "full_name": p.full_name,
-            "hospital_id": p.hospital_id
+            "hospital_id": p.hospital_id,
+            "hospital_name": p.hospital.legal_name if p.hospital else "Unknown",
+            "category": p.patient_category or "IPD"
         } for p in patients
     ]
 

@@ -54,6 +54,21 @@ export default function RecordsList() {
     // Sorting
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
+    // Date Filtering
+    const getMonthRange = () => {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of month
+        return {
+            start: start.toISOString().split('T')[0],
+            end: end.toISOString().split('T')[0]
+        };
+    };
+
+    const monthRange = getMonthRange();
+    const [startDate, setStartDate] = useState(monthRange.start);
+    const [endDate, setEndDate] = useState(monthRange.end);
+
     const [hospitalDoctors, setHospitalDoctors] = useState<string[]>([]);
     const handleSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'asc';
@@ -405,7 +420,7 @@ export default function RecordsList() {
         }
     }, [userProfile]);
 
-    // Refetch patients when hospital selection changes (for super admins)
+    // Refetch patients when hospital selection or dates change
     useEffect(() => {
         if (selectedHospitalId) {
             fetchPatients();
@@ -413,8 +428,11 @@ export default function RecordsList() {
         } else if (userProfile && ['website_admin', 'website_staff', 'superadmin', 'superadmin_staff'].includes(userProfile.role)) {
             setPatients([]); // Clear list if deselecting
             setHospitalDoctors([]);
+        } else if (userProfile && !['website_admin', 'website_staff', 'superadmin', 'superadmin_staff'].includes(userProfile.role)) {
+            // Regular hospital user - fetch based on dates
+            fetchPatients();
         }
-    }, [selectedHospitalId, userProfile]);
+    }, [selectedHospitalId, userProfile, startDate, endDate]);
 
     const fetchUserProfile = async () => {
         const token = localStorage.getItem('token');
@@ -442,11 +460,12 @@ export default function RecordsList() {
 
     const fetchPatients = async () => {
         const token = localStorage.getItem('token');
+        setLoading(true);
         try {
-            // Append hospital_id filter if selected (and user is privileged)
-            let url = `${API_URL}/patients/`; // Note: matches backend router or fixes it
+            // Append hospital_id and date filters
+            let url = `${API_URL}/patients/?start_date=${startDate}&end_date=${endDate}`;
             if (selectedHospitalId && (userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff')) {
-                url += `?hospital_id=${selectedHospitalId}`;
+                url += `&hospital_id=${selectedHospitalId}`;
             }
 
             const res = await fetch(url, {
@@ -624,6 +643,44 @@ export default function RecordsList() {
                             onChange={e => setSearchTerm(e.target.value)}
                         />
                     </div>
+
+                    {/* Date Filters */}
+                    <div className="flex items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-xl shadow-sm">
+                        <div className="flex flex-col px-2">
+                            <label className="text-[10px] uppercase font-black text-slate-400 mb-0.5 ml-1">From</label>
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="bg-transparent text-sm font-bold text-slate-700 outline-none"
+                            />
+                        </div>
+                        <div className="w-px h-8 bg-slate-100 mx-1"></div>
+                        <div className="flex flex-col px-2">
+                            <label className="text-[10px] uppercase font-black text-slate-400 mb-0.5 ml-1">To</label>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="bg-transparent text-sm font-bold text-slate-700 outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Filtered Stats */}
+                    <div className="flex gap-2 bg-indigo-50/50 border border-indigo-100 p-1.5 rounded-xl shadow-sm">
+                        <div className="flex flex-col px-3 border-r border-indigo-100">
+                            <label className="text-[10px] uppercase font-black text-indigo-400 mb-0.5">Total Patients</label>
+                            <span className="text-sm font-black text-indigo-700 leading-none">{filteredPatients.length}</span>
+                        </div>
+                        <div className="flex flex-col px-3">
+                            <label className="text-[10px] uppercase font-black text-indigo-400 mb-0.5">Total Files</label>
+                            <span className="text-sm font-black text-indigo-700 leading-none">
+                                {filteredPatients.reduce((acc, p) => acc + (p.files?.length || 0), 0)}
+                            </span>
+                        </div>
+                    </div>
+
                     <div className="flex gap-2">
                         <button
                             onClick={() => {
