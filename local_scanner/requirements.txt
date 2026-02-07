@@ -1,5 +1,0 @@
-opencv-python
-requests
-Pillow
-pyinstaller
-pylsd-nova
