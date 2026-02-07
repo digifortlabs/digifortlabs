@@ -8,6 +8,7 @@ echo.
 REM --- CONFIGURATION ---
 set BACKUP_ROOT=E:\Digifort_Backup
 set ENV_FILE=.env
+set PATH=%PATH%;C:\pgsql\bin
 
 if not exist E:\ (
     echo [ERROR] Drive E: not found! Please connect your drive.
@@ -45,6 +46,8 @@ for /f "usebackq tokens=1* delims==" %%A in (%ENV_FILE%) do (
 
 
 REM Cleanup quotes
+set AWS_ACCESS_KEY_ID=%AWS_ACCESS_KEY_ID:"=%
+set AWS_SECRET_ACCESS_KEY=%AWS_SECRET_ACCESS_KEY:"=%
 set AWS_BUCKET_NAME=%AWS_BUCKET_NAME:"=%
 set DB_HOST=%DB_HOST:"=%
 set DB_USER=%DB_USER:"=%
@@ -79,11 +82,12 @@ if "%DB_HOST%"=="" (
     if %errorlevel% neq 0 (
         echo [ERROR] 'pg_dump' cmd not found. Install PostgreSQL tools to back up DB.
     ) else (
-        pg_dump -h %DB_HOST% -U %DB_USER% -d %DB_NAME% -f "%BACKUP_ROOT%\DB_Dumps\backup_%date:~-4,4%-%date:~-7,2%-%date:~-10,2%.sql"
-        if %errorlevel% equ 0 (
-            echo [SUCCESS] Saved to %BACKUP_ROOT%\DB_Dumps
-        ) else (
+        echo     Running pg_dump...
+        pg_dump -h %DB_HOST% -U %DB_USER% -d %DB_NAME% -f "%BACKUP_ROOT%\DB_Dumps\backup_db.sql"
+        if errorlevel 1 (
             echo [ERROR] Database backup failed. Check firewall/VPN.
+        ) else (
+            echo [SUCCESS] Saved to %BACKUP_ROOT%\DB_Dumps
         )
     )
 )
