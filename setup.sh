@@ -67,6 +67,7 @@ if ! command -v tesseract &> /dev/null; then
     tar -xf 5.3.3.tar.gz
     cd tesseract-5.3.3
     ./autogen.sh
+    export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
     ./configure
     make -j$(nproc)
     sudo make install
