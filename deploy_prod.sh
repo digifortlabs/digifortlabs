@@ -56,8 +56,12 @@ echo "📦 [3/7] Validating System Dependencies..."
 # Ensure Python 3.9+ and essential tools
 sudo dnf install -y git python3-pip nginx augeas-libs unzip mesa-libGL poppler-utils
 
-# Node.js check (AL2023 default nodejs is already installed via setup.sh)
-if ! command -v node &> /dev/null; then
+# Node.js 20+ check
+CURRENT_NODE=$(node -v 2>/dev/null | grep -oP 'v\K[0-9]+' || echo "0")
+if [ "$CURRENT_NODE" -lt 20 ]; then
+    echo "📌 Upgrading Node.js to version 20..."
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+    sudo dnf remove -y nodejs nodejs-libs || true
     sudo dnf install -y nodejs
 fi
 
