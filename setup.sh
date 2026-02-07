@@ -54,15 +54,24 @@ sudo dnf install -y redis6
 sudo systemctl enable --now redis6
 echo "✅ Redis installed and started."
 
-# Install FFmpeg (Static build for ARM64)
+# Install FFmpeg (Detect Architecture: x86_64 or ARM64)
 if ! command -v ffmpeg &> /dev/null; then
-    echo "Downloading FFmpeg static build..."
-    wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-arm64-static.tar.xz
-    tar -xf ffmpeg-release-arm64-static.tar.xz
-    sudo cp ffmpeg-*-arm64-static/ffmpeg /usr/local/bin/
-    sudo cp ffmpeg-*-arm64-static/ffprobe /usr/local/bin/
-    rm -rf ffmpeg-*-arm64-static*
-    echo "✅ FFmpeg installed."
+    ARCH=$(uname -m)
+    echo "Downloading FFmpeg static build for $ARCH..."
+    if [ "$ARCH" = "x86_64" ]; then
+        URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+        DIR_SUFFIX="amd64"
+    else
+        URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-arm64-static.tar.xz"
+        DIR_SUFFIX="arm64"
+    fi
+    
+    wget $URL
+    tar -xf ffmpeg-release-$DIR_SUFFIX-static.tar.xz
+    sudo cp ffmpeg-*-static/ffmpeg /usr/local/bin/
+    sudo cp ffmpeg-*-static/ffprobe /usr/local/bin/
+    rm -rf ffmpeg-*-static*
+    echo "✅ FFmpeg ($ARCH) installed."
 else
     echo "ℹ️ FFmpeg already exists. Skipping."
 fi
