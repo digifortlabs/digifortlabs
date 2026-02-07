@@ -53,13 +53,11 @@ sudo rm -rf /tmp/* || true
 
 # --- 3. DEPENDENCY VALIDATION ---
 echo "📦 [3/7] Validating System Dependencies..."
-# Ensure Python 3.11+ and Node 20
-sudo dnf install -y git python3-pip nginx augeas-libs unzip mesa-libGL poppler-utils tesseract
+# Ensure Python 3.9+ and essential tools
+sudo dnf install -y git python3-pip nginx augeas-libs unzip mesa-libGL poppler-utils
 
-# Node.js 20 check
-CURRENT_NODE=$(node -v 2>/dev/null || echo "not found")
-if [[ "$CURRENT_NODE" != v20* ]]; then
-    curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+# Node.js check (AL2023 default nodejs is already installed via setup.sh)
+if ! command -v node &> /dev/null; then
     sudo dnf install -y nodejs
 fi
 
@@ -97,10 +95,10 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Database Connectivity Test (Ensuring RDS is reachable)
-echo "🐘 Testing RDS Database Connectivity..."
-# We use a simple python command to check if we can connect
-python3 -c "import os; from app.database import engine; conn = engine.connect(); print('Database connection SUCCESS'); conn.close()" || { echo "❌ ERROR: Database (RDS) unreachable. Check .env and AWS SG."; exit 1; }
+# Database Connectivity Test
+echo "🐘 Testing Database Connectivity..."
+# Use the DATABASE_URL from .env if available
+python3 -c "import os; from app.database import engine; conn = engine.connect(); print('Database connection SUCCESS'); conn.close()" || { echo "❌ ERROR: Database unreachable. Check .env settings."; exit 1; }
 
 # --- 6. LAUNCH SERVICES ---
 echo "🚀 [6/7] Finalizing System Launch..."
