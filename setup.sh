@@ -122,8 +122,8 @@ sudo systemctl enable --now postgresql
 # Create Database and User
 echo "🐘 Configuring Database..."
 sudo su - postgres -c "psql -c \"CREATE DATABASE digifort_db;\"" || true
-sudo su - postgres -c "psql -c \"CREATE USER keval WITH ENCRYPTED PASSWORD 'YourSecurePassword';\"" || true
-sudo su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE digifort_db TO keval;\"" || true
+sudo su - postgres -c "psql -c \"CREATE USER digifort_admin WITH ENCRYPTED PASSWORD 'YourSecurePassword';\"" || true
+sudo su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE digifort_db TO digifort_admin;\"" || true
 
 # Optimize PostgreSQL for low RAM (128MB shared buffers, max 20 connections)
 PG_CONF="/var/lib/pgsql/data/postgresql.conf"
