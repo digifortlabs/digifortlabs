@@ -12,13 +12,13 @@ set -e
 echo "🚀 [START] Beginning system setup sequence..."
 
 # 1. System Update & Timezone
-echo "--- [1/7] Updating System & Setting Timezone ---"
+echo "--- [1/8] Updating System & Setting Timezone ---"
 sudo dnf update -y
 sudo timedatectl set-timezone Asia/Kolkata || true
 echo "✅ System updated. Current time: $(date)"
 
 # 2. Configure Swap Memory (Crucial for t4g.small with 2GB RAM)
-echo "--- [2/7] Configuring 2GB Swap Memory ---"
+echo "--- [2/8] Configuring 2GB Swap Memory ---"
 if [ ! -f /swapfile ]; then
     sudo fallocate -l 2G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
     sudo chmod 600 /swapfile
@@ -31,7 +31,7 @@ else
 fi
 
 # 3. Install Runtime Environments (Node.js 20, Python 3, PM2)
-echo "--- [3/7] Installing Runtimes & Build Tools ---"
+echo "--- [3/8] Installing Runtimes & Build Tools ---"
 sudo dnf install -y python3 python3-pip git wget unzip
 
 # Install Node.js 20 (Amazon Linux 2023 provides nodejs)
@@ -42,13 +42,48 @@ echo "✅ Node version: $(node -v)"
 sudo npm install -g pm2
 echo "✅ PM2 installed: $(pm2 -v)"
 
-# 4. Install System-Level Dependencies & Plugins
-echo "--- [4/7] Installing System Dependencies (OCR, PDF, Images) ---"
-sudo dnf install -y nginx augeas-libs mesa-libGL poppler-utils tesseract
-echo "✅ System dependencies installed."
+# 4. Install System-Level Dependencies
+echo "--- [4/8] Installing System Dependencies (Nginx, PDF, Images) ---"
+sudo dnf install -y nginx augeas-libs mesa-libGL poppler-utils
+sudo dnf install -y gcc-c++ make autoconf automake libtool pkgconfig libpng-devel libjpeg-turbo-devel libtiff-devel zlib-devel
 
-# 5. Install Redis & FFmpeg
-echo "--- [5/7] Installing Redis & FFmpeg ---"
+# 5. Build Tesseract & Leptonica (AL2023 lacks tesseract in default repos)
+echo "--- [5/8] Building Tesseract & Leptonica ---"
+if ! command -v tesseract &> /dev/null; then
+    echo "🏗️ Building Tesseract and Leptonica from source..."
+    cd /tmp
+    
+    # Build Leptonica 1.83.0
+    wget https://github.com/DanBloomberg/leptonica/releases/download/1.83.0/leptonica-1.83.0.tar.gz
+    tar -xf leptonica-1.83.0.tar.gz
+    cd leptonica-1.83.0
+    ./configure
+    make -j$(nproc)
+    sudo make install
+    cd ..
+    
+    # Build Tesseract 5.3.3
+    wget https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.3.3.tar.gz
+    tar -xf 5.3.3.tar.gz
+    cd tesseract-5.3.3
+    ./autogen.sh
+    ./configure
+    make -j$(nproc)
+    sudo make install
+    sudo ldconfig
+    
+    # Download English data
+    sudo mkdir -p /usr/local/share/tessdata
+    sudo wget -O /usr/local/share/tessdata/eng.traineddata https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata
+    
+    cd $HOME/digifortlabs
+    echo "✅ Tesseract and Leptonica installed."
+else
+    echo "ℹ️ Tesseract already exists. Skipping."
+fi
+
+# 6. Install Redis & FFmpeg
+echo "--- [6/8] Installing Redis & FFmpeg ---"
 # Install Redis 6 (AL2023 default)
 sudo dnf install -y redis6
 sudo systemctl enable --now redis6
@@ -76,8 +111,8 @@ else
     echo "ℹ️ FFmpeg already exists. Skipping."
 fi
 
-# 6. Database Setup (PostgreSQL 15)
-echo "--- [6/7] Installing & Configuring PostgreSQL 15 ---"
+# 7. Database Setup (PostgreSQL 15)
+echo "--- [7/8] Installing & Configuring PostgreSQL 15 ---"
 sudo dnf install -y postgresql15-server postgresql15
 sudo postgresql-setup --initdb
 sudo systemctl enable --now postgresql
@@ -98,8 +133,8 @@ if [ -f "$PG_CONF" ]; then
     echo "✅ PostgreSQL optimized for t4g.small."
 fi
 
-# 7. Create Application Directory Structure
-echo "--- [7/7] Creating Application Directories ---"
+# 8. Create Application Directory Structure
+echo "--- [8/8] Creating Application Directories ---"
 sudo mkdir -p /home/ec2-user/digifortlabs
 sudo mkdir -p /home/ec2-user/digifortlabsdb
 
