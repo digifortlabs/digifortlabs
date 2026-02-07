@@ -78,7 +78,7 @@ if ! command -v tesseract &> /dev/null; then
     sudo mkdir -p /usr/local/share/tessdata
     sudo wget -O /usr/local/share/tessdata/eng.traineddata https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata
     
-    cd $HOME/digifortlabs
+    cd "$(dirname "$(readlink -f "$0")")"
     echo "✅ Tesseract and Leptonica installed."
 else
     echo "ℹ️ Tesseract already exists. Skipping."
