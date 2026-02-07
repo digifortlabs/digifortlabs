@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { X, Shield, Lock, AlertCircle, Loader2, Download, ZoomIn, ZoomOut, Maximize, RotateCw } from 'lucide-react';
 import { API_URL } from '@/config/api';
 import { Document, Page, pdfjs } from 'react-pdf';
+import ConfirmationModal from './ConfirmationModal';
 
 // Core PDF worker setup for Next.js
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -26,6 +27,14 @@ const SecurePDFViewer: React.FC<SecurePDFViewerProps> = ({ fileId, filename, onC
     const [pdfWidth, setPdfWidth] = useState<number | null>(null);
     const [isRequesting, setIsRequesting] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // Modal State
+    const [modal, setModal] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        type: 'info' as 'info' | 'success' | 'danger' | 'warning'
+    });
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -120,19 +129,47 @@ const SecurePDFViewer: React.FC<SecurePDFViewerProps> = ({ fileId, filename, onC
                 headers: { Authorization: `Bearer ${token}` }
             });
 
+            const data = await res.json();
+
             if (res.ok) {
-                const data = await res.json();
-                alert(data.message);
+                if (data.status === 'direct' && data.url) {
+                    // Trigger Download
+                    window.location.href = data.url;
+                    setModal({
+                        isOpen: true,
+                        title: 'Download Started',
+                        message: 'Your download should begin automatically.',
+                        type: 'success'
+                    });
+                } else {
+                    // Email Sent or other success
+                    setModal({
+                        isOpen: true,
+                        title: 'Request Sent',
+                        message: data.message,
+                        type: 'success'
+                    });
+                }
+
                 if (data.remaining_requests !== undefined) {
                     setRemainingRequests(data.remaining_requests);
                 }
             } else {
-                const err = await res.json();
-                alert(err.detail || "Request failed");
+                setModal({
+                    isOpen: true,
+                    title: 'Request Failed',
+                    message: data.detail || "Unable to process your request.",
+                    type: 'danger'
+                });
             }
         } catch (e) {
             console.error(e);
-            alert("Error sending request");
+            setModal({
+                isOpen: true,
+                title: 'Network Error',
+                message: "Please check your connection and try again.",
+                type: 'danger'
+            });
         } finally {
             setIsRequesting(false);
         }
@@ -264,6 +301,17 @@ const SecurePDFViewer: React.FC<SecurePDFViewerProps> = ({ fileId, filename, onC
                 }
                 @media print { body { display: none !important; } }
             `}} />
+
+            <ConfirmationModal
+                isOpen={modal.isOpen}
+                onClose={() => setModal({ ...modal, isOpen: false })}
+                onConfirm={() => setModal({ ...modal, isOpen: false })}
+                title={modal.title}
+                message={modal.message}
+                type={modal.type}
+                confirmText="OK"
+                cancelText="Close"
+            />
         </div>
     );
 };

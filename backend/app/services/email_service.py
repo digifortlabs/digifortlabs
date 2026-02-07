@@ -864,3 +864,99 @@ class EmailService:
                 print("⚠️ [DEV MODE] Ignoring email failure")
                 return True
             return False
+
+    @staticmethod
+    def send_download_delivery_email(
+        recipient_email: str, 
+        admin_email: str, 
+        hospital_name: str, 
+        patient_name: str, 
+        mrd_id: str, 
+        filename: str, 
+        requester_name: str,
+        ip_address: str,
+        file_content: bytes
+    ):
+        """
+        Deliver a requested file via email attachment with audit details.
+        """
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.base import MIMEBase
+        from email import encoders
+        from datetime import datetime
+        from app.core.config import settings
+
+        SMTP_SERVER = settings.SMTP_SERVER
+        SMTP_PORT = settings.SMTP_PORT
+        SMTP_USERNAME = settings.SMTP_USERNAME
+        SMTP_PASSWORD = settings.SMTP_PASSWORD
+        # Delivery From info@ account as per user request
+        SENDER_EMAIL = "info@digifortlabs.com"
+
+        try:
+            if not SMTP_SERVER or not SMTP_USERNAME:
+                print(f"⚠️ [EMAIL SERVICE] SMTP not configured. Mocking delivery to {recipient_email}")
+                return True
+
+            msg = MIMEMultipart()
+            msg['From'] = f"Digifort Delivery <{SENDER_EMAIL}>"
+            msg['To'] = recipient_email
+            if admin_email and admin_email != recipient_email:
+                msg['Cc'] = admin_email
+            msg['Subject'] = f"MEDICAL RECORD DELIVERY: {patient_name} ({filename})"
+
+            body = f"""
+            <html>
+            <body style="font-family: sans-serif; color: #333;">
+                <div style="max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+                    <div style="background: #10b981; color: #fff; padding: 20px; text-align: center;">
+                        <h2 style="margin: 0;">Medical Record Delivery</h2>
+                    </div>
+                    <div style="padding: 20px;">
+                        <p>Hello,</p>
+                        <p>The requested medical record is attached to this email.</p>
+                        
+                        <div style="background: #f9fafb; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+                            <p><strong>Hospital:</strong> {hospital_name}</p>
+                            <p><strong>Patient:</strong> {patient_name} (MRD: {mrd_id})</p>
+                            <p><strong>File Name:</strong> {filename}</p>
+                            <p><strong>Requested By:</strong> {requester_name} ({recipient_email})</p>
+                            <p><strong>Request IP:</strong> {ip_address}</p>
+                            <p><strong>Timestamp:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                        </div>
+                        
+                        <p style="color: #666; font-size: 14px;"><strong>Security Notice:</strong> This document contains sensitive health information. Please ensure it is handled in compliance with local regulations.</p>
+                    </div>
+                    <div style="background: #f8fafc; padding: 15px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+                        This is an automated delivery from Digifort Labs Platform.
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            msg.attach(MIMEText(body, 'html'))
+
+            # Attachment handling
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(file_content)
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
+            msg.attach(part)
+
+            recipients = [recipient_email]
+            if admin_email and admin_email != recipient_email:
+                recipients.append(admin_email)
+
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.sendmail(SMTP_USERNAME, recipients, msg.as_string())
+            server.quit()
+            
+            print(f"✅ [EMAIL SERVICE] File delivered to {recipient_email} (CC: {admin_email})")
+            return True
+        except Exception as e:
+            print(f"❌ [EMAIL SERVICE] Delivery failed: {e}")
+            return False

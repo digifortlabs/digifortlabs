@@ -3,7 +3,7 @@ import os
 import uuid
 from typing import List, Optional, Union
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, Response, Request
 from pydantic import BaseModel
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
@@ -16,6 +16,7 @@ from ..services.ocr import extract_text_from_pdf, classify_document, extract_tex
 from ..services.s3_handler import S3Manager
 from ..services.ai_service import ai_service
 from ..services.storage_service import StorageService
+from ..services.email_service import EmailService
 
 router = APIRouter(tags=["patients"])
 
@@ -1515,64 +1516,86 @@ def delete_patient(
 
 @router.post("/files/{file_id}/request-download")
 def request_file_download(
+    request: Request,
     file_id: int, 
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
     """
-    Sends a download request email to a custom address and CCs the hospital admin.
+    SuperAdmin: Immediate direct download link.
+    Hospital User: Email delivery as attachment (From info@), limit 5 per lifetime.
     """
     pdf_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
     if not pdf_file:
         raise HTTPException(status_code=404, detail="File not found")
         
-    # Check permissions (only for their own hospital)
-    if current_user.hospital_id and pdf_file.patient.hospital_id != current_user.hospital_id:
-        if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
-            raise HTTPException(status_code=403, detail="Not authorized")
-            
-    # Get hospital admin email (from Hospital table)
+    # Check permissions
+    is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
+    if not is_platform and pdf_file.patient.hospital_id != current_user.hospital_id:
+         raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Case 1: SuperAdmin / Platform Staff -> Direct Download URL
+    if is_platform:
+        from ..core.config import settings
+        url = f"{settings.BACKEND_URL}/api/patients/files/{file_id}/serve"
+        return {
+            "status": "direct",
+            "message": "Authorized for direct download.",
+            "url": url
+        }
+
+    # Case 2: Hospital User (MRD/Staff) -> Email Delivery
+    # Enforce 5-request lifetime limit
+    if pdf_file.download_request_count is None:
+        pdf_file.download_request_count = 0
+        
+    if pdf_file.download_request_count >= 5:
+        raise HTTPException(
+            status_code=403, 
+            detail="Security Limit: Download requests for this file have reached the maximum limit of 5. Please contact support."
+        )
+
+    # Prepare Audit & delivery info
     hospital = pdf_file.patient.hospital
     admin_email = hospital.email
+    client_ip = request.client.host if request.client else "Unknown"
     
-    # Custom mail ID (Target for the request)
-    # Using a placeholder, should ideally be in settings
-    custom_target_email = "requests@digifortlabs.com"
-    
-    # Check limit for hospital users
-    is_hospital_user = current_user.role in [UserRole.HOSPITAL_ADMIN, UserRole.HOSPITAL_STAFF]
-    if is_hospital_user:
-        if pdf_file.download_request_count is None:
-            pdf_file.download_request_count = 0
-            
-        if pdf_file.download_request_count >= 5:
-            raise HTTPException(
-                status_code=403, 
-                detail="Security Limit: Download requests for this file have reached the maximum limit of 5. Please contact support."
-            )
-    
-    success = EmailService.send_download_request_email(
-        custom_email=custom_target_email,
+    # Fetch and Decrypt File for Attachment
+    s3_manager = S3Manager()
+    encrypted_bytes = s3_manager.get_file_bytes(pdf_file.s3_key)
+    if not encrypted_bytes:
+        raise HTTPException(status_code=404, detail="Physical file not found in storage")
+        
+    try:
+        decrypted_bytes = decrypt_data(encrypted_bytes)
+    except Exception as e:
+        print(f"Decryption failed for delivery: {e}")
+        raise HTTPException(status_code=500, detail="Secure processing failed for document delivery")
+
+    # Send Secure Email
+    success = EmailService.send_download_delivery_email(
+        recipient_email=current_user.email,
         admin_email=admin_email,
         hospital_name=hospital.legal_name,
         patient_name=pdf_file.patient.full_name,
         mrd_id=pdf_file.patient.patient_u_id,
         filename=pdf_file.filename,
-        requester_email=current_user.email
+        requester_name=current_user.full_name,
+        ip_address=client_ip,
+        file_content=decrypted_bytes
     )
     
     if not success:
-        raise HTTPException(status_code=500, detail="Failed to send download request email")
+        raise HTTPException(status_code=500, detail="Failed to deliver file via secure email.")
     
-    # Increment count for hospital users
-    if is_hospital_user:
-        pdf_file.download_request_count = (pdf_file.download_request_count or 0) + 1
-        db.commit()
-        
-    remaining = 5 - (pdf_file.download_request_count or 0) if is_hospital_user else "Unlimited"
+    # Increment count and commit (Lifetime Tracking)
+    pdf_file.download_request_count += 1
+    db.commit()
+    
+    remaining = 5 - pdf_file.download_request_count
     
     return {
-        "status": "success", 
-        "message": f"Download request sent to {custom_target_email}. Hospital admin ({admin_email}) has been CC'd.",
+        "status": "email_delivered", 
+        "message": f"Medical record delivered successfully to {current_user.email}. Hospital admin ({admin_email}) CC'd.",
         "remaining_requests": remaining
     }
