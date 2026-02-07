@@ -51,7 +51,8 @@ sudo dnf install -y gcc-c++ make autoconf automake libtool pkgconfig libpng-deve
 echo "--- [5/8] Building Tesseract & Leptonica ---"
 if ! command -v tesseract &> /dev/null; then
     echo "🏗️ Building Tesseract and Leptonica from source..."
-    cd /tmp
+    mkdir -p $HOME/build_temp
+    cd $HOME/build_temp
     
     # Build Leptonica 1.83.0
     wget https://github.com/DanBloomberg/leptonica/releases/download/1.83.0/leptonica-1.83.0.tar.gz
