@@ -32,7 +32,7 @@ fi
 
 # 3. Install Runtime Environments (Node.js 20, Python 3, PM2)
 echo "--- [3/7] Installing Runtimes & Build Tools ---"
-sudo dnf install -y python3 python3-pip git wget curl unzip
+sudo dnf install -y python3 python3-pip git wget unzip
 
 # Install Node.js 20 (Amazon Linux 2023 provides nodejs)
 sudo dnf install -y nodejs
