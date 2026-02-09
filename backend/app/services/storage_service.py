@@ -231,6 +231,7 @@ class StorageService:
             new_s3_key += ext
 
         # 2. Move file in S3 (copy + delete)
+        # 2. Move file in S3 (copy + delete)
         try:
             # Copy to new location
             s3_manager.s3_client.copy_object(
@@ -239,18 +240,28 @@ class StorageService:
                 Key=new_s3_key
             )
             
-            # Delete old draft
-            s3_manager.delete_file(s3_key)
+            # Verify Copy Success before Deleting separate source
+            # (Head Object will raise exception if not found)
+            s3_manager.get_object_info(new_s3_key) 
             
-            # 3. Update database
+            # 3. Update database FIRST
             f.s3_key = new_s3_key
             f.storage_path = f"s3://{s3_manager.bucket_name}/{new_s3_key}"
             f.upload_status = 'confirmed'
             db.commit()
             
+            # 4. Delete old draft ONLY after DB commit success
+            try:
+                s3_manager.delete_file(s3_key)
+            except Exception as e:
+                print(f"⚠️ Warning: Failed to cleanup draft {s3_key} after migration: {e}")
+            
             return True, "Migrated from draft to final storage"
             
         except Exception as e:
+            # If DB commit failed, we still have the draft.
+            # If Copy failed, we still have the draft.
+            print(f"❌ Migration Error: {e}")
             return False, f"S3 migration failed: {str(e)}"
 
     @staticmethod
