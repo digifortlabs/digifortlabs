@@ -13,6 +13,7 @@ from ..models import (
 )
 from .auth import get_current_user
 from ..services.email_service import EmailService
+from ..audit import log_audit
 
 router = APIRouter()
 
@@ -380,6 +381,15 @@ def update_invoice(
             txn.voucher_number = invoice.invoice_number
             txn.date = invoice.bill_date or txn.date
             db.commit()
+
+        # Log Audit
+        log_audit(
+            db, 
+            user_id=current_user.user_id, 
+            action="INVOICE_UPDATED", 
+            details=f"Updated Invoice #{invoice.invoice_number} (New Total: {invoice.total_amount})",
+            hospital_id=invoice.hospital_id
+        )
             
         return get_invoice_details(invoice_id, db, current_user)
         
@@ -433,6 +443,15 @@ def delete_invoice_item(
     if txn:
         txn.debit = invoice.total_amount
         db.commit()
+
+    # Log Audit
+    log_audit(
+        db, 
+        user_id=current_user.user_id, 
+        action="INVOICE_ITEM_DELETED", 
+        details=f"Deleted item from Invoice #{invoice.invoice_number} (New Total: {invoice.total_amount})",
+        hospital_id=invoice.hospital_id
+    )
 
     return {"message": "Item removed and totals updated", "new_total": invoice.total_amount}
 
@@ -699,6 +718,15 @@ def generate_invoice(
             res.company_bank_acc = config.company_bank_acc
             res.company_bank_ifsc = config.company_bank_ifsc
         
+        # Log Audit
+        log_audit(
+            db, 
+            user_id=current_user.user_id, 
+            action="INVOICE_GENERATED", 
+            details=f"Generated Invoice #{invoice_number} for {hospital.legal_name} (Amount: {grand_total})",
+            hospital_id=hospital.hospital_id
+        )
+        
         return res
         
     except Exception as e:
@@ -763,6 +791,15 @@ def receive_payment(
     db.add(ledger_entry)
     
     db.commit()
+
+    # Log Audit
+    log_audit(
+        db, 
+        user_id=current_user.user_id, 
+        action="PAYMENT_RECEIVED", 
+        details=f"Received Payment of {invoice.total_amount} for Invoice #{invoice.invoice_number} via {req.payment_method}",
+        hospital_id=invoice.hospital_id
+    )
     
     return {"message": "Payment recorded successfully", "invoice_number": invoice.invoice_number}
 

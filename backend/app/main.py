@@ -21,7 +21,19 @@ def run_migrations():
             conn.execute(text("ALTER TABLE pdf_files ADD COLUMN IF NOT EXISTS download_request_count INTEGER DEFAULT 0"))
             # 2. Add login tracking to users
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS previous_login_at TIMESTAMPTZ"))
+
+            # 3. Add Medical Fields to Patients
+            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS doctor_name VARCHAR"))
+            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS weight VARCHAR"))
+            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS diagnosis TEXT"))
+            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS operative_notes TEXT"))
+            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS mediclaim VARCHAR"))
+            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS medical_summary TEXT"))
+            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS remarks TEXT"))
+            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS mother_record_id INTEGER"))
+
             conn.commit()
             print("✅ Auto-migrations completed successfully.")
     except Exception as e:

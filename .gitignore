@@ -11,6 +11,11 @@ id_rsa.pub
 credentials
 aws-config.json
 client_secrets.json
+start_dev.ps1
+verify_prod.py
+audit_files.py
+delete_rds.py
+find_missing_file.py
 
 # Cloud / Platform
 .aws/

@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.models import InventoryItem, InventoryLog, User
 from app.routers.auth import get_current_user
+from app.audit import log_audit
 
 router = APIRouter(
     prefix="/inventory",
@@ -68,6 +69,15 @@ def create_item(item: InventoryItemCreate, db: Session = Depends(get_db), curren
         db.add(log)
         db.commit()
         
+    # Log Audit
+    log_audit(
+        db, 
+        user_id=current_user.user_id, 
+        action="INVENTORY_ITEM_CREATED", 
+        details=f"Created Item: {new_item.name} (Stock: {new_item.current_stock})",
+        hospital_id=current_user.hospital_id
+    )      
+        
     return new_item
 
 @router.patch("/{item_id}/stock")
@@ -121,6 +131,15 @@ def update_stock(
     db.add(log)
     db.commit()
     
+    # Log Audit
+    log_audit(
+        db, 
+        user_id=current_user.user_id, 
+        action="INVENTORY_STOCK_UPDATED", 
+        details=f"Updated Stock for {item.name}: {req.change_type} {req.quantity} (New Balance: {item.current_stock})",
+        hospital_id=current_user.hospital_id
+    )
+    
     return {"message": "Stock updated", "current_stock": item.current_stock}
 
 @router.delete("/{item_id}")
@@ -134,4 +153,14 @@ def delete_item(item_id: int, db: Session = Depends(get_db), current_user: User 
         
     db.delete(item)
     db.commit()
+
+    # Log Audit
+    log_audit(
+        db, 
+        user_id=current_user.user_id, 
+        action="INVENTORY_ITEM_DELETED", 
+        details=f"Deleted Item: {item.name}",
+        hospital_id=current_user.hospital_id
+    )
+
     return {"message": "Item deleted"}

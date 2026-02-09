@@ -46,19 +46,21 @@ export default function Sidebar({ userRole }: SidebarProps) {
                                     <span>🌍</span> Platform Admin
                                 </div>
                             </Link>
-
-                            <Link
-                                href="/dashboard/audit"
-                                className={`block px-4 py-3 rounded-xl transition-all duration-200 ${isActive('/dashboard/audit')
-                                    ? 'active bg-slate-800 text-white font-medium'
-                                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                                    }`}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <span>📋</span> System Audit
-                                </div>
-                            </Link>
                         </>
+                    )}
+
+                    {(userRole === 'website_admin' || userRole === 'hospital_admin') && (
+                        <Link
+                            href="/dashboard/audit"
+                            className={`block px-4 py-3 rounded-xl transition-all duration-200 ${isActive('/dashboard/audit')
+                                ? 'active bg-slate-800 text-white font-medium'
+                                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                                }`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <span>📋</span> System Audit
+                            </div>
+                        </Link>
                     )}
 
                     <Link
@@ -146,16 +148,16 @@ export default function Sidebar({ userRole }: SidebarProps) {
                         </Link>
                     )}
                 </div>
-            </div >
 
-            {/* Logout Footer */}
-            < div className="p-6 border-t border-slate-800 bg-slate-950" >
-                <button onClick={handleLogout} className="w-full flex items-center justify-between px-4 py-3 text-sm text-red-500 hover:bg-red-950/20 hover:text-red-400 rounded-xl transition-all font-bold">
-                    <span>Sign Out</span>
-                    <span className="text-xl">→</span>
-                </button>
-                {userRole && <p className="text-[10px] text-center text-slate-600 mt-2 uppercase tracking-wider">{userRole.replace('_', ' ')}</p>}
-            </div >
+                {/* Logout Footer */}
+                <div className="p-6 border-t border-slate-800 bg-slate-950">
+                    <button onClick={handleLogout} className="w-full flex items-center justify-between px-4 py-3 text-sm text-red-500 hover:bg-red-950/20 hover:text-red-400 rounded-xl transition-all font-bold">
+                        <span>Sign Out</span>
+                        <span className="text-xl">→</span>
+                    </button>
+                    {userRole && <p className="text-[10px] text-center text-slate-600 mt-2 uppercase tracking-wider">{userRole.replace('_', ' ')}</p>}
+                </div>
+            </div>
         </div >
     );
 }
