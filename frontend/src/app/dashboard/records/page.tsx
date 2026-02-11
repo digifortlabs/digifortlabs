@@ -925,6 +925,7 @@ export default function RecordsList() {
                                         setSelectedPatientId(null);
                                         fetchPatients();
                                     }}
+                                    onFileUpdate={fetchPatients}
                                 />
                             </div>
                         </div>

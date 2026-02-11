@@ -122,9 +122,10 @@ interface PatientDetailViewProps {
     patientId: number | string;
     onBack?: () => void;
     onDeleteSuccess?: () => void;
+    onFileUpdate?: () => void;
 }
 
-export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }: PatientDetailViewProps) {
+export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, onFileUpdate }: PatientDetailViewProps) {
     const router = useRouter();
     const id = String(patientId);
 
@@ -499,6 +500,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                     const successCount = fileQueue.filter(f => f.status === 'completed').length;
                     if (successCount > 0) {
                         triggerToast(`Successfully uploaded ${successCount} file(s)!`, "success");
+                        if (onFileUpdate) onFileUpdate();
                     }
                     setFileQueue([]);
                 }, 1000);
@@ -660,6 +662,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                     if (res.ok) {
                         triggerToast(data.message || "Operation successful.", "success");
                         if (id) fetchPatient(token || '', id);
+                        if (onFileUpdate) onFileUpdate();
                     } else {
                         triggerToast(`Failed: ${data.detail || "Unknown error"}`, "error");
                     }
@@ -691,6 +694,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                     if (res.ok) {
                         triggerToast("File confirmed and published!", "success");
                         if (id) fetchPatient(token || '', id);
+                        if (onFileUpdate) onFileUpdate();
                     } else {
                         triggerToast("Failed to confirm file.", "error");
                         setConfirmingFiles(prev => {
@@ -729,6 +733,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                     if (res.ok) {
                         triggerToast("Draft discarded successfully", "info");
                         if (id) fetchPatient(token || '', id);
+                        if (onFileUpdate) onFileUpdate();
                     }
                 } catch (e) { console.error(e); }
             }
@@ -750,6 +755,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess }
                 triggerToast(data.message, "success");
                 // Refresh data to show status
                 fetchPatient(token, patientId.toString());
+                if (onFileUpdate) onFileUpdate();
             } else {
                 const errorData = await res.json();
                 triggerToast(errorData.detail || "Restoration request failed", "error");
