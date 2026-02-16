@@ -1,112 +1,130 @@
-# DIGIFORT LABS - Architecture & Flow Diagrams
+# DigiFort Labs - Architecture & Flow Diagrams
 
-This document provides visual representations of the website's frontend and backend systems, their interactions, and data flows.
+This document providing a comprehensive visual representation of the DigiFort Labs system, its components, security layers, and data life cycles.
 
-## 1. High-Level System Architecture
+## 1. High-Level Infrastructure & System Architecture
 
-This diagram shows the main components of the system and how they connect.
+This diagram illustrates the production deployment on AWS, featuring containerized services behind a reverse proxy.
 
 ```mermaid
 graph TD
-    User((User/Browser)) -->|HTTPS| Frontend[Next.js Frontend]
-    Frontend -->|API Requests| Backend[FastAPI Backend]
-    Backend -->|SQL Queries| DB[(PostgreSQL Database)]
-    Backend -->|File Storage| Storage{AWS S3 / Local Storage}
-    Backend -.->|Background Tasks| Celery[Celery / Async Tasks]
+    subgraph ClientLayer [Client Layer]
+        User((User Browser))
+        ScannerApp[[local_scanner Tool]]
+    end
+
+    subgraph Infrastructure [AWS EC2 Instance]
+        NGINX[NGINX Reverse Proxy]
+        
+        subgraph DockerEnvironment [Dockerized Environment]
+            Frontend[Next.js Frontend]
+            Backend[FastAPI Backend]
+            Workers[Async Workers<br/>'OCR Processing & Archival']
+            Redis[(Redis)]
+        end
+    end
+
+    subgraph StorageLayer [Hybrid Storage Approach]
+        S3{{AWS S3<br/>'Cloud Archiving'}}
+        LocalStorage[(Local Volume<br/>'Temporary/Local')]
+    end
+
+    subgraph DataLayer [Data Persistence]
+        DB[(PostgreSQL Database)]
+        SQLite[(SQLite<br/>'Local Dev Only')]
+    end
+
+    User -->|HTTPS| NGINX
+    ScannerApp -->|API / HTTPS| NGINX
+    
+    NGINX -->|Route: /| Frontend
+    NGINX -->|Route: /api| Backend
+    
+    Backend <-->|Cache / Queue| Redis
+    Redis <--> Workers
+    
+    Backend <--> DB
+    Backend <--> S3
+    Backend <--> LocalStorage
+    
+    style NGINX fill:#f9f,stroke:#333,stroke-width:2px
+    style DockerEnvironment fill:#e1f5fe,stroke:#01579b,stroke-dasharray: 5 5
 ```
 
-## 2. Frontend Flow & Navigation
+## 2. Authentication & Security Flow
 
-This chart maps the complete user journey from public pages to the protected dashboard.
+Secure session management using HttpOnly Cookies and centralized JWT validation.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant NGINX
+    participant Backend
+    participant DB
+
+    User->>Frontend: Enter Credentials
+    Frontend->>NGINX: POST /api/auth/token
+    NGINX->>Backend: Forward to Auth Router
+    Backend->>DB: Verify User & Organization
+    DB-->>Backend: User Records
+    
+    Note over Backend: Generate JWT with Session ID
+    
+    Backend-->>NGINX: HTTP 200 + Set-Cookie (HttpOnly)
+    NGINX-->>Frontend: Success Response
+    
+    Note over Frontend: Session Monitor Starts
+    
+    User->>Frontend: Perform Action
+    Frontend->>NGINX: API Request (Cookie attached)
+    NGINX->>Backend: Forward Request
+    Note over Backend: Validate Token from Cookie
+    Backend-->>User: Authorized Content
+```
+
+## 3. Patient Record & Document Flow
+
+The dual-path upload strategy for manual and automated digitization.
 
 ```mermaid
 flowchart TD
-    Start((User Visit)) --> Landing[Landing Page /]
-    Landing --> AuthCheck{Is Logged In?}
-    
-    AuthCheck -- No --> Login[Login Page /login]
-    Login --> AuthAPI[Backend /auth/login]
-    AuthAPI -- Success --> SetToken[Save Token to localStorage]
-    SetToken --> DashGuard
-    
-    AuthCheck -- Yes --> DashGuard[Dashboard Layout Guard]
-    
-    subgraph Dashboard[Protected Dashboard Area]
-        DashGuard --> Layout[Dashboard Layout]
-        Layout --> Navbar[Navbar / Sidebar]
-        Layout --> Content[Page Content]
-        
-        Content --> Records[Patient Records]
-        Content --> Accounting[Accounting / Billing]
-        Content --> Hospital[Hospital Settings]
-        Content --> Inventory[Inventory Mgmt]
+    subgraph PathA [Path A: Manual Upload]
+        Browser[User Browser] -->|Upload UI| BackendAPI[FastAPI Backend]
     end
-    
-    subgraph SessionMgmt[Session & Security]
-        Monitor[Session Monitor] --- Layout
-        Inactivity[Inactivity Hook] --- Layout
-        Inactivity -- Timeout --> Logout[Auto Logout]
-    end
-```
 
-## 3. Dashboard Component Architecture
-
-How the dashboard UI is structured and shared components are utilized.
-
-```mermaid
-graph TD
-    DL[Dashboard Layout]
-    DL --> DN[Dashboard Navbar]
-    DL --> MB[Maintenance Banner]
-    DL --> IW[Inactivity Warning]
-    DL --> PC[Page Content]
-    
-    subgraph Shared Components
-        DN --> Profile[User Profile Dropdown]
-        DN --> HospitalInfo[Active Hospital Selector]
-        PC --> ErrorBoundary[Global Error Boundary]
-        PC --> Loading[Loading States]
+    subgraph PathB [Path B: Automated Digitization]
+        Scanner[Physical Box] -->|Scan| LocalTool[local_scanner app]
+        LocalTool -->|Auth & Batch Push| BackendAPI
     end
-    
-    subgraph Page Modules
-        PC --- R[Records View]
-        PC --- A[Accounting Grid]
-        PC --- S[Settings Form]
+
+    subgraph Processing [Backend Processing]
+        BackendAPI --> Metadata[Save Records to PostgreSQL]
+        BackendAPI --> Archive[Push to AWS S3 Archival]
+        BackendAPI --> OCR[Trigger OCR Worker]
     end
+
+    OCR -->|Refined Metadata| Metadata
+    
+    style PathA fill:#fff9c4,stroke:#fbc02d
+    style PathB fill:#c8e6c9,stroke:#388e3c
 ```
 
 ## 4. Backend Request Lifecycle
 
-This diagram illustrates how a request is processed by the FastAPI backend.
+Internal processing of API requests from middleware to database.
 
 ```mermaid
-sequenceDiagram
-    participant Browser
-    participant Middleware
-    participant Router
-    participant Service
-    participant Database/S3
-
-    Browser->>Middleware: API Request
-    Note over Middleware: Security, Rate Limit, Bandwidth
-    Middleware->>Router: Standardized Request
-    Router->>Service: Business Logic Call
-    Service->>Database/S3: Data Access
-    Database/S3-->>Service: Result Data
-    Service-->>Router: Formatted Response
-    Router-->>Middleware: JSON/File Response
-    Middleware-->>Browser: HTTP Response (CORS applied)
-```
-
-## 5. Patient Record & Document Flow
-
-The path of patient data and PDF uploads from the UI to storage.
-
-```mermaid
-flowchart TD
-    UI[Frontend: Upload Action] --> |PDF File| Router[Backend: Patient Router]
-    Router --> Service[Backend: Storage Service]
-    Service --> |Save Metadata| DB[(PostgreSQL)]
-    Service --> |Upload File| S3{AWS S3 Bucket}
-    S3 --> |Path Reference| DB
+graph LR
+    Req((Request)) --> Sec[Security Middleware<br/>'Rate Limit / CSRF']
+    Sec --> Bandwidth[Bandwidth Monitor]
+    Bandwidth --> Router{Router Selection}
+    
+    Router -->|/patients| PR[Patient Router]
+    Router -->|/storage| SR[Storage Router]
+    Router -->|/billing| AR[Accounting Router]
+    
+    PR & SR & AR --> Logic[Business Logic / Service]
+    Logic --> Persistence[(DB / S3 / Local)]
+    Logic -.->|Task Delay| Redis[(Redis Queue)]
 ```
