@@ -2,6 +2,8 @@
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 
+import { useTerminology } from '@/hooks/useTerminology';
+
 interface SidebarProps {
     userRole: string;
 }
@@ -9,6 +11,7 @@ interface SidebarProps {
 export default function Sidebar({ userRole }: SidebarProps) {
     const router = useRouter();
     const pathname = usePathname();
+    const { terms, specialty } = useTerminology();
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -20,10 +23,18 @@ export default function Sidebar({ userRole }: SidebarProps) {
     return (
         <div className="w-72 bg-slate-900 border-r border-slate-800 hidden md:flex flex-col flex-shrink-0 text-slate-300">
             {/* Brand Header */}
-            <div className="h-20 flex items-center px-8 border-b border-slate-800 bg-slate-950">
-                <div className="bg-white rounded-lg px-3 py-2 w-full flex justify-center">
-                    <img src="/logo/longlogo.png" alt="Digifort Labs" className="h-8 w-auto object-contain" />
+            <div className="h-24 flex flex-col items-center justify-center px-8 border-b border-slate-800 bg-slate-950 gap-2">
+                <div className="bg-white rounded-lg px-3 py-1.5 w-full flex justify-center">
+                    <img src="/logo/longlogo.png" alt="Digifort Labs" className="h-6 w-auto object-contain" />
                 </div>
+                {specialty !== 'General' && (
+                    <div className={`px-3 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${specialty === 'Dental' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                            specialty === 'ENT' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                                'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
+                        }`}>
+                        {specialty === 'Dental' ? '🦷 Dental Clinic' : specialty === 'ENT' ? '👂 ENT Specialty' : specialty}
+                    </div>
+                )}
             </div>
 
             {/* Navigation */}
@@ -101,7 +112,7 @@ export default function Sidebar({ userRole }: SidebarProps) {
                                 }`}
                         >
                             <div className="flex items-center gap-3">
-                                <span>📂</span> Patient Records
+                                <span>📂</span> {terms.patient} Records
                             </div>
                         </Link>
                     )}

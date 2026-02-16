@@ -650,7 +650,7 @@ export default function CommandCenter() {
                                                     for (const file of drafts) {
                                                         setConfirmModal(prev => ({ ...prev, message: `Publishing: ${file.filename}\n(Patient: ${file.patient_name})` }));
 
-                                                        const confRes = await fetch(`${API_URL}/storage/confirm/${file.file_id}`, {
+                                                        const confRes = await fetch(`${API_URL}/patients/files/${file.file_id}/confirm`, {
                                                             method: 'POST',
                                                             headers: { Authorization: `Bearer ${token}` }
                                                         });
@@ -733,7 +733,7 @@ export default function CommandCenter() {
                                                         for (const file of drafts) {
                                                             setConfirmModal(prev => ({ ...prev, message: `Publishing: ${file.filename}\n(Patient: ${file.patient_name})` }));
 
-                                                            const confRes = await fetch(`${API_URL}/storage/confirm/${file.file_id}`, {
+                                                            const confRes = await fetch(`${API_URL}/patients/files/${file.file_id}/confirm`, {
                                                                 method: 'POST',
                                                                 headers: { Authorization: `Bearer ${token}` }
                                                             });

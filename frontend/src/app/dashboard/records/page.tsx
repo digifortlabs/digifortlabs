@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Filter, Download, Eye, Trash2, Edit, ChevronLeft, ChevronRight, X, Upload, Sparkles, FolderOpen, Calendar, User, FileText, Loader2, RefreshCw, Camera, Building2, ArrowRight, ArrowUpDown, Pencil } from 'lucide-react';
+import { useTerminology } from '@/hooks/useTerminology';
 import CameraModal from './components/CameraModal';
 import PatientDetailView from './components/PatientDetailView';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -12,6 +13,7 @@ import { formatDate } from '@/lib/dateFormatter';
 export default function RecordsList() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { terms } = useTerminology();
     const hospitalIdParam = searchParams.get('hospital_id');
     const action = searchParams.get('action'); // ?action=new
 
@@ -462,8 +464,8 @@ export default function RecordsList() {
         const token = localStorage.getItem('token');
         setLoading(true);
         try {
-            // Append hospital_id and date filters
-            let url = `${API_URL}/patients/?start_date=${startDate}&end_date=${endDate}`;
+            // Append hospital_id, date filters, and cache buster
+            let url = `${API_URL}/patients/?start_date=${startDate}&end_date=${endDate}&_t=${new Date().getTime()}`;
             if (selectedHospitalId && (userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff')) {
                 url += `&hospital_id=${selectedHospitalId}`;
             }
@@ -607,9 +609,9 @@ export default function RecordsList() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-                        <User className="text-indigo-600" /> Patient Records
+                        <User className="text-indigo-600" /> {terms.patient} Records <span className="text-xs text-slate-400 font-mono">(v1.2)</span>
                     </h1>
-                    <p className="text-slate-500 mt-2">Manage patient files and digital records.</p>
+                    <p className="text-slate-500 mt-1">Manage patient files and digital records.</p>
                 </div>
 
                 <div className="flex gap-2 w-full md:w-auto flex-wrap items-center">
@@ -625,7 +627,7 @@ export default function RecordsList() {
                                     setSelectedHospitalId(val ? parseInt(val) : null);
                                 }}
                             >
-                                <option value="">Select Hospital</option>
+                                <option value="">Select {terms.hospital}</option>
                                 {hospitals.map(h => (
                                     <option key={h.hospital_id} value={h.hospital_id}>{h.legal_name}</option>
                                 ))}
@@ -637,7 +639,7 @@ export default function RecordsList() {
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input
                             type="text"
-                            placeholder="Search Patients..."
+                            placeholder={`Search ${terms.patient}s...`}
                             className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-medium transition"
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
@@ -670,7 +672,7 @@ export default function RecordsList() {
                     {/* Filtered Stats */}
                     <div className="flex gap-2 bg-indigo-50/50 border border-indigo-100 p-1.5 rounded-xl shadow-sm">
                         <div className="flex flex-col px-3 border-r border-indigo-100">
-                            <label className="text-[10px] uppercase font-black text-indigo-400 mb-0.5">Total Patients</label>
+                            <label className="text-[10px] uppercase font-black text-indigo-400 mb-0.5">Total {terms.patient}s</label>
                             <span className="text-sm font-black text-indigo-700 leading-none">{filteredPatients.length}</span>
                         </div>
                         <div className="flex flex-col px-3">
@@ -689,7 +691,7 @@ export default function RecordsList() {
                             }}
                             className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/20"
                         >
-                            <Plus size={20} /> <span className="hidden md:inline">Add New MRD</span>
+                            <Plus size={20} /> <span className="hidden md:inline">Add New {terms.mrd}</span>
                         </button>
                     </div>
                 </div>
@@ -740,10 +742,10 @@ export default function RecordsList() {
                                                 <div className="flex items-center gap-1">Name <ArrowUpDown size={12} className="text-slate-300" /></div>
                                             </th>
                                             <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort('patient_u_id')}>
-                                                <div className="flex items-center gap-1">MRD (IPD) <ArrowUpDown size={12} className="text-slate-300" /></div>
+                                                <div className="flex items-center gap-1">{terms.mrd} (IPD) <ArrowUpDown size={12} className="text-slate-300" /></div>
                                             </th>
-                                            <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort('admission_date')}>
-                                                <div className="flex items-center gap-1">Adm. Date <ArrowUpDown size={12} className="text-slate-300" /></div>
+                                            <th onClick={() => handleSort('patient_category')} className="p-3 hidden md:table-cell whitespace-nowrap">
+                                                <div className="flex items-center gap-1 cursor-pointer hover:text-indigo-600 transition">Reg./Category <ArrowUpDown size={12} className="text-slate-300" /></div>
                                             </th>
                                             <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort('discharge_date')}>
                                                 <div className="flex items-center gap-1">Disch. Date <ArrowUpDown size={12} className="text-slate-300" /></div>
@@ -819,13 +821,13 @@ export default function RecordsList() {
                                                         )}
                                                     </td>
 
-                                                    {/* Admission Date */}
-                                                    <td className="p-3 align-middle whitespace-nowrap">
-                                                        {p.admission_date ? (
-                                                            <span className="text-xs text-slate-500 font-medium">{formatDate(p.admission_date)}</span>
-                                                        ) : (
-                                                            <span className="text-slate-300 text-xs">—</span>
-                                                        )}
+                                                    <td className="p-3 hidden md:table-cell align-middle whitespace-nowrap">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs font-bold text-slate-700">{p.admission_date ? formatDate(p.admission_date) : '—'}</span>
+                                                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border w-fit mt-1 uppercase tracking-tight ${p.patient_category === 'OPD' ? 'bg-amber-50 text-amber-700 border-amber-100' : p.patient_category === 'MCL' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
+                                                                {p.patient_category || 'IPD'}
+                                                            </span>
+                                                        </div>
                                                     </td>
 
                                                     {/* Discharge Date */}
@@ -897,7 +899,7 @@ export default function RecordsList() {
                                                             setIsEditing(true);
                                                             setShowCreateModal(true);
 
-                                                        }} className="text-slate-400 hover:text-blue-600 transition p-2 hover:bg-blue-50 rounded-lg" title="Edit Patient">
+                                                        }} className="text-slate-400 hover:text-blue-600 transition p-2 hover:bg-blue-50 rounded-lg" title={`Edit ${terms.patient}`}>
                                                             <Pencil size={16} />
                                                         </button>
 
@@ -940,7 +942,7 @@ export default function RecordsList() {
                         <div className="bg-white rounded-[1.5rem] max-w-2xl w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200 relative max-h-[95vh] overflow-y-auto custom-scrollbar">
                             <div className="flex justify-between items-center mb-5 sticky top-0 bg-white z-10 pb-2 border-b border-slate-100">
                                 <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                                    <User className="text-indigo-600" size={20} /> {isEditing ? 'Edit Patient' : 'Register New Patient'}
+                                    <User className="text-indigo-600" size={20} /> {isEditing ? `Edit ${terms.patient}` : `Register New ${terms.patient}`}
                                 </h2>
                                 <div className="flex gap-2">
                                     {/* AI Features - Restricted to Authorized Roles */}
@@ -1005,7 +1007,7 @@ export default function RecordsList() {
                                 {/* Hospital Selection for Super Admins */}
                                 {(userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff') && (
                                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                                        <label className="block text-xs font-bold text-slate-700 mb-1">Select Hospital <span className="text-red-500">*</span></label>
+                                        <label className="block text-xs font-bold text-slate-700 mb-1">Select {terms.hospital} <span className="text-red-500">*</span></label>
                                         <div className="relative">
                                             <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                                             <select
@@ -1014,7 +1016,7 @@ export default function RecordsList() {
                                                 value={selectedHospitalId || ''}
                                                 onChange={(e) => setSelectedHospitalId(Number(e.target.value))}
                                             >
-                                                <option value="">-- Choose Hospital --</option>
+                                                <option value="">-- Choose {terms.hospital} --</option>
                                                 {hospitals.map(h => (
                                                     <option key={h.hospital_id} value={h.hospital_id}>{h.legal_name}</option>
                                                 ))}
@@ -1025,7 +1027,7 @@ export default function RecordsList() {
                                 {/* Section 1: Patient Identity */}
                                 <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
                                     <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                        <User size={12} /> Patient Identity (UHID)
+                                        <User size={12} /> {terms.patient} Identity (UHID)
                                     </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                                         <div className="md:col-span-4">
@@ -1051,7 +1053,7 @@ export default function RecordsList() {
                                                 type="text"
                                                 required
                                                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-900 text-sm"
-                                                placeholder="Patient Name"
+                                                placeholder={`${terms.patient} Name`}
                                                 value={newPatient.full_name}
                                                 onChange={e => handleNameSearch(e.target.value)}
                                                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
@@ -1142,7 +1144,7 @@ export default function RecordsList() {
                                     </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                                         <div className="md:col-span-6">
-                                            <label className="block text-xs font-bold text-slate-700 mb-1">MRD No. <span className="text-red-500">*</span></label>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">{terms.mrd} No. <span className="text-red-500">*</span></label>
                                             <input required type="text" className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 font-mono font-black text-slate-800 text-sm ${isMRDDuplicate ? 'border-red-500' : 'border-slate-200'}`}
                                                 value={newPatient.patient_u_id}
                                                 onChange={e => {
@@ -1151,7 +1153,7 @@ export default function RecordsList() {
                                                     if (val.length >= 3) checkDuplicateMRD(val);
                                                     else setIsMRDDuplicate(false);
                                                 }}
-                                                placeholder="New MRD" />
+                                                placeholder={`New ${terms.mrd}`} />
                                             {isMRDDuplicate && <p className="text-red-500 text-[10px] mt-0.5">⚠️ Exists!</p>}
                                             {(lastAssignedMRD || lastMRD) && !isMRDDuplicate && (
                                                 <div className="flex gap-3 mt-1">
@@ -1162,7 +1164,7 @@ export default function RecordsList() {
                                                     )}
                                                     {lastMRD && (
                                                         <p className="text-indigo-400 text-[10px] italic">
-                                                            Patient Previous: <span className="font-bold text-indigo-600">{lastMRD}</span>
+                                                            {terms.patient} Previous: <span className="font-bold text-indigo-600">{lastMRD}</span>
                                                         </p>
                                                     )}
                                                 </div>

@@ -29,15 +29,15 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User 
     # Decouple from Audit Logs (Set user_id to NULL to keep history)
     db.query(AuditLog).filter(AuditLog.user_id == user_id).update({AuditLog.user_id: None})
     
-    db.delete(target_user)
-    db.commit()
-
     try:
         from ..audit import log_audit
         # We use current_user here because target_user is deleted
         log_audit(db, current_user.user_id, "USER_DELETED", f"Deleted user: {target_user.email}", hospital_id=current_user.hospital_id)
     except Exception as e:
         print(f"Audit Log Error: {e}")
+
+    db.delete(target_user)
+    db.commit()
 
     return {"message": "User deleted"}
 
@@ -49,13 +49,25 @@ PLAN_LIMITS = {
 
 class UserCreate(BaseModel):
     email: EmailStr
+    full_name: str # Fix: Added full_name
     password: str
     role: UserRole
+
+class HospitalMini(BaseModel):
+    hospital_id: int
+    legal_name: str
+    specialty: str
+    terminology: dict
+    class Config:
+        from_attributes = True
 
 class UserResponse(BaseModel):
     user_id: int
     email: str
+    full_name: Optional[str] = None
     role: UserRole
+    hospital_id: Optional[int] = None
+    hospital: Optional[HospitalMini] = None
     plain_password: Optional[str] = None
     
     class Config:
@@ -133,12 +145,15 @@ def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: U
             raise HTTPException(status_code=404, detail="Hospital not found")
         
         current_count = db.query(User).filter(User.hospital_id == target_hospital_id).count()
-        limit = PLAN_LIMITS.get(hospital.subscription_tier, 2)
+        
+        # Use Hospital-specific limit if set, otherwise fallback to Plan limit (which is now just a label)
+        # Default max_users in DB is 2.
+        limit = hospital.max_users if hospital.max_users is not None else PLAN_LIMITS.get(hospital.subscription_tier, 2)
         
         if current_count >= limit:
             raise HTTPException(
                 status_code=403, 
-                detail=f"Subscription Seat Limit Reached. Your current plan ({hospital.subscription_tier}) allows only {limit} users. Please contact sales@dizivault.com to upgrade."
+                detail=f"User Limit Reached. Your current limit is {limit} users. Contact support to add more seats."
             )
 
     # 2. Check if email exists
@@ -149,21 +164,22 @@ def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: U
     # 3. Create User
     new_user = User(
         email=user.email,
+        full_name=user.full_name, # Fix: Populate full_name
         hashed_password=get_password_hash(user.password),
         plain_password=user.password, # For visibility as requested
         role=user.role,
         hospital_id=target_hospital_id
     )
     
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
     try:
         from ..audit import log_audit
         log_audit(db, current_user.user_id, "USER_CREATED", f"Created user: {new_user.email} ({new_user.role})", hospital_id=current_user.hospital_id)
     except Exception as e:
         print(f"Audit Log Error: {e}")
+    
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
 
     return new_user
 
@@ -191,13 +207,13 @@ def update_user(user_id: int, data: UserUpdate, db: Session = Depends(get_db), c
         target_user.plain_password = data.password
         target_user.current_session_id = str(uuid.uuid4()) # Invalidate existing sessions
         
-    db.commit()
-
     try:
         from ..audit import log_audit
         log_audit(db, current_user.user_id, "USER_UPDATED", f"Updated user: {target_user.email}", hospital_id=current_user.hospital_id)
     except Exception as e:
         print(f"Audit Log Error: {e}")
+
+    db.commit()
 
     return {"message": "User updated"}
 

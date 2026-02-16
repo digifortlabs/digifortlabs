@@ -7,7 +7,23 @@ from sqlalchemy.orm import Session
 
 from ..audit import log_audit
 from ..database import get_db
-from ..models import Hospital, Patient, PDFFile, User, UserRole
+from ..models import (
+    AuditLog, 
+    Hospital, 
+    Patient, 
+    PDFFile, 
+    User, 
+    UserRole,
+    Invoice,
+    FileRequest,
+    QAIssue,
+    PhysicalBox,
+    PhysicalRack,
+    InventoryLog,
+    PhysicalMovementLog,
+    PatientDiagnosis,
+    PatientProcedure
+)
 from ..utils import get_password_hash
 from .auth import get_current_user
 from ..services.email_service import EmailService
@@ -18,6 +34,8 @@ class HospitalCreate(BaseModel):
     legal_name: str
     subscription_tier: str = "Standard"
     hospital_type: str = "Private"
+    specialty: str = "General"
+    terminology: dict = {}
     email: EmailStr
     director_name: Optional[str] = None
     registration_number: Optional[str] = None
@@ -38,6 +56,8 @@ class HospitalResponse(BaseModel):
     legal_name: str
     subscription_tier: str
     hospital_type: Optional[str] = None
+    specialty: Optional[str] = "General"
+    terminology: Optional[dict] = {}
     email: EmailStr
     director_name: Optional[str] = None
     registration_number: Optional[str] = None
@@ -72,11 +92,16 @@ class HospitalUpdate(BaseModel):
     legal_name: Optional[str] = None
     subscription_tier: Optional[str] = None
     hospital_type: Optional[str] = None
+    specialty: Optional[str] = None
+    terminology: Optional[dict] = None
     is_active: Optional[bool] = None
 
     price_per_file: Optional[float] = None
     included_pages: Optional[int] = None
     price_per_extra_page: Optional[float] = None
+    
+    max_users: Optional[int] = None
+    per_user_price: Optional[float] = None
 
 class AdminCreate(BaseModel):
     email: EmailStr
@@ -153,6 +178,8 @@ def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), cur
         legal_name=hospital.legal_name, 
         subscription_tier=hospital.subscription_tier,
         hospital_type=hospital.hospital_type.upper() if hospital.hospital_type else "PRIVATE",
+        specialty=hospital.specialty,
+        terminology=hospital.terminology,
         email=hospital.email,
         director_name=hospital.director_name,
         registration_number=hospital.registration_number,
@@ -174,6 +201,7 @@ def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), cur
     if not db.query(User).filter(User.email == hospital.email).first():
         new_admin = User(
             email=hospital.email,
+            full_name=hospital.director_name or hospital.legal_name, # Fix: Populate full_name
             hashed_password=get_password_hash("Hospital@123"),
             plain_password="Hospital@123",
             role=UserRole.HOSPITAL_ADMIN,
@@ -222,6 +250,7 @@ def create_hospital_admin(hospital_id: int, admin_data: AdminCreate, db: Session
     # Create Admin
     new_admin = User(
         email=admin_data.email,
+        full_name=admin_data.legal_name, # Fix: Populate full_name
         hashed_password=get_password_hash(admin_data.password),
         plain_password=admin_data.password,
         role=UserRole.HOSPITAL_ADMIN,
@@ -259,10 +288,40 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Sessi
     # 3. Apply Logic
     if is_super:
         # Super Admin: Apply Immediately
+        old_email = db_hospital.email
+        new_email = update_data.get("email")
+
         for key, value in update_data.items():
             if key in ["gst_number", "hospital_type"] and value:
                 value = value.upper()
             setattr(db_hospital, key, value)
+        
+        # Sync Email to Admin User if changed
+        if new_email and new_email != old_email:
+             admin_user = db.query(User).filter(
+                 User.hospital_id == hospital_id, 
+                 User.email == old_email,
+                 User.role == UserRole.HOSPITAL_ADMIN
+             ).first()
+             
+             if admin_user:
+                 admin_user.email = new_email
+                 # Send Notification to Old and New Email
+                 EmailService.send_email_update_notification(
+                    old_email=old_email,
+                    new_email=new_email,
+                    name=db_hospital.legal_name
+                 )
+                 
+                 # Optional: Log this sync
+                 log_audit(db, current_user.user_id, "ADMIN_EMAIL_SYNC", f"Updated admin email from {old_email} to {new_email}")
+
+        # Explicit handling for fields that might be reset or set to 0
+        if hospital_update.max_users is not None:
+             db_hospital.max_users = hospital_update.max_users
+        if hospital_update.per_user_price is not None:
+             db_hospital.per_user_price = hospital_update.per_user_price
+
         # Also clear pending updates if any, as super overrides
         db_hospital.pending_updates = None
     else:
@@ -270,13 +329,13 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Sessi
         import json
         db_hospital.pending_updates = json.dumps(update_data)
 
-    db.commit()
-    db.refresh(db_hospital)
-
     try:
         log_audit(db, current_user.user_id, "HOSPITAL_UPDATED", f"Updated hospital details for {db_hospital.legal_name}")
     except Exception as e:
         print(f"Audit Log Error: {e}")
+
+    db.commit()
+    db.refresh(db_hospital)
 
     return db_hospital
 
@@ -392,16 +451,64 @@ def delete_hospital(hospital_id: int, db: Session = Depends(get_db), current_use
     # For now, we will attempt delete. If foreign keys prevent it, it will raise 500 error, 
     # which is generic but valid for V1.
     try:
-        # Manual cleanup of users to avoid constraint errors if CASCADE is not set
-        db.query(User).filter(User.hospital_id == hospital_id).delete()
+        # Pre-fetch IDs for bulk operations
+        hospital_users = db.query(User.user_id).filter(User.hospital_id == hospital_id).all()
+        user_ids = [u[0] for u in hospital_users]
         
+        hospital_patients = db.query(Patient.record_id).filter(Patient.hospital_id == hospital_id).all()
+        record_ids = [p[0] for p in hospital_patients]
+
+        # 1. Unlink Users from Audit Logs (Set user_id = None)
+        # We do this for ALL users belonging to this hospital
+        if user_ids:
+            db.query(AuditLog).filter(AuditLog.user_id.in_(user_ids)).update({AuditLog.user_id: None}, synchronize_session=False)
+            db.query(InventoryLog).filter(InventoryLog.performed_by.in_(user_ids)).update({InventoryLog.performed_by: None}, synchronize_session=False)
+            db.query(PhysicalMovementLog).filter(PhysicalMovementLog.performed_by_user_id.in_(user_ids)).update({PhysicalMovementLog.performed_by_user_id: None}, synchronize_session=False)
+
+        # 1.1 Also delete generic AuditLogs linked to the hospital directly
+        db.query(AuditLog).filter(AuditLog.hospital_id == hospital_id).delete(synchronize_session=False)
+        
+        # 2. Delete Invoices (Cascade to Items usually, but ensure Items are gone)
+        # If InvoiceItem has no direct hospital_id (it links to Invoice), deleting Invoice should be enough if DB cascade exists.
+        # But to be safe in SQLAlchemy:
+        invoice_ids = [i[0] for i in db.query(Invoice.invoice_id).filter(Invoice.hospital_id == hospital_id).all()]
+        if invoice_ids:
+             from ..models import InvoiceItem
+             db.query(InvoiceItem).filter(InvoiceItem.invoice_id.in_(invoice_ids)).delete(synchronize_session=False)
+        db.query(Invoice).filter(Invoice.hospital_id == hospital_id).delete(synchronize_session=False)
+        
+        # 3. Delete File Requests & QA & QAIssue
+        db.query(FileRequest).filter(FileRequest.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(QAIssue).filter(QAIssue.hospital_id == hospital_id).delete(synchronize_session=False)
+        
+        # 4. Delete Physical Inventory
+        # Boxes first (FK to Rack), then Racks
+        db.query(PhysicalBox).filter(PhysicalBox.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(PhysicalRack).filter(PhysicalRack.hospital_id == hospital_id).delete(synchronize_session=False)
+        
+        # 5. Delete Patients (and cascading Files, Diagnosis, Procedures)
+        if record_ids:
+            db.query(PatientDiagnosis).filter(PatientDiagnosis.record_id.in_(record_ids)).delete(synchronize_session=False)
+            db.query(PatientProcedure).filter(PatientProcedure.record_id.in_(record_ids)).delete(synchronize_session=False)
+            
+            # Delete Files
+            db.query(PDFFile).filter(PDFFile.record_id.in_(record_ids)).delete(synchronize_session=False)
+        
+        db.query(Patient).filter(Patient.hospital_id == hospital_id).delete(synchronize_session=False)
+
+        # 6. Delete Users
+        db.query(User).filter(User.hospital_id == hospital_id).delete(synchronize_session=False)
+        
+        # 7. Delete Hospital
+        # 7. Delete Hospital
         db.delete(db_hospital)
-        db.commit()
         
         try:
              log_audit(db, current_user.user_id, "HOSPITAL_DELETED", f"Deleted hospital: {db_hospital.legal_name}")
         except:
              pass
+             
+        db.commit()
 
     except Exception as e:
         db.rollback()

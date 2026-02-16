@@ -195,8 +195,8 @@ async def get_desktop_version():
     Used by the app to check for updates on startup.
     """
     return {
-        "latest_version": "1.0.0", # Can be bumped to force update
-        "message": "Please download the latest version from the dashboard."
+        "latest_version": "2.1", # Updated to match new build
+        "message": "A new version (v2.1) is available with MRD naming support. Please update."
     }
 
 from fastapi.responses import FileResponse
@@ -206,14 +206,17 @@ import os
 async def download_scanner_app():
     """
     Downloads the current scanner app.
-    Prioritizes the compiled .exe if it exists in the dist folder.
     """
-    exe_path = "local_scanner/dist/DigifortScanner.exe"
-    py_path = "local_scanner/scanner_app.py"
+    # Path where we uploaded the EXE (frontend/public)
+    # We use valid absolute path on the server
+    exe_path = "/home/ec2-user/digifortlabs/frontend/public/DigifortScanner.exe"
     
     if os.path.exists(exe_path):
-        return FileResponse(exe_path, media_type='application/octet-stream', filename="DigifortScanner.exe")
-    elif os.path.exists(py_path):
-        return FileResponse(py_path, media_type='application/x-python-code', filename="scanner_app.py")
+        return FileResponse(exe_path, media_type='application/vnd.microsoft.portable-executable', filename="DigifortScanner.exe")
     else:
+        # Fallback to local source if dev environment
+        local_path = "local_scanner/dist/DigifortScanner.exe"
+        if os.path.exists(local_path):
+             return FileResponse(local_path, media_type='application/vnd.microsoft.portable-executable', filename="DigifortScanner.exe")
+             
         raise HTTPException(status_code=404, detail="Scanner app not found on server.")

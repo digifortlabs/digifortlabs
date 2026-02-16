@@ -1,7 +1,7 @@
 import uuid
 import random
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -38,6 +38,7 @@ class Token(BaseModel):
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
+    request: Request,
     background_tasks: BackgroundTasks,
     form_data: OAuth2PasswordRequestForm = Depends(), 
     db: Session = Depends(get_db)
@@ -48,6 +49,11 @@ async def login_for_access_token(
     user = db.query(User).filter(func.lower(User.email) == func.lower(form_data.username)).first()
     if not user:
         # Security: Generic invalid credentials
+        try:
+             log_audit(db, None, "LOGIN_FAILED", f"User not found: {form_data.username}")
+             db.commit()
+        except: pass
+        
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -79,6 +85,9 @@ async def login_for_access_token(
 
     # 2. Verify Password
     if not verify_password(form_data.password, user.hashed_password):
+        # Audit Failure
+        log_audit(db, user.user_id, "LOGIN_FAILED", "Incorrect password")
+        
         # Increment failed attempts
         user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
         db.commit()
@@ -125,6 +134,52 @@ async def login_for_access_token(
     # --- NOTIFICATIONS & AUDIT ---
     # Audit Log (Non-blocking add)
     log_audit(db, user.user_id, "LOGIN_SUCCESS", "User logged in successfully")
+    
+    # Device Tracking
+    try:
+        import json
+        if request:
+            client_ip = request.client.host
+            user_agent = request.headers.get("User-Agent", "Unknown")
+            device_signature = f"{client_ip}|{user_agent}"
+            
+            # Parse existing known devices
+            known_devices = []
+            if user.known_devices:
+                try:
+                    known_devices = json.loads(user.known_devices)
+                except:
+                    known_devices = []
+            
+            # Check if this device is new
+            if device_signature not in known_devices:
+                # NEW DEVICE: Send Alert
+                print(f"🔐 [AUTH] New Device Detected for {user.email}")
+                try:
+                    EmailService.send_login_alert(user.email, client_ip, user_agent)
+                except Exception as e:
+                    print(f"Failed to send login alert: {e}")
+                
+                # Add to known devices
+                known_devices.append(device_signature)
+                # Keep only last 10 devices to save space
+                if len(known_devices) > 10:
+                    known_devices.pop(0)
+                    
+                user.known_devices = json.dumps(known_devices)
+                db.commit()
+            else:
+                # KNOWN DEVICE: Skip Alert
+                print(f"🔐 [AUTH] Known Device Login for {user.email}. Alert Skipped.")
+                
+    except Exception as e:
+        print(f"Device Tracking Error: {e}")
+        # Fallback: Send alert just in case
+        try:
+            if request:
+                EmailService.send_login_alert(user.email, request.client.host, request.headers.get("User-Agent"))
+        except:
+            pass
 
     # Update Login Timestamps
     user.previous_login_at = user.last_login_at
@@ -135,6 +190,9 @@ async def login_for_access_token(
         "sub": user.email, 
         "role": user.role, 
         "hospital_id": user.hospital_id,
+        "hospital_name": user.hospital.legal_name if user.hospital else None,
+        "specialty": user.hospital.specialty if user.hospital else "General",
+        "terminology": user.hospital.terminology if user.hospital else {},
         "session_id": new_session_id,
         "force_password_change": user.force_password_change or False,
         "previous_login": user.previous_login_at.isoformat() if user.previous_login_at else None

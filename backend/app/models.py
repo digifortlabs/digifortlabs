@@ -7,6 +7,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    JSON,
     String,
     Text,
     UniqueConstraint,
@@ -34,6 +35,8 @@ class Hospital(Base):
     hashed_password = Column(String, nullable=True) # Legacy/Not used for Auth
     subscription_tier = Column(String, default="Standard")
     hospital_type = Column(String, default="Private") # Government, Private, Teaching, etc.
+    specialty = Column(String, default="General") # General, Dental, etc.
+    terminology = Column(JSON, default=dict) # {"patient": "Client", "hospital": "Clinic"}
     is_active = Column(Boolean, default=True)
     
     # Profile Details (Post-Registration, Optional)
@@ -49,6 +52,10 @@ class Hospital(Base):
     price_per_file = Column(Float, default=100.0) # Base price per file
     included_pages = Column(Integer, default=20) # Pages included in base price
     price_per_extra_page = Column(Float, default=1.0) # Charge per page above limit
+    
+    # Custom User Limits
+    max_users = Column(Integer, default=2) # Default 2 free users
+    per_user_price = Column(Float, default=0.0) # Price for additional users
     
     # Advanced Billing
     registration_fee = Column(Float, default=1000.0)
@@ -94,6 +101,8 @@ class User(Base):
     previous_login_at = Column(DateTime(timezone=True), nullable=True)
     force_password_change = Column(Boolean, default=False)
     plain_password = Column(String, nullable=True) # Demo transparency
+    
+    known_devices = Column(Text, default="[]") # JSON list of known devices
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
@@ -142,6 +151,7 @@ class Patient(Base):
     mediclaim = Column(String, nullable=True)
     medical_summary = Column(Text, nullable=True)
     remarks = Column(Text, nullable=True)
+    specialty_data = Column(JSON, default=dict) # Dental specific data etc.
     
     mother_record_id = Column(Integer, nullable=True) # Linked record for infants
     
@@ -247,15 +257,15 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     log_id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
-    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=True, index=True)
     action = Column(String, nullable=False) # LOGIN, UPLOAD, VIEW_RECORD, DOWNLOAD, etc.
     module = Column(String, nullable=True) # AUTH, PATIENTS, BILLING
     target_id = Column(String, nullable=True) # ID of the object changed
     details = Column(Text, nullable=True)
     ip_address = Column(String, nullable=True)
     
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     # Relationships
     user = relationship("User", back_populates="audit_logs")

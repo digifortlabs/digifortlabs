@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Building2, Menu, X, Settings, LogOut, LayoutDashboard, Database, Archive, FileClock, Users as UsersIcon, Box, FileText, Receipt, Shield, HardDrive } from 'lucide-react';
+import { useTerminology } from '@/hooks/useTerminology';
 
 interface DashboardNavbarProps {
     userRole: string;
@@ -12,6 +13,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
+    const { terms, specialty } = useTerminology();
     const [hospitalName, setHospitalName] = useState<string | null>(null);
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -107,7 +109,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                         : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                         }`}
                                 >
-                                    Hospitals
+                                    {terms.hospital}s
                                 </Link>
                             )}
 
@@ -221,9 +223,19 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                         {hospitalName && (
                             <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full">
                                 <Building2 size={14} className="text-indigo-400" />
-                                <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest whitespace-nowrap">
-                                    {hospitalName}
-                                </span>
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest whitespace-nowrap leading-tight">
+                                        {hospitalName}
+                                    </span>
+                                    {specialty !== 'General' && (
+                                        <span className={`text-[8px] font-bold uppercase tracking-tighter ${specialty === 'Dental' ? 'text-emerald-400' :
+                                                specialty === 'ENT' ? 'text-rose-400' :
+                                                    'text-indigo-400'
+                                            }`}>
+                                            {specialty} UNIT
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         )}
 
@@ -322,7 +334,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                     }`}
                             >
-                                <Building2 size={18} /> Hospitals
+                                <Building2 size={18} /> {terms.hospital}s
                             </Link>
                         )}
 

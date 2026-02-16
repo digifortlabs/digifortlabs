@@ -3,12 +3,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import imageCompression from 'browser-image-compression';
-import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download, FileText, Pencil, Archive, Box, AlertCircle, Info, Shield } from 'lucide-react';
+import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download, FileText, Pencil, Archive, Box, AlertCircle, Info, Shield, Ear } from 'lucide-react';
 import DigitizationScanner from '../../../../components/Scanner/DigitizationScanner';
 import SecurePDFViewer from '@/components/SecurePDFViewer';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import { API_URL } from '../../../../config/api';
 import { formatDate } from '@/lib/dateFormatter';
+import { useTerminology } from '@/hooks/useTerminology';
 
 interface FileData {
     file_id: number;
@@ -69,6 +70,7 @@ interface PatientDetail {
         patient_u_id: string;
         uhid?: string;
     };
+    specialty_data?: any;
 }
 
 interface Box {
@@ -128,6 +130,7 @@ interface PatientDetailViewProps {
 export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, onFileUpdate }: PatientDetailViewProps) {
     const router = useRouter();
     const id = String(patientId);
+    const { terms, specialty } = useTerminology();
 
     const [viewTextFile, setViewTextFile] = useState<FileData | null>(null);
     const [viewSecureFile, setViewSecureFile] = useState<FileData | null>(null);
@@ -286,9 +289,9 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
                 setPatient(updated);
                 setIsEditingProfile(false);
                 if (token) fetchDoctors(token); // Refresh doctor list for suggestions
-                triggerToast("Patient Record Updated Successfully!", "success");
+                triggerToast(`${terms.patient} Record Updated Successfully!`, "success");
             } else {
-                triggerToast("Failed to update patient record.", "error");
+                triggerToast(`Failed to update ${terms.patient} record.`, "error");
             }
         } catch (e) {
             console.error(e);
@@ -1483,7 +1486,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
                         </div>
                     ) : (
                         <div className="text-center py-12 text-gray-500">
-                            <p>No files uploaded for this patient.</p>
+                            <p>No files uploaded for this {terms.patient}.</p>
                         </div>
                     )}
 
@@ -1560,6 +1563,75 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
                         </div>
                     )}
                 </div>
+
+                {/* Specialty Specific Data */}
+                {specialty === 'Dental' && (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                        <div className="flex justify-between items-center mb-4 border-b pb-2">
+                            <h2 className="text-lg font-semibold flex items-center gap-2">
+                                🦷 Tooth Information
+                            </h2>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Primary Complaint</label>
+                                <p className="text-sm text-slate-700 font-medium">
+                                    {patient.specialty_data?.primary_complaint || 'No records found.'}
+                                </p>
+                            </div>
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Tooth Numbers Involved</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {patient.specialty_data?.tooth_numbers?.length > 0 ? (
+                                        patient.specialty_data.tooth_numbers.map((t: string) => (
+                                            <span key={t} className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md text-xs font-bold border border-indigo-100">
+                                                #{t}
+                                            </span>
+                                        ))
+                                    ) : (
+                                        <p className="text-sm text-slate-400 italic">No teeth specified.</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-100 flex items-start gap-3">
+                            <Info className="text-amber-500 mt-1" size={16} />
+                            <p className="text-xs text-amber-700 leading-relaxed italic">
+                                Note: Advanced tooth charting and treatment planning are available in the Dental Specialty module.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {specialty === 'ENT' && (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                        <div className="flex justify-between items-center mb-4 border-b pb-2">
+                            <h2 className="text-lg font-semibold flex items-center gap-2">
+                                <Ear className="text-rose-500" /> ENT Clinical Findings
+                            </h2>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Chief Complaint</label>
+                                <p className="text-sm text-slate-700 font-medium">
+                                    {patient.specialty_data?.chief_complaint || 'No records found.'}
+                                </p>
+                            </div>
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Otoscopy / Nasal Findings</label>
+                                <p className="text-sm text-slate-700 font-medium">
+                                    {patient.specialty_data?.clinical_findings || 'No findings recorded.'}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="mt-4 p-4 bg-rose-50 rounded-xl border border-rose-100 flex items-start gap-3">
+                            <Activity className="text-rose-500 mt-1" size={16} />
+                            <p className="text-xs text-rose-700 leading-relaxed italic">
+                                Note: Specialized ENT diagnostic reports and audio-visual recordings can be attached in the File section.
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Clinical Diagnoses Card */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -1740,7 +1812,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
                         onClick={handleDeletePatient}
                         className="px-6 py-3 bg-red-50 text-red-600 font-bold rounded-xl border border-red-200 hover:bg-red-100 hover:border-red-300 transition-all flex items-center gap-2"
                     >
-                        <Trash2 size={18} /> Delete Patient Record
+                        <Trash2 size={18} /> Delete {terms.patient} Record
                     </button>
                 </div>
             </div>

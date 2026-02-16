@@ -167,8 +167,12 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
         db.commit()
         
         # Log Audit
-        from ..audit import log_audit
-        log_audit(db, user_id, "FILE_UPLOADED", f"Uploaded: {original_filename}", hospital_id=hospital_id)
+        try:
+            from ..audit import log_audit
+            log_audit(db, user_id, "FILE_UPLOADED", f"Uploaded: {original_filename}", hospital_id=hospital_id)
+            db.commit() 
+        except Exception as e:
+            print(f"Background Audit Error: {e}")
         
         # Cleanup
         if os.path.exists(temp_path): os.remove(temp_path)
@@ -438,14 +442,14 @@ def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session =
         if value is not None:
              setattr(db_patient, var, value)
              
-    db.commit()
-    db.refresh(db_patient)
-
     try:
         from ..audit import log_audit
         log_audit(db, current_user.user_id, "PATIENT_UPDATED", f"Updated patient: {db_patient.full_name} ({db_patient.patient_u_id})", hospital_id=db_patient.hospital_id)
     except Exception as e:
         print(f"Audit Log Error: {e}")
+
+    db.commit()
+    db.refresh(db_patient)
 
     return db_patient
 
@@ -500,22 +504,15 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
     )
     
     try:
+        from ..audit import log_audit
+        log_audit(db, current_user.user_id, "PATIENT_CREATED", f"Created patient: {db_patient.full_name} ({db_patient.patient_u_id})", hospital_id=hospital_id)
+    except Exception as e:
+        print(f"Audit Log Error: {e}") 
+    
+    try:
         db.add(db_patient)
         db.commit()
         db.refresh(db_patient)
-    except Exception as e:
-        db.rollback()
-        # Check for integrity error match
-        if "UNIQUE constraint failed" in str(e) or "_hospital_mrd_uc" in str(e):
-             raise HTTPException(status_code=400, detail="This MRD Number already exists in your hospital.")
-        if "aadhaar_number" in str(e): # If we added unique constraint to aadhaar later
-             raise HTTPException(status_code=400, detail="This Aadhaar Number is already registered.")
-        print(f"❌ Database Error: {e}")
-        raise HTTPException(status_code=500, detail="Database error occurred during creation.")
-    
-    try:
-        from ..audit import log_audit
-        log_audit(db, current_user.user_id, "PATIENT_CREATED", f"Created patient: {db_patient.full_name} ({db_patient.patient_u_id})", hospital_id=hospital_id)
     except Exception as e:
         print(f"Audit Log Error: {e}") 
 
@@ -564,6 +561,26 @@ async def upload_patient_file(
             with open(tmp_path, "wb") as buffer:
                 while content := await file.read(1024 * 1024): # 1MB chunks
                     buffer.write(content)
+
+            # --- COMPRESSION STEP ---
+            file_size = os.path.getsize(tmp_path)
+            if ext == '.pdf' and file_size > 5 * 1024 * 1024: # > 5MB
+                try:
+                    from ..services.compression import compress_pdf
+                    print(f"📉 Compress candidate: {file.filename} ({file_size/1024/1024:.2f} MB)")
+                    
+                    with open(tmp_path, "rb") as f:
+                        original_bytes = f.read()
+                        
+                    compressed_bytes = compress_pdf(original_bytes)
+                    
+                    if len(compressed_bytes) < file_size:
+                        with open(tmp_path, "wb") as f:
+                            f.write(compressed_bytes)
+                        print(f"✅ Replaced with compressed version: {len(compressed_bytes)/1024/1024:.2f} MB")
+                except Exception as comp_e:
+                    print(f"⚠️ Compression skipped due to error: {comp_e}")
+            # ------------------------
                     
         except Exception as e:
             print(f"Disk Write Error: {e}")
@@ -573,10 +590,11 @@ async def upload_patient_file(
         new_file = PDFFile(
             record_id=patient_id,
             filename=file.filename,
-            s3_key="pending", # Placeholder
+            file_path=tmp_path, # FIX: Populate file_path
+            s3_key="pending", 
             file_size=os.path.getsize(tmp_path),
             file_size_mb=os.path.getsize(tmp_path) / (1024 * 1024),
-            upload_status="draft", # Force draft for Review Step
+            upload_status="draft", 
             processing_stage="queued",
             processing_progress=0,
             # Capture Historical Pricing from Hospital
@@ -623,6 +641,12 @@ def search_files(q: str, db: Session = Depends(get_db), current_user: User = Dep
             PDFFile.tags.ilike(f"%{q}%")
         )
     ).all()
+    
+    # Audit Search (Optional - can be noisy)
+    # try:
+    #     from ..audit import log_audit
+    #     log_audit(db, current_user.user_id, "SEARCH_FILES", f"Query: {q}", hospital_id=current_user.hospital_id)
+    # except: pass
     
     # Filter Buffer: Only show 'confirmed' files OR 'draft' files if I am the owner (Not storing owner_id on file yet, assuming MRD sees all drafts for their hospital for now)
     # Actually, simpler: MRD sees ALL drafts for their hospital. Admins see ONLY confirmed.
@@ -974,6 +998,13 @@ def confirm_upload(file_id: int, background_tasks: BackgroundTasks, db: Session 
             return {"status": "partial", "message": f"Confirmed locally, but archival error: {msg}"}
         
         background_tasks.add_task(run_post_confirmation_ocr, file_id)
+        
+        try:
+            from ..audit import log_audit
+            log_audit(db, current_user.user_id, "FILE_CONFIRMED", f"Confirmed (Migrated): {f.filename}", hospital_id=current_user.hospital_id)
+            db.commit()
+        except: pass
+        
         return {"status": "success", "message": "File confirmed and archived to S3. OCR is running in background."}
     
     # Case 2: S3 draft/ or draft_backup/ folders (current uploads)
@@ -986,15 +1017,23 @@ def confirm_upload(file_id: int, background_tasks: BackgroundTasks, db: Session 
             return {"status": "partial", "message": f"Confirmed, but migration error: {msg}"}
         
         background_tasks.add_task(run_post_confirmation_ocr, file_id)
+        
+        try:
+            from ..audit import log_audit
+            log_audit(db, current_user.user_id, "FILE_CONFIRMED", f"Confirmed (S3 Move): {f.filename}", hospital_id=current_user.hospital_id)
+            db.commit()
+        except: pass
+
         return {"status": "success", "message": "File confirmed and moved to final storage. OCR is running in background."}
 
     # Case 3: Already in final storage
+    from ..audit import log_audit
+    log_audit(db, current_user.user_id, "FILE_CONFIRMED", f"Confirmed: {f.filename}", hospital_id=current_user.hospital_id)
+    
     f.upload_status = 'confirmed'
     db.commit()
     background_tasks.add_task(run_post_confirmation_ocr, file_id)
 
-    from ..audit import log_audit
-    log_audit(db, current_user.user_id, "FILE_CONFIRMED", f"Confirmed: {f.filename}", hospital_id=current_user.hospital_id)
     return {"status": "success", "message": "File confirmed and published. OCR is running in background."}
 
 @router.delete("/files/{file_id}/draft")
@@ -1019,11 +1058,14 @@ def delete_draft(file_id: int, db: Session = Depends(get_db), current_user: User
         
     s3_manager.delete_file(f.s3_key)
     filename = f.filename
+    try:
+        from ..audit import log_audit
+        log_audit(db, current_user.user_id, "FILE_DRAFT_DISCARDED", f"Discarded draft: {filename}", hospital_id=current_user.hospital_id)
+    except: pass
+    
     db.delete(f)
     db.commit()
 
-    from ..audit import log_audit
-    log_audit(db, current_user.user_id, "FILE_DRAFT_DISCARDED", f"Discarded draft: {filename}", hospital_id=current_user.hospital_id)
     return {"status": "success", "message": "Draft discarded"}
 
 @router.get("/drafts", response_model=List[dict])
@@ -1185,15 +1227,21 @@ def request_restore_from_glacier(
     if not success:
         raise HTTPException(status_code=500, detail=f"S3 Restoration failed: {msg}")
         
-    # Send to Hospital Admin's registered email
-    hospital_email = pdf_file.patient.hospital.email
-    
-    # Trigger monitoring task
-    background_tasks.add_task(monitor_restoration_and_email, file_id, hospital_email)
+    # Send immediate Initiation Email
+    from ..services.email_service import EmailService
+    EmailService.send_retrieval_initiated_email(
+        email=current_user.email,
+        patient_name=pdf_file.patient.full_name,
+        filename=pdf_file.filename,
+        hospital_name=pdf_file.patient.hospital.legal_name
+    )
+
+    # Trigger monitoring task (Passing requester's email for final delivery)
+    background_tasks.add_task(monitor_restoration_and_email, file_id, current_user.email)
     
     return {
         "status": "success", 
-        "message": f"Restoration ({tier}) initiated. Once complete, the file will be sent to {hospital_email}."
+        "message": f"Restoration ({tier}) initiated. Once complete, the file will be sent to {current_user.email}."
     }
 
 def monitor_restoration_and_email(file_id: int, hospital_email: str):
@@ -1208,10 +1256,8 @@ def monitor_restoration_and_email(file_id: int, hospital_email: str):
     db = SessionLocal()
     s3_manager = S3Manager()
     try:
-        # Check every 60s for 1 hour. 
-        # For 'Standard', it will likely timeout if we don't have a persistent worker, 
-        # but for demo/expedited it will work.
-        for _ in range(60): 
+        # Check every 60s for 6 hours (Standard retrieval limit). 
+        for _ in range(360): 
             f = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
             if not f: break
             
@@ -1434,7 +1480,14 @@ async def delete_file(
         usage.used_mb = max(0, usage.used_mb - file_size_mb)
     
     # Delete from database
+    # Delete from database
     db.delete(db_file)
+    
+    try:
+        from ..audit import log_audit
+        log_audit(db, current_user.user_id, "FILE_DELETED", f"Deleted file {file_id}", hospital_id=patient.hospital_id)
+    except: pass
+    
     db.commit()
     
     print(f"✅ File {file_id} deleted successfully")
@@ -1502,15 +1555,17 @@ def delete_patient(
         print(f"🗑️ Patient Deletion: Removed {files_deleted_count} associated S3 files.")
 
         # 2. DB Deletion (Cascade will handle rows)
+        # 2. DB Deletion (Cascade will handle rows)
         db.delete(patient)
+        
+        from ..audit import log_audit
+        log_audit(db, current_user.user_id, "PATIENT_DELETED", f"Deleted patient: {patient.full_name}", hospital_id=current_user.hospital_id)
+        
         db.commit()
     except Exception as e:
         db.rollback()
         print(f"Delete Error: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete patient.")
-
-    from ..audit import log_audit
-    log_audit(db, current_user.user_id, "PATIENT_DELETED", f"Deleted patient: {patient.full_name}", hospital_id=current_user.hospital_id)
 
     return {"status": "success", "message": "Patient deleted successfully"}
 
@@ -1537,7 +1592,20 @@ def request_file_download(
     # Case 1: SuperAdmin / Platform Staff -> Direct Download URL
     if is_platform:
         from ..core.config import settings
-        url = f"{settings.BACKEND_URL}/api/patients/files/{file_id}/serve"
+        # Extract token from Authorization header to pass it to the direct link
+        auth_header = request.headers.get('Authorization', '')
+        token = auth_header.replace('Bearer ', '') if 'Bearer ' in auth_header else None
+        
+        base_url = f"{settings.BACKEND_URL}/patients/files/{file_id}/serve"
+        url = f"{base_url}?token={token}" if token else base_url
+        
+        # Audit Log
+        try:
+            from ..audit import log_audit
+            log_audit(db, current_user.user_id, "FILE_LINK_GENERATED", f"Generated direct link for {pdf_file.filename}", hospital_id=pdf_file.patient.hospital_id)
+            db.commit()
+        except: pass
+
         return {
             "status": "direct",
             "message": "Authorized for direct download.",
@@ -1594,6 +1662,14 @@ def request_file_download(
     
     remaining = 5 - pdf_file.download_request_count
     
+    # Audit Log
+    try:
+        from ..audit import log_audit
+        log_audit(db, current_user.user_id, "FILE_EMAILED", f"Emailed file {pdf_file.filename} to {current_user.email}", hospital_id=hospital.hospital_id)
+        db.commit() # Ensure log is saved even if return happens
+    except Exception as e:
+        print(f"Audit log error: {e}")
+
     return {
         "status": "email_delivered", 
         "message": f"Medical record delivered successfully to {current_user.email}. Hospital admin ({admin_email}) CC'd.",

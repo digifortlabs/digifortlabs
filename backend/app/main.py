@@ -19,10 +19,16 @@ def run_migrations():
         with engine.connect() as conn:
             # 1. Add download_request_count to pdf_files
             conn.execute(text("ALTER TABLE pdf_files ADD COLUMN IF NOT EXISTS download_request_count INTEGER DEFAULT 0"))
-            # 2. Add login tracking to users
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS previous_login_at TIMESTAMPTZ"))
+            
+            # 2. Add missing columns to users
+            # full_name is NOT NULL, so we need a default for existing records
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR NOT NULL DEFAULT 'Legacy User'"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT 0"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS previous_login_at TIMESTAMP"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS known_devices TEXT DEFAULT '[]'"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP"))
 
             # 3. Add Medical Fields to Patients
             conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS doctor_name VARCHAR"))
@@ -33,6 +39,11 @@ def run_migrations():
             conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS medical_summary TEXT"))
             conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS remarks TEXT"))
             conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS mother_record_id INTEGER"))
+
+            # 5. Dental & Genericization
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS specialty VARCHAR DEFAULT 'General'"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS terminology JSON DEFAULT '{}'"))
+            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS specialty_data JSON DEFAULT '{}'"))
 
             conn.commit()
             print("✅ Auto-migrations completed successfully.")
@@ -107,6 +118,19 @@ async def global_exception_handler(request: Request, exc: Exception):
     print(f"🔥 Global Exception: {type(exc).__name__}: {str(exc)}")
     import traceback
     traceback.print_exc()
+    
+    # Try to log to Audit DB
+    try:
+        from .database import SessionLocal
+        from .audit import log_audit
+        db = SessionLocal()
+        # Attempt to get user_id if possible (token might be invalid though)
+        # For now, we log as System (None)
+        log_audit(db, None, "SYSTEM_ERROR", f"{type(exc).__name__}: {str(exc)}")
+        db.commit()
+        db.close()
+    except Exception as e:
+        print(f"Failed to log global exception to DB: {e}")
     
     status_code = 500
     if isinstance(exc, HTTPException): status_code = exc.status_code

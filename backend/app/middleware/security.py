@@ -7,6 +7,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from collections import defaultdict
 from datetime import datetime, timedelta
 import time
+from ..core.config import settings
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -27,7 +28,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
             
+        # Skip rate limiting for localhost to allow local testing even if ENV is production
         client_ip = request.client.host
+        if client_ip in ["127.0.0.1", "::1", "localhost"]:
+            return await call_next(request)
+            
         path = request.url.path
         current_time = time.time()
         

@@ -39,6 +39,7 @@ export default function HospitalsPage() {
     const [pincodeLoading, setPincodeLoading] = useState(false);
 
     const [type, setType] = useState('Private');
+    const [specialty, setSpecialty] = useState('General');
     const [plan, setPlan] = useState('Standard');
     const [pricePerFile, setPricePerFile] = useState(100);
     const [includedPages, setIncludedPages] = useState(20);
@@ -131,7 +132,8 @@ export default function HospitalsPage() {
         setCity(hospital.city || '');
         setState(hospital.state || '');
         setPincode(hospital.pincode || '');
-        setType((hospital.hospital_type || 'PRIVATE').toUpperCase());
+        setType(hospital.hospital_type || 'Private');
+        setSpecialty(hospital.specialty || 'General');
         setPlan(hospital.subscription_tier || 'Standard');
         setPricePerFile(hospital.price_per_file || 100);
         setIncludedPages(hospital.included_pages || 20);
@@ -221,6 +223,7 @@ export default function HospitalsPage() {
                     state,
                     pincode,
                     hospital_type: type,
+                    specialty: specialty,
                     subscription_tier: plan,
                     price_per_file: pricePerFile,
                     included_pages: includedPages,
@@ -276,7 +279,7 @@ export default function HospitalsPage() {
                         setIsEditMode(false);
                         setCurrentHospitalId(null);
                         setLegalName(''); setEmail(''); setCity(''); setState(''); setPincode(''); setGstNumber('');
-                        setType('Private'); setPlan('Standard');
+                        setType('Private'); setSpecialty('General'); setPlan('Standard');
                         setPricePerFile(100); setIncludedPages(20); setPricePerExtraPage(1);
                         setShowModal(true);
                     }}
@@ -400,9 +403,14 @@ export default function HospitalsPage() {
                                     </div>
                                 </td>
                                 <td className="px-8 py-5">
-                                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                        {h.hospital_type || 'Private'}
-                                    </span>
+                                    <div className="flex flex-col gap-1">
+                                        <span className="px-3 py-1 rounded-full text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200 w-fit">
+                                            {h.hospital_type || 'Private'}
+                                        </span>
+                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black border w-fit ${h.specialty === 'Dental' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : h.specialty === 'ENT' ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>
+                                            {h.specialty || 'General'}
+                                        </span>
+                                    </div>
                                 </td>
                                 <td className="px-8 py-5">
                                     <PlanBadge plan={h.subscription_tier} />
@@ -520,13 +528,30 @@ export default function HospitalsPage() {
                                         <input value={state} readOnly className="w-full p-3 bg-slate-100 text-slate-500 rounded-xl border-none font-medium outline-none cursor-not-allowed" placeholder="Auto-filled" />
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-xs font-bold text-slate-600">Hospital Type</label>
-                                        <input
+                                        <label className="text-xs font-bold text-slate-600">Facility Type</label>
+                                        <select
                                             value={type}
-                                            onChange={e => setType(e.target.value.toUpperCase())}
-                                            className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 uppercase"
-                                            placeholder="e.g. PRIVATE, CLINIC, etc."
-                                        />
+                                            onChange={e => setType(e.target.value)}
+                                            className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                        >
+                                            <option value="Private">Private Hospital</option>
+                                            <option value="Government">Government Hospital</option>
+                                            <option value="Clinic">Clinic / Nursing Home</option>
+                                            <option value="Center">Diagnostics Center</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-600">Medical Specialty</label>
+                                        <select
+                                            value={specialty}
+                                            onChange={e => setSpecialty(e.target.value)}
+                                            className="w-full p-3 bg-indigo-50 rounded-xl border-none font-black text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                        >
+                                            <option value="General">General (Multi-Specialty)</option>
+                                            <option value="Dental">Dental Clinic</option>
+                                            <option value="ENT">ENT Specialty</option>
+                                            <option value="Cardiology">Cardiology</option>
+                                        </select>
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-xs font-bold text-slate-600">GST Identification Number (GSTIN)</label>

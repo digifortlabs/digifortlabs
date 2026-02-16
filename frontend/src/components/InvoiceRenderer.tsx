@@ -99,10 +99,6 @@ export default function InvoiceRenderer({ invoice, itemsPerPage = 25 }: InvoiceR
                     </div>
                 </div>
                 <div>
-                    <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                        DIGIFORT LABS
-                        <span className="text-indigo-500 text-[7px] border border-indigo-200 px-1 py-0 rounded-full uppercase tracking-widest font-black print:scale-90">Official</span>
-                    </h1>
                     <p className="text-[8px] uppercase tracking-widest font-black text-slate-400">Secure Digital Healthcare Solutions</p>
                 </div>
             </div>

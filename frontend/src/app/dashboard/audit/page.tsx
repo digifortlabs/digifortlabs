@@ -1,314 +1,168 @@
-"use client";
+'use client';
+
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { API_URL } from '../../../config/api';
-import { formatDateTime } from '@/lib/dateFormatter';
-import { Search, Calendar, Filter, Download, ShieldCheck, User, Clock, Activity, ArrowLeft, ArrowRight } from 'lucide-react';
+import axios from 'axios';
+import { format } from 'date-fns';
+
+interface AuditLog {
+    log_id: number;
+    timestamp: string;
+    action: string;
+    details: string;
+    user_email: string;
+}
 
 export default function AuditPage() {
-    const router = useRouter();
-    const [logs, setLogs] = useState<any[]>([]);
-    const [total, setTotal] = useState(0);
+    const [logs, setLogs] = useState<AuditLog[]>([]);
+    const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
-    const [pages, setPages] = useState(1);
-    const [isLoading, setIsLoading] = useState(true);
-
-    // Filters
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    const [totalPages, setTotalPages] = useState(1);
+    const [search, setSearch] = useState('');
     const [actionFilter, setActionFilter] = useState('');
-    const [searchQuery, setSearchQuery] = useState('');
-    const [expandedLogId, setExpandedLogId] = useState<number | null>(null);
+
+    // Fetch Logs
+    const fetchLogs = async () => {
+        setLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/audit/logs`, {
+                headers: { Authorization: `Bearer ${token}` },
+                params: {
+                    page,
+                    page_size: 20,
+                    search: search || undefined,
+                    action: actionFilter || undefined,
+                },
+            });
+            setLogs(res.data.logs);
+            setTotalPages(res.data.pages);
+        } catch (error) {
+            console.error('Failed to fetch audit logs', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            router.push('/login');
-            return;
-        }
-        fetchLogs(token, page);
-    }, [router, page]); // Dependency on page mainly. Filters trigger manual fetch? Or auto? Let's do manual Apply for consistency with Reports.
-
-    const fetchLogs = async (token: string, p: number = 1) => {
-        setIsLoading(true);
-        try {
-            const params = new URLSearchParams();
-            params.append('page', p.toString());
-            params.append('page_size', '20');
-            if (startDate) params.append('start_date', startDate);
-            if (endDate) params.append('end_date', endDate);
-            if (actionFilter) params.append('action', actionFilter);
-            if (searchQuery) params.append('search', searchQuery);
-
-            const res = await fetch(`${API_URL}/audit/logs?${params.toString()}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setLogs(data.logs);
-                setTotal(data.total);
-                setPages(data.pages);
-                setPage(data.page);
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleApplyFilters = () => {
-        setPage(1);
-        const token = localStorage.getItem('token');
-        if (token) fetchLogs(token, 1);
-    };
+        const timer = setTimeout(() => {
+            fetchLogs();
+        }, 500); // Debounce search
+        return () => clearTimeout(timer);
+    }, [page, search, actionFilter]);
 
     const handleExport = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
-        const params = new URLSearchParams();
-        if (startDate) params.append('start_date', startDate);
-        if (endDate) params.append('end_date', endDate);
-        if (actionFilter) params.append('action', actionFilter);
-        if (searchQuery) params.append('search', searchQuery);
-        params.append('export_csv', 'true');
-
         try {
-            const res = await fetch(`${API_URL}/audit/logs?${params.toString()}`, {
-                headers: { Authorization: `Bearer ${token}` }
+            const token = localStorage.getItem('token');
+            const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/audit/logs`, {
+                headers: { Authorization: `Bearer ${token}` },
+                params: { export_csv: true },
+                responseType: 'blob',
             });
-            if (res.ok) {
-                const blob = await res.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `audit_logs_${new Date().toISOString().split('T')[0]}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-            } else {
-                alert("Export Failed");
-            }
-        } catch (e) {
-            console.error(e);
-            alert("Export Error");
+
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `audit_logs_${new Date().toISOString().slice(0, 10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+        } catch (error) {
+            alert('Export failed');
         }
     };
 
     return (
-        <div className="flex-1 px-4 sm:px-8 pb-8 pt-0 space-y-8 bg-slate-50 min-h-screen">
-            {/* Header */}
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-                <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                        <span className="p-3 bg-slate-900 rounded-2xl text-white shadow-xl shadow-slate-200">
-                            <ShieldCheck size={28} />
-                        </span>
-                        System Audit Trail
-                    </h1>
-                    <p className="text-slate-500 font-medium ml-[4.5rem] mt-1">
-                        Secure immutable log of all platform activities
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-4 bg-white p-2 pr-6 rounded-[2rem] border border-slate-200 shadow-sm">
-                    <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600">
-                        <Activity size={20} />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Total Events</p>
-                        <p className="text-xl font-black text-slate-800">{total.toLocaleString()}</p>
-                    </div>
-                </div>
+        <div className="p-6">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold">System Audit Logs</h1>
+                <button
+                    onClick={handleExport}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center gap-2"
+                >
+                    Download CSV
+                </button>
             </div>
 
-            {/* Controls */}
-            <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col lg:flex-row gap-4">
-                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Search */}
-                    <div className="relative group">
-                        <Search className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Search user, details..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border-none rounded-2xl font-bold text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 placeholder-slate-400"
-                        />
-                    </div>
+            {/* Filters */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 bg-white p-4 rounded shadow">
+                <input
+                    type="text"
+                    placeholder="Search User, Details, or Action..."
+                    className="border p-2 rounded"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                />
 
-                    {/* Action Filter */}
-                    <div className="relative group">
-                        <Filter className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
-                        <select
-                            value={actionFilter}
-                            onChange={(e) => setActionFilter(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border-none rounded-2xl font-bold text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 appearance-none cursor-pointer"
-                        >
-                            <option value="">All Actions</option>
-                            <option value="LOGIN">Login & Auth</option>
-                            <option value="VIEW">View Records</option>
-                            <option value="UPLOAD">Uploads</option>
-                            <option value="DELETE">Deletions</option>
-                            <option value="DOWNLOAD">Downloads</option>
-                            <option value="UPDATE">Updates</option>
-                        </select>
-                    </div>
-
-                    {/* Dates */}
-                    <div className="relative group">
-                        <Calendar className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
-                        <input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border-none rounded-2xl font-bold text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100"
-                        />
-                    </div>
-                    <div className="relative group">
-                        <Calendar className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
-                        <input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border-none rounded-2xl font-bold text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100"
-                        />
-                    </div>
-                </div>
-
-                <div className="flex gap-3 border-t lg:border-t-0 lg:border-l border-slate-100 pt-4 lg:pt-0 lg:pl-4">
-                    <button
-                        onClick={handleApplyFilters}
-                        className="flex-1 lg:flex-none px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
-                    >
-                        Apply
-                    </button>
-                    <button
-                        onClick={handleExport}
-                        className="flex-1 lg:flex-none px-6 py-3 bg-slate-100 text-slate-600 rounded-2xl font-bold text-sm hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
-                    >
-                        <Download size={18} /> Export
-                    </button>
-                </div>
+                <select
+                    className="border p-2 rounded"
+                    value={actionFilter}
+                    onChange={(e) => setActionFilter(e.target.value)}
+                >
+                    <option value="">All Actions</option>
+                    <option value="LOGIN">Login / Auth</option>
+                    <option value="UPLOAD">File Uploads</option>
+                    <option value="VIEW">View Records</option>
+                    <option value="DELETE">Deletions</option>
+                    <option value="UPDATE">Updates</option>
+                </select>
             </div>
 
-            {/* Table Card */}
-            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden min-h-[500px]">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead className="bg-slate-50/50">
-                            <tr>
-                                <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-left first:pl-10">Timestamp</th>
-                                <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-left">Action</th>
-                                <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-left">User</th>
-                                <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-left w-1/3">Context Details</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {isLoading ? (
-                                <tr>
-                                    <td colSpan={4} className="px-6 py-32 text-center text-slate-400">
-                                        <div className="flex flex-col items-center gap-4">
-                                            <div className="w-8 h-8 border-4 border-indigo-100 border-t-indigo-500 rounded-full animate-spin"></div>
-                                            <p className="font-bold text-sm">Loading Audit Trail...</p>
-                                        </div>
+            {/* Table */}
+            <div className="bg-white rounded shadow overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                    <thead className="bg-gray-50 border-b">
+                        <tr>
+                            <th className="p-4 font-semibold text-gray-600">Time</th>
+                            <th className="p-4 font-semibold text-gray-600">User</th>
+                            <th className="p-4 font-semibold text-gray-600">Action</th>
+                            <th className="p-4 font-semibold text-gray-600">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {loading ? (
+                            <tr><td colSpan={4} className="p-8 text-center text-gray-500">Loading logs...</td></tr>
+                        ) : logs.length === 0 ? (
+                            <tr><td colSpan={4} className="p-8 text-center text-gray-500">No logs found.</td></tr>
+                        ) : (
+                            logs.map((log) => (
+                                <tr key={log.log_id} className="hover:bg-gray-50">
+                                    <td className="p-4 text-sm text-gray-500 whitespace-nowrap">
+                                        {format(new Date(log.timestamp), 'MMM dd, yyyy HH:mm:ss')}
                                     </td>
-                                </tr>
-                            ) : logs.length > 0 ? (
-                                logs.map((log) => {
-                                    // Action Color Logic
-                                    let actionColor = "bg-slate-100 text-slate-600";
-                                    if (log.action.includes('LOGIN') || log.action.includes('AUTH')) actionColor = "bg-indigo-50 text-indigo-600";
-                                    else if (log.action.includes('DELETE') || log.action.includes('REJECT')) actionColor = "bg-rose-50 text-rose-600";
-                                    else if (log.action.includes('UPLOAD') || log.action.includes('CREATE')) actionColor = "bg-emerald-50 text-emerald-600";
-                                    else if (log.action.includes('DOWNLOAD')) actionColor = "bg-amber-50 text-amber-600";
-
-                                    return (
-                                        <tr
-                                            key={log.log_id}
-                                            onClick={() => setExpandedLogId(expandedLogId === log.log_id ? null : log.log_id)}
-                                            className={`hover:bg-slate-50 transition-colors group cursor-pointer ${expandedLogId === log.log_id ? 'bg-slate-50 shadow-inner' : ''}`}
-                                        >
-                                            <td className="px-8 py-5 first:pl-10 align-top">
-                                                <div className="flex items-center gap-3">
-                                                    <Clock size={16} className="text-slate-300 group-hover:text-indigo-400 transition-colors" />
-                                                    <span className="font-medium text-slate-600 text-sm font-mono">
-                                                        {formatDateTime(log.timestamp)}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-5 align-top">
-                                                <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide border border-transparent ${actionColor}`}>
-                                                    {log.action.replace(/_/g, ' ')}
-                                                </span>
-                                            </td>
-                                            <td className="px-8 py-5 align-top">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 font-bold text-xs uppercase">
-                                                        {(log.user_email || 'S').substring(0, 1)}
-                                                    </div>
-                                                    <span className="font-bold text-slate-700 text-sm">{log.user_email}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-8 py-5 align-top">
-                                                <div className="transition-all duration-300 ease-in-out">
-                                                    {expandedLogId === log.log_id ? (
-                                                        <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm">
-                                                            <p className="text-sm font-medium text-slate-700 leading-relaxed whitespace-pre-wrap">
-                                                                {log.details}
-                                                            </p>
-                                                            <div className="mt-2 text-xs text-indigo-500 font-bold">
-                                                                ID: {log.target_id || 'N/A'} • IP: {log.ip_address || 'Unknown'}
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <p className="text-sm font-medium text-slate-600 leading-relaxed truncate max-w-md" title="Click to expand">
-                                                            {log.details}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            ) : (
-                                <tr>
-                                    <td colSpan={4} className="px-6 py-32 text-center text-slate-400">
-                                        <ShieldCheck size={48} className="mx-auto mb-4 text-slate-200" />
-                                        <p className="font-bold">No Audit Records Found</p>
-                                        <p className="text-xs mt-1">Try adjusting your filters.</p>
+                                    <td className="p-4 font-medium text-blue-600">{log.user_email}</td>
+                                    <td className="p-4">
+                                        <span className={`px-2 py-1 rounded text-xs font-semibold ${log.action.includes('DELETE') ? 'bg-red-100 text-red-800' :
+                                                log.action.includes('LOGIN') ? 'bg-green-100 text-green-800' :
+                                                    log.action.includes('UPLOAD') ? 'bg-blue-100 text-blue-800' :
+                                                        'bg-gray-100 text-gray-800'
+                                            }`}>
+                                            {log.action}
+                                        </span>
                                     </td>
+                                    <td className="p-4 text-sm text-gray-700">{log.details}</td>
                                 </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
 
-                {/* Pagination Footer */}
-                {pages > 1 && (
-                    <div className="bg-slate-50 border-t border-slate-200 p-6 flex justify-between items-center">
-                        <button
-                            disabled={page === 1}
-                            onClick={() => { setPage(page - 1); fetchLogs(localStorage.getItem('token') || '', page - 1); }}
-                            className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-bold hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-sm"
-                        >
-                            <ArrowLeft size={16} /> Previous
-                        </button>
-
-                        <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                            Page {page} of {pages}
-                        </span>
-
-                        <button
-                            disabled={page === pages}
-                            onClick={() => { setPage(page + 1); fetchLogs(localStorage.getItem('token') || '', page + 1); }}
-                            className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-bold hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-sm"
-                        >
-                            Next <ArrowRight size={16} />
-                        </button>
-                    </div>
-                )}
+            {/* Pagination */}
+            <div className="mt-4 flex justify-between items-center">
+                <button
+                    disabled={page === 1}
+                    onClick={() => setPage(p => p - 1)}
+                    className="px-4 py-2 border rounded disabled:opacity-50"
+                >
+                    Previous
+                </button>
+                <span className="text-gray-600">Page {page} of {totalPages}</span>
+                <button
+                    disabled={page === totalPages}
+                    onClick={() => setPage(p => p + 1)}
+                    className="px-4 py-2 border rounded disabled:opacity-50"
+                >
+                    Next
+                </button>
             </div>
         </div>
     );
