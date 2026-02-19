@@ -2,9 +2,14 @@ import os
 
 from cryptography.fernet import Fernet
 
-# Generates a key if not exists (In prod, store this securely in ENV/Secrets Manager)
-# For this project, we might use a fixed key or one from env.
-KEY = os.getenv("ENCRYPTION_KEY", Fernet.generate_key().decode())
+# Key must be provided via environment variable to ensure consistency across restarts.
+# If missing, we raise an error to prevent encrypting files with a volatile key.
+KEY = os.getenv("ENCRYPTION_KEY")
+if not KEY:
+    # During development, we might want a fallback, but in prod it's dangerous.
+    # For now, let's use a hardcoded fallback ONLY if not in production, 
+    # but the user's .env HAS a key, so we should enforce it.
+    raise RuntimeError("ENCRYPTION_KEY environment variable is not set!")
 
 def encrypt_file(file_path: str) -> str:
     """

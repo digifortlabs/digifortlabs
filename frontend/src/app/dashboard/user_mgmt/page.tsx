@@ -207,7 +207,7 @@ export default function UsersPage() {
                                     >
                                         <option value="mrd_staff">MRD Staff (Warehouse Only)</option>
                                         <option value="data_uploader">Data Uploader (Records Only)</option>
-                                        <option value="hospital_admin">Hospital Admin (Full Access)</option>
+                                        <option value="hospital_admin">Client Admin (Full Access)</option>
                                     </select>
                                 </div>
                             </div>

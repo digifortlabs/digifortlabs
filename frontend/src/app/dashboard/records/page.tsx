@@ -57,7 +57,7 @@ export default function RecordsList() {
     const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
 
     // Sorting
-    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'discharge_date', direction: 'desc' });
 
     // Date Filtering
     const getMonthRange = () => {
@@ -680,7 +680,23 @@ export default function RecordsList() {
             );
         } else {
             filtered = patients.filter(p => {
-                if (categoryFilter && p.patient_category !== categoryFilter) return false;
+                // Treat 'STANDARD' as 'IPD' for backward compatibility
+                if (categoryFilter) {
+                    if (categoryFilter === 'IPD') {
+                        // IPD = IPD + STANDARD (Explicit exclusions for other implied types could be added, but inclusive is safer for now)
+                        if (p.patient_category !== 'IPD' && p.patient_category !== 'STANDARD') return false;
+                    } else if (categoryFilter === 'BRT') {
+                        // BRT = BRT + STANDARD patients with "B/O" or "Baby" in name
+                        const isBrit = p.patient_category === 'BRT';
+                        const name = p.full_name?.toUpperCase() || '';
+                        const isBabyInStd = p.patient_category === 'STANDARD' && (name.includes('B/O') || name.includes('BABY'));
+
+                        if (!isBrit && !isBabyInStd) return false;
+                    } else if (p.patient_category !== categoryFilter) {
+                        return false;
+                    }
+                }
+
                 return (
                     p.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     p.patient_u_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1078,7 +1094,9 @@ export default function RecordsList() {
                                                             {p.physical_box_id ? (
                                                                 <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 uppercase tracking-wide">Archived</span>
                                                             ) : p.files && p.files.length > 0 ? (
-                                                                <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 uppercase tracking-wide">Digital</span>
+                                                                <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 uppercase tracking-wide">
+                                                                    Digital ({p.files.length})
+                                                                </span>
                                                             ) : (
                                                                 <span className="text-[9px] font-black text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 uppercase tracking-wide">Active</span>
                                                             )}
@@ -1427,6 +1445,7 @@ export default function RecordsList() {
                                                             onChange={e => setNewPatient({ ...newPatient, patient_category: e.target.value })}
                                                             disabled={specialty === 'Dental'}
                                                         >
+                                                            <option value="STANDARD">STANDARD</option>
                                                             <option value="IPD">IPD</option>
                                                             <option value="OPD">OPD</option>
                                                             <option value="MCL">MCL (Medico-Legal)</option>

@@ -10,7 +10,7 @@ export default function PatientLogin() {
             <Navbar />
 
             <div className="flex-1 flex items-center justify-center pt-20 pb-12 px-4">
-                <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
+                <div className="max-w-md w-full bg-white p-8 rounded-xl shadow-xl border border-slate-100">
                     <div className="text-center mb-8">
                         <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 text-blue-600 rounded-xl text-2xl mb-4">
                             🏥

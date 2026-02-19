@@ -1,0 +1,1 @@
+ssh -i digifort-prod-key.pem ec2-user@15.206.86.130

@@ -210,15 +210,15 @@ const BulkScanner: React.FC<BulkScannerProps> = ({ boxes, refreshData }) => {
     };
 
     return (
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 p-8 animate-in fade-in duration-500">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 animate-in fade-in duration-500">
             <div className="text-center mb-8">
                 <h2 className="text-xl sm:text-2xl font-black text-slate-800">Bulk Assignment</h2>
                 <p className="text-sm sm:text-base text-slate-400 font-medium">Rapidly scan multiple files into a single box.</p>
             </div>
 
-            <div className="max-w-3xl mx-auto space-y-8">
+            <div className="max-w-3xl mx-auto space-y-4">
                 {/* Step 1: Select Box */}
-                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                <div className="bg-slate-50 p-6 rounded-xl border border-slate-100">
                     <label className="text-xs font-bold text-slate-500 uppercase block mb-3">1. Target Box (Active)</label>
                     <select
                         className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -246,7 +246,7 @@ const BulkScanner: React.FC<BulkScannerProps> = ({ boxes, refreshData }) => {
 
                 {/* Capacity Warning / Upgrade */}
                 {targetBox && (
-                    <div className="bg-white border rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div className="bg-white border rounded-xl p-6 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
                         <div className="flex-1 w-full">
                             <div className="flex justify-between items-end mb-2">
                                 <span className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
@@ -288,7 +288,7 @@ const BulkScanner: React.FC<BulkScannerProps> = ({ boxes, refreshData }) => {
                 )}
 
                 {/* Step 2: Scan Files */}
-                <div className="p-6 rounded-3xl border-2 border-indigo-100 bg-indigo-50/30">
+                <div className="p-6 rounded-xl border-2 border-indigo-100 bg-indigo-50/30">
                     <label className="text-xs font-bold text-indigo-500 uppercase block mb-3">2. Scan Files</label>
 
                     {/* Camera Control */}

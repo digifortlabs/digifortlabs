@@ -26,7 +26,7 @@ export default function Pricing() {
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 items-center">
 
                         {/* Starter */}
-                        <div className="p-6 rounded-3xl border border-slate-700 bg-slate-800/50 hover:bg-slate-800 transition-colors duration-300">
+                        <div className="p-6 rounded-xl border border-slate-700 bg-slate-800/50 hover:bg-slate-800 transition-colors duration-300">
                             <h3 className="text-lg font-bold text-slate-300 mb-2">Starter</h3>
                             <div className="mb-6">
                                 <span className="text-2xl font-extrabold text-white">Contact Sales</span>
@@ -48,7 +48,7 @@ export default function Pricing() {
                         </div>
 
                         {/* Standard */}
-                        <div className="p-6 rounded-3xl border border-slate-700 bg-slate-800/50 hover:bg-slate-800 transition-colors duration-300">
+                        <div className="p-6 rounded-xl border border-slate-700 bg-slate-800/50 hover:bg-slate-800 transition-colors duration-300">
                             <h3 className="text-lg font-bold text-slate-300 mb-2">Standard</h3>
                             <div className="mb-6">
                                 <span className="text-2xl font-extrabold text-white">Contact Sales</span>
@@ -70,7 +70,7 @@ export default function Pricing() {
                         </div>
 
                         {/* Professional - Highlighted */}
-                        <div className="p-8 rounded-3xl bg-slate-800 text-white shadow-2xl shadow-blue-900/20 border border-blue-500/30 relative transform xl:scale-105 z-10">
+                        <div className="p-8 rounded-xl bg-slate-800 text-white shadow-2xl shadow-blue-900/20 border border-blue-500/30 relative transform xl:scale-105 z-10">
                             <div className="absolute top-0 right-0 bg-gradient-to-l from-blue-600 to-indigo-600 text-white text-xs font-bold px-4 py-1.5 rounded-bl-xl rounded-tr-2xl shadow-lg">
                                 POPULAR
                             </div>
@@ -98,7 +98,7 @@ export default function Pricing() {
                         </div>
 
                         {/* Enterprise */}
-                        <div className="p-6 rounded-3xl border border-slate-700 bg-slate-800/50 hover:bg-slate-800 transition-colors duration-300">
+                        <div className="p-6 rounded-xl border border-slate-700 bg-slate-800/50 hover:bg-slate-800 transition-colors duration-300">
                             <h3 className="text-lg font-bold text-slate-300 mb-2">Enterprise</h3>
                             <div className="mb-6">
                                 <span className="text-2xl font-extrabold text-white">Custom</span>

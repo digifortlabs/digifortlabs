@@ -19,7 +19,7 @@ const WarehouseMap: React.FC<WarehouseMapProps> = ({ data, onSelectRack }) => {
 
             <div className="grid gap-8">
                 {data.map((aisle: any) => (
-                    <div key={aisle.aisle} className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 relative">
+                    <div key={aisle.aisle} className="bg-slate-50 p-6 rounded-xl border border-slate-100 relative">
                         <div className="absolute -top-3 left-6 bg-slate-800 text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest shadow-lg shadow-slate-200">
                             Aisle {aisle.aisle}
                         </div>

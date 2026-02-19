@@ -210,7 +210,7 @@ export default function FileRequests() {
                                                     req.status === 'In Transit' ? 'bg-orange-100 text-orange-700' :
                                                         'bg-slate-100 text-slate-600'
                                                     }`}>
-                                                    {req.status === 'Delivered' ? '🏥 At Hospital' :
+                                                    {req.status === 'Delivered' ? '🏥 At Client' :
                                                         req.status === 'In Transit' ? '🚚 In Transit' :
                                                             '🏢 Warehouse'}
                                                 </span>
@@ -309,7 +309,7 @@ export default function FileRequests() {
                                                 <span className={`text-xs font-bold px-2 py-1 rounded ${req.status === 'Delivered' ? 'bg-indigo-100 text-indigo-700' :
                                                     'bg-slate-100 text-slate-600'
                                                     }`}>
-                                                    {req.status === 'Delivered' ? '🏥 At Hospital' : '🏢 Warehouse'}
+                                                    {req.status === 'Delivered' ? '🏥 At Client' : '🏢 Warehouse'}
                                                 </span>
                                             </td>
                                             <td className="p-6 font-bold text-slate-700 flex items-center gap-2">

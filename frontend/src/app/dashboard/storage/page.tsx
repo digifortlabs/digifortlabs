@@ -129,7 +129,7 @@ export default function WarehousePage() {
                 </div>
 
                 {/* 2. Navigation Tabs */}
-                <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 flex overflow-x-auto no-scrollbar gap-2">
+                <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-100 flex overflow-x-auto no-scrollbar gap-2">
                     {MAIN_TABS.map(tab => (
                         <button
                             key={tab.id}
@@ -166,7 +166,7 @@ export default function WarehousePage() {
                     {activeTab === 'generator' && <LabelGenerator />}
 
                     {activeTab === 'logs' && (
-                        <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 p-8">
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
                             <h2 className="text-2xl font-black text-slate-800 mb-4">Movement History</h2>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left">

@@ -125,7 +125,7 @@ class Patient(Base):
     uhid = Column(String, index=True, nullable=True) # Alternate ID
     full_name = Column(String, nullable=False)
     gender = Column(String, nullable=True)
-    age = Column(Integer, nullable=True)
+    age = Column(String, nullable=True)
     phone = Column(String, nullable=True)
     admission_date = Column(DateTime, nullable=True)
     discharge_date = Column(DateTime, nullable=True)
@@ -456,6 +456,8 @@ class AccountingConfig(Base):
     company_name = Column(String, default="Digifort Labs")
     company_address = Column(String, default="Vapi, Gujarat, India")
     company_gst = Column(String, nullable=True)
+    company_pan = Column(String, nullable=True)
+    company_phone = Column(String, nullable=True)
     company_email = Column(String, default="info@digifortlabs.com")
     company_website = Column(String, default="www.digifortlabs.com")
     
@@ -463,6 +465,7 @@ class AccountingConfig(Base):
     company_bank_name = Column(String, nullable=True)
     company_bank_acc = Column(String, nullable=True)
     company_bank_ifsc = Column(String, nullable=True)
+    company_bank_branch = Column(String, nullable=True)
     
     # Prefix Settings
     invoice_prefix = Column(String, default="INV")
@@ -589,3 +592,91 @@ class PatientProcedure(Base):
     
     procedure_code = relationship("ICD11ProcedureCode")
     doctor = relationship("User")
+
+
+class DentalPatient(Base):
+    __tablename__ = "dental_patients"
+
+    patient_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    # Link to main patient record if they exist there, otherwise can be standalone
+    main_patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True) 
+    
+    # Identifiers
+    uhid = Column(String, nullable=True)
+    opd_number = Column(String, nullable=True)
+    registration_date = Column(DateTime(timezone=True), server_default=func.now())
+    
+    full_name = Column(String, nullable=False)
+    date_of_birth = Column(DateTime, nullable=True)
+    gender = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    address = Column(Text, nullable=True)
+    chief_complaint = Column(Text, nullable=True)
+    
+    # Clinical Details (JSON for flexibility)
+    clinical_data = Column(JSON, default=dict) # Chief complaints, structured medical history
+    habits = Column(JSON, default=dict) # Smoking, Tobacco, Alcohol, Brushing habits
+    
+    medical_history = Column(Text, nullable=True) # Legacy/Backup
+    allergies = Column(Text, nullable=True) # e.g., "Penicillin"
+    medications = Column(Text, nullable=True) # e.g., "Aspirin 50mg"
+    prescriptions = Column(JSON, default=list) # List of prescribed medications
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    appointments = relationship("DentalAppointment", back_populates="patient", cascade="all, delete-orphan")
+    treatments = relationship("DentalTreatment", back_populates="patient", cascade="all, delete-orphan")
+    scans = relationship("Dental3DScan", back_populates="patient", cascade="all, delete-orphan")
+
+
+class DentalAppointment(Base):
+    __tablename__ = "dental_appointments"
+
+    appointment_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
+    doctor_name = Column(String, nullable=True)
+    
+    start_time = Column(DateTime(timezone=True), nullable=False)
+    end_time = Column(DateTime(timezone=True), nullable=False)
+    
+    status = Column(String, default="scheduled") # scheduled, completed, cancelled, no-show
+    purpose = Column(String, nullable=True) # e.g., "Root Canal", "General Checkup"
+    notes = Column(Text, nullable=True)
+
+    patient = relationship("DentalPatient", back_populates="appointments")
+
+
+class DentalTreatment(Base):
+    __tablename__ = "dental_treatments"
+
+    treatment_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
+    
+    tooth_number = Column(Integer, nullable=True) # 1-32 (Universal Numbering System)
+    treatment_type = Column(String, nullable=False) # e.g., "Extraction", "Filling"
+    description = Column(Text, nullable=True)
+    cost = Column(Float, default=0.0)
+    
+    status = Column(String, default="planned") # planned, in-progress, completed
+    date_performed = Column(DateTime(timezone=True), nullable=True)
+
+    patient = relationship("DentalPatient", back_populates="treatments")
+
+
+class Dental3DScan(Base):
+    __tablename__ = "dental_3d_scans"
+
+    scan_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
+    
+    scan_type = Column(String, nullable=True) # e.g., "Intraoral", "CBCT", "Model"
+    file_path = Column(String, nullable=False) # Path to S3 or local storage
+    file_name = Column(String, nullable=False)
+    
+    uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
+    notes = Column(Text, nullable=True)
+
+    patient = relationship("DentalPatient", back_populates="scans")

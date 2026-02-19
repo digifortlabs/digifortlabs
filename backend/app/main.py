@@ -44,6 +44,15 @@ def run_migrations():
             conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS specialty VARCHAR DEFAULT 'General'"))
             conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS terminology JSON DEFAULT '{}'"))
             conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS specialty_data JSON DEFAULT '{}'"))
+            
+            # 5b. Dental Patient Enhanced Fields
+            conn.execute(text("ALTER TABLE dental_patients ADD COLUMN IF NOT EXISTS clinical_data JSON DEFAULT '{}'"))
+            conn.execute(text("ALTER TABLE dental_patients ADD COLUMN IF NOT EXISTS habits JSON DEFAULT '{}'"))
+
+            # 6. Accounting Config Enhancements
+            conn.execute(text("ALTER TABLE accounting_config ADD COLUMN IF NOT EXISTS company_phone VARCHAR"))
+            conn.execute(text("ALTER TABLE accounting_config ADD COLUMN IF NOT EXISTS company_pan VARCHAR"))
+            conn.execute(text("ALTER TABLE accounting_config ADD COLUMN IF NOT EXISTS company_bank_branch VARCHAR"))
 
             conn.commit()
             print("✅ Auto-migrations completed successfully.")
@@ -211,6 +220,9 @@ app.include_router(accounting_advanced.router, prefix="/accounting-adv", tags=["
 from .routers import inventory 
 app.include_router(inventory.router, prefix="/inventory", tags=["inventory"])
 
+from .routers import dental
+app.include_router(dental.router, prefix="/dental", tags=["dental"])
+
 try:
     from .routers import scanner
     app.include_router(scanner.router) # Scanner Service
@@ -220,15 +232,14 @@ except Exception as e:
     pass
 
 
-# Mount local storage for simulation mode (if no AWS keys)
+# Always mount local_storage for dental scans (and simulation mode)
 import os
-
 from fastapi.staticfiles import StaticFiles
 
-if not os.getenv("AWS_ACCESS_KEY_ID"):
-    local_path = os.path.join(os.getcwd(), "local_storage")
-    os.makedirs(local_path, exist_ok=True)
-    app.mount("/local-storage", StaticFiles(directory=local_path), name="local-storage")
+local_path = os.path.join(os.getcwd(), "local_storage")
+os.makedirs(local_path, exist_ok=True)
+# Mount at /local_storage to match DB file_paths
+app.mount("/local_storage", StaticFiles(directory=local_path), name="local_storage")
 
 
 
@@ -240,14 +251,25 @@ async def startup_event():
     from .database import SessionLocal
 
     async def auto_confirm_loop():
-        while True:
+        loop = asyncio.get_event_loop()
+        
+        def run_confirm_task():
             try:
+                # Create a new session for this thread
                 db = SessionLocal()
-                print("Running Scheduled Task: Auto-Confirming Drafts...")
+                # print("Running Scheduled Task: Auto-Confirming Drafts...")
+                # Only log specifically if items found, to avoid spam
                 results = StorageService.process_auto_confirmations(db)
                 if results["total"] > 0:
                      print(f"Auto-confirmed {results['success']} files ({results['failed']} failed)")
                 db.close()
+            except Exception as e:
+                print(f"Auto-confirm Task Error: {e}")
+
+        while True:
+            try:
+                # Run synchronous task in thread pool to avoid blocking async loop
+                await loop.run_in_executor(None, run_confirm_task)
             except Exception as e:
                 print(f"Auto-confirm Loop Error: {e}")
             

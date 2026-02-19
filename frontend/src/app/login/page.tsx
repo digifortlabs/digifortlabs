@@ -93,7 +93,7 @@ function LoginForm() {
                             required
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
+                            className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
                             placeholder="name@hospital.com"
                         />
                     </div>
@@ -108,7 +108,7 @@ function LoginForm() {
                             required
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
+                            className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
                             placeholder="••••••••"
                         />
                     </div>
@@ -134,7 +134,7 @@ function LoginForm() {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full relative flex items-center justify-center gap-2 py-4 px-4 bg-slate-900 text-white rounded-2xl font-bold text-sm hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-xl shadow-slate-900/20 active:scale-[0.98]"
+                    className="w-full relative flex items-center justify-center gap-2 py-4 px-4 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-xl shadow-slate-900/20 active:scale-[0.98]"
                 >
                     {loading ? (
                         <>Processing...</>

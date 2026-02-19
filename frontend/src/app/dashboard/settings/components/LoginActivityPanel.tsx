@@ -63,7 +63,7 @@ export default function LoginActivityPanel() {
 
     if (loading) {
         return (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 animate-pulse">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-pulse">
                 <div className="h-6 bg-slate-200 rounded w-1/3 mb-4"></div>
                 <div className="space-y-3">
                     {[1, 2, 3].map(i => (
@@ -75,7 +75,7 @@ export default function LoginActivityPanel() {
     }
 
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-emerald-50 rounded-xl">

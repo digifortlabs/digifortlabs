@@ -16,6 +16,21 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/config/api';
 
+const InputField = ({ label, icon: Icon, value, onChange, placeholder, type = "text", uppercase = false }: any) => (
+    <div>
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1.5 flex items-center gap-1.5">
+            {Icon && <Icon size={10} className="text-indigo-400" />} {label}
+        </label>
+        <input
+            type={type}
+            value={value || ''}
+            onChange={e => onChange(uppercase ? e.target.value.toUpperCase() : e.target.value)}
+            className={`w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none font-bold transition-all placeholder:text-slate-300 ${uppercase ? 'uppercase' : ''}`}
+            placeholder={placeholder}
+        />
+    </div>
+);
+
 export default function AccountingSettings() {
     const [config, setConfig] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -55,20 +70,6 @@ export default function AccountingSettings() {
 
     if (loading || !config) return <div className="p-12 text-center text-slate-400">Loading configurations...</div>;
 
-    const InputField = ({ label, icon: Icon, value, onChange, placeholder, type = "text", uppercase = false }: any) => (
-        <div>
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1.5 flex items-center gap-1.5">
-                {Icon && <Icon size={10} className="text-indigo-400" />} {label}
-            </label>
-            <input
-                type={type}
-                value={value || ''}
-                onChange={e => onChange(uppercase ? e.target.value.toUpperCase() : e.target.value)}
-                className={`w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none font-bold transition-all placeholder:text-slate-300 ${uppercase ? 'uppercase' : ''}`}
-                placeholder={placeholder}
-            />
-        </div>
-    );
 
     return (
         <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
@@ -94,9 +95,10 @@ export default function AccountingSettings() {
 
                     {/* Column 1: Company Profile */}
                     <div className="lg:col-span-2 space-y-8">
+                        {/* Business Identity */}
                         <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm space-y-6">
                             <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-slate-50 pb-4">
-                                <Building2 size={14} className="text-indigo-500" /> Official Business Profile
+                                <Building2 size={14} className="text-indigo-500" /> Business Identity
                             </h3>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -109,6 +111,22 @@ export default function AccountingSettings() {
                                         placeholder="e.g. Digifort Labs Pvt Ltd"
                                     />
                                 </div>
+                                <InputField
+                                    label="GSTIN / VAT Number"
+                                    icon={Zap}
+                                    value={config.company_gst}
+                                    onChange={(v: string) => setConfig({ ...config, company_gst: v })}
+                                    placeholder="24XXXXXXXXXXXXX"
+                                    uppercase={true}
+                                />
+                                <InputField
+                                    label="Permanent Account Number (PAN)"
+                                    icon={Hash}
+                                    value={config.company_pan}
+                                    onChange={(v: string) => setConfig({ ...config, company_pan: v })}
+                                    placeholder="ABCDE1234F"
+                                    uppercase={true}
+                                />
                                 <div className="md:col-span-2">
                                     <InputField
                                         label="Registered Office Address"
@@ -118,6 +136,15 @@ export default function AccountingSettings() {
                                         placeholder="Full business address for invoice header"
                                     />
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Contact Information */}
+                        <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm space-y-6">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2 border-b border-slate-50 pb-4">
+                                <Mail size={14} className="text-indigo-500" /> Contact Information
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <InputField
                                     label="Official Support Email"
                                     icon={Mail}
@@ -126,22 +153,20 @@ export default function AccountingSettings() {
                                     placeholder="info@yourcompany.com"
                                 />
                                 <InputField
-                                    label="Official Website"
-                                    icon={Globe}
-                                    value={config.company_website}
-                                    onChange={(v: string) => setConfig({ ...config, company_website: v })}
-                                    placeholder="www.yourcompany.com"
+                                    label="Official Phone Number"
+                                    icon={Zap}
+                                    value={config.company_phone}
+                                    onChange={(v: string) => setConfig({ ...config, company_phone: v })}
+                                    placeholder="+91 XXXXX XXXXX"
                                 />
                                 <div className="md:col-span-2">
                                     <InputField
-                                        label="GSTIN / VAT Number"
-                                        icon={Zap}
-                                        value={config.company_gst}
-                                        onChange={(v: string) => setConfig({ ...config, company_gst: v })}
-                                        placeholder="24XXXXXXXXXXXXX"
-                                        uppercase={true}
+                                        label="Official Website"
+                                        icon={Globe}
+                                        value={config.company_website}
+                                        onChange={(v: string) => setConfig({ ...config, company_website: v })}
+                                        placeholder="www.yourcompany.com"
                                     />
-                                    <p className="text-[10px] text-slate-400 mt-2 ml-1 italic">* Leave blank for non-GST billing/Bill of Supply defaults.</p>
                                 </div>
                             </div>
                         </div>
@@ -152,7 +177,7 @@ export default function AccountingSettings() {
                                 <CreditCard size={14} className="text-indigo-500" /> Payment & Bank Information
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
+                                <div className="md:col-span-2">
                                     <InputField
                                         label="Settlement Bank Name"
                                         icon={Building2}
@@ -162,16 +187,22 @@ export default function AccountingSettings() {
                                         uppercase={true}
                                     />
                                 </div>
-                                <div>
-                                    <InputField
-                                        label="Bank IFSC Code"
-                                        icon={Hash}
-                                        value={config.company_bank_ifsc}
-                                        onChange={(v: string) => setConfig({ ...config, company_bank_ifsc: v })}
-                                        placeholder="HDFC000XXXX"
-                                        uppercase={true}
-                                    />
-                                </div>
+                                <InputField
+                                    label="Bank Branch Name"
+                                    icon={MapPin}
+                                    value={config.company_bank_branch}
+                                    onChange={(v: string) => setConfig({ ...config, company_bank_branch: v })}
+                                    placeholder="e.g. VAPI MAIN BRANCH"
+                                    uppercase={true}
+                                />
+                                <InputField
+                                    label="Bank IFSC Code"
+                                    icon={Hash}
+                                    value={config.company_bank_ifsc}
+                                    onChange={(v: string) => setConfig({ ...config, company_bank_ifsc: v })}
+                                    placeholder="HDFC000XXXX"
+                                    uppercase={true}
+                                />
                                 <div className="md:col-span-2">
                                     <InputField
                                         label="Settlement Account Number"

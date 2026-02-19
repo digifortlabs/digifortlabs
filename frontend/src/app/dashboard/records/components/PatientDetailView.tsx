@@ -257,6 +257,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
                 full_name: patient.full_name,
                 patient_u_id: patient.patient_u_id,
                 uhid: patient.uhid,
+                patient_category: patient.patient_category || 'STANDARD',
                 contact_number: patient.contact_number,
                 address: patient.address,
                 doctor_name: patient.doctor_name,
@@ -345,11 +346,11 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
             } else {
                 const errDetail = await res.text();
                 console.error("Fetch Error:", errDetail);
-                setError("Patient not found or access denied.");
+                setError(`${terms.patient} not found or access denied.`);
             }
         } catch (error) {
             console.error(error);
-            setError("Failed to load patient data. Please check network connection.");
+            setError(`Failed to load ${terms.patient.toLowerCase()} data. Please check network connection.`);
         }
     };
 
@@ -966,7 +967,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
         <>
             <div className="flex-1 bg-white h-full overflow-y-auto">
                 <div className="p-4">
-                    <div className="mb-4 flex justify-between items-start">
+                    <div className="mb-2 flex justify-between items-start">
                         <div className="flex-1">
                             {onBack && (
                                 <button onClick={onBack} className="text-gray-500 hover:text-gray-700 mb-2 font-medium flex items-center gap-1 text-sm">
@@ -992,18 +993,54 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
                                         </span>
                                     )}
                                 </div>
-                                {patient.patient_category && patient.patient_category !== 'STANDARD' && (
-                                    <span className={`px-2 py-1 text-[10px] font-black rounded-lg border uppercase tracking-wide shadow-sm
-                                    ${patient.patient_category === 'MLC' ? 'bg-red-50 text-red-600 border-red-200' :
-                                            patient.patient_category === 'BIRTH' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                                                'bg-slate-900 text-white border-slate-700'}`}>
-                                        {patient.patient_category}
-                                    </span>
-                                )}
+                                {['IPD', 'OPD', 'MLC', 'BRT', 'DHT'].map(cat => (
+                                    <button
+                                        key={cat}
+                                        onClick={async () => {
+                                            if (patient.patient_category === cat) return;
+                                            setConfirmModal({
+                                                isOpen: true,
+                                                title: "Change Category",
+                                                message: `Change patient category to ${cat}?`,
+                                                type: 'info',
+                                                confirmText: "Change",
+                                                onConfirm: async () => {
+                                                    const token = localStorage.getItem('token');
+                                                    if (!token) return;
+                                                    try {
+                                                        const res = await fetch(`${API_URL}/patients/${id}`, {
+                                                            method: 'PUT',
+                                                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                                            body: JSON.stringify({ patient_category: cat })
+                                                        });
+                                                        if (res.ok) {
+                                                            triggerToast(`Category updated to ${cat}`, "success");
+                                                            fetchPatient(token, id);
+                                                        } else {
+                                                            triggerToast("Failed to update category", "error");
+                                                        }
+                                                    } catch (e) {
+                                                        console.error(e);
+                                                        triggerToast("Network error", "error");
+                                                    }
+                                                }
+                                            });
+                                        }}
+                                        className={`px-2 py-1 text-[10px] font-black rounded-lg border uppercase tracking-wide shadow-sm transition-all
+                                        ${(patient.patient_category === cat || (cat === 'IPD' && patient.patient_category === 'STANDARD'))
+                                                ? (cat === 'MLC' ? 'bg-red-600 text-white border-red-600 ring-2 ring-red-100' :
+                                                    cat === 'BRT' ? 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-100' :
+                                                        'bg-slate-800 text-white border-slate-800 ring-2 ring-slate-200')
+                                                : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50 hover:text-slate-600'
+                                            }`}
+                                    >
+                                        {cat}
+                                    </button>
+                                ))}
                             </div>
 
                             {/* Patient Details Grid / Edit Form */}
-                            <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-6 text-sm border-t border-gray-100 pt-6">
+                            <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-y-2 gap-x-4 text-sm border-t border-gray-100 pt-4">
                                 {isEditingProfile ? (
                                     <>
                                         <div className="col-span-2">
@@ -1032,6 +1069,21 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
                                                 value={editData.uhid || ''}
                                                 onChange={e => setEditData({ ...editData, uhid: e.target.value })}
                                             />
+                                        </div>
+                                        <div className="col-span-1">
+                                            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Category</label>
+                                            <select
+                                                className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                                value={editData.patient_category || 'STANDARD'}
+                                                onChange={e => setEditData({ ...editData, patient_category: e.target.value })}
+                                            >
+                                                <option value="STANDARD">STANDARD</option>
+                                                <option value="IPD">IPD</option>
+                                                <option value="OPD">OPD</option>
+                                                <option value="MLC">MCL (Medico-Legal)</option>
+                                                <option value="BRT">Birth</option>
+                                                <option value="DHT">Death</option>
+                                            </select>
                                         </div>
                                         <div className="col-span-1">
                                             <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Contact No.</label>
@@ -1509,7 +1561,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
                             </div>
 
                             <div className={`relative group transition-all duration-300 ${isUploading ? 'opacity-50 pointer-events-none grayscale' : 'opacity-100'}`}>
-                                <div className="relative bg-white border-2 border-dashed border-slate-200 hover:border-indigo-300 rounded-xl p-6 text-center transition-all cursor-pointer overflow-hidden">
+                                <div className="relative bg-white border-2 border-dashed border-slate-200 hover:border-indigo-300 rounded-xl p-4 text-center transition-all cursor-pointer overflow-hidden">
                                     <input
                                         type="file"
                                         multiple
@@ -1907,7 +1959,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
             {
                 showScanner && (
                     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-                        <div className="w-full h-full max-w-7xl max-h-[95vh] bg-white rounded-2xl overflow-hidden shadow-2xl">
+                        <div className="w-full h-full max-w-7xl max-h-[95vh] bg-white rounded-xl overflow-hidden shadow-2xl">
                             <DigitizationScanner
                                 onComplete={async (pdfFile) => {
                                     const queueItem: FileQueueItem = {

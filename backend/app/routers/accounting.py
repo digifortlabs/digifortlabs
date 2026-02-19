@@ -66,6 +66,9 @@ class InvoiceResponse(BaseModel):
     company_bank_name: Optional[str] = None
     company_bank_acc: Optional[str] = None
     company_bank_ifsc: Optional[str] = None
+    company_bank_branch: Optional[str] = None
+    company_phone: Optional[str] = None
+    company_pan: Optional[str] = None
     is_gst_bill: bool = True
     
     items: List[InvoiceItemResponse] = []
@@ -129,13 +132,16 @@ def get_accounting_config(db: Session = Depends(get_db), current_user: User = De
 class ConfigUpdate(BaseModel):
     current_fy: Optional[str] = None
     company_name: Optional[str] = None
+    company_phone: Optional[str] = None
     company_address: Optional[str] = None
     company_gst: Optional[str] = None
+    company_pan: Optional[str] = None
     company_email: Optional[str] = None
     company_website: Optional[str] = None
     company_bank_name: Optional[str] = None
     company_bank_acc: Optional[str] = None
     company_bank_ifsc: Optional[str] = None
+    company_bank_branch: Optional[str] = None
     invoice_prefix: Optional[str] = None
     invoice_prefix_nongst: Optional[str] = None
     receipt_prefix: Optional[str] = None
@@ -270,6 +276,9 @@ def get_invoice_details(
         res.company_bank_name = config.company_bank_name
         res.company_bank_acc = config.company_bank_acc
         res.company_bank_ifsc = config.company_bank_ifsc
+        res.company_bank_branch = config.company_bank_branch
+        res.company_phone = config.company_phone
+        res.company_pan = config.company_pan
     else:
         res.company_gst = "24AAFCD9999A1ZP" # Fallback
     
@@ -717,6 +726,9 @@ def generate_invoice(
             res.company_bank_name = config.company_bank_name
             res.company_bank_acc = config.company_bank_acc
             res.company_bank_ifsc = config.company_bank_ifsc
+            res.company_bank_branch = config.company_bank_branch
+            res.company_phone = config.company_phone
+            res.company_pan = config.company_pan
         
         # Log Audit
         log_audit(

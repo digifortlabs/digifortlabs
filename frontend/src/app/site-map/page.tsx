@@ -108,7 +108,7 @@ export default function SiteMapPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {sections.map((section, idx) => (
-                        <div key={idx} className={`bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md transition-shadow ${section.subsections ? 'md:col-span-2 lg:col-span-3' : ''}`}>
+                        <div key={idx} className={`bg-white rounded-xl p-8 border border-slate-200 shadow-sm hover:shadow-md transition-shadow ${section.subsections ? 'md:col-span-2 lg:col-span-3' : ''}`}>
                             <div className="flex items-center gap-4 mb-6 border-b border-slate-100 pb-4">
                                 <div className="p-3 bg-slate-50 rounded-xl">
                                     {section.icon}

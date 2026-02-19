@@ -3,7 +3,7 @@ import json
 
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 class Settings:
     PROJECT_NAME: str = "THE DIGIFORT LABS"
@@ -35,7 +35,7 @@ class Settings:
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "super-secret-key-change-this-in-prod")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "720"))
     
     # CORS - Read from environment or use defaults
     def __init__(self):

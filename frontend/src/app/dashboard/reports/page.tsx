@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { API_URL } from '../../../config/api';
-import { Boxes, ShieldAlert, Download, RefreshCw, FileText, Stethoscope, Calendar, Building2, Filter, Search, ArrowUpDown } from 'lucide-react';
+import { Boxes, ShieldAlert, Download, RefreshCw, FileText, Stethoscope, Calendar, Building2, Filter, Search, ArrowUpDown, BarChart3, PieChart } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 
 export default function ReportsPage() {
     const router = useRouter();
@@ -62,13 +63,15 @@ export default function ReportsPage() {
 
         try {
             const payload = JSON.parse(atob(token.split('.')[1]));
-            if (payload.role !== 'superadmin') {
-                router.push('/dashboard');
-                return;
-            }
+            // Allow all authorized roles to access reports
+            // if (payload.role !== 'superadmin') { ... } 
+
             setUserRole(payload.role || '');
             setIsAuthorized(true);
-            fetchHospitals(token);
+
+            if (payload.role === 'superadmin' || payload.role === 'superadmin_staff') {
+                fetchHospitals(token);
+            }
         } catch (e) {
             console.error(e);
             router.push('/dashboard');
@@ -163,7 +166,7 @@ export default function ReportsPage() {
             <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 pb-12 pt-0">
 
                 {/* Header */}
-                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-4 gap-6">
+                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-4 gap-3">
                     <div>
                         <h1 className="text-4xl font-black text-slate-800 tracking-tight flex items-center gap-3">
                             <span className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-200">
@@ -196,7 +199,7 @@ export default function ReportsPage() {
                                     onChange={(e) => setSelectedHospital(e.target.value)}
                                     className="pl-10 pr-4 py-3 bg-slate-50 rounded-xl font-bold text-sm text-slate-600 outline-none focus:ring-2 focus:ring-indigo-100 border-none w-full md:w-48 appearance-none"
                                 >
-                                    <option value="">All Hospitals</option>
+                                    <option value="">All Clients</option>
                                     {hospitals.map(h => (
                                         <option key={h.hospital_id} value={h.hospital_id}>{h.legal_name}</option>
                                     ))}
@@ -247,14 +250,16 @@ export default function ReportsPage() {
                         onClick={() => setActiveTab('clinical')}
                         className={`px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-wide flex items-center gap-3 transition-all ${activeTab === 'clinical' ? 'bg-white text-indigo-600 shadow-xl shadow-indigo-100 ring-1 ring-indigo-50' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
                     >
-                        <Stethoscope size={20} /> Clinical Data
+                        <Stethoscope size={20} /> Patient Analytics
                     </button>
-                    <button
-                        onClick={() => setActiveTab('inventory')}
-                        className={`px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-wide flex items-center gap-3 transition-all ${activeTab === 'inventory' ? 'bg-white text-indigo-600 shadow-xl shadow-indigo-100 ring-1 ring-indigo-50' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
-                    >
-                        <Boxes size={20} /> Inventory Report
-                    </button>
+                    {(userRole === 'superadmin' || userRole === 'superadmin_staff') && (
+                        <button
+                            onClick={() => setActiveTab('inventory')}
+                            className={`px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-wide flex items-center gap-3 transition-all ${activeTab === 'inventory' ? 'bg-white text-indigo-600 shadow-xl shadow-indigo-100 ring-1 ring-indigo-50' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                        >
+                            <Boxes size={20} /> Inventory Report
+                        </button>
+                    )}
                     <button
                         onClick={() => setActiveTab('audit')}
                         className={`px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-wide flex items-center gap-3 transition-all ${activeTab === 'audit' ? 'bg-white text-indigo-600 shadow-xl shadow-indigo-100 ring-1 ring-indigo-50' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
@@ -265,18 +270,54 @@ export default function ReportsPage() {
 
                 {/* Summary Card (Clinical Only) */}
                 {summary && (activeTab === 'clinical') && (
-                    <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6 animate-in slide-in-from-top-4">
-                        {Object.entries(summary).slice(0, 3).map(([key, value]: any) => (
-                            <div key={key} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{key}</p>
-                                <h3 className="text-3xl font-black text-indigo-600">{value}</h3>
+                    <div className="mb-8 space-y-6 animate-in slide-in-from-top-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            {Object.entries(summary).slice(0, 3).map(([key, value]: any) => (
+                                <div key={key} className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{key.replace(/_/g, ' ')}</p>
+                                    <h3 className="text-3xl font-black text-indigo-600">{value}</h3>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Charts Section */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2">
+                                    <BarChart3 className="text-indigo-600" size={20} /> Admissions Trend
+                                </h3>
+                                <div className="h-64">
+                                    {data && data.length > 0 ? (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={
+                                                // Group by Month (using admission_date)
+                                                Object.entries(data.reduce((acc: any, curr: any) => {
+                                                    const date = curr.admission_date ? new Date(curr.admission_date).toLocaleString('default', { month: 'short' }) : 'Unknown';
+                                                    acc[date] = (acc[date] || 0) + 1;
+                                                    return acc;
+                                                }, {})).map(([name, count]) => ({ name, count }))
+                                            }>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
+                                                <YAxis fontSize={12} tickLine={false} axisLine={false} />
+                                                <Tooltip
+                                                    cursor={{ fill: '#f1f5f9' }}
+                                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                                />
+                                                <Bar dataKey="count" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={40} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <div className="h-full flex items-center justify-center text-slate-400 text-sm">No data for visualization</div>
+                                    )}
+                                </div>
                             </div>
-                        ))}
+                        </div>
                     </div>
                 )}
 
                 {/* Data Table */}
-                <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden min-h-[400px]">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[400px]">
                     {loading ? (
                         <div className="h-96 flex items-center justify-center text-slate-400 gap-3 font-bold">
                             <RefreshCw className="animate-spin" /> Loading Data...

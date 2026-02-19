@@ -29,8 +29,8 @@ export default function Sidebar({ userRole }: SidebarProps) {
                 </div>
                 {specialty !== 'General' && (
                     <div className={`px-3 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${specialty === 'Dental' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                            specialty === 'ENT' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
-                                'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
+                        specialty === 'ENT' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' :
+                            'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
                         }`}>
                         {specialty === 'Dental' ? '🦷 Dental Clinic' : specialty === 'ENT' ? '👂 ENT Specialty' : specialty}
                     </div>
@@ -86,6 +86,21 @@ export default function Sidebar({ userRole }: SidebarProps) {
                             Dashboard Overview
                         </div>
                     </Link>
+
+                    {/* Dental Specific Dashboard */}
+                    {specialty === 'Dental' && (
+                        <Link
+                            href="/dashboard/dental"
+                            className={`block px-4 py-3 rounded-xl transition-all duration-200 border ${isActive('/dashboard/dental')
+                                ? 'active bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-900/50'
+                                : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                }`}
+                        >
+                            <div className="flex items-center gap-3 font-medium">
+                                <span>🦷</span> Dental Clinic
+                            </div>
+                        </Link>
+                    )}
 
                     {/* Warehouse (Moved to Main Menu) */}
                     {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'mrd_staff' || userRole === 'website_staff') && (

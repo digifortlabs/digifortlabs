@@ -378,7 +378,7 @@ export default function SettingsPage() {
             });
 
             if (res.ok) {
-                alert("Hospital Profile Updated Successfully!");
+                alert("Client Profile Updated Successfully!");
             } else {
                 alert("Failed to update profile.");
             }
@@ -411,10 +411,10 @@ export default function SettingsPage() {
             {userRole === 'hospital_admin' && (
                 <>
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl mb-6">
-                        <h2 className="text-lg font-semibold mb-4 text-indigo-700">🏥 Hospital Profile & Compliance</h2>
+                        <h2 className="text-lg font-semibold mb-4 text-indigo-700">🏥 Client Profile & Compliance</h2>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="col-span-2">
-                                <label className="block text-sm font-medium text-gray-700">Hospital Director / Owner Name</label>
+                                <label className="block text-sm font-medium text-gray-700">Client Director / Owner Name</label>
                                 <input type="text"
                                     className="mt-1 block w-full border border-gray-300 rounded-md p-2"
                                     value={profile.director_name} onChange={e => setProfile({ ...profile, director_name: e.target.value })}

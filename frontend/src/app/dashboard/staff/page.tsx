@@ -110,7 +110,7 @@ export default function StaffManagement() {
     };
 
     return (
-        <div className="w-full mx-auto px-6 pb-6 pt-0">
+        <div className="w-full mx-auto px-4 pb-4 pt-0">
             <div className="flex justify-between items-center mb-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
@@ -120,17 +120,17 @@ export default function StaffManagement() {
                 </div>
                 <button
                     onClick={() => setShowModal(true)}
-                    className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition"
+                    className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition"
                 >
-                    <Plus size={20} /> Add New Staff
+                    <Plus size={18} /> Add New Staff
                 </button>
             </div>
 
             {/* Stats / Limit Warning could go here */}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {staff.map(user => (
-                    <div key={user.user_id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 group hover:shadow-md transition">
+                    <div key={user.user_id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 group hover:shadow-md transition">
                         <div className="flex justify-between items-start mb-4">
                             <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 font-bold text-xl">
                                 {user.email[0].toUpperCase()}

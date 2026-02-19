@@ -218,8 +218,8 @@ const LabelGenerator = () => {
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in duration-500">
-            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-200">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-in fade-in duration-500">
+            <div className="bg-white rounded-xl p-8 shadow-sm border border-slate-200">
                 <div className="flex gap-4 mb-8">
                     {['PATIENT', 'BOX', 'RACK'].map((m) => (
                         <button
@@ -312,7 +312,7 @@ const LabelGenerator = () => {
                 {/* Preview is handled below */}
             </div>
 
-            <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden flex flex-col items-center justify-center">
+            <div className="bg-slate-900 rounded-xl p-10 text-white shadow-2xl relative overflow-hidden flex flex-col items-center justify-center">
                 <h2 className="text-lg font-bold mb-8 text-slate-400 flex items-center gap-2 w-full"><Printer size={18} /> Printer Preview</h2>
                 {activeItem ? (
                     <div className="bg-white rounded-lg w-[1.5in] h-[3in] text-slate-900 shadow-2xl flex flex-col p-3 box-border overflow-hidden border border-slate-100">

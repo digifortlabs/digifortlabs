@@ -31,11 +31,13 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import ConfirmationModal from '@/components/ConfirmationModal';
+import { useTerminology } from '@/hooks/useTerminology';
 
 export default function CommandCenter() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const hospitalId = searchParams?.get('hospital_id');
+    const { terms } = useTerminology();
     const [stats, setStats] = useState<any>(null);
     const [warehouseCapacity, setWarehouseCapacity] = useState(0);
     const [systemHealth, setSystemHealth] = useState('good');
@@ -216,54 +218,49 @@ export default function CommandCenter() {
         <div className="px-4 sm:px-6 pb-20 pt-0 w-full mx-auto min-h-screen">
 
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2 gap-2">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                         {isDetailedView && stats?.hospital_name ? (
                             <>
-                                <Building2 className="text-indigo-600" />
+                                <Building2 className="text-indigo-600 w-6 h-6" />
                                 {stats.hospital_name}
                             </>
                         ) : (
                             <>
-                                <Activity className="text-indigo-600" /> Control Command Center
+                                <Activity className="text-indigo-600 w-6 h-6" /> Control Command Center
                             </>
                         )}
                     </h1>
-                    <p className="text-slate-500 font-medium">
+                    <p className="text-slate-500 font-medium text-xs">
                         {isDetailedView
-                            ? "Hospital-specific metrics, billing, and operational insights."
+                            ? "Client-specific metrics, billing, and operational insights."
                             : "Real-time system monitoring and integrity oversight."}
                     </p>
                 </div>
-                <div className="flex flex-wrap gap-2 sm:gap-4">
-                    <div className="bg-indigo-50 px-4 py-2 rounded-xl flex items-center gap-2 border border-indigo-100">
-                        <Clock className="text-indigo-600 w-4 h-4" />
+                <div className="flex flex-wrap gap-2">
+                    <div className="bg-indigo-50 px-3 py-1.5 rounded-xl flex items-center gap-2 border border-indigo-100">
+                        <Clock className="text-indigo-600 w-3 h-3" />
                         <div className="flex flex-col">
-                            <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider leading-none">Session Time</span>
+                            <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider leading-none">Session</span>
                             <span className="text-xs font-black text-indigo-700 leading-none">{sessionDuration}</span>
                         </div>
                     </div>
-                    <div className="bg-emerald-50 px-4 py-2 rounded-xl flex items-center gap-2 border border-emerald-100">
-                        <ShieldCheck className="text-emerald-600 w-4 h-4" />
+                    <div className="bg-emerald-50 px-3 py-1.5 rounded-xl flex items-center gap-2 border border-emerald-100">
+                        <ShieldCheck className="text-emerald-600 w-3 h-3" />
                         <div className="flex flex-col">
-
+                            <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider leading-none">Last Login</span>
                             <span className="text-xs font-black text-emerald-700 leading-none">
-                                <div className="flex flex-col">
-                                    <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider leading-none">Last Login</span>
-                                    <span className="text-xs font-black text-emerald-700 leading-none">
-                                        {stats?.system?.uptime ? formatDateTime(stats.system.uptime) : 'Initial Session'}
-                                    </span>
-                                </div>
+                                {stats?.system?.uptime ? formatDateTime(stats.system.uptime) : 'Initial Session'}
                             </span>
                         </div>
                     </div>
 
                     {/* Digital Clock (New) */}
-                    <div className="bg-slate-900 px-6 py-2 rounded-xl flex items-center gap-3 shadow-lg shadow-slate-200">
+                    <div className="bg-slate-900 px-4 py-1.5 rounded-xl flex items-center gap-3 shadow-lg shadow-slate-200">
                         <div className="flex flex-col items-end">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Local Time</span>
-                            <span className="text-xl font-black text-white leading-none font-mono tracking-wider">
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">Local Time</span>
+                            <span className="text-lg font-black text-white leading-none font-mono tracking-wider">
                                 {currentTime || '--:--:--'}
                             </span>
                         </div>
@@ -273,10 +270,10 @@ export default function CommandCenter() {
             </div>
 
             {/* Top Metrics Grid - Comprehensive 8 Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
 
                 <MetricCard
-                    label="Total Patients"
+                    label={`Total ${terms.patient}s`}
                     value={stats?.patients?.total || 0}
                     trend={stats?.patients?.trend || "+0%"}
                     trendUp={stats?.patients?.trend?.startsWith('+') && stats?.patients?.trend !== "+0%"}
@@ -350,9 +347,9 @@ export default function CommandCenter() {
             </div>
 
             {/* Charts Section - 2 Visual Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
                 {/* Activity Trend Chart */}
-                <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200">
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
                     <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
                         <TrendingUp size={16} className="text-indigo-600" />
                         Activity Trend (Last 7 Days)
@@ -400,7 +397,7 @@ export default function CommandCenter() {
                 </div>
 
                 {/* Category Breakdown Chart */}
-                <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200">
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
                     <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
                         <FileText size={16} className="text-indigo-600" />
                         File Category Distribution
@@ -448,9 +445,9 @@ export default function CommandCenter() {
 
             {/* Patient List (New Section) */}
             {hospitalId && (
-                <div className="mb-8">
+                <div className="mb-4">
                     <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-bold text-slate-800">Recent Patients</h2>
+                        <h2 className="text-xl font-bold text-slate-800">Recent {terms.patient}s</h2>
                         <button
                             onClick={() => router.push(`/dashboard/records?hospital_id=${hospitalId}`)}
                             className="text-sm font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
@@ -459,11 +456,11 @@ export default function CommandCenter() {
                         </button>
                     </div>
 
-                    <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-x-auto">
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
                         <table className="w-full text-left">
                             <thead className="bg-slate-50 border-b border-slate-100">
                                 <tr>
-                                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Patient Name</th>
+                                    <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">{terms.patient} Name</th>
                                     <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">MRD / UHID</th>
                                     <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Discharged</th>
                                     <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Status</th>
@@ -471,9 +468,9 @@ export default function CommandCenter() {
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {loadingPatients ? (
-                                    <tr><td colSpan={4} className="p-8 text-center text-slate-400">Loading patients...</td></tr>
+                                    <tr><td colSpan={4} className="p-8 text-center text-slate-400">Loading {terms.patient.toLowerCase()}s...</td></tr>
                                 ) : patients.length === 0 ? (
-                                    <tr><td colSpan={4} className="p-8 text-center text-slate-400 italic">No recent patients found.</td></tr>
+                                    <tr><td colSpan={4} className="p-8 text-center text-slate-400 italic">No recent {terms.patient.toLowerCase()}s found.</td></tr>
                                 ) : (
                                     patients.map((p) => (
                                         <tr key={p.record_id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => router.push(`/dashboard/records/view?id=${p.record_id}`)}>
@@ -509,12 +506,12 @@ export default function CommandCenter() {
             )}
 
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                 {/* ... (Rest of the existing layout: Main Activity Feed & QA) ... */}
                 {/* Main Activity Feed */}
-                <div className="xl:col-span-2 space-y-8">
+                <div className="xl:col-span-2 space-y-4">
                     {/* Recent Alerts (Real) */}
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-slate-800">Recent File Movements</h3>
                             <Activity size={16} className="text-slate-400" />
@@ -540,11 +537,11 @@ export default function CommandCenter() {
                 </div>
 
                 {/* Right Column: QA & Quick Actions */}
-                <div className="space-y-8">
+                <div className="space-y-4">
 
                     {/* QA / Missing Page Monitor (Super Admin & Hospital Admin) */}
                     {(userRole === 'website_admin' || userRole === 'hospital_admin') && (
-                        <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+                        <div className="bg-slate-900 text-white p-4 rounded-xl shadow-xl relative overflow-hidden">
                             <div className="relative z-10">
                                 <div className="flex justify-between items-center mb-6">
                                     <h3 className="text-xl font-black flex items-center gap-2">
@@ -581,7 +578,7 @@ export default function CommandCenter() {
                     )}
 
                     {/* Quick Actions */}
-                    <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-200">
+                    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
                         <h3 className="text-lg font-bold text-slate-800 mb-6">Quick Actions</h3>
 
                         {/* Admin Only Actions */}
@@ -783,7 +780,7 @@ export default function CommandCenter() {
                                         />
                                         <ActionButton
                                             icon={<Users size={18} />}
-                                            label="Search Patient"
+                                            label={`Search ${terms.patient}`}
                                             onClick={() => router.push('/dashboard/records')}
                                         />
                                         <ActionButton
@@ -839,7 +836,7 @@ export default function CommandCenter() {
                 {
                     showQaModal && selectedIssue && (
                         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                            <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                            <div className="bg-white rounded-xl max-w-lg w-full overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
                                 <div className="bg-red-50 p-6 border-b border-red-100 flex justify-between items-center">
                                     <h3 className="text-xl font-black text-red-900 flex items-center gap-2">
                                         <AlertTriangle className="text-red-600" /> QA Alert

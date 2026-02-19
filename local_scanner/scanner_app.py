@@ -170,9 +170,9 @@ class ImageProcessor:
                 adjusted = cv2.cvtColor(cv2.cvtColor(adjusted, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
             elif mode == "B&W":
                 gray = cv2.cvtColor(adjusted, cv2.COLOR_BGR2GRAY)
-                # Professional Adaptive Thresholding for crisp text
+                # Professional Adaptive Thresholding for crisp text (optimized for B&W Group 4)
                 adjusted = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                               cv2.THRESH_BINARY, 15, 8)
+                                               cv2.THRESH_BINARY, 21, 11)
                 adjusted = cv2.cvtColor(adjusted, cv2.COLOR_GRAY2BGR)
                 
             return adjusted
@@ -1217,11 +1217,20 @@ except Exception as e:
         img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         
         # DISK STORAGE: Save to temp session folder
-        filename = f"scan_{int(time.time() * 1000)}.jpg"
+        is_bw = self.color_mode.get() == "B&W"
+        ext = "png" if is_bw else "jpg"
+        filename = f"scan_{int(time.time() * 1000)}.{ext}"
         filepath = os.path.join(self.session_dir, filename)
         
-        # Save high quality JPEG (Compressed)
-        img.save(filepath, format="JPEG", quality=65, optimize=True)
+        # Save intermediate image
+        if is_bw:
+            # Convert to 1-bit PNG for efficient intermediate storage and accurate UI size report
+            # We use PNG for the intermediate file to keep it lossless but very small
+            img_bw = img.convert("L").point(lambda x: 0 if x < 128 else 255, mode='1')
+            img_bw.save(filepath, format="PNG", optimize=True)
+        else:
+            # Save standard JPEG for color/gray
+            img.save(filepath, format="JPEG", quality=65, optimize=True)
         
         self.image_paths.append(filepath)
         self.refresh_sidebar(scroll_to_end=True)
@@ -1414,18 +1423,37 @@ except Exception as e:
             
             # Loading all into list
             pil_images = []
+            
             for path in self.image_paths:
                 try:
                     img = Image.open(path)
-                    if img.mode != 'RGB': img = img.convert('RGB')
+                    # If intermediate file is already 1-bit (from my new capture logic), use it directly
+                    # Otherwise handle conversion for older files in the session
+                    if img.mode != '1' and self.color_mode.get() == "B&W":
+                        img = img.convert("L").point(lambda x: 0 if x < 128 else 255, mode='1')
+                    elif img.mode != 'RGB' and img.mode != '1': 
+                        img = img.convert('RGB')
                     pil_images.append(img)
                 except Exception as e:
                     logger.error(f"Skipping bad file {path}: {e}")
 
             if not pil_images: return
 
-            # High compression for the PDF (Quality 40)
-            pil_images[0].save(buf, format="PDF", save_all=True, append_images=pil_images[1:], quality=40, optimize=True)
+            # Save as PDF with optimized compression based on content
+            save_params = {
+                "format": "PDF",
+                "save_all": True,
+                "append_images": pil_images[1:],
+                "optimize": True
+            }
+            
+            if is_bw_session:
+                # 1-bit images use extremely efficient Group 4 style compression in PDF
+                save_params["resolution"] = 300.0
+            else:
+                save_params["quality"] = 40
+                
+            pil_images[0].save(buf, **save_params)
             buf.seek(0)
             
             # --- FILENAME LOGIC START ---

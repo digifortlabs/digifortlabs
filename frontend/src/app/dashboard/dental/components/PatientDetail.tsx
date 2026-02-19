@@ -4,6 +4,10 @@ import React, { useState } from 'react';
 import {
     Tabs, TabsContent, TabsList, TabsTrigger
 } from '@/components/ui/tabs';
+import {
+    Dialog, DialogContent, DialogDescription, DialogFooter,
+    DialogHeader, DialogTitle, DialogTrigger
+} from "@/components/ui/dialog";
 import { cn } from '@/lib/utils';
 import {
     Card, CardContent, CardHeader, CardTitle, CardDescription
@@ -40,7 +44,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
         chief_complaints: [],
         medical_history: {},
         odontogram: {},
-        notes: "",
+        notes: patient.chief_complaint || "", // Fallback to registration complaint
         ...(patient.clinical_data || {})
     });
 
@@ -53,18 +57,38 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
         ...(patient.habits || {})
     });
     const [prescriptions, setPrescriptions] = useState<any[]>(patient.prescriptions || []);
+    const [treatments, setTreatments] = useState<any[]>([]);
+
+    // Medication Presets State
+    const [medicationPresets, setMedicationPresets] = useState({
+        antibiotics: ["Amoxicillin 500mg", "Augmentin 625mg", "Metrogyl 400mg"],
+        analgesics: ["Zerodol P (Aceclofenac + Paracetamol)", "Combiflam", "Ketorol DT"],
+        others: ["Pantocid 40mg (Antacid)", "Chlohexidine Mouthwash"]
+    });
+
+    // Add Procedure Modal State
+    const [isAddProcedureOpen, setIsAddProcedureOpen] = useState(false);
+    const [newProcedure, setNewProcedure] = useState({
+        type: "",
+        tooth: "",
+        cost: "",
+        date: new Date().toISOString().split('T')[0] // Default to today
+    });
+
+    // Add Prescription Modal State
+    const [isAddPrescriptionOpen, setIsAddPrescriptionOpen] = useState(false);
+    const [newPrescription, setNewPrescription] = useState({
+        name: "",
+        dosage: "1-0-1",
+        duration: "5 days",
+        notes: "After food",
+        startDate: new Date().toISOString().split('T')[0] // Default to today
+    });
 
     // Scans State
     const [scans, setScans] = useState<any[]>([]);
     const [selectedScanUrl, setSelectedScanUrl] = useState<string>("");
     const [isUploadingScan, setIsUploadingScan] = useState(false);
-
-    // Fetch scans on load
-    React.useEffect(() => {
-        if (activeTab === 'scans') {
-            fetchScans();
-        }
-    }, [activeTab]);
 
     const fetchScans = async () => {
         try {
@@ -195,7 +219,14 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
     };
 
     const handleSave = async () => {
-        setIsSaving(true);
+        const payload = {
+            ...patient,
+            clinical_data: clinicalData,
+            habits: habits,
+            prescriptions: prescriptions
+        };
+        console.log("Saving Dental Record:", payload);
+
         try {
             const response = await fetch(`${API_URL}/dental/patients/${patient.patient_id}`, {
                 method: 'PUT',
@@ -203,12 +234,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 },
-                body: JSON.stringify({
-                    ...patient,
-                    clinical_data: clinicalData,
-                    habits: habits,
-                    prescriptions: prescriptions
-                })
+                body: JSON.stringify(payload)
             });
             if (response.ok) {
                 alert("Record saved successfully!");
@@ -221,6 +247,92 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
             setIsSaving(false);
         }
     };
+
+    const handleAddProcedure = () => {
+        setIsAddProcedureOpen(true);
+    };
+
+    const saveProcedure = async () => {
+        if (!newProcedure.type) {
+            alert("Please enter a procedure name");
+            return;
+        }
+
+        const cost = parseFloat(newProcedure.cost || "0");
+
+        try {
+            const response = await fetch(`${API_URL}/dental/treatments`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({
+                    patient_id: patient.patient_id,
+                    treatment_type: newProcedure.type,
+                    tooth_number: newProcedure.tooth ? parseInt(newProcedure.tooth) : null,
+                    cost: cost,
+                    status: "planned",
+                    description: "Added via UI",
+                    date_performed: newProcedure.date || new Date().toISOString()
+                })
+            });
+
+            if (response.ok) {
+                const newTreatment = await response.json();
+                setTreatments([...treatments, newTreatment]);
+                setIsAddProcedureOpen(false);
+                setNewProcedure({
+                    type: "",
+                    tooth: "",
+                    cost: "",
+                    date: new Date().toISOString().split('T')[0]
+                }); // Reset form
+            } else {
+                alert("Failed to add procedure");
+            }
+        } catch (error) {
+            console.error("Error adding procedure:", error);
+            alert("Error adding procedure.");
+        }
+    };
+
+    const handleSavePrescription = () => {
+        if (!newPrescription.name) {
+            alert("Please enter a medication name");
+            return;
+        }
+
+        const newMed = {
+            id: Date.now(),
+            ...newPrescription
+        };
+
+        setPrescriptions([...prescriptions, newMed]);
+
+        // Add to "Others" presets if not already in any list
+        const allMeds = Object.values(medicationPresets).flat();
+        if (!allMeds.includes(newPrescription.name)) {
+            setMedicationPresets(prev => ({
+                ...prev,
+                others: [...prev.others, newPrescription.name]
+            }));
+        }
+
+        setIsAddPrescriptionOpen(false);
+        setNewPrescription({
+            name: "",
+            dosage: "1-0-1",
+            duration: "5 days",
+            notes: "After food",
+            startDate: new Date().toISOString().split('T')[0]
+        });
+    };
+
+    // Billing Calculations
+    const totalEstimate = treatments.reduce((sum, t) => sum + (t.cost || 0), 0);
+    const totalPaid = 0; // Backend for payments not ready yet
+    const balance = totalEstimate - totalPaid;
 
     return (
         <div className="space-y-4">
@@ -239,13 +351,37 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                 <h1 className="text-2xl font-bold text-slate-900">{patient.full_name}</h1>
                                 <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none font-semibold">Active</Badge>
                             </div>
-                            <div className="flex items-center gap-4 text-sm text-slate-500 mt-1">
-                                <span>ID: #{patient.patient_id.toString().padStart(5, '0')}</span>
+                            <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500 mt-1">
+                                <span>ID: <span className="font-semibold text-slate-700">#{patient.patient_id?.toString().padStart(5, '0')}</span></span>
+                                {patient.uhid && (
+                                    <>
+                                        <span className="w-1 h-1 bg-slate-300 rounded-full" />
+                                        <span>UHID: <span className="font-semibold text-slate-700">{patient.uhid}</span></span>
+                                    </>
+                                )}
+                                {patient.opd_number && (
+                                    <>
+                                        <span className="w-1 h-1 bg-slate-300 rounded-full" />
+                                        <span>OPD: <span className="font-semibold text-slate-700">{patient.opd_number}</span></span>
+                                    </>
+                                )}
                                 <span className="w-1 h-1 bg-slate-300 rounded-full" />
                                 <span>{patient.phone}</span>
-                                <span className="w-1 h-1 bg-slate-300 rounded-full" />
-                                <span>Last Visit: {patient.last_visit}</span>
+                                {patient.registration_date && (
+                                    <>
+                                        <span className="w-1 h-1 bg-slate-300 rounded-full" />
+                                        <span>Reg: {new Date(patient.registration_date).toLocaleDateString()}</span>
+                                    </>
+                                )}
                             </div>
+                            {patient.chief_complaint && (
+                                <div className="mt-2 p-2 bg-blue-50 border border-blue-100 rounded-lg max-w-xl">
+                                    <p className="text-xs text-blue-800">
+                                        <span className="font-bold uppercase mr-2 text-[10px] tracking-wider">Reg. Complaint:</span>
+                                        {patient.chief_complaint}
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -330,10 +466,10 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                                 if (e.key === 'Enter') {
                                                     const val = e.currentTarget.value.trim();
                                                     if (val && !clinicalData.chief_complaints.includes(val)) {
-                                                        setClinicalData({
-                                                            ...clinicalData,
-                                                            chief_complaints: [...clinicalData.chief_complaints, val]
-                                                        });
+                                                        setClinicalData((prev: any) => ({
+                                                            ...prev,
+                                                            chief_complaints: [...prev.chief_complaints, val]
+                                                        }));
                                                         e.currentTarget.value = '';
                                                     }
                                                 }
@@ -351,11 +487,11 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                                     <div className="flex gap-1">
                                                         <button
                                                             className={`w-8 h-6 rounded text-[10px] font-bold ${clinicalData.medical_history[h] === false ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500'}`}
-                                                            onClick={() => setClinicalData({ ...clinicalData, medical_history: { ...clinicalData.medical_history, [h]: false } })}
+                                                            onClick={() => setClinicalData((prev: any) => ({ ...prev, medical_history: { ...(prev.medical_history || {}), [h]: false } }))}
                                                         >NO</button>
                                                         <button
                                                             className={`w-8 h-6 rounded text-[10px] font-bold ${clinicalData.medical_history[h] === true ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-500'}`}
-                                                            onClick={() => setClinicalData({ ...clinicalData, medical_history: { ...clinicalData.medical_history, [h]: true } })}
+                                                            onClick={() => setClinicalData((prev: any) => ({ ...prev, medical_history: { ...(prev.medical_history || {}), [h]: true } }))}
                                                         >YES</button>
                                                     </div>
                                                 </div>
@@ -434,9 +570,9 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                     }
                                 }}
                                 chiefComplaint={clinicalData.notes || ""}
-                                setChiefComplaint={(notes) => setClinicalData({ ...clinicalData, notes })}
+                                setChiefComplaint={(notes) => setClinicalData((prev: any) => ({ ...prev, notes }))}
                                 advice={clinicalData.advice || ""}
-                                setAdvice={(advice) => setClinicalData({ ...clinicalData, advice })}
+                                setAdvice={(advice) => setClinicalData((prev: any) => ({ ...prev, advice }))}
                             />
                         </div>
                     </div>
@@ -450,7 +586,10 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                 <CardTitle className="text-xl">Treatment Plan</CardTitle>
                                 <CardDescription>List of planned and ongoing procedures</CardDescription>
                             </div>
-                            <Button className="bg-blue-900 hover:bg-blue-800 text-white gap-2">
+                            <Button
+                                onClick={handleAddProcedure}
+                                className="bg-blue-900 hover:bg-blue-800 text-white gap-2"
+                            >
                                 <Plus className="w-4 h-4" /> Add Procedure
                             </Button>
                         </CardHeader>
@@ -459,6 +598,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-widest border-b">
                                         <tr>
+                                            <th className="px-6 py-4">Date</th>
                                             <th className="px-6 py-4">Procedure</th>
                                             <th className="px-6 py-4">Tooth</th>
                                             <th className="px-6 py-4">Status</th>
@@ -467,28 +607,37 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
-                                        <tr className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="px-6 py-4 font-semibold">Root Canal Treatment</td>
-                                            <td className="px-6 py-4">#16</td>
-                                            <td className="px-6 py-4">
-                                                <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none">In Progress</Badge>
-                                            </td>
-                                            <td className="px-6 py-4">₹ 4,500</td>
-                                            <td className="px-6 py-4">
-                                                <Button variant="ghost" size="sm" className="text-xs">Complete</Button>
-                                            </td>
-                                        </tr>
-                                        <tr className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="px-6 py-4 font-semibold">Composite Filling</td>
-                                            <td className="px-6 py-4">#24</td>
-                                            <td className="px-6 py-4">
-                                                <Badge className="bg-slate-100 text-slate-500 hover:bg-slate-100 border-none">Planned</Badge>
-                                            </td>
-                                            <td className="px-6 py-4">₹ 1,200</td>
-                                            <td className="px-6 py-4">
-                                                <Button variant="ghost" size="sm" className="text-xs">Start</Button>
-                                            </td>
-                                        </tr>
+                                        {treatments.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                                                    No procedures planned yet. Click "Add Procedure" to start.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            treatments.map((t) => (
+                                                <tr key={t.treatment_id} className="hover:bg-slate-50/50 transition-colors">
+                                                    <td className="px-6 py-4 text-xs text-slate-500">
+                                                        {t.date_performed ? new Date(t.date_performed).toLocaleDateString() : '-'}
+                                                    </td>
+                                                    <td className="px-6 py-4 font-semibold">{t.treatment_type}</td>
+                                                    <td className="px-6 py-4">{t.tooth_number ? `#${t.tooth_number}` : '-'}</td>
+                                                    <td className="px-6 py-4">
+                                                        <Badge variant="outline" className={cn(
+                                                            "border-none",
+                                                            t.status === 'completed' ? "bg-emerald-100 text-emerald-700" :
+                                                                t.status === 'in-progress' ? "bg-blue-100 text-blue-700" :
+                                                                    "bg-slate-100 text-slate-500"
+                                                        )}>
+                                                            {t.status}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="px-6 py-4">₹ {t.cost?.toLocaleString()}</td>
+                                                    <td className="px-6 py-4">
+                                                        <Button variant="ghost" size="sm" className="text-xs">Edit</Button>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
@@ -502,12 +651,12 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                         <Card className="border-none shadow-sm md:col-span-1">
                             <CardHeader className="pb-4">
                                 <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Payable</CardTitle>
-                                <h3 className="text-3xl font-bold">₹ 5,700</h3>
+                                <h3 className="text-3xl font-bold">₹ {totalEstimate.toLocaleString()}</h3>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="space-y-1">
-                                    <p className="text-xs text-slate-500">Paid: <span className="text-emerald-600 font-bold ml-1">₹ 2,000</span></p>
-                                    <p className="text-xs text-slate-500">Balance: <span className="text-red-600 font-bold ml-1">₹ 3,700</span></p>
+                                    <p className="text-xs text-slate-500">Paid: <span className="text-emerald-600 font-bold ml-1">₹ {totalPaid.toLocaleString()}</span></p>
+                                    <p className="text-xs text-slate-500">Balance: <span className="text-red-600 font-bold ml-1">₹ {balance.toLocaleString()}</span></p>
                                 </div>
                                 <Button className="w-full bg-blue-900 border-none text-white hover:bg-blue-800 shadow-lg shadow-blue-900/10">
                                     Collect Payment
@@ -520,15 +669,8 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                             </CardHeader>
                             <CardContent className="p-0">
                                 <div className="divide-y border-t">
-                                    <div className="p-4 flex items-center justify-between text-sm">
-                                        <div>
-                                            <p className="font-semibold underline decoration-blue-200 underline-offset-4">Receipt #REC-2024-001</p>
-                                            <p className="text-xs text-slate-500 mt-1">16 Feb 2024 • Cash</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="font-bold text-emerald-600">₹ 2,000</p>
-                                            <Button variant="link" size="sm" className="h-auto p-0 text-blue-600 text-[10px] uppercase font-bold tracking-widest">Download Receipt</Button>
-                                        </div>
+                                    <div className="p-8 text-center text-slate-500">
+                                        No payment history available yet.
                                     </div>
                                 </div>
                             </CardContent>
@@ -630,7 +772,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                 <CardContent className="p-6 space-y-4">
                                     <div className="space-y-2">
                                         <Label className="text-xs font-bold uppercase text-slate-400">Antibiotics</Label>
-                                        {["Amoxicillin 500mg", "Augmentin 625mg", "Metrogyl 400mg"].map(m => (
+                                        {medicationPresets.antibiotics.map(m => (
                                             <Button key={m} variant="outline" className="w-full justify-start text-xs h-9 border-slate-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200" onClick={() => handleAddMedication(m)}>
                                                 + {m}
                                             </Button>
@@ -638,7 +780,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                     </div>
                                     <div className="space-y-2 pt-2">
                                         <Label className="text-xs font-bold uppercase text-slate-400">Analgesics (Pain)</Label>
-                                        {["Zerodol P (Aceclofenac + Paracetamol)", "Combiflam", "Ketorol DT"].map(m => (
+                                        {medicationPresets.analgesics.map(m => (
                                             <Button key={m} variant="outline" className="w-full justify-start text-xs h-9 border-slate-200 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200" onClick={() => handleAddMedication(m)}>
                                                 + {m}
                                             </Button>
@@ -646,7 +788,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                     </div>
                                     <div className="space-y-2 pt-2">
                                         <Label className="text-xs font-bold uppercase text-slate-400">Others</Label>
-                                        {["Pantocid 40mg (Antacid)", "Chlohexidine Mouthwash"].map(m => (
+                                        {medicationPresets.others.map(m => (
                                             <Button key={m} variant="outline" className="w-full justify-start text-xs h-9 border-slate-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200" onClick={() => handleAddMedication(m)}>
                                                 + {m}
                                             </Button>
@@ -660,7 +802,12 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                 <CardHeader className="border-b">
                                     <div className="flex items-center justify-between">
                                         <CardTitle className="text-lg">Rx - Prescription</CardTitle>
-                                        <Button variant="outline" size="sm" className="gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-2"
+                                            onClick={() => setIsAddPrescriptionOpen(true)}
+                                        >
                                             <Plus className="w-4 h-4" /> Add Custom
                                         </Button>
                                     </div>
@@ -683,6 +830,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                                         <div className="flex gap-4 mt-1">
                                                             <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded uppercase font-bold tracking-widest">{p.dosage}</span>
                                                             <span className="text-xs text-slate-500">{p.duration}</span>
+                                                            {p.startDate && <span className="text-xs text-slate-500">Start: {new Date(p.startDate).toLocaleDateString()}</span>}
                                                             <span className="text-xs text-slate-400 italic">{p.notes}</span>
                                                         </div>
                                                     </div>
@@ -704,6 +852,151 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                     </div>
                 </TabsContent>
             </Tabs>
-        </div>
+
+            {/* Add Procedure Modal */}
+            <Dialog open={isAddProcedureOpen} onOpenChange={setIsAddProcedureOpen}>
+                <DialogContent className="bg-white text-slate-900 border-slate-200 max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-slate-900">Add New Procedure</DialogTitle>
+                        <DialogDescription className="text-slate-500">
+                            Schedule a new treatment or procedure for this patient.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="proc-name" className="text-right">
+                                Procedure
+                            </Label>
+                            <Input
+                                id="proc-name"
+                                value={newProcedure.type}
+                                onChange={(e) => setNewProcedure({ ...newProcedure, type: e.target.value })}
+                                className="col-span-3 bg-white border-slate-300 text-slate-900"
+                                placeholder="e.g. Root Canal, Extraction"
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="proc-date" className="text-right">
+                                Date
+                            </Label>
+                            <Input
+                                id="proc-date"
+                                type="date"
+                                value={newProcedure.date}
+                                onChange={(e) => setNewProcedure({ ...newProcedure, date: e.target.value })}
+                                className="col-span-3 bg-white border-slate-300 text-slate-900"
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="tooth-num" className="text-right">
+                                Tooth No.
+                            </Label>
+                            <Input
+                                id="tooth-num"
+                                value={newProcedure.tooth}
+                                onChange={(e) => setNewProcedure({ ...newProcedure, tooth: e.target.value })}
+                                className="col-span-3 bg-white border-slate-300 text-slate-900"
+                                placeholder="e.g. 16, 24"
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="cost" className="text-right">
+                                Cost (₹)
+                            </Label>
+                            <Input
+                                id="cost"
+                                type="number"
+                                value={newProcedure.cost}
+                                onChange={(e) => setNewProcedure({ ...newProcedure, cost: e.target.value })}
+                                className="col-span-3 bg-white border-slate-300 text-slate-900"
+                                placeholder="0.00"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAddProcedureOpen(false)}>Cancel</Button>
+                        <Button className="bg-blue-900 text-white hover:bg-blue-800" onClick={saveProcedure}>Save Procedure</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Add Prescription Modal */}
+            <Dialog open={isAddPrescriptionOpen} onOpenChange={setIsAddPrescriptionOpen}>
+                <DialogContent className="bg-white text-slate-900 border-slate-200 max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-slate-900">Add Prescription</DialogTitle>
+                        <DialogDescription className="text-slate-500">
+                            Add a custom medication to the prescription list.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="med-start-date" className="text-right">
+                                Start Date
+                            </Label>
+                            <Input
+                                id="med-start-date"
+                                type="date"
+                                value={newPrescription.startDate}
+                                onChange={(e) => setNewPrescription({ ...newPrescription, startDate: e.target.value })}
+                                className="col-span-3 bg-white border-slate-300 text-slate-900"
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="med-name" className="text-right">
+                                Medicine
+                            </Label>
+                            <Input
+                                id="med-name"
+                                value={newPrescription.name}
+                                onChange={(e) => setNewPrescription({ ...newPrescription, name: e.target.value })}
+                                className="col-span-3 bg-white border-slate-300 text-slate-900"
+                                placeholder="e.g. Paracetamol 500mg"
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="dosage" className="text-right">
+                                Dosage
+                            </Label>
+                            <Input
+                                id="dosage"
+                                value={newPrescription.dosage}
+                                onChange={(e) => setNewPrescription({ ...newPrescription, dosage: e.target.value })}
+                                className="col-span-3 bg-white border-slate-300 text-slate-900"
+                                placeholder="e.g. 1-0-1"
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="duration" className="text-right">
+                                Duration
+                            </Label>
+                            <Input
+                                id="duration"
+                                value={newPrescription.duration}
+                                onChange={(e) => setNewPrescription({ ...newPrescription, duration: e.target.value })}
+                                className="col-span-3 bg-white border-slate-300 text-slate-900"
+                                placeholder="e.g. 5 days"
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="notes" className="text-right">
+                                Notes
+                            </Label>
+                            <Input
+                                id="notes"
+                                value={newPrescription.notes}
+                                onChange={(e) => setNewPrescription({ ...newPrescription, notes: e.target.value })}
+                                className="col-span-3 bg-white border-slate-300 text-slate-900"
+                                placeholder="e.g. After food"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAddPrescriptionOpen(false)}>Cancel</Button>
+                        <Button className="bg-blue-900 text-white hover:bg-blue-800" onClick={handleSavePrescription}>Add Medication</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div >
     );
 }

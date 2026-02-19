@@ -136,14 +136,14 @@ const FileTracker: React.FC<FileTrackerProps> = ({ refreshLogs }) => {
     };
 
     return (
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 p-4 sm:p-8 animate-in fade-in duration-500">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-8 animate-in fade-in duration-500">
             <div className="text-center mb-8">
                 <h2 className="text-xl sm:text-2xl font-black text-slate-800">File Tracker</h2>
                 <p className="text-sm sm:text-base text-slate-400 font-medium">Scan patient files for check-in/check-out</p>
             </div>
 
             {!scanResult ? (
-                <div className="space-y-8">
+                <div className="space-y-4">
                     <div className="flex justify-center mb-6">
                         {!useCamera ? (
                             <button onClick={() => setUseCamera(true)} className="flex items-center gap-2 px-6 py-3 bg-slate-100 font-bold text-slate-600 rounded-full hover:bg-slate-200 transition">
@@ -190,7 +190,7 @@ const FileTracker: React.FC<FileTrackerProps> = ({ refreshLogs }) => {
                 </div>
             ) : (
                 <div className="animate-in zoom-in-95 duration-300">
-                    <div className="bg-indigo-50 p-6 rounded-3xl border border-indigo-100 inline-flex items-center gap-4 mb-8">
+                    <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100 inline-flex items-center gap-4 mb-8">
                         <div className="bg-indigo-600 p-3 rounded-2xl text-white shadow-lg"><CheckCircle2 size={24} /></div>
                         <div>
                             <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Scan Successful</p>

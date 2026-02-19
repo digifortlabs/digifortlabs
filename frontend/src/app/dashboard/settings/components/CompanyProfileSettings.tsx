@@ -53,7 +53,7 @@ export default function CompanyProfileSettings() {
     };
 
     if (loading) return (
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 flex items-center justify-center gap-3 text-slate-400">
+        <div className="bg-white p-6 rounded-xl border border-slate-100 flex items-center justify-center gap-3 text-slate-400">
             <Loader2 className="animate-spin" size={20} />
             <p className="text-sm font-medium">Loading platform profile...</p>
         </div>
@@ -77,7 +77,7 @@ export default function CompanyProfileSettings() {
     );
 
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 max-w-2xl mb-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 max-w-2xl mb-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-indigo-50 rounded-xl">

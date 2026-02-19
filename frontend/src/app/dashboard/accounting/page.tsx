@@ -218,7 +218,7 @@ export default function AccountingPage() {
     }
 
     return (
-        <div className="w-full mx-auto space-y-8 pb-12">
+        <div className="w-full mx-auto space-y-4 pb-8">
             {/* Header Area */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -231,9 +231,9 @@ export default function AccountingPage() {
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => setShowGenModal(true)}
-                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg shadow-indigo-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-semibold shadow-lg shadow-indigo-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
                     >
-                        <Plus size={18} />
+                        <Plus size={16} />
                         Generate Invoice
                     </button>
                     <div className="relative">
@@ -302,7 +302,7 @@ export default function AccountingPage() {
             </div>
 
             {/* Tab Switcher */}
-            <div className="flex items-center gap-1 p-1 bg-slate-200/50 rounded-2xl w-fit">
+            <div className="flex items-center gap-1 p-1 bg-slate-200/50 rounded-xl w-fit">
                 {[
                     { id: 'dashboard', label: 'Company Overview', icon: Eye },
                     { id: 'invoices', label: 'Sales & Invoices', icon: Receipt },
@@ -333,13 +333,13 @@ export default function AccountingPage() {
             {activeTab === 'invoices' && (
                 <>
                     {/* Stats Overview */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {[
                             { label: 'Pending Collections', value: `₹${stats.total_pending.toLocaleString()}`, icon: <Clock className="text-amber-500" />, trend: 'Waiting for Payment', color: 'border-amber-200' },
                             { label: 'Total Revenue', value: `₹${stats.total_paid.toLocaleString()}`, icon: <ArrowUpRight className="text-emerald-500" />, trend: 'Collected to date', color: 'border-emerald-200' },
                             { label: 'Active Invoices', value: stats.total_invoices, icon: <Receipt className="text-indigo-500" />, trend: 'In current system', color: 'border-indigo-200' },
                         ].map((stat, i) => (
-                            <div key={i} className={`bg-white p-6 rounded-2xl border ${stat.color} shadow-sm space-y-4`}>
+                            <div key={i} className={`bg-white p-4 rounded-xl border ${stat.color} shadow-sm space-y-3`}>
                                 <div className="flex items-center justify-between">
                                     <div className="p-3 bg-slate-50 rounded-xl">
                                         {stat.icon}
@@ -355,7 +355,7 @@ export default function AccountingPage() {
                     </div>
 
                     {/* Filters & Search */}
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
                         <div className="flex items-center gap-2 w-full md:w-auto">
                             {['ALL', 'PENDING', 'PAID'].map((status) => (
                                 <button
@@ -383,17 +383,17 @@ export default function AccountingPage() {
                     </div>
 
                     {/* Invoices Table */}
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50 border-bottom border-slate-200">
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Invoice Info</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Hospital</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Issue Date</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                                        <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Invoice Info</th>
+                                        <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Hospital</th>
+                                        <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</th>
+                                        <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                                        <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Issue Date</th>
+                                        <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
@@ -416,7 +416,7 @@ export default function AccountingPage() {
                                         </tr>
                                     ) : filteredInvoices.map((invoice) => (
                                         <tr key={invoice.invoice_id} className="hover:bg-slate-50/50 transition-colors group">
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-3">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-bold text-xs">
                                                         INV
@@ -433,29 +433,29 @@ export default function AccountingPage() {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
                                                     <Building2 size={16} className="text-slate-400" />
                                                     <span className="font-medium text-slate-700">{invoice.hospital_name}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-3">
                                                 <p className="font-bold text-slate-900">₹{invoice.total_amount.toLocaleString()}</p>
                                                 <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-tighter flex items-center gap-1">
                                                     <Percent size={8} /> {invoice.gst_rate}% GST Incl.
                                                 </p>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-3">
                                                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusStyle(invoice.status)}`}>
                                                     {getStatusIcon(invoice.status)}
                                                     {invoice.status}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-3">
                                                 <p className="text-sm font-bold text-slate-700">{format(new Date(invoice.bill_date || invoice.created_at), 'dd/MM/yyyy')}</p>
                                                 <p className="text-[10px] text-slate-400 uppercase">Bill Date</p>
                                             </td>
-                                            <td className="px-6 py-4 text-right">
+                                            <td className="px-4 py-3 text-right">
                                                 <div className="flex items-center justify-end gap-2">
                                                     {invoice.status === 'PENDING' && (
                                                         <button

@@ -35,11 +35,11 @@ export default function ServicesPage() {
 
                 {/* 1. Digital MRD */}
                 <div className="relative group">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
-                    <div className="relative bg-slate-900 rounded-2xl p-8 md:p-12 border border-slate-800">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+                    <div className="relative bg-slate-900 rounded-xl p-8 md:p-12 border border-slate-800">
                         <div className="flex flex-col md:flex-row gap-8 items-start">
                             <div className="flex-shrink-0">
-                                <div className="w-16 h-16 bg-blue-500/10 rounded-2xl flex items-center justify-center border border-blue-500/20">
+                                <div className="w-16 h-16 bg-blue-500/10 rounded-xl flex items-center justify-center border border-blue-500/20">
                                     <Database className="w-8 h-8 text-blue-400" />
                                 </div>
                             </div>
@@ -82,11 +82,11 @@ export default function ServicesPage() {
 
                 {/* 2. QR & Labeling */}
                 <div className="relative group">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
-                    <div className="relative bg-slate-900 rounded-2xl p-8 md:p-12 border border-slate-800">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+                    <div className="relative bg-slate-900 rounded-xl p-8 md:p-12 border border-slate-800">
                         <div className="flex flex-col md:flex-row gap-8 items-start">
                             <div className="flex-shrink-0">
-                                <div className="w-16 h-16 bg-purple-500/10 rounded-2xl flex items-center justify-center border border-purple-500/20">
+                                <div className="w-16 h-16 bg-purple-500/10 rounded-xl flex items-center justify-center border border-purple-500/20">
                                     <Scan className="w-8 h-8 text-purple-400" />
                                 </div>
                             </div>
