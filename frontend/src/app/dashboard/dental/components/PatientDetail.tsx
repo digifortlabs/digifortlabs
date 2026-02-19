@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import {
     Tabs, TabsContent, TabsList, TabsTrigger
 } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 import {
     Card, CardContent, CardHeader, CardTitle, CardDescription
 } from '@/components/ui/card';
@@ -299,21 +300,28 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                     <div className="space-y-3">
                                         <Label className="text-xs uppercase font-bold text-slate-400 tracking-wider">Chief Complaints</Label>
                                         <div className="flex flex-wrap gap-2">
-                                            {["Pain", "Swelling", "Sensitive", "Bleeding", "Mobility", "Food Lodgement", "Aesthetic", "Missing teeth"].map(v => (
-                                                <Badge
-                                                    key={v}
-                                                    variant={clinicalData.chief_complaints.includes(v) ? "default" : "outline"}
-                                                    className="cursor-pointer hover:bg-blue-50 hover:text-blue-700 transition-colors py-1 px-3 border-slate-200"
-                                                    onClick={() => {
-                                                        const next = clinicalData.chief_complaints.includes(v)
-                                                            ? clinicalData.chief_complaints.filter((c: string) => c !== v)
-                                                            : [...clinicalData.chief_complaints, v];
-                                                        setClinicalData({ ...clinicalData, chief_complaints: next });
-                                                    }}
-                                                >
-                                                    {v}
-                                                </Badge>
-                                            ))}
+                                            {["Pain", "Swelling", "Sensitive", "Bleeding", "Mobility", "Food Lodgement", "Aesthetic", "Missing teeth"].map(v => {
+                                                const currentList = Array.isArray(clinicalData.chief_complaints) ? clinicalData.chief_complaints : [];
+                                                const isSelected = currentList.includes(v);
+                                                return (
+                                                    <Badge
+                                                        key={v}
+                                                        variant={isSelected ? "default" : "outline"}
+                                                        className={cn(
+                                                            "cursor-pointer hover:bg-blue-50 hover:text-blue-700 transition-colors py-1 px-3 border-slate-200 select-none",
+                                                            isSelected ? "bg-blue-900 hover:bg-blue-800 text-white border-blue-900" : ""
+                                                        )}
+                                                        onClick={() => {
+                                                            const next = isSelected
+                                                                ? currentList.filter((c: string) => c !== v)
+                                                                : [...currentList, v];
+                                                            setClinicalData((prev: any) => ({ ...prev, chief_complaints: next }));
+                                                        }}
+                                                    >
+                                                        {v}
+                                                    </Badge>
+                                                );
+                                            })}
                                         </div>
                                         <Input
                                             placeholder="Describe other complaints (Press Enter)..."
