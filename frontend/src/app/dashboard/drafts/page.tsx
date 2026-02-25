@@ -5,9 +5,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { API_URL } from '../../../config/api';
 import { formatDate, formatDateTime } from '../../../lib/dateFormatter';
+import { useTerminology } from '@/hooks/useTerminology';
 
 export default function DraftsPage() {
     const router = useRouter();
+    const { terms } = useTerminology();
     const [userRole, setUserRole] = useState('');
     const [drafts, setDrafts] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -118,7 +120,7 @@ export default function DraftsPage() {
                     <thead className="bg-slate-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">File Name</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{terms.patient}</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Drafted On</th>
                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                         </tr>

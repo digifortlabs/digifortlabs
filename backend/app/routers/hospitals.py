@@ -36,6 +36,7 @@ class HospitalCreate(BaseModel):
     hospital_type: str = "Private"
     specialty: str = "General"
     terminology: dict = {}
+    enabled_modules: list = ["core"]
     email: EmailStr
     director_name: Optional[str] = None
     registration_number: Optional[str] = None
@@ -58,6 +59,7 @@ class HospitalResponse(BaseModel):
     hospital_type: Optional[str] = None
     specialty: Optional[str] = "General"
     terminology: Optional[dict] = {}
+    enabled_modules: Optional[list] = []
     email: EmailStr
     director_name: Optional[str] = None
     registration_number: Optional[str] = None
@@ -94,6 +96,7 @@ class HospitalUpdate(BaseModel):
     hospital_type: Optional[str] = None
     specialty: Optional[str] = None
     terminology: Optional[dict] = None
+    enabled_modules: Optional[list] = None
     is_active: Optional[bool] = None
 
     price_per_file: Optional[float] = None
@@ -180,6 +183,7 @@ def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), cur
         hospital_type=hospital.hospital_type.upper() if hospital.hospital_type else "PRIVATE",
         specialty=hospital.specialty,
         terminology=hospital.terminology,
+        enabled_modules=hospital.enabled_modules,
         email=hospital.email,
         director_name=hospital.director_name,
         registration_number=hospital.registration_number,

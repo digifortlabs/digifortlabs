@@ -773,23 +773,24 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
     const handleRunOCR = async (fileId: number) => {
         setConfirmModal({
             isOpen: true,
-            title: "Run OCR",
-            message: "Run OCR on this file? This will process the file in the background.",
+            title: "Run OCR & AI",
+            message: "Run AI Extraction on this file? This will process in the background.",
             type: 'info',
-            confirmText: "Run OCR",
+            confirmText: "Run AI",
             onConfirm: async () => {
                 const token = localStorage.getItem('token');
                 const apiUrl = API_URL;
                 try {
-                    const res = await fetch(`${apiUrl}/patients/files/${fileId}/run-ocr`, {
+                    const res = await fetch(`${apiUrl}/patients/${id}/files/${fileId}/run-ocr`, {
                         method: 'POST',
                         headers: { Authorization: `Bearer ${token}` }
                     });
                     if (res.ok) {
-                        triggerToast("OCR Triggered! processing in background...", "info");
+                        triggerToast("AI Processing Triggered! Check progress bar...", "info");
                         if (id) fetchPatient(token || '', id);
                     } else {
-                        triggerToast("Failed to trigger OCR", "error");
+                        const err = await res.json();
+                        triggerToast(`Failed: ${err.detail || "Unknown error"}`, "error");
                     }
                 } catch (e) { console.error(e); }
             }

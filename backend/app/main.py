@@ -43,6 +43,8 @@ def run_migrations():
             # 5. Dental & Genericization
             conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS specialty VARCHAR DEFAULT 'General'"))
             conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS terminology JSON DEFAULT '{}'"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS enabled_modules JSON DEFAULT '[\"core\"]'"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS ai_settings JSON DEFAULT '{\"enabled\": false, \"api_key\": \"\"}'"))
             conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS specialty_data JSON DEFAULT '{}'"))
             
             # 5b. Dental Patient Enhanced Fields
@@ -53,6 +55,33 @@ def run_migrations():
             conn.execute(text("ALTER TABLE accounting_config ADD COLUMN IF NOT EXISTS company_phone VARCHAR"))
             conn.execute(text("ALTER TABLE accounting_config ADD COLUMN IF NOT EXISTS company_pan VARCHAR"))
             conn.execute(text("ALTER TABLE accounting_config ADD COLUMN IF NOT EXISTS company_bank_branch VARCHAR"))
+
+            # 7. System Settings
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    id SERIAL PRIMARY KEY,
+                    key VARCHAR UNIQUE NOT NULL,
+                    value TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+
+            # 8. System Error Logs
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS system_error_logs (
+                    id SERIAL PRIMARY KEY,
+                    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    error_type VARCHAR NOT NULL,
+                    error_message TEXT NOT NULL,
+                    stack_trace TEXT,
+                    endpoint VARCHAR,
+                    user_id INTEGER REFERENCES users(user_id),
+                    method VARCHAR,
+                    status VARCHAR DEFAULT 'unresolved',
+                    notes TEXT
+                )
+            """))
 
             conn.commit()
             print("✅ Auto-migrations completed successfully.")
@@ -100,14 +129,22 @@ app.add_middleware(BandwidthMiddleware)
 # IMPORTANT: CORS must be added LAST to be the outermost middleware 
 # and handle preflight requests before security headers or rate limits.
 cors_origins = [str(origin) for origin in settings.BACKEND_CORS_ORIGINS]
-# Ensure production domains are always included if not matched
-# Ensure production domains and localhost are always included
-if "https://digifortlabs.com" not in cors_origins:
-    cors_origins.extend(["https://digifortlabs.com", "http://digifortlabs.com", "https://www.digifortlabs.com"])
 
-# Explicitly add localhost:3000 for frontend development
-if "http://localhost:3000" not in cors_origins:
-    cors_origins.append("http://localhost:3000")
+# Determine if we are running locally based on the presence of localhost in origins
+# Ensure production domains and localhost are always included
+is_dev_env = any("localhost" in origin for origin in cors_origins) or settings.ENVIRONMENT == "development"
+
+if is_dev_env:
+    if "http://localhost:3000" not in cors_origins:
+        cors_origins.append("http://localhost:3000")
+        
+# Always secure live domain paths
+if "https://digifortlabs.com" not in cors_origins:
+    cors_origins.extend([
+        "https://digifortlabs.com", 
+        "https://www.digifortlabs.com",
+        "https://admin.digifortlabs.com"
+    ])
 
 app.add_middleware(
     CORSMiddleware,
@@ -126,18 +163,28 @@ async def global_exception_handler(request: Request, exc: Exception):
     # Log the detail for debugging
     print(f"🔥 Global Exception: {type(exc).__name__}: {str(exc)}")
     import traceback
+    tb_str = traceback.format_exc()
     traceback.print_exc()
     
-    # Try to log to Audit DB
+    # Try to log to System Error Log DB
     try:
         from .database import SessionLocal
-        from .audit import log_audit
+        from .models import SystemErrorLog
         db = SessionLocal()
-        # Attempt to get user_id if possible (token might be invalid though)
-        # For now, we log as System (None)
-        log_audit(db, None, "SYSTEM_ERROR", f"{type(exc).__name__}: {str(exc)}")
+        
+        err_log = SystemErrorLog(
+            error_type=type(exc).__name__,
+            error_message=str(exc)[:1000], # Trucate if too long
+            stack_trace=tb_str,
+            endpoint=str(request.url),
+            method=request.method
+        )
+        db.add(err_log)
         db.commit()
         db.close()
+        
+    except Exception as dbe:
+        print(f"⚠️ Failed to write to system_error_logs: {dbe}")
     except Exception as e:
         print(f"Failed to log global exception to DB: {e}")
     
@@ -276,7 +323,7 @@ async def startup_event():
             # Run every 1 hour
             await asyncio.sleep(3600)
 
-    asyncio.create_task(auto_confirm_loop())
+    # asyncio.create_task(auto_confirm_loop())
 
 @app.get("/")
 def read_root():

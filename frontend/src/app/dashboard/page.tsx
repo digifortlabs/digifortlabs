@@ -221,7 +221,11 @@ export default function CommandCenter() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2 gap-2">
                 <div>
                     <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                        {isDetailedView && stats?.hospital_name ? (
+                        {userRole === 'superadmin' && !isDetailedView ? (
+                            <>
+                                <Activity className="text-indigo-600 w-6 h-6" /> Global Platform Analytics
+                            </>
+                        ) : isDetailedView && stats?.hospital_name ? (
                             <>
                                 <Building2 className="text-indigo-600 w-6 h-6" />
                                 {stats.hospital_name}
@@ -233,9 +237,11 @@ export default function CommandCenter() {
                         )}
                     </h1>
                     <p className="text-slate-500 font-medium text-xs">
-                        {isDetailedView
-                            ? "Client-specific metrics, billing, and operational insights."
-                            : "Real-time system monitoring and integrity oversight."}
+                        {userRole === 'superadmin' && !isDetailedView
+                            ? "Aggregated telemetry across all registered enterprises and clients."
+                            : isDetailedView
+                                ? "Client-specific metrics, billing, and operational insights."
+                                : "Real-time system monitoring and integrity oversight."}
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -273,7 +279,7 @@ export default function CommandCenter() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
 
                 <MetricCard
-                    label={`Total ${terms.patient}s`}
+                    label={userRole === 'superadmin' ? 'Total Platform Entities' : `Total ${terms.patient}s`}
                     value={stats?.patients?.total || 0}
                     trend={stats?.patients?.trend || "+0%"}
                     trendUp={stats?.patients?.trend?.startsWith('+') && stats?.patients?.trend !== "+0%"}
@@ -443,8 +449,8 @@ export default function CommandCenter() {
                 </div>
             </div>
 
-            {/* Patient List (New Section) */}
-            {hospitalId && (
+            {/* Recent Entities (Client View Only) */}
+            {hospitalId && userRole !== 'superadmin' && (
                 <div className="mb-4">
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-xl font-bold text-slate-800">Recent {terms.patient}s</h2>
@@ -591,12 +597,18 @@ export default function CommandCenter() {
                                 />
                                 <ActionButton
                                     icon={<IndianRupee size={18} />}
-                                    label="Accounting"
+                                    label="Platform Billing"
                                     onClick={() => router.push('/dashboard/accounting')}
                                 />
                                 <ActionButton
+                                    icon={<Building2 size={18} />}
+                                    label="Manage Clients"
+                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 hover:border-blue-100"
+                                    onClick={() => router.push('/dashboard/organizations')}
+                                />
+                                <ActionButton
                                     icon={<Archive size={18} />}
-                                    label="Physical Archive"
+                                    label="Global Archives"
                                     onClick={() => router.push('/dashboard/archive')}
                                 />
                                 <ActionButton

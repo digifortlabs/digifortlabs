@@ -11,10 +11,15 @@ import re
 from ..database import get_db
 from ..models import DentalPatient, DentalAppointment, DentalTreatment, Dental3DScan, User, Patient
 from .auth import get_current_user
+from ..services.s3_handler import S3Manager
+from ..models import Hospital
 
 router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
+
+def sanitize_name(name):
+    return re.sub(r'[^\w\s-]', '', name).replace(' ', '_')
 
 # --- Schemas ---
 
@@ -99,6 +104,7 @@ class ScanResponse(BaseModel):
     file_name: str
     uploaded_at: datetime
     notes: Optional[str] = None
+    presigned_url: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -464,18 +470,35 @@ async def upload_scan(
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    upload_dir = "local_storage/dental_scans"
-    os.makedirs(upload_dir, exist_ok=True)
+    s3_manager = S3Manager()
     
-    file_path = f"{upload_dir}/{patient_id}_{int(datetime.now().timestamp())}_{file.filename}"
+    # Generate S3 key: Hospital/DentalScans/Year/Month/PatientUHID_UUID.ext
+    hospital_name = sanitize_name(patient.hospital.legal_name) if patient.hospital else "DefaultHospital"
+    now = datetime.now()
+    year = now.strftime("%Y")
+    month = now.strftime("%m")
     
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    unique_id = str(int(now.timestamp()))
+    # Simple sanitization of filename
+    ext = os.path.splitext(file.filename)[1]
+    patient_identifier = sanitize_name(patient.uhid) if patient.uhid else f"Patient_{patient.patient_id}"
+    
+    s3_key = f"{hospital_name}/DentalScans/{year}/{month}/{patient_identifier}_{unique_id}{ext}"
+    
+    # Read file content
+    contents = await file.read()
+    
+    import io
+    # Upload to S3 (Use io.BytesIO to provide a file-like object)
+    success, storage_path = s3_manager.upload_file(io.BytesIO(contents), s3_key, file.content_type)
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to upload to S3")
         
     db_scan = Dental3DScan(
         patient_id=patient_id,
         scan_type=scan_type,
-        file_path=file_path,
+        file_path=s3_key, # Store S3 key for later retrieval
         file_name=file.filename,
         notes=notes
     )
@@ -498,4 +521,42 @@ def get_patient_scans(
         raise HTTPException(status_code=403, detail="Access denied")
 
     scans = db.query(Dental3DScan).filter(Dental3DScan.patient_id == patient_id).all()
+    
+    s3_manager = S3Manager()
+    for scan in scans:
+        if scan.file_path and not scan.file_path.startswith("local_storage"):
+            # If it's an S3 key, generate a presigned URL
+            scan.presigned_url = s3_manager.generate_presigned_url(scan.file_path)
+        else:
+            # For local files, the frontend handles it or we can provide a local URL
+            pass
+            
     return scans
+@router.delete("/scans/patient/{patient_id}")
+def delete_all_patient_scans(
+    patient_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+        
+    if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    scans = db.query(Dental3DScan).filter(Dental3DScan.patient_id == patient_id).all()
+    
+    s3_manager = S3Manager()
+    delete_count = 0
+    
+    for scan in scans:
+        if scan.file_path:
+            # Delete from S3 or Local
+            s3_manager.delete_file(scan.file_path)
+        
+        db.delete(scan)
+        delete_count += 1
+        
+    db.commit()
+    return {"message": f"Successfully deleted {delete_count} scans", "count": delete_count}

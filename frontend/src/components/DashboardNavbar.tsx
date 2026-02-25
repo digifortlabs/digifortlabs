@@ -115,8 +115,8 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             {/* Super Admin Links */}
                             {isSuperAdmin && (
                                 <Link
-                                    href="/dashboard/hospital_mgmt"
-                                    className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/hospital_mgmt')
+                                    href="/dashboard/organizations"
+                                    className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/organizations')
                                         ? 'bg-indigo-600 text-white'
                                         : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                         }`}
@@ -340,9 +340,9 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
                             {userRole === 'superadmin' && (
                                 <Link
-                                    href="/dashboard/hospital_mgmt"
+                                    href="/dashboard/organizations"
                                     onClick={() => setIsMenuOpen(false)}
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/hospital_mgmt')
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/organizations')
                                         ? 'bg-indigo-600 text-white'
                                         : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                         }`}

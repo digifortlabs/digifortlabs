@@ -17,9 +17,9 @@ graph TD
         NGINX[NGINX Reverse Proxy]
         
         subgraph DockerEnvironment [Dockerized Environment]
-            Frontend[Next.js Frontend]
-            Backend[FastAPI Backend]
-            Workers[Async Workers<br/>'OCR Processing & Archival']
+            Frontend[Next.js 16 Frontend]
+            Backend[FastAPI Backend 'Port 8000']
+            CeleryWorker[Celery Worker<br/>'Async Background Tasks']
             Redis[(Redis)]
         end
     end
@@ -41,7 +41,7 @@ graph TD
     NGINX -->|Route: /api| Backend
     
     Backend <-->|Cache / Queue| Redis
-    Redis <--> Workers
+    Redis <--> CeleryWorker
     
     Backend <--> DB
     Backend <--> S3
@@ -101,10 +101,12 @@ flowchart TD
     subgraph Processing [Backend Processing]
         BackendAPI --> Metadata[Save Records to PostgreSQL]
         BackendAPI --> Archive[Push to AWS S3 Archival]
-        BackendAPI --> OCR[Trigger OCR Worker]
+        BackendAPI --> AI[Trigger Celery Job<br/>'OCR & Gemini AI']
     end
 
-    OCR -->|Refined Metadata| Metadata
+    AI -->|Extracted Data| Metadata
+    AI --> QA[QA Review Queue]
+    QA -->|Reviewer Approve/Reject| Metadata
     
     style PathA fill:#fff9c4,stroke:#fbc02d
     style PathB fill:#c8e6c9,stroke:#388e3c
@@ -122,9 +124,12 @@ graph LR
     
     Router -->|/patients| PR[Patient Router]
     Router -->|/storage| SR[Storage Router]
-    Router -->|/billing| AR[Accounting Router]
+    Router -->|/accounting| AR[Accounting Router]
+    Router -->|/dental| DR[Dental Router]
+    Router -->|/inventory| IR[Inventory Router]
+    Router -->|/qa| QR[QA Router]
     
-    PR & SR & AR --> Logic[Business Logic / Service]
+    PR & SR & AR & DR & IR & QR --> Logic[Business Logic / Service]
     Logic --> Persistence[(DB / S3 / Local)]
     Logic -.->|Task Delay| Redis[(Redis Queue)]
 ```

@@ -42,7 +42,7 @@ export default function Home() {
 
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold text-white tracking-tight mb-8 leading-[1.1]">
             The Future of <br className="hidden sm:block" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400 drop-shadow-[0_0_30px_rgba(59,130,246,0.5)]">Medical Records</span> is Hybrid.
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400 drop-shadow-[0_0_30px_rgba(59,130,246,0.5)]">Data Processing</span> is Hybrid.
           </h1>
 
           <p className="text-lg md:text-2xl text-slate-400 max-w-3xl mx-auto mb-12 leading-relaxed font-medium">
@@ -136,9 +136,9 @@ export default function Home() {
 
         <div className="max-w-7xl mx-auto px-6 relative z-10">
           <div className="text-center max-w-3xl mx-auto mb-12">
-            <h2 className="text-3xl font-bold text-white mb-4">Why Top Hospitals Choose Digifort</h2>
+            <h2 className="text-3xl font-bold text-white mb-4">Why Top Organizations Choose Digifort</h2>
             <p className="text-slate-400 text-lg">
-              Beyond simple storage. Intelligent infrastructure for critical medical data.
+              Beyond simple storage. Intelligent infrastructure for critical business data.
             </p>
           </div>
 
@@ -173,7 +173,7 @@ export default function Home() {
               </div>
               <h3 className="text-lg font-bold text-white mb-2">Instant Retrieval</h3>
               <p className="text-slate-400 text-sm leading-relaxed">
-                Powered by AWS CloudFront Edge locations. Access patient history in milliseconds, anywhere.
+                Powered by AWS CloudFront Edge locations. Access unified records in milliseconds, anywhere.
               </p>
             </div>
 
@@ -195,7 +195,7 @@ export default function Home() {
               </div>
               <h3 className="text-lg font-bold text-white mb-2">AI Optical Search</h3>
               <p className="text-slate-400 text-sm leading-relaxed">
-                Don't just scan—index. Search for specific medications or doctor notes inside PDF files.
+                Don't just scan—index. Search for specific entities, keywords, or customized notes inside PDF files.
               </p>
             </div>
 
@@ -232,7 +232,7 @@ export default function Home() {
               <div className="px-6 pb-6 text-slate-400 leading-relaxed border-t border-slate-700/50 pt-4 mt-2">
                 We use bank-grade AES-256 encryption for all data at rest and in transit.
                 Our infrastructure is built on AWS with strict role-based access controls (RBAC),
-                ensuring only authorized personnel can access sensitive patient data.
+                ensuring only authorized personnel can access sensitive data.
               </div>
             </details>
 
@@ -257,7 +257,7 @@ export default function Home() {
               </summary>
               <div className="px-6 pb-6 text-slate-400 leading-relaxed border-t border-slate-700/50 pt-4 mt-2">
                 Yes. We are fully compliant with the Digital Personal Data Protection (DPDP) Act 2023
-                and follow NHA (National Health Authority) guidelines for electronic health records.
+                and follow enterprise-grade security guidelines for electronic records tracking.
               </div>
             </details>
 
@@ -269,7 +269,7 @@ export default function Home() {
               </summary>
               <div className="px-6 pb-6 text-slate-400 leading-relaxed border-t border-slate-700/50 pt-4 mt-2">
                 Digital retrieval is instant (milliseconds) via our cloud portal.
-                You can search by patient name, ID, or date using our AI Optical Search.
+                You can search by entity name, ID, or date using our AI Optical Search.
                 Physical retrieval typically takes 1 business day depending on location.
               </div>
             </details>

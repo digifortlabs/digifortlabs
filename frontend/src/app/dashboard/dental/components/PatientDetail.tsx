@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Tabs, TabsContent, TabsList, TabsTrigger
 } from '@/components/ui/tabs';
@@ -89,6 +89,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
     const [scans, setScans] = useState<any[]>([]);
     const [selectedScanUrl, setSelectedScanUrl] = useState<string>("");
     const [isUploadingScan, setIsUploadingScan] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
 
     const fetchScans = async () => {
         try {
@@ -100,11 +101,38 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                 setScans(data);
                 if (data.length > 0 && !selectedScanUrl) {
                     // Auto-select first scan
-                    setSelectedScanUrl(`${API_URL.replace('/api', '')}/${data[0].file_path}`);
+                    const scan = data[0];
+                    setSelectedScanUrl(scan.presigned_url || `${API_URL.replace('/api', '')}/${scan.file_path}`);
                 }
             }
         } catch (error) {
             console.error("Error fetching scans:", error);
+        }
+    };
+
+    useEffect(() => {
+        fetchScans();
+    }, [patient.patient_id]);
+
+    const handleDeleteAllScans = async () => {
+        if (!confirm("Are you sure you want to delete ALL scans for this patient? This cannot be undone.")) return;
+
+        try {
+            const response = await fetch(`${API_URL}/dental/scans/patient/${patient.patient_id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+
+            if (response.ok) {
+                alert("All scans deleted successfully.");
+                setScans([]);
+                setSelectedScanUrl("");
+            } else {
+                alert("Failed to delete scans.");
+            }
+        } catch (error) {
+            console.error("Delete error:", error);
+            alert("Error deleting scans.");
         }
     };
 
@@ -117,29 +145,40 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
         formData.append('scan_type', 'Intraoral'); // Default for now
 
         setIsUploadingScan(true);
-        try {
-            const response = await fetch(`${API_URL}/dental/scans/${patient.patient_id}`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                body: formData
-            });
+        setUploadProgress(0);
 
-            if (response.ok) {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${API_URL}/dental/scans/${patient.patient_id}`, true);
+        xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('token')}`);
+
+        xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+                const percentComplete = Math.round((event.loaded / event.total) * 100);
+                setUploadProgress(percentComplete);
+            }
+        };
+
+        xhr.onload = () => {
+            setIsUploadingScan(false);
+            setUploadProgress(0);
+            if (xhr.status >= 200 && xhr.status < 300) {
                 alert("Scan uploaded successfully!");
                 fetchScans();
             } else {
                 alert("Failed to upload scan.");
             }
-        } catch (error) {
-            console.error("Upload error:", error);
-            alert("Error uploading scan.");
-        } finally {
-            setIsUploadingScan(false);
-            // Reset input
             e.target.value = '';
-        }
+        };
+
+        xhr.onerror = () => {
+            setIsUploadingScan(false);
+            setUploadProgress(0);
+            console.error("Upload error");
+            alert("Error uploading scan.");
+            e.target.value = '';
+        };
+
+        xhr.send(formData);
     };
 
     const handleLiveScanSave = async (files: File[]) => {
@@ -686,8 +725,17 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                         </div>
                         <div className="lg:col-span-5 space-y-6">
                             <Card className="border-none shadow-sm h-full flex flex-col">
-                                <CardHeader>
+                                <CardHeader className="flex flex-row items-center justify-between">
                                     <CardTitle className="text-lg">Diagnostic Tools</CardTitle>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 text-[10px] uppercase font-bold tracking-widest gap-2"
+                                        onClick={handleDeleteAllScans}
+                                        disabled={scans.length === 0}
+                                    >
+                                        <History className="w-3.5 h-3.5" /> Delete All
+                                    </Button>
                                 </CardHeader>
                                 <CardContent className="space-y-4 flex-1 flex flex-col">
                                     <div className="grid grid-cols-2 gap-4">
@@ -704,9 +752,17 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                                     onChange={handleScanUpload}
                                                 />
                                                 <Plus className="w-8 h-8 text-slate-400 group-hover:text-blue-500 transition-colors mb-2" />
-                                                <h5 className="font-semibold text-slate-900">{isUploadingScan ? 'Uploading...' : 'Upload File'}</h5>
+                                                <h5 className="font-semibold text-slate-900">{isUploadingScan ? `Uploading ${uploadProgress}%` : 'Upload File'}</h5>
                                                 <p className="text-[10px] text-slate-500 mt-1">STL, GLB, JPG, PNG</p>
                                             </div>
+                                            {isUploadingScan && (
+                                                <div className="w-full bg-slate-100 h-1.5 rounded-full mt-4 overflow-hidden">
+                                                    <div
+                                                        className="bg-blue-600 h-full transition-all duration-300"
+                                                        style={{ width: `${uploadProgress}%` }}
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div
@@ -735,8 +791,8 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                             scans.map((scan) => (
                                                 <div
                                                     key={scan.scan_id}
-                                                    onClick={() => setSelectedScanUrl(`${API_URL.replace('/api', '')}/${scan.file_path}`)}
-                                                    className={`p-3 rounded-lg flex items-center justify-between text-sm cursor-pointer transition-colors ${selectedScanUrl.includes(scan.file_path) ? 'bg-blue-50 border border-blue-100' : 'bg-slate-50 hover:bg-slate-100'}`}
+                                                    onClick={() => setSelectedScanUrl(scan.presigned_url || `${API_URL.replace('/api', '')}/${scan.file_path}`)}
+                                                    className={`p-3 rounded-lg flex items-center justify-between text-sm cursor-pointer transition-colors ${selectedScanUrl === (scan.presigned_url || `${API_URL.replace('/api', '')}/${scan.file_path}`) ? 'bg-blue-50 border border-blue-100' : 'bg-slate-50 hover:bg-slate-100'}`}
                                                 >
                                                     <div className="flex items-center gap-3 overflow-hidden">
                                                         <div className="p-2 bg-blue-100 rounded-md flex-shrink-0">

@@ -162,7 +162,7 @@ export default function ContactPage() {
                                         onChange={handleChange}
                                         required
                                         className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition placeholder-slate-700"
-                                        placeholder="name@hospital.com"
+                                        placeholder="name@company.com"
                                     />
                                 </div>
 

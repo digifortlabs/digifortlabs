@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Digifort Labs | Hospital Records Management System",
-  description: "Enterprise-grade MRD ecosystem for Indian hospitals. Secure, DPDP-compliant physical and digital records management.",
+  title: "Digifort Labs | AIO Data Processor",
+  description: "Enterprise-grade All-In-One Data Processing and Storage system. Secure, compliant physical and digital records management.",
   icons: {
     icon: "/favicon.ico",
   },

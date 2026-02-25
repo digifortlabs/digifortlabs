@@ -25,9 +25,11 @@ def compress_pdf(file_bytes: bytes) -> bytes:
     original_size = len(file_bytes)
     
     # STRATEGY 1: Image Optimization (Aggressive)
-    if HAS_IMG_TOOLS and original_size > 500 * 1024: # Only for files > 500KB
+    # Optimization: Skip aggressive image-based compression for very large files (>20MB) 
+    # as it becomes extremely CPU/Memory intensive and can hang the server.
+    if HAS_IMG_TOOLS and 500 * 1024 < original_size < 20 * 1024 * 1024:
         try:
-            print("📉 Attempting Aggressive Image Compression...")
+            print(f"📉 Attempting Aggressive Image Compression for {original_size/1024/1024:.1f}MB file...")
             # Convert to images
             images = convert_from_bytes(file_bytes, dpi=150, fmt='jpeg', grayscale=False, size=(1600, None))
             
@@ -61,6 +63,10 @@ def compress_pdf(file_bytes: bytes) -> bytes:
             print(f"⚠️ Aggressive Compression Failed: {e}")
 
     # STRATEGY 2: Lossless (Fallback)
+    if original_size > 5 * 1024 * 1024:
+        print(f"⏩ Skipping Lossless Compression for {original_size/1024/1024:.1f}MB file to avoid thread blocks.")
+        return file_bytes
+
     try:
         reader = PdfReader(io.BytesIO(file_bytes))
         writer = PdfWriter()

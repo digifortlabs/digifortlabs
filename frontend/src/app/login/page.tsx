@@ -94,7 +94,7 @@ function LoginForm() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
-                            placeholder="name@hospital.com"
+                            placeholder="name@company.com"
                         />
                     </div>
 
@@ -169,11 +169,11 @@ export default function LoginPage() {
                         <h1 className="text-2xl font-black tracking-tight">DIGIFORT LABS</h1>
                     </div>
 
-                    <h2 className="text-5xl font-black leading-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-                        The Future of Medical Records.
+                    <h2 className="text-5xl font-black mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 py-1">
+                        The Future of Data Processing.
                     </h2>
                     <p className="text-lg text-slate-400 leading-relaxed mb-10">
-                        Securely manage patient data, streamline retrieval, and ensuring compliance with our state-of-the-art digital infrastructure.
+                        Securely manage enterprise data, streamline retrieval, and ensure compliance with our state-of-the-art digital infrastructure.
                     </p>
 
                     <div className="flex gap-6">
@@ -182,7 +182,7 @@ export default function LoginPage() {
                                 <ShieldCheck size={20} />
                             </div>
                             <div>
-                                <p className="font-bold text-sm">HIPAA Compliant</p>
+                                <p className="font-bold text-sm">Enterprise Compliant</p>
                                 <p className="text-xs text-slate-500">Bank-grade security</p>
                             </div>
                         </div>

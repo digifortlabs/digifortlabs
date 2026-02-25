@@ -179,7 +179,7 @@ def get_dashboard_stats(
     storage_trend = "+0%"
     storage_capacity_pct = 0
     try:
-        storage_query = db.query(func.sum(PDFFile.file_size)).filter(PDFFile.upload_status.in_(['confirmed', 'draft']))
+        storage_query = db.query(func.sum(PDFFile.file_size)).filter(PDFFile.upload_status == 'confirmed')
         if target_hospital_id:
             storage_query = storage_query.join(Patient).filter(Patient.hospital_id == target_hospital_id)
         
@@ -220,7 +220,7 @@ def get_dashboard_stats(
                 hospital_name = hospital.legal_name
                 # Simplified Revenue Calculation for Demo: price_per_file * total_files
                 # In a real system, this would consider page counts
-                q_total_files = q_patients.join(PDFFile).filter(PDFFile.upload_status.in_(['confirmed', 'draft']))
+                q_total_files = q_patients.join(PDFFile).filter(PDFFile.upload_status == 'confirmed')
                 total_files = q_total_files.count()
                 estimated_revenue = total_files * hospital.price_per_file
                 billing_data = {
@@ -323,11 +323,11 @@ def get_dashboard_stats(
     if app_state.total_requests > 0:
         avg_latency = (app_state.total_latency / app_state.total_requests) * 1000
     
-    uptime_delta = datetime.utcnow() - app_state.startup_time
+    uptime_delta = datetime.utcnow() - getattr(app_state, 'startup_time', datetime.utcnow())
     # uptime_str = f"{uptime_delta.days}d {uptime_delta.seconds // 3600}h" if uptime_delta.days > 0 else f"{uptime_delta.seconds // 3600}h {(uptime_delta.seconds % 3600) // 60}m"
     
-    # FETCH PREVIOUS LOGIN (As requested by user)
-    last_login_str = current_user.previous_login_at
+    # FETCH PREVIOUS LOGIN (Safe string format)
+    last_login_str = current_user.previous_login_at.isoformat() if current_user.previous_login_at else "N/A"
 
     
     network_load = "0.0 MB/s"

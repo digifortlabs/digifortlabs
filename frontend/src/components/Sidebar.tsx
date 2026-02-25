@@ -11,7 +11,7 @@ interface SidebarProps {
 export default function Sidebar({ userRole }: SidebarProps) {
     const router = useRouter();
     const pathname = usePathname();
-    const { terms, specialty } = useTerminology();
+    const { terms, specialty, enabledModules = [] } = useTerminology();
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -44,23 +44,23 @@ export default function Sidebar({ userRole }: SidebarProps) {
                     <p className="px-4 text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Main Menu</p>
 
                     {/* Super Admin Section */}
-                    {userRole === 'website_admin' && (
+                    {(userRole === 'website_admin' || userRole === 'superadmin') && (
                         <>
                             <Link
-                                href="/dashboard/hospital_mgmt"
-                                className={`block px-4 py-3 rounded-xl transition-all duration-200 border ${isActive('/dashboard/hospital_mgmt')
+                                href="/dashboard/organizations"
+                                className={`block px-4 py-3 rounded-xl transition-all duration-200 border ${isActive('/dashboard/organizations')
                                     ? 'active bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-900/50'
                                     : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
                                     }`}
                             >
                                 <div className="flex items-center gap-3 font-medium">
-                                    <span>🌍</span> Platform Admin
+                                    <span>🏢</span> Manage Clients
                                 </div>
                             </Link>
                         </>
                     )}
 
-                    {(userRole === 'website_admin' || userRole === 'hospital_admin') && (
+                    {(userRole === 'website_admin' || userRole === 'superadmin' || userRole === 'hospital_admin') && (
                         <Link
                             href="/dashboard/audit"
                             className={`block px-4 py-3 rounded-xl transition-all duration-200 ${isActive('/dashboard/audit')
@@ -88,7 +88,7 @@ export default function Sidebar({ userRole }: SidebarProps) {
                     </Link>
 
                     {/* Dental Specific Dashboard */}
-                    {specialty === 'Dental' && (
+                    {enabledModules.includes('dental') && (
                         <Link
                             href="/dashboard/dental"
                             className={`block px-4 py-3 rounded-xl transition-all duration-200 border ${isActive('/dashboard/dental')
@@ -103,7 +103,7 @@ export default function Sidebar({ userRole }: SidebarProps) {
                     )}
 
                     {/* Warehouse (Moved to Main Menu) */}
-                    {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'mrd_staff' || userRole === 'website_staff') && (
+                    {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'superadmin' || userRole === 'mrd_staff' || userRole === 'website_staff') && (
                         <Link
                             href="/dashboard/storage"
                             className={`block px-4 py-3 rounded-xl transition-all duration-200 ${isActive('/dashboard/storage') && !isActive('/dashboard/storage/requests')
@@ -117,8 +117,8 @@ export default function Sidebar({ userRole }: SidebarProps) {
                         </Link>
                     )}
 
-                    {/* Patient Records */}
-                    {(userRole === 'hospital_admin' || userRole === 'data_uploader' || userRole === 'website_staff' || userRole === 'mrd_staff') && (
+                    {/* Patient Records (Core Module) */}
+                    {(userRole === 'hospital_admin' || userRole === 'data_uploader' || userRole === 'website_staff' || userRole === 'mrd_staff') && enabledModules.includes('core') && (
                         <Link
                             href="/dashboard/records"
                             className={`block px-4 py-3 rounded-xl transition-all duration-200 ${isActive('/dashboard/records')
@@ -135,7 +135,7 @@ export default function Sidebar({ userRole }: SidebarProps) {
 
                 {/* Operations Section */}
                 {
-                    (userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'website_staff' || userRole === 'website_admin') && (
+                    (userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'website_staff' || userRole === 'website_admin' || userRole === 'superadmin') && (
                         <div className="space-y-2">
                             <p className="px-4 text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Operations</p>
 
@@ -160,7 +160,7 @@ export default function Sidebar({ userRole }: SidebarProps) {
                 <div className="space-y-2">
                     <p className="px-4 text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Account</p>
 
-                    {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'website_staff') && (
+                    {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'superadmin' || userRole === 'website_staff') && (
                         <Link
                             href="/dashboard/settings"
                             className={`block px-4 py-3 rounded-xl transition-all duration-200 ${isActive('/dashboard/settings')

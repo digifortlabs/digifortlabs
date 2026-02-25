@@ -14,7 +14,7 @@ from ..routers.auth import get_current_user
 from ..services.compression import compress_pdf, compress_video_to_mp4
 from ..services.ocr import extract_text_from_pdf, classify_document, extract_text_from_image
 from ..services.s3_handler import S3Manager
-from ..services.ai_service import ai_service
+from ..audit import log_audit
 from ..services.storage_service import StorageService
 from ..services.email_service import EmailService
 
@@ -82,22 +82,41 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
         # 1.5 Page Counting (Keep here for Review Step)
         if os.path.splitext(original_filename)[1].lower() == '.pdf':
             try:
-                db_file.processing_stage = 'analyzing' 
+                db_file.processing_stage = 'processing' # Changed from 'analyzing' to avoid confusion
                 db.commit()
-                
-                with open(processed_path, 'rb') as f:
-                    content_bytes = f.read()
                 
                 # Count Pages
                 try:
                     from pypdf import PdfReader
-                    import io
-                    reader = PdfReader(io.BytesIO(content_bytes))
+                    reader = PdfReader(processed_path)
                     db_file.page_count = len(reader.pages)
                     db.commit() 
-                    print(f"📄 Page Count: {db_file.page_count}")
+                    print(f"📄 Page Count (pypdf): {db_file.page_count}")
                 except Exception as pe:
-                    print(f"⚠️ Page count error: {pe}")
+                    print(f"⚠️ pypdf failed: {pe}, falling back to pdf2image")
+                    try:
+                        from pdf2image.info import pdfinfo_from_path
+                        info = pdfinfo_from_path(processed_path)
+                        if "Pages" in info:
+                            db_file.page_count = int(info["Pages"])
+                            db.commit()
+                            print(f"📄 Page Count (pdf2image): {db_file.page_count}")
+                        else:
+                            print("⚠️ Pages not found in pdfinfo")
+                    except Exception as fallback_e:
+                        print(f"⚠️ pdf2image fallback failed: {fallback_e}")
+                        # --- EXTREME FALLBACK: RAW REGEX ---
+                        try:
+                            import re
+                            with open(processed_path, 'rb') as tmp_f:
+                                raw_pdf = tmp_f.read()
+                            matches = re.findall(b"/Count\\s+(\\d+)", raw_pdf)
+                            if matches:
+                                db_file.page_count = max([int(m) for m in matches])
+                                db.commit()
+                                print(f"📄 Page Count (Raw Regex): {db_file.page_count}")
+                        except Exception as e3:
+                            print(f"⚠️ Raw Regex failed: {e3}")
             except Exception as e:
                 print(f"⚠️ PageCount Warning: {e}")
             db.commit()
@@ -131,17 +150,21 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
         db_file.processing_stage = 'uploading'
         db.commit()
         
-        # Structure: drafts/hospital/MRD_uuid.ext.enc
-        import re
-        def sanitize_name(name): return re.sub(r'[^\w\s-]', '', name).replace(' ', '_')
-        
+        # Structure: hospital/year/month/MRD_uuid.ext.enc
         patient = db_file.patient
-        hospital_name = sanitize_name(patient.hospital.legal_name or f"Hospital_{patient.hospital_id}")
-        mrd_number = sanitize_name(patient.patient_u_id)
+        date_source = patient.discharge_date or patient.created_at or datetime.datetime.now()
+        year_str = date_source.strftime("%Y")
+        month_str = date_source.strftime("%m")
+        
+        import re
+        def simple_sanitize(name: str) -> str:
+            return re.sub(r'[^a-zA-Z0-9_\-]', '_', str(name))
+            
+        hospital_name = simple_sanitize(patient.hospital.legal_name or f"Hospital_{patient.hospital_id}")
+        mrd_number = simple_sanitize(patient.patient_u_id)
         
         final_ext = os.path.splitext(processed_path)[1] # includes .enc usually
-        # We store as drafts/ initially
-        s3_key = f"drafts/{hospital_name}/{mrd_number}_{uuid.uuid4().hex[:8]}{final_ext}"
+        s3_key = f"{hospital_name}/{year_str}/{month_str}/{mrd_number}_{uuid.uuid4().hex[:8]}{final_ext}"
 
         # We always use s3_manager.upload_file, but if it's a draft, we might want to FORCE local mode
         # Actually, let's just use a special local prefix for drafts in the database
@@ -157,8 +180,9 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
             db_file.s3_key = s3_key
             db_file.file_size = os.path.getsize(processed_path)
             db_file.file_size_mb = db_file.file_size / (1024 * 1024)
-            db_file.storage_path = location # Store bucket path or verify what usage expects
+            db_file.storage_path = location 
             
+            db_file.upload_status = 'confirmed'
             db_file.processing_stage = 'completed'
             db_file.processing_progress = 100
         else:
@@ -181,7 +205,12 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
         print(f"✅ Processing Complete: {file_id}")
 
     except Exception as e:
-        print(f"❌ Background Task Error: {e}")
+        import traceback
+        error_msg = traceback.format_exc()
+        # Fallback to local file logging in case PM2 is dropping stdout
+        with open("/home/ec2-user/.pm2/logs/custom_trace.log", "a") as errFile:
+            errFile.write(f"\n--- UPLOAD CRASH ---\nFile ID: {file_id}\n{error_msg}\n")
+        print(f"❌ Background Task Error for {file_id}:\n{error_msg}")
         try:
             db_file.processing_stage = 'failed'
             db.commit()
@@ -197,9 +226,9 @@ def log_ocr(msg: str):
     except Exception:
         pass
 
-def run_post_confirmation_ocr(file_id: int):
+def run_manual_ocr_task(file_id: int):
     """
-    Background Task to run OCR after file is confirmed.
+    Background Task to run OCR MANUALY for a given file.
     """
     db = SessionLocal()
     s3_manager = S3Manager()
@@ -208,8 +237,9 @@ def run_post_confirmation_ocr(file_id: int):
         if not db_file:
             return
 
-        log_ocr(f"🔍 Post-Confirmation OCR Started: {file_id}")
+        log_ocr(f"🔍 Manual OCR Started: {file_id}")
         db_file.processing_stage = 'analyzing'
+        db_file.processing_progress = 10
         db.commit()
         
         # Get and Decrypt Bytes
@@ -217,36 +247,132 @@ def run_post_confirmation_ocr(file_id: int):
             encrypted_bytes = s3_manager.get_file_bytes(db_file.s3_key)
             if not encrypted_bytes:
                 log_ocr(f"❌ Physical file not found for OCR: {db_file.s3_key}")
+                db_file.processing_stage = 'failed'
+                db_file.processing_progress = 0
+                db.commit()
                 return
                 
+            db_file.processing_progress = 30
+            db.commit()
+            
             from ..services.encryption import decrypt_data
             decrypted_bytes = decrypt_data(encrypted_bytes)
             
+            # --- START PAGE COUNT FIX ---
+            if not db_file.page_count:
+                log_ocr(f"📄 Recalculating missing page count for: {file_id}")
+                try:
+                    from pypdf import PdfReader
+                    import io
+                    reader = PdfReader(io.BytesIO(decrypted_bytes))
+                    db_file.page_count = len(reader.pages)
+                    db.commit()
+                    log_ocr(f"✅ Page count updated (pypdf): {db_file.page_count}")
+                except Exception as pe:
+                    log_ocr(f"⚠️ pypdf failed during recalculation: {pe}")
+                    try:
+                        import tempfile, os
+                        from pdf2image.info import pdfinfo_from_path
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                            tmp.write(decrypted_bytes)
+                            tmp_path = tmp.name
+                        info = pdfinfo_from_path(tmp_path)
+                        if "Pages" in info:
+                            db_file.page_count = int(info["Pages"])
+                            db.commit()
+                            log_ocr(f"✅ Page count updated (pdf2image): {db_file.page_count}")
+                        os.remove(tmp_path)
+                    except Exception as fallback:
+                        log_ocr(f"⚠️ pdf2image fallback failed: {fallback}")
+                        try: os.remove(tmp_path)
+                        except: pass
+                        # --- EXTREME FALLBACK: RAW REGEX ---
+                        try:
+                            import re
+                            matches = re.findall(b"/Count\\s+(\\d+)", decrypted_bytes)
+                            if matches:
+                                db_file.page_count = max([int(m) for m in matches])
+                                db.commit()
+                                log_ocr(f"✅ Page count updated (Raw Regex): {db_file.page_count}")
+                        except Exception as e3:
+                            log_ocr(f"⚠️ Raw Regex failed: {e3}")
+            # --- END PAGE COUNT FIX ---
+
+            db_file.processing_progress = 50
+            db.commit()
+            
             # Run OCR
+            log_ocr(f"📄 Extracting text for: {file_id}")
             extracted_text = extract_text_from_pdf(decrypted_bytes)
+            
+            db_file.processing_progress = 75
+            db.commit()
+            
             if extracted_text:
                 db_file.ocr_text = extracted_text
                 db_file.is_searchable = True
                 
-                # AI Tagging
+                # 1. Tags
                 auto_tags = classify_document(extracted_text)
                 if auto_tags:
                     db_file.tags = ", ".join(auto_tags)
+                    
+                # 2. Structured Extraction (Dynamic AI)
+                hospital = db_file.patient.hospital
+                ai_config = hospital.ai_settings if hospital and hospital.ai_settings else {}
+                api_key = ai_config.get("api_key")
+                is_enabled = ai_config.get("enabled", False)
                 
-                log_ocr(f"✅ Post-Confirmation OCR Complete: {file_id}")
+                # Platform Fallback
+                if not is_enabled or not api_key:
+                    from ..models import SystemSetting
+                    platform_ai = db.query(SystemSetting).filter(SystemSetting.key == "platform_ai_settings").first()
+                    if platform_ai and platform_ai.value:
+                        import json
+                        try:
+                            plat_cfg = json.loads(platform_ai.value)
+                            if plat_cfg.get("enabled"):
+                                api_key = plat_cfg.get("api_key")
+                                is_enabled = True
+                        except: pass
+                        
+                if is_enabled and api_key:
+                    from ..services.ai_service import AIService
+                    from ..models import AIExtraction
+                    import json
+                    log_ocr(f"🤖 Running AI Analysis for: {file_id}")
+                    try:
+                        ai_svc = AIService(api_key=api_key)
+                        structured_data = ai_svc.extract_patient_details(extracted_text)
+                        if structured_data:
+                            extraction_record = AIExtraction(
+                                file_id=file_id,
+                                raw_json=json.dumps(structured_data, indent=2),
+                                extracted_text=extracted_text,
+                                visit_type=structured_data.get('patient_category') or "OPD",
+                                doctor_name=structured_data.get('doctor_name'),
+                                summary=structured_data.get('diagnosis')
+                            )
+                            db.add(extraction_record)
+                    except Exception as ai_e:
+                        log_ocr(f"⚠️ AI Extraction failed but OCR saved: {ai_e}")
+                
+                log_ocr(f"✅ Manual OCR Complete: {file_id}")
             else:
                 log_ocr(f"ℹ️ No OCR text found for {file_id}")
                 
             db_file.processing_stage = 'completed'
+            db_file.processing_progress = 100
             db.commit()
             
         except Exception as e:
-            log_ocr(f"❌ Post-Confirmation OCR Error during processing: {e}")
-            db_file.processing_stage = 'completed' # Still completed even if OCR fails
+            log_ocr(f"❌ Manual OCR Error during processing: {e}")
+            db_file.processing_stage = 'failed' 
+            db_file.processing_progress = 0
             db.commit()
             
     except Exception as e:
-        log_ocr(f"❌ Post-Confirmation OCR Task Error: {e}")
+        log_ocr(f"❌ Manual OCR Task Error: {e}")
     finally:
         db.close()
 
@@ -594,8 +720,8 @@ async def upload_patient_file(
             s3_key="pending", 
             file_size=os.path.getsize(tmp_path),
             file_size_mb=os.path.getsize(tmp_path) / (1024 * 1024),
-            upload_status="draft", 
-            processing_stage="queued",
+            upload_status="confirmed", # Changed from 'draft' or 'pending' to 'confirmed'
+            processing_stage="queued", # Changed from 'draft' to 'queued'
             processing_progress=0,
             # Capture Historical Pricing from Hospital
             price_per_file=patient.hospital.price_per_file if patient.hospital else 100.0,
@@ -609,10 +735,12 @@ async def upload_patient_file(
         # 3. Trigger Background Task
         background_tasks.add_task(process_upload_task, new_file.file_id, tmp_path, file.filename, current_user.user_id, current_user.hospital_id)
         
+        # PROACTIVE FIX: We want it confirmed immediately.
+        # The frontend expects a 'processing' status or 'success'
         return {
             "status": "processing",
             "file_id": new_file.file_id,
-            "message": "Upload accepted, processing in background."
+            "message": "Upload accepted and confirmed, processing in background."
         }
 
     except HTTPException:
@@ -623,6 +751,56 @@ async def upload_patient_file(
         # Using 422 Unprocessable Entity to ensure the error message passes through Nginx
         # (Nginx often intercepts 500 errors and shows a generic HTML page)
         raise HTTPException(status_code=422, detail=f"Upload Error: {str(e)}")
+
+@router.post("/{patient_id}/files/{file_id}/confirm")
+def confirm_upload(patient_id: int, file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """
+    Backward compatibility endpoint. 
+    Since we now confirm immediately on upload, this just returns success.
+    """
+    return {"status": "success", "message": "File already confirmed during upload."}
+
+@router.post("/{patient_id}/files/{file_id}/run-ocr")
+def trigger_manual_ocr(
+    patient_id: int, 
+    file_id: int, 
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Manually trigger the OCR & AI extraction for a specific file.
+    """
+    db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id, PDFFile.record_id == patient_id).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    # Check permissions
+    is_platform = current_user.role in ["superadmin", "superadmin_staff"]
+    if not is_platform and db_file.patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    if db_file.upload_status != "confirmed":
+        raise HTTPException(status_code=400, detail="File must be 'confirmed' (uploaded/saved) before running AI.")
+        
+    if db_file.processing_stage in ["analyzing"]:
+        raise HTTPException(status_code=400, detail="AI Processing is already running for this file.")
+
+    # Reset AI associated data to re-run
+    db_file.ocr_text = None
+    db_file.is_searchable = False
+    db_file.processing_stage = "analyzing"
+    db_file.processing_progress = 0
+    
+    # Optionally delete old extractions
+    from ..models import AIExtraction
+    db.query(AIExtraction).filter(AIExtraction.file_id == file_id).delete()
+    
+    db.commit()
+    
+    background_tasks.add_task(run_manual_ocr_task, file_id)
+    
+    return {"message": "AI/OCR Processing explicitly started in background.", "status": "analyzing"}
 
 @router.get("/search/", response_model=List[dict])
 def search_files(q: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -887,7 +1065,7 @@ def run_manual_ocr(file_id: int, background_tasks: BackgroundTasks, db: Session 
     db_file.processing_stage = 'analyzing'
     db.commit()
     
-    background_tasks.add_task(run_post_confirmation_ocr, file_id)
+    background_tasks.add_task(run_manual_ocr_task, file_id)
     
     return {"message": "OCR triggered successfully"}
 
@@ -912,49 +1090,6 @@ def update_ocr_text(file_id: int, body: OCRUpdateRequest, db: Session = Depends(
     f.ocr_text = body.ocr_text
     db.commit()
     return {"message": "OCR text updated"}
-
-@router.post("/extract-details")
-async def extract_patient_details_from_file(
-    file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Extracts structured patient data from an uploaded document (PDF or Image).
-    """
-    try:
-        content = await file.read()
-        filename = file.filename.lower()
-        
-        print(f"DEBUG: Processing /extract-details. Filename: {filename}, Size: {len(content)} bytes")
-        
-        extracted_text = ""
-        extracted_json = None
-
-        if filename.endswith(".pdf"):
-            extracted_text = extract_text_from_pdf(content)
-            if not extracted_text:
-                print(f"DEBUG: OCR returned empty text for {filename}")
-                raise HTTPException(status_code=400, detail="No text found in document. Please ensure the file is clear.")
-            # Pass to Gemini for structured extraction from text
-            extracted_json = ai_service.extract_patient_details(extracted_text)
-        elif filename.endswith((".png", ".jpg", ".jpeg", ".webp")):
-            # NEW: Use Gemini Vision directly for images
-            mime_type = file.content_type or "image/jpeg"
-            extracted_json = ai_service.extract_patient_details_from_image(content, mime_type)
-        else:
-            raise HTTPException(status_code=400, detail="Unsupported file format. Use PDF or Image.")
-
-        if not extracted_json:
-            print(f"❌ Extraction failed. AI returned empty result for {filename}")
-            raise HTTPException(status_code=500, detail="AI extraction failed. Please ensure the document is clear and contains patient details.")
-
-        print(f"✅ Extraction Successful: {extracted_json.get('full_name')}")
-        return extracted_json
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        print(f"❌ Extraction API Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
     
     # 3. Update Tags
     if body.tags is not None:
@@ -971,6 +1106,74 @@ async def extract_patient_details_from_file(
     log_audit(db, current_user.user_id, "OCR_EDIT", f"Updated OCR text for {f.filename}", hospital_id=current_user.hospital_id)
     
     return {"status": "success", "message": "OCR Text updated successfully"}
+
+@router.post("/extract-details")
+async def extract_patient_details_from_file(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Extracts structured patient data from an uploaded document using dynamic API key.
+    """
+    try:
+        # Determine AI API Key
+        api_key = None
+        is_enabled = False
+        
+        # Check Hospital first
+        if current_user.hospital_id:
+            from ..models import Hospital
+            hosp = db.query(Hospital).filter(Hospital.hospital_id == current_user.hospital_id).first()
+            if hosp and hosp.ai_settings:
+                ai_config = hosp.ai_settings
+                api_key = ai_config.get("api_key")
+                is_enabled = ai_config.get("enabled", False)
+                
+        # Check Platform Fallback
+        if not is_enabled or not api_key:
+            from ..models import SystemSetting
+            platform_ai = db.query(SystemSetting).filter(SystemSetting.key == "platform_ai_settings").first()
+            if platform_ai and platform_ai.value:
+                import json
+                try:
+                    plat_cfg = json.loads(platform_ai.value)
+                    if plat_cfg.get("enabled"):
+                        api_key = plat_cfg.get("api_key")
+                        is_enabled = True
+                except: pass
+
+        if not is_enabled or not api_key:
+            raise HTTPException(status_code=403, detail="AI Extraction is disabled or API Key is missing. Please configure it in Settings.")
+
+        from ..services.ai_service import AIService
+        ai_service = AIService(api_key=api_key)
+
+        content = await file.read()
+        filename = file.filename.lower()
+        extracted_text = ""
+        extracted_json = None
+
+        if filename.endswith(".pdf"):
+            extracted_text = extract_text_from_pdf(content)
+            if not extracted_text:
+                raise HTTPException(status_code=400, detail="No text found in document.")
+            extracted_json = ai_service.extract_patient_details(extracted_text)
+        elif filename.endswith((".png", ".jpg", ".jpeg", ".webp")):
+            mime_type = file.content_type or "image/jpeg"
+            extracted_json = ai_service.extract_patient_details_from_image(content, mime_type)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file format.")
+
+        if not extracted_json:
+            raise HTTPException(status_code=500, detail="AI extraction failed.")
+
+        return extracted_json
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"❌ Extraction API Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/files/{file_id}/confirm")
 def confirm_upload(file_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -994,10 +1197,10 @@ def confirm_upload(file_id: int, background_tasks: BackgroundTasks, db: Session 
             # If S3 migration failed, we still mark as confirmed locally
             f.upload_status = 'confirmed'
             db.commit()
-            background_tasks.add_task(run_post_confirmation_ocr, file_id)
+            # background_tasks.add_task(run_manual_ocr_task, file_id) # Temporarily disabled automatic OCR
             return {"status": "partial", "message": f"Confirmed locally, but archival error: {msg}"}
         
-        background_tasks.add_task(run_post_confirmation_ocr, file_id)
+        # background_tasks.add_task(run_manual_ocr_task, file_id) # Temporarily disabled automatic OCR
         
         try:
             from ..audit import log_audit
@@ -1013,10 +1216,10 @@ def confirm_upload(file_id: int, background_tasks: BackgroundTasks, db: Session 
         if not success:
             f.upload_status = 'confirmed'
             db.commit()
-            background_tasks.add_task(run_post_confirmation_ocr, file_id)
+            # background_tasks.add_task(run_manual_ocr_task, file_id) # Temporarily disabled automatic OCR
             return {"status": "partial", "message": f"Confirmed, but migration error: {msg}"}
         
-        background_tasks.add_task(run_post_confirmation_ocr, file_id)
+        # background_tasks.add_task(run_manual_ocr_task, file_id) # Temporarily disabled automatic OCR
         
         try:
             from ..audit import log_audit
@@ -1031,10 +1234,11 @@ def confirm_upload(file_id: int, background_tasks: BackgroundTasks, db: Session 
     log_audit(db, current_user.user_id, "FILE_CONFIRMED", f"Confirmed: {f.filename}", hospital_id=current_user.hospital_id)
     
     f.upload_status = 'confirmed'
+    f.processing_stage = 'completed' # Explicitly set to completed as OCR is skipped
     db.commit()
-    background_tasks.add_task(run_post_confirmation_ocr, file_id)
+    # background_tasks.add_task(run_manual_ocr_task, file_id) # Temporarily disabled automatic OCR
 
-    return {"status": "success", "message": "File confirmed and published. OCR is running in background."}
+    return {"status": "success", "message": "File confirmed and published. (Automatic OCR is currently disabled)."}
 
 @router.delete("/files/{file_id}/draft")
 def delete_draft(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -1118,14 +1322,17 @@ def get_file_url(file_id: int, db: Session = Depends(get_db), current_user: User
 @router.get("/files/{file_id}/serve")
 def serve_file(
     file_id: int, 
+    background_tasks: BackgroundTasks, # Added background_tasks
     token: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """
-    Decrypt and stream file to browser.
+    Decrypt and stream file to browser using disk-based buffering for memory efficiency.
     Allows authentication via query param 'token' for direct browser viewing.
     """
     from ..routers.auth import get_current_user as verify_user
+    import tempfile
+    from fastapi.responses import FileResponse
     
     # Authenticate manually since standard Depends(get_current_user) won't work for tags/embeds
     if not token:
@@ -1146,7 +1353,7 @@ def serve_file(
     if not pdf_file:
          raise HTTPException(status_code=404, detail="File not found")
     
-    # Audit Log (Phase 3)
+    # Audit Log
     try:
         from ..audit import log_audit
         log_audit(db, current_user.user_id, "VIEW_DOCUMENT", f"Viewed file: {pdf_file.filename}", hospital_id=current_user.hospital_id)
@@ -1158,31 +1365,61 @@ def serve_file(
     # Check if file is in Glacier
     obj_info = s3_manager.get_object_info(pdf_file.s3_key)
     if obj_info and obj_info.get("IsGlacier"):
-        # If it's Glacier, check if it's currently restored
         restore_status = obj_info.get("Restore", "")
         if not restore_status or 'ongoing-request="true"' in restore_status:
             raise HTTPException(
                 status_code=403, 
-                detail="This file is archived in Glacier (Cold Storage). Please request 'Retrieval' to view it. Restoration takes 3-5 hours (Standard) or 1-5 mins (Expedited)."
+                detail="This file is archived in Glacier (Cold Storage). Please request 'Retrieval' to view it."
             )
 
-    encrypted_bytes = s3_manager.get_file_bytes(pdf_file.s3_key)
-    
-    if not encrypted_bytes:
-        raise HTTPException(status_code=404, detail="Physical file not found")
-        
+    # DISK-BASED SERVING TO PREVENT OOM
+    # Create temp files for handling large encryption blobs
+    temp_dir = tempfile.gettempdir()
+    encrypted_temp_path = os.path.join(temp_dir, f"enc_{file_id}_{os.urandom(4).hex()}")
+    decrypted_temp_path = os.path.join(temp_dir, f"dec_{file_id}_{pdf_file.filename}")
+
     try:
-        decrypted_bytes = decrypt_data(encrypted_bytes)
-        return Response(
-            content=decrypted_bytes,
-            media_type="application/pdf" if ".pdf" in pdf_file.filename.lower() else "video/mp4",
-            headers={
-                "Content-Disposition": f'inline; filename="{pdf_file.filename}"'
-            }
+        # 1. Download to disk
+        print(f"📥 Downloading {pdf_file.s3_key} to temp disk...")
+        success = s3_manager.download_to_temp_cache(pdf_file.s3_key, encrypted_temp_path)
+        if not success:
+            raise HTTPException(status_code=404, detail="Physical file not found in storage")
+
+        # 2. Decrypt from disk to disk
+        print(f"🔓 Decrypting {pdf_file.filename} (Disk-to-Disk)...")
+        with open(encrypted_temp_path, 'rb') as f_enc:
+            enc_data = f_enc.read()
+            dec_data = decrypt_data(enc_data)
+            with open(decrypted_temp_path, 'wb') as f_dec:
+                f_dec.write(dec_data)
+        
+        # Cleanup encrypted temp immediately
+        if os.path.exists(encrypted_temp_path):
+            os.remove(encrypted_temp_path)
+
+        # 3. Serve via FileResponse
+        def cleanup():
+            try:
+                if os.path.exists(decrypted_temp_path):
+                    os.remove(decrypted_temp_path)
+            except: pass
+
+        background_tasks.add_task(cleanup)
+
+        return FileResponse(
+            path=decrypted_temp_path,
+            filename=pdf_file.filename,
+            media_type="application/pdf" if ".pdf" in pdf_file.filename.lower() else "application/octet-stream"
         )
+
     except Exception as e:
-        print(f"❌ Decryption Failed for file {file_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to decrypt file")
+        # Cleanup on failure
+        for p in [encrypted_temp_path, decrypted_temp_path]:
+            if os.path.exists(p): 
+                try: os.remove(p)
+                except: pass
+        print(f"❌ serve_file Error for {file_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to serve file: {str(e)}")
 
 @router.get("/files/{file_id}/status")
 def get_file_status(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

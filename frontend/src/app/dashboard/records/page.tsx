@@ -1173,7 +1173,7 @@ export default function RecordsList() {
                                 {specialty === 'Dental' ? (
                                     (() => {
                                         const selectedPatient = patients.find(p => (p.record_id || p.patient_id) === selectedPatientId);
-                                        if (!selectedPatient) return <div className="p-8 text-center text-slate-400">Patient data not found.</div>;
+                                        if (!selectedPatient) return <div className="p-8 text-center text-slate-400">{terms.patient} data not found.</div>;
                                         return (
                                             <DentalPatientDetail
                                                 patient={selectedPatient}

@@ -6,6 +6,7 @@ import imageCompression from 'browser-image-compression';
 import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download, Info, AlertOctagon, AlertCircle } from 'lucide-react';
 import DigitizationScanner from '@/components/Scanner/DigitizationScanner';
 import ConfirmationModal from '@/components/ConfirmationModal';
+import { useTerminology } from '@/hooks/useTerminology';
 
 import { API_URL } from '@/config/api';
 import { formatDate } from '@/lib/dateFormatter';
@@ -106,6 +107,7 @@ function PatientDetailContent() {
 
     const [patient, setPatient] = useState<PatientDetail | null>(null);
     const [userRole, setUserRole] = useState('');
+    const { terms } = useTerminology();
 
     // File Queue System
     const [fileQueue, setFileQueue] = useState<FileQueueItem[]>([]);
@@ -435,12 +437,12 @@ function PatientDetailContent() {
             } else {
                 const errDetail = await res.text();
                 console.error("Fetch Error:", errDetail);
-                setError("Patient not found or access denied.");
+                setError(`${terms.patient} not found or access denied.`);
                 // router.push('/dashboard/records'); // Optional: redirect or show error
             }
         } catch (error) {
             console.error(error);
-            setError("Failed to load patient data. Please check network connection.");
+            setError(`Failed to load ${terms.patient.toLowerCase()} data. Please check network connection.`);
         }
     };
 
@@ -614,7 +616,7 @@ function PatientDetailContent() {
 
 
     const handleDeletePatient = async () => {
-        const input = prompt(`DANGER ZONE \n\nTo PERMANENTLY delete this patient and ALL their files, type "delete" below:`);
+        const input = prompt(`DANGER ZONE \n\nTo PERMANENTLY delete this ${terms.patient.toLowerCase()} and ALL their files, type "delete" below:`);
         if (input !== "delete") {
             if (input !== null) alert("Deletion cancelled. You must type 'delete' exactly.");
             return;
@@ -630,7 +632,7 @@ function PatientDetailContent() {
             });
 
             if (res.ok) {
-                alert("Patient record deleted successfully.");
+                alert(`${terms.patient} record deleted successfully.`);
                 router.replace('/dashboard/records');
             } else {
                 const data = await res.json();
@@ -662,7 +664,7 @@ function PatientDetailContent() {
         );
     }
 
-    if (!patient) return <div className="p-8 text-center text-slate-500 font-medium">Loading patient record...</div>;
+    if (!patient) return <div className="p-8 text-center text-slate-500 font-medium">Loading {terms.patient.toLowerCase()} record...</div>;
 
     return (
         <div className="flex-1 px-8 pb-8 pt-2">
@@ -941,7 +943,7 @@ function PatientDetailContent() {
                     </div>
                 ) : (
                     <div className="text-center py-12 text-gray-500">
-                        <p>No files uploaded for this patient.</p>
+                        <p>No files uploaded for this {terms.patient.toLowerCase()}.</p>
                     </div>
                 )}
                 {/* Upload Section for Staff */}
@@ -1485,7 +1487,7 @@ function PatientDetailContent() {
                     onClick={handleDeletePatient}
                     className="px-6 py-3 bg-red-50 text-red-600 font-bold rounded-xl border border-red-200 hover:bg-red-100 hover:border-red-300 transition-all flex items-center gap-2"
                 >
-                    <Trash2 size={18} /> Delete Patient Record
+                    <Trash2 size={18} /> Delete {terms.patient} Record
                 </button>
             </div>
             {/* Confirmation Modal */}
@@ -1529,7 +1531,7 @@ function PatientDetailContent() {
 
 export default function PatientDetailPage() {
     return (
-        <Suspense fallback={<div className="p-8 font-bold text-gray-500">Loading Patient Details...</div>}>
+        <Suspense fallback={<div className="p-8 font-bold text-gray-500">Loading Details...</div>}>
             <PatientDetailContent />
         </Suspense>
     );

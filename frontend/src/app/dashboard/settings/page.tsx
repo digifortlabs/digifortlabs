@@ -16,7 +16,8 @@ export default function SettingsPage() {
         address: '',
         city: '',
         state: '',
-        pincode: ''
+        pincode: '',
+        ai_settings: { enabled: false, api_key: '' }
     });
     const [subscription, setSubscription] = useState({
         tier: 'Standard',
@@ -24,7 +25,7 @@ export default function SettingsPage() {
     });
     const [hospitalId, setHospitalId] = useState<number | null>(null);
     const [userRole, setUserRole] = useState('');
-    const [systemSettings, setSystemSettings] = useState({ maintenance_mode: 'false', announcement: '' });
+    const [systemSettings, setSystemSettings] = useState({ maintenance_mode: 'false', announcement: '', platform_ai_settings: '{"enabled":false,"api_key":""}' });
     const [passwordData, setPasswordData] = useState({ old: '', new: '', confirm: '' });
     const [platformStaff, setPlatformStaff] = useState<any[]>([]);
     const [showStaffModal, setShowStaffModal] = useState(false);
@@ -72,7 +73,8 @@ export default function SettingsPage() {
                 const data = await res.json();
                 setSystemSettings({
                     maintenance_mode: data.maintenance_mode || 'false',
-                    announcement: data.announcement || ''
+                    announcement: data.announcement || '',
+                    platform_ai_settings: data.platform_ai_settings || '{"enabled":false,"api_key":""}'
                 });
             }
         } catch (error) { console.error(error); }
@@ -143,10 +145,33 @@ export default function SettingsPage() {
         }
     }
 
+    // System Error Logs State
+    const [systemErrors, setSystemErrors] = useState<any[]>([]);
+    const [loadingErrors, setLoadingErrors] = useState(false);
+
+    const fetchSystemErrors = async () => {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        setLoadingErrors(true);
+        try {
+            const res = await fetch(`${API_URL}/platform/system-error-logs`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                setSystemErrors(await res.json());
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoadingErrors(false);
+        }
+    }
+
     useEffect(() => {
         if (['website_admin', 'superadmin'].includes(userRole)) {
             fetchOcrStats();
             fetchOcrLogs();
+            fetchSystemErrors();
             const interval = setInterval(() => {
                 fetchOcrStats();
                 fetchOcrLogs();
@@ -350,7 +375,8 @@ export default function SettingsPage() {
                     address: data.address || '',
                     city: data.city || '',
                     state: data.state || '',
-                    pincode: data.pincode || ''
+                    pincode: data.pincode || '',
+                    ai_settings: data.ai_settings || { enabled: false, api_key: '' }
                 });
                 setSubscription({
                     tier: data.subscription_tier || 'Standard',
@@ -458,8 +484,39 @@ export default function SettingsPage() {
                                 />
                             </div>
                         </div>
+
+                        <div className="mt-6 pt-6 border-t border-gray-100">
+                            <h3 className="text-md font-bold text-gray-800 mb-3 ml-2 flex items-center gap-2">🤖 AI Extraction Settings</h3>
+                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="font-medium text-gray-800">Enable Gemini AI Features</p>
+                                        <p className="text-xs text-gray-500">Activates auto-extraction for uploaded files.</p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            checked={profile.ai_settings.enabled}
+                                            onChange={(e) => setProfile(p => ({ ...p, ai_settings: { ...p.ai_settings, enabled: e.target.checked } }))}
+                                        />
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none ring-0 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                    </label>
+                                </div>
+                                <div className={!profile.ai_settings.enabled ? 'opacity-50 pointer-events-none' : ''}>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Google Gemini API Key</label>
+                                    <input type="password"
+                                        className="w-full border border-gray-300 rounded-md p-2 bg-white"
+                                        value={profile.ai_settings.api_key} onChange={e => setProfile(p => ({ ...p, ai_settings: { ...p.ai_settings, api_key: e.target.value } }))}
+                                        placeholder="AIzaSy..."
+                                    />
+                                    <p className="text-[10px] text-gray-500 mt-1">Stored securely. Required for document summarization.</p>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="mt-6 flex justify-end">
-                            <button onClick={handleSaveProfile} className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">Save Profile</button>
+                            <button onClick={handleSaveProfile} className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">Save Profile Settings</button>
                         </div>
                     </div>
 
@@ -554,6 +611,66 @@ export default function SettingsPage() {
                         </div>
                     </div>
 
+
+
+                    {/* Platform Global AI Configuration */}
+                    <div className="mt-4 bg-white p-4 rounded border border-indigo-100">
+                        <div className="flex justify-between items-center mb-3">
+                            <div>
+                                <p className="font-bold text-gray-800">Global AI Fallback (Gemini)</p>
+                                <p className="text-[11px] text-gray-500">Used if a hospital hasn't configured their own API Key.</p>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                {(() => {
+                                    try {
+                                        const parsed = JSON.parse(systemSettings.platform_ai_settings);
+                                        return (
+                                            <input
+                                                type="checkbox"
+                                                className="sr-only peer"
+                                                checked={parsed.enabled}
+                                                onChange={(e) => {
+                                                    const updated = { ...parsed, enabled: e.target.checked };
+                                                    setSystemSettings(s => ({ ...s, platform_ai_settings: JSON.stringify(updated) }));
+                                                    updateSystemSetting('platform_ai_settings', JSON.stringify(updated));
+                                                }}
+                                            />
+                                        );
+                                    } catch { return null; }
+                                })()}
+                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                        </div>
+                        {(() => {
+                            try {
+                                const parsed = JSON.parse(systemSettings.platform_ai_settings);
+                                return (
+                                    <div className={!parsed.enabled ? 'opacity-50 pointer-events-none mt-2' : 'mt-2'}>
+                                        <input
+                                            type="password"
+                                            className="w-full border rounded p-2 text-sm bg-gray-50"
+                                            placeholder="Platform Gemini Key (AIzaSy...)"
+                                            value={parsed.api_key}
+                                            onChange={(e) => {
+                                                const updated = { ...parsed, api_key: e.target.value };
+                                                setSystemSettings(s => ({ ...s, platform_ai_settings: JSON.stringify(updated) }));
+                                            }}
+                                        />
+                                        <div className="flex justify-between items-center mt-2">
+                                            <p className="text-[10px] text-gray-400">Used for bulk OCR tasks or fallback extractions.</p>
+                                            <button
+                                                onClick={() => updateSystemSetting('platform_ai_settings', systemSettings.platform_ai_settings)}
+                                                className="text-[10px] bg-slate-800 text-white px-2 py-1 rounded"
+                                            >
+                                                Save Key
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            } catch { return null; }
+                        })()}
+                    </div>
+
                     <div className="mt-4 bg-white p-4 rounded border border-indigo-100">
                         <div className="flex justify-between items-center mb-3">
                             <div>
@@ -582,18 +699,62 @@ export default function SettingsPage() {
                             </div>
                         )}
                     </div>
-                </div>
-            )}
+
+                    {/* System Error Logs */}
+                    <div className="mt-4 bg-white p-4 rounded border border-red-100">
+                        <div className="flex justify-between items-center mb-3">
+                            <div>
+                                <p className="font-bold text-red-800">System Error Logs</p>
+                                <p className="text-xs text-red-500">Live feed of backend exceptions across all tenants.</p>
+                            </div>
+                            <button
+                                onClick={fetchSystemErrors}
+                                className="px-3 py-1.5 bg-red-50 text-red-600 rounded text-xs font-bold border border-red-200 hover:bg-red-100"
+                            >
+                                Refresh Logs
+                            </button>
+                        </div>
+
+                        <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden">
+                            <div className="max-h-64 overflow-y-auto p-3 flex flex-col gap-2">
+                                {loadingErrors ? (
+                                    <p className="text-slate-400 text-xs text-center py-4">Loading errors...</p>
+                                ) : systemErrors.length > 0 ? (
+                                    systemErrors.map((err, idx) => (
+                                        <div key={idx} className="bg-slate-800 rounded p-2 border-l-2 border-red-500 text-xs">
+                                            <div className="flex justify-between items-start mb-1 text-slate-300">
+                                                <span className="font-bold text-red-400">{err.error_type}</span>
+                                                <span className="text-[10px]">{new Date(err.timestamp).toLocaleString()}</span>
+                                            </div>
+                                            <p className="text-white text-[11px] mb-1 font-mono">{err.error_message}</p>
+                                            {err.endpoint && <p className="text-[10px] text-indigo-300 bg-slate-900 p-1 rounded inline-block">{err.method} {err.endpoint}</p>}
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-green-400 text-xs text-center border border-dashed border-green-800 p-4 bg-green-950/30 rounded">
+                                        No active system errors found! 🎉
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div >
+            )
+            }
 
             {/* Platform Company Profile (Visible ONLY to Super Admin) */}
-            {['website_admin', 'superadmin'].includes(userRole) && (
-                <CompanyProfileSettings />
-            )}
+            {
+                ['website_admin', 'superadmin'].includes(userRole) && (
+                    <CompanyProfileSettings />
+                )
+            }
 
             {/* Login Activity (Visible to Admins) */}
-            {['website_admin', 'superadmin', 'hospital_admin'].includes(userRole) && (
-                <LoginActivityPanel />
-            )}
+            {
+                ['website_admin', 'superadmin', 'hospital_admin'].includes(userRole) && (
+                    <LoginActivityPanel />
+                )
+            }
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl mb-6">
                 <h2 className="text-lg font-semibold mb-4">Account Security</h2>

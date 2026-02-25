@@ -193,6 +193,7 @@ async def login_for_access_token(
         "hospital_name": user.hospital.legal_name if user.hospital else None,
         "specialty": user.hospital.specialty if user.hospital else "General",
         "terminology": user.hospital.terminology if user.hospital else {},
+        "enabled_modules": user.hospital.enabled_modules if user.hospital else ["core"],
         "session_id": new_session_id,
         "force_password_change": user.force_password_change or False,
         "previous_login": user.previous_login_at.isoformat() if user.previous_login_at else None

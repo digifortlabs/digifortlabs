@@ -52,7 +52,7 @@ export default function SiteMapPage() {
                     links: [
                         { name: "Dashboard Overview", href: "/dashboard" },
                         { name: "Records Management", href: "/dashboard/records" },
-                        { name: "Hospital Management", href: "/dashboard/hospital_mgmt" },
+                        { name: "Client Management", href: "/dashboard/organizations" },
                         { name: "User Management (Orphan)", href: "/dashboard/user_mgmt" },
                         { name: "Staff Management (Orphan)", href: "/dashboard/staff" },
                     ]

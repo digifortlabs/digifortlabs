@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Archive, Search, FileText, Calendar, Box, PackagePlus, FileQuestion, CheckSquare, Square } from 'lucide-react';
 import { API_URL } from '../../../../config/api';
 import { formatDate } from '../../../../lib/dateFormatter';
+import { useTerminology } from '@/hooks/useTerminology';
 
 interface ArchivedFilesListProps {
     boxes?: any[];
@@ -9,6 +10,7 @@ interface ArchivedFilesListProps {
 }
 
 export default function ArchivedFilesList({ boxes = [], refreshData }: ArchivedFilesListProps) {
+    const { terms } = useTerminology();
     const [archivedFiles, setArchivedFiles] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -126,7 +128,7 @@ export default function ArchivedFilesList({ boxes = [], refreshData }: ArchivedF
                     </h2>
                     <p className="text-slate-400 text-sm font-medium">
                         {viewMode === 'assigned'
-                            ? 'List of patient files currently stored in boxes.'
+                            ? `List of ${terms.patient.toLowerCase()} files currently stored in boxes.`
                             : 'Files waiting to be assigned to a physical box.'}
                     </p>
                 </div>
@@ -186,7 +188,7 @@ export default function ArchivedFilesList({ boxes = [], refreshData }: ArchivedF
                                     </button>
                                 </th>
                             )}
-                            <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Patient Details</th>
+                            <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">{terms.patient} Details</th>
                             <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Location Status</th>
                             <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Discharge Date</th>
                             <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Status</th>

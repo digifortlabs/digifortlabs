@@ -4,8 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { Archive, Search, FileText, Calendar, Box } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import { formatDate } from '@/lib/dateFormatter';
+import { useTerminology } from '@/hooks/useTerminology';
 
 export default function ArchiveView() {
+    const { terms } = useTerminology();
     const [archivedFiles, setArchivedFiles] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -46,7 +48,7 @@ export default function ArchiveView() {
                     <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
                         <Archive className="text-indigo-600" /> Physical Archive
                     </h1>
-                    <p className="text-slate-500 mt-2">List of patient files currently stored in the warehouse.</p>
+                    <p className="text-slate-500 mt-2">List of {terms.patient.toLowerCase()} files currently stored in the warehouse.</p>
                 </div>
 
                 <div className="relative w-full md:w-96">
@@ -65,7 +67,7 @@ export default function ArchiveView() {
                 <table className="w-full text-left">
                     <thead className="bg-slate-50 border-b border-slate-100">
                         <tr>
-                            <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Patient Details</th>
+                            <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">{terms.patient} Details</th>
                             <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Box Location</th>
                             <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Discharge Date</th>
                             <th className="p-6 text-xs font-black text-slate-400 uppercase tracking-wider">Archive Status</th>

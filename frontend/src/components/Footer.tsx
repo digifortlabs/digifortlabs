@@ -8,8 +8,8 @@ export default function Footer() {
                     <div className="col-span-1 md:col-span-2">
                         <h3 className="text-2xl font-bold text-white mb-4">DIGIFORT<span className="text-blue-500">LABS</span></h3>
                         <p className="max-w-sm text-slate-400">
-                            Pioneering the future of secure healthcare archives.
-                            We bridge the physical and digital worlds to safeguard patient history.
+                            Pioneering the future of secure enterprise archives.
+                            We bridge the physical and digital worlds to safeguard critical enterprise data.
                         </p>
                         <div className="mt-6 text-slate-400 text-sm">
                             <p className="font-semibold text-white">Headquarters:</p>
@@ -37,8 +37,8 @@ export default function Footer() {
                     <p>&copy; {new Date().getFullYear()} Digifort Labs. All rights reserved.</p>
                     <div className="flex space-x-6 mt-4 md:mt-0">
                         <span>ISO 27001 Certified</span>
-                        <span>HIPAA Compliant</span>
-                        <span>Made with ❤️ for Healthcare</span>
+                        <span>Enterprise Compliant</span>
+                        <span>Made with ❤️ for Enterprises</span>
                     </div>
                 </div>
             </div>

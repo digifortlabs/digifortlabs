@@ -37,6 +37,8 @@ class Hospital(Base):
     hospital_type = Column(String, default="Private") # Government, Private, Teaching, etc.
     specialty = Column(String, default="General") # General, Dental, etc.
     terminology = Column(JSON, default=dict) # {"patient": "Client", "hospital": "Clinic"}
+    enabled_modules = Column(JSON, default=list) # e.g. ["core", "dental", "accounting"]
+    ai_settings = Column(JSON, default=lambda: {"enabled": False, "api_key": ""}) # Per-tenant AI config
     is_active = Column(Boolean, default=True)
     
     # Profile Details (Post-Registration, Optional)
@@ -627,6 +629,7 @@ class DentalPatient(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
+    hospital = relationship("Hospital")
     appointments = relationship("DentalAppointment", back_populates="patient", cascade="all, delete-orphan")
     treatments = relationship("DentalTreatment", back_populates="patient", cascade="all, delete-orphan")
     scans = relationship("Dental3DScan", back_populates="patient", cascade="all, delete-orphan")

@@ -19,7 +19,9 @@ import {
     AlertCircle,
     Trash,
     Power,
-    Cpu
+    Cpu,
+    Archive,
+    IndianRupee
 } from 'lucide-react';
 
 export default function HospitalsPage() {
@@ -39,7 +41,6 @@ export default function HospitalsPage() {
     const [pincodeLoading, setPincodeLoading] = useState(false);
 
     const [type, setType] = useState('Private');
-    const [specialty, setSpecialty] = useState('General');
     const [plan, setPlan] = useState('Standard');
     const [pricePerFile, setPricePerFile] = useState(100);
     const [includedPages, setIncludedPages] = useState(20);
@@ -50,31 +51,16 @@ export default function HospitalsPage() {
     const [patientLabel, setPatientLabel] = useState('Patient');
     const [doctorLabel, setDoctorLabel] = useState('Doctor');
 
-    // Organization Category State
-    const [organizationCategory, setOrganizationCategory] = useState('Custom');
+    // Industry & Module State
+    const [industry, setIndustry] = useState('');
+    const [enabledModules, setEnabledModules] = useState<string[]>(['core']);
 
-    // Presets Configuration
-    const ORGANIZATION_PRESETS = [
-        { id: 'Dental Clinic', label: 'Dental Clinic', type: 'Clinic', specialty: 'Dental', patient: 'Patient', doctor: 'Dentist' },
-        { id: 'Multi-Specialty Hospital', label: 'Multi-Specialty Hospital', type: 'Private', specialty: 'General', patient: 'Patient', doctor: 'Doctor' },
-        { id: 'Polyclinic', label: 'Polyclinic', type: 'Polyclinic', specialty: 'General', patient: 'Patient', doctor: 'Consultant' },
-        { id: 'Eye Center', label: 'Eye Center', type: 'Center', specialty: 'Ophthalmology', patient: 'Patient', doctor: 'Ophthalmologist' },
-        { id: 'Diagnostic Center', label: 'Diagnostic Center', type: 'Center', specialty: 'Radiology', patient: 'Client', doctor: 'Radiologist' },
-        { id: 'Law Firm', label: 'Law Firm / Advocate', type: 'Office', specialty: 'Legal', patient: 'Client', doctor: 'Advocate' },
-        { id: 'Chartered Accountant', label: 'Chartered Accountant', type: 'Office', specialty: 'Accounting', patient: 'Client', doctor: 'CA' },
-        { id: 'Corporate Office', label: 'Corporate Office', type: 'Office', specialty: 'Corporate', patient: 'Employee', doctor: 'Manager' },
-        { id: 'Pharma Company', label: 'Pharma Manufacturing', type: 'Industrial', specialty: 'Pharmaceuticals', patient: 'Batch / Product', doctor: 'QA Head' },
-        { id: 'Custom', label: 'Custom / Other', type: '', specialty: '', patient: '', doctor: '' }
-    ];
-
-    const handleCategoryChange = (catId: string) => {
-        setOrganizationCategory(catId);
-        const preset = ORGANIZATION_PRESETS.find(p => p.id === catId);
-        if (preset && catId !== 'Custom') {
-            setType(preset.type);
-            setSpecialty(preset.specialty);
-            setPatientLabel(preset.patient);
-            setDoctorLabel(preset.doctor);
+    const toggleModule = (modId: string) => {
+        if (modId === 'core') return; // Core cannot be disabled
+        if (enabledModules.includes(modId)) {
+            setEnabledModules(enabledModules.filter(m => m !== modId));
+        } else {
+            setEnabledModules([...enabledModules, modId]);
         }
     };
 
@@ -165,7 +151,6 @@ export default function HospitalsPage() {
         setState(hospital.state || '');
         setPincode(hospital.pincode || '');
         setType(hospital.hospital_type || 'Private');
-        setSpecialty(hospital.specialty || 'General');
         setPlan(hospital.subscription_tier || 'Standard');
         setPricePerFile(hospital.price_per_file || 100);
         setIncludedPages(hospital.included_pages || 20);
@@ -179,12 +164,9 @@ export default function HospitalsPage() {
         setPatientLabel(pLabel);
         setDoctorLabel(dLabel);
 
-        // Reverse Match Category
-        const match = ORGANIZATION_PRESETS.find(p =>
-            p.type === (hospital.hospital_type || 'Private') &&
-            p.specialty === (hospital.specialty || 'General')
-        );
-        setOrganizationCategory(match ? match.id : 'Custom');
+        // Modules and Industry
+        setEnabledModules(hospital.enabled_modules || ['core']);
+        setIndustry(hospital.specialty || 'General');
 
         setShowModal(true);
         setActiveActionId(null);
@@ -258,6 +240,8 @@ export default function HospitalsPage() {
         const method = isEditMode ? 'PATCH' : 'POST';
 
         try {
+            // Modules are now passed explicitly from state
+
             const res = await fetch(url, {
                 method: method,
                 headers: {
@@ -271,7 +255,7 @@ export default function HospitalsPage() {
                     state,
                     pincode,
                     hospital_type: type,
-                    specialty: specialty,
+                    specialty: industry,
                     subscription_tier: plan,
                     price_per_file: pricePerFile,
                     included_pages: includedPages,
@@ -280,7 +264,8 @@ export default function HospitalsPage() {
                     terminology: {
                         patient: patientLabel,
                         doctor: doctorLabel
-                    }
+                    },
+                    enabled_modules: enabledModules
                 })
             });
 
@@ -332,10 +317,10 @@ export default function HospitalsPage() {
                         setIsEditMode(false);
                         setCurrentHospitalId(null);
                         setLegalName(''); setEmail(''); setCity(''); setState(''); setPincode(''); setGstNumber('');
-                        setType('Private'); setSpecialty('General'); setPlan('Standard');
+                        setType('Private'); setIndustry('General'); setPlan('Standard');
                         setPricePerFile(100); setIncludedPages(20); setPricePerExtraPage(1);
-                        setPatientLabel('Patient'); setDoctorLabel('Doctor');
-                        setOrganizationCategory('Custom');
+                        setPatientLabel('Client'); setDoctorLabel('Agent');
+                        setEnabledModules(['core']);
                         setShowModal(true);
                     }}
 
@@ -463,7 +448,7 @@ export default function HospitalsPage() {
                                         <span className="px-3 py-1 rounded-xl text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200 w-fit">
                                             {h.hospital_type || 'Private'}
                                         </span>
-                                        <span className={`px-3 py-1 rounded-xl text-[10px] font-black border w-fit ${h.specialty === 'Dental' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : h.specialty === 'ENT' ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>
+                                        <span className={`px-3 py-1 rounded-xl text-[10px] font-black border w-fit ${h.specialty === 'Dental' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : h.specialty === 'Legal' ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>
                                             {h.specialty || 'General'}
                                         </span>
                                     </div>
@@ -560,7 +545,7 @@ export default function HospitalsPage() {
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-xs font-bold text-slate-600">Contact Email</label>
-                                            <input required value={email} onChange={e => setEmail(e.target.value)} type="email" className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="admin@hospital.com" />
+                                            <input required value={email} onChange={e => setEmail(e.target.value)} type="email" className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="admin@company.com" />
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-xs font-bold text-slate-600">Pincode</label>
@@ -584,76 +569,24 @@ export default function HospitalsPage() {
                                             <label className="text-xs font-bold text-slate-600">State</label>
                                             <input value={state} readOnly className="w-full p-3 bg-slate-100 text-slate-500 rounded-xl border-none font-medium outline-none cursor-not-allowed" placeholder="Auto-filled" />
                                         </div>
-                                        {/* Organization Category - Unified Selection */}
-                                        <div className="space-y-1 col-span-1 md:col-span-2">
-                                            <label className="text-xs font-bold text-slate-600">Organization Category (Auto-Configure)</label>
-                                            <select
-                                                value={organizationCategory}
-                                                onChange={e => handleCategoryChange(e.target.value)}
-                                                className="w-full p-3 bg-indigo-50 rounded-xl border-2 border-indigo-100 font-bold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                            >
-                                                {ORGANIZATION_PRESETS.map(p => (
-                                                    <option key={p.id} value={p.id}>{p.label}</option>
-                                                ))}
-                                            </select>
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-slate-600">Enterprise Type</label>
+                                            <input
+                                                value={type}
+                                                onChange={e => setType(toTitleCase(e.target.value))}
+                                                className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                placeholder="e.g. Private, Government, NGO"
+                                            />
                                         </div>
-
-                                        {/* Conditional Fields based on "Custom" */}
-                                        {organizationCategory === 'Custom' && (
-                                            <>
-                                                <div className="space-y-1">
-                                                    <label className="text-xs font-bold text-slate-600">Facility Type (Manual)</label>
-                                                    <select
-                                                        value={type}
-                                                        onChange={e => setType(e.target.value)}
-                                                        className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                                    >
-                                                        <option value="Private">Private Hospital</option>
-                                                        <option value="Government">Government Hospital</option>
-                                                        <option value="Clinic">Clinic / Nursing Home</option>
-                                                        <option value="Center">Diagnostics Center</option>
-                                                        <option value="Medical College">Medical College</option>
-                                                        <option value="Polyclinic">Polyclinic</option>
-                                                        <option value="Charitable Trust">Charitable Trust</option>
-                                                        <option value="Research Institute">Research Institute</option>
-                                                        <option value="Military">Military Hospital</option>
-                                                        <option value="Office">Corporate / Legal Office</option>
-                                                        <option value="Industrial">Industrial / Plant</option>
-                                                    </select>
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <label className="text-xs font-bold text-slate-600">Medical/Business Specialty</label>
-                                                    <select
-                                                        value={specialty}
-                                                        onChange={e => setSpecialty(e.target.value)}
-                                                        className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                                    >
-                                                        <option value="General">General (Multi-Specialty)</option>
-                                                        <option value="Dental">Dental Clinic</option>
-                                                        <option value="ENT">ENT Specialty</option>
-                                                        <option value="Cardiology">Cardiology</option>
-                                                        <option value="Orthopedics">Orthopedics</option>
-                                                        <option value="Pediatrics">Pediatrics</option>
-                                                        <option value="Gynecology">Gynecology</option>
-                                                        <option value="Dermatology">Dermatology</option>
-                                                        <option value="Ophthalmology">Ophthalmology</option>
-                                                        <option value="Neurology">Neurology</option>
-                                                        <option value="Oncology">Oncology</option>
-                                                        <option value="Gastroenterology">Gastroenterology</option>
-                                                        <option value="Urology">Urology</option>
-                                                        <option value="Nephrology">Nephrology</option>
-                                                        <option value="Psychiatry">Psychiatry</option>
-                                                        <option value="Plastic Surgery">Plastic Surgery</option>
-                                                        <option value="Veterinary">Veterinary</option>
-                                                        <option value="Ayurveda">Ayurveda</option>
-                                                        <option value="Legal">Legal Services</option>
-                                                        <option value="Accounting">Accounting / Tax</option>
-                                                        <option value="Corporate">Corporate Management</option>
-                                                        <option value="Pharmaceuticals">Pharmaceuticals</option>
-                                                    </select>
-                                                </div>
-                                            </>
-                                        )}
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-bold text-slate-600">Industry / Domain</label>
+                                            <input
+                                                value={industry}
+                                                onChange={e => setIndustry(toTitleCase(e.target.value))}
+                                                className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                placeholder="e.g. Healthcare, Finance, Logistics"
+                                            />
+                                        </div>
 
                                         <div className="space-y-1">
                                             <label className="text-xs font-bold text-slate-600">GST Identification Number (GSTIN)</label>
@@ -667,9 +600,55 @@ export default function HospitalsPage() {
                                     </div>
                                 </div>
 
+                                {/* Module Configuration */}
+                                <div className="space-y-4">
+                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider">02. Platform Modules</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div onClick={() => toggleModule('core')} className={`p-4 rounded-xl border-2 cursor-pointer transition-all border-indigo-600 bg-indigo-50 opacity-100`}>
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className="flex items-center gap-2 font-bold text-indigo-900">
+                                                    <Archive size={18} /> Core Storage
+                                                </div>
+                                                <CheckCircle2 size={16} className="text-indigo-600" />
+                                            </div>
+                                            <p className="text-xs text-indigo-700">Essential AIO Data Processor and Cloud Warehouse. Required for all clients.</p>
+                                        </div>
+
+                                        <div onClick={() => toggleModule('dental')} className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${enabledModules.includes('dental') ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100 hover:border-slate-300'}`}>
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className={`flex items-center gap-2 font-bold ${enabledModules.includes('dental') ? 'text-emerald-900' : 'text-slate-600'}`}>
+                                                    <span>🦷</span> Dental Engine
+                                                </div>
+                                                {enabledModules.includes('dental') && <CheckCircle2 size={16} className="text-emerald-500" />}
+                                            </div>
+                                            <p className={`text-xs ${enabledModules.includes('dental') ? 'text-emerald-700' : 'text-slate-500'}`}>Specialized interface for tooth charting and prescription processing.</p>
+                                        </div>
+
+                                        <div onClick={() => toggleModule('legal')} className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${enabledModules.includes('legal') ? 'border-amber-500 bg-amber-50' : 'border-slate-100 hover:border-slate-300'}`}>
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className={`flex items-center gap-2 font-bold ${enabledModules.includes('legal') ? 'text-amber-900' : 'text-slate-600'}`}>
+                                                    <span>⚖️</span> Legal Discovery
+                                                </div>
+                                                {enabledModules.includes('legal') && <CheckCircle2 size={16} className="text-amber-500" />}
+                                            </div>
+                                            <p className={`text-xs ${enabledModules.includes('legal') ? 'text-amber-700' : 'text-slate-500'}`}>Case file organization, witness histories, and contract analysis.</p>
+                                        </div>
+
+                                        <div onClick={() => toggleModule('accounting')} className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${enabledModules.includes('accounting') ? 'border-blue-500 bg-blue-50' : 'border-slate-100 hover:border-slate-300'}`}>
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className={`flex items-center gap-2 font-bold ${enabledModules.includes('accounting') ? 'text-blue-900' : 'text-slate-600'}`}>
+                                                    <IndianRupee size={18} /> Intelligent Ledger
+                                                </div>
+                                                {enabledModules.includes('accounting') && <CheckCircle2 size={16} className="text-blue-500" />}
+                                            </div>
+                                            <p className={`text-xs ${enabledModules.includes('accounting') ? 'text-blue-700' : 'text-slate-500'}`}>Invoice extraction, balance sheets, and tax compliance OCR.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* Plan Selection */}
                                 <div className="space-y-4">
-                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider">02. Select Subscription Plan</h3>
+                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider">03. Select Subscription Plan</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <PlanCard
                                             name="Standard"
@@ -691,7 +670,7 @@ export default function HospitalsPage() {
 
                                 {/* Billing Config */}
                                 <div className="space-y-4">
-                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider">03. Billing Configuration (INR)</h3>
+                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider">04. Billing Configuration (INR)</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div className="space-y-1">
                                             <label className="text-xs font-bold text-slate-600">Base Price (₹/File)</label>
@@ -725,34 +704,30 @@ export default function HospitalsPage() {
 
                                 {/* Terminology Config */}
                                 <div className="space-y-4">
-                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider">04. Terminology Configuration</h3>
+                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider">05. Entity Terminology Customization</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-600">Patient Label</label>
+                                            <label className="text-xs font-bold text-slate-600">Primary Entity Label</label>
                                             <input
                                                 value={patientLabel}
                                                 onChange={e => setPatientLabel(e.target.value)}
-                                                readOnly={organizationCategory !== 'Custom'}
-                                                className={`w-full p-3 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 ${organizationCategory !== 'Custom' ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50'}`}
-                                                placeholder="e.g. Patient, Client, Resident"
+                                                className="w-full p-3 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 bg-slate-50"
+                                                placeholder="e.g. Patient, Client, Resident, Document"
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-600">Doctor Label</label>
+                                            <label className="text-xs font-bold text-slate-600">Secondary Actor Label</label>
                                             <input
                                                 value={doctorLabel}
                                                 onChange={e => setDoctorLabel(e.target.value)}
-                                                readOnly={organizationCategory !== 'Custom'}
-                                                className={`w-full p-3 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 ${organizationCategory !== 'Custom' ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50'}`}
-                                                placeholder="e.g. Doctor, Consultant, Dentist"
+                                                className="w-full p-3 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 bg-slate-50"
+                                                placeholder="e.g. Doctor, Consultant, Agent, Officer"
                                             />
                                         </div>
-                                        {organizationCategory !== 'Custom' && (
-                                            <div className="col-span-1 md:col-span-2 text-xs text-indigo-500 bg-indigo-50 p-2 rounded-lg font-bold flex items-center gap-2">
-                                                <ShieldCheck size={14} />
-                                                Terminology is auto-managed by the selected Organization Category. Switch to "Custom" to edit manually.
-                                            </div>
-                                        )}
+                                        <div className="col-span-1 md:col-span-2 text-xs text-indigo-500 bg-indigo-50 p-2 rounded-lg font-bold flex items-center gap-2 border border-indigo-100">
+                                            <ShieldCheck size={14} />
+                                            These terms will be dynamically injected across the entire UI for this specific client to match their domain.
+                                        </div>
                                     </div>
                                 </div>
 

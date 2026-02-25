@@ -1125,96 +1125,16 @@ def search_files(q: str, db: Session = Depends(get_db), current_user: User = Dep
     return data
 @router.get("/drafts")
 def list_pending_drafts(hospital_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """List all digital files currently in 'draft' status for the current user's scope."""
-    # Auth Check: "All Admin"
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.WEBSITE_ADMIN]:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    # Determine Filter
-    target_hospital_id = None
-    
-    if current_user.role == UserRole.HOSPITAL_ADMIN:
-        target_hospital_id = current_user.hospital_id
-    elif (current_user.role == UserRole.SUPER_ADMIN or current_user.role == UserRole.WEBSITE_ADMIN) and hospital_id:
-        target_hospital_id = hospital_id
-    
-    # Query Drafts
-    query = db.query(PDFFile).filter(PDFFile.upload_status == 'draft')
-    
-    if target_hospital_id:
-        query = query.join(Patient).filter(Patient.hospital_id == target_hospital_id)
-        
-    drafts = query.order_by(PDFFile.upload_date.desc()).all()
-    
-    return [
-        {
-            "file_id": f.file_id,
-            "filename": f.filename,
-            "patient_id": f.record_id,
-            "patient_name": f.patient.full_name if f.patient else "Unknown",
-            "mrn": f.patient.patient_u_id if f.patient else None,
-            "hospital_name": f.patient.hospital.legal_name if (f.patient and f.patient.hospital) else "Unknown",
-            "upload_date": f.upload_date.isoformat() if f.upload_date else None
-        }
-        for f in drafts
-    ]
+    """
+    Deprecated. Now all uploads are confirmed immediately.
+    Returns empty list for backward compatibility.
+    """
+    return []
 
 @router.post("/confirm-all")
 def confirm_all_drafts(hospital_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # Auth Check: "All Admin"
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.WEBSITE_ADMIN]:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    # Determine Filter
-    target_hospital_id = None
-    
-    if current_user.role == UserRole.HOSPITAL_ADMIN:
-        target_hospital_id = current_user.hospital_id
-    elif (current_user.role == UserRole.SUPER_ADMIN or current_user.role == UserRole.WEBSITE_ADMIN) and hospital_id:
-        target_hospital_id = hospital_id
-    
-    # Query Drafts
-    query = db.query(PDFFile).filter(PDFFile.upload_status == 'draft')
-    
-    if target_hospital_id:
-        query = query.join(Patient).filter(Patient.hospital_id == target_hospital_id)
-        
-    drafts = query.all()
-    
-    if not drafts:
-        return {"status": "success", "confirmed_count": 0, "message": "No pending drafts found."}
-        
-    count = 0
-    failed = 0
-    
-    for f in drafts:
-        s3_key = f.s3_key or ""
-        success = False
-        msg = ""
-        
-        # Handle local drafts/
-        if "drafts/" in s3_key:
-            success, msg = StorageService.migrate_to_s3(db, f.file_id)
-        # Handle S3 draft/ or draft_backup/
-        elif "draft/" in s3_key or "draft_backup/" in s3_key:
-            success, msg = StorageService.migrate_s3_draft_to_final(db, f.file_id)
-        else:
-            # Already in final storage, just mark as confirmed
-            f.upload_status = 'confirmed'
-            db.commit()
-            success = True
-        
-        if success:
-            count += 1
-        else:
-            # Fallback: Force confirm locally if migration fails
-            f.upload_status = 'confirmed'
-            db.commit() 
-            failed += 1
-            
-    return {
-        "status": "success", 
-        "confirmed_count": count, 
-        "forced_count": failed,
-        "message": f"Confirmed {count + failed} files. {count} migrated to final storage, {failed} confirmed in place."
-    }
+    """
+    Deprecated. Now all uploads are confirmed immediately.
+    Returns success message.
+    """
+    return {"status": "success", "confirmed_count": 0, "message": "All files are now confirmed automatically on upload."}

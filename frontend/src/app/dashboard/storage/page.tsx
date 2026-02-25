@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { API_URL } from '../../../config/api';
+import { useTerminology } from '@/hooks/useTerminology';
 
 // Components
 import WarehouseStats from './components/WarehouseStats';
@@ -19,6 +20,7 @@ import LabelGenerator from './components/LabelGenerator';
 import { LayoutGrid, List, Scan, ArrowLeftRight, History, Printer, PackageSearch } from 'lucide-react';
 
 export default function WarehousePage() {
+    const { terms } = useTerminology();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState('map');
     const [userRole, setUserRole] = useState('');
@@ -173,7 +175,7 @@ export default function WarehousePage() {
                                     <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                         <tr>
                                             <th className="px-6 py-4">Action</th>
-                                            <th className="px-6 py-4">Patient</th>
+                                            <th className="px-6 py-4">{terms.patient}</th>
                                             <th className="px-6 py-4">Time</th>
                                         </tr>
                                     </thead>

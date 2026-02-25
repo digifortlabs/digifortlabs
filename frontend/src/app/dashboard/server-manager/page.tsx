@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { API_URL } from '../../../config/api';
-import { Folder, File, Download, ArrowLeft, RefreshCw, HardDrive, Cloud, Trash2 } from 'lucide-react';
+import { Folder, File, Download, ArrowLeft, RefreshCw, HardDrive, Cloud, Trash2, Power } from 'lucide-react';
 
 export default function ServerFileManager() {
     const router = useRouter();
@@ -12,6 +12,33 @@ export default function ServerFileManager() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [bucket, setBucket] = useState('digifort-production-bucket'); // Default bucket
+
+    // Bulk OCR State
+    const [ocrLoading, setOcrLoading] = useState(false);
+
+    // Bulk OCR Logic
+    const runBulkOCR = async () => {
+        if (!confirm("This will trigger background OCR for up to 50 pending files. Continue?")) return;
+        setOcrLoading(true);
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`${API_URL}/platform/bulk-ocr?limit=50`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alert(data.message);
+            } else {
+                alert(`Error: ${data.detail || data.message}`);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Failed to trigger OCR");
+        } finally {
+            setOcrLoading(false);
+        }
+    };
 
     useEffect(() => {
         fetchFiles();
@@ -87,27 +114,40 @@ export default function ServerFileManager() {
                 <div>
                     <h1 className="text-2xl font-black text-slate-800 flex items-center gap-2">
                         <HardDrive className="text-indigo-600" />
-                        Server File Manager
+                        System Diagnostics & File Manager
                     </h1>
-                    <p className="text-slate-500 font-medium">
-                        Direct access to {source === 'local' ? 'Local Server' : 'S3 Cloud'} storage.
-                        <span className="bg-red-100 text-red-600 text-[10px] font-bold px-2 py-0.5 rounded ml-2 uppercase">Developer Access</span>
+                    <p className="text-slate-500 font-medium text-xs mt-1">
+                        Direct access to {source === 'local' ? 'Local Server' : 'S3 Cloud'} storage and automated AIO workers.
+                        <span className="bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded ml-2 uppercase">Super Admin Access</span>
                     </p>
                 </div>
 
-                <div className="flex bg-slate-100 p-1 rounded-lg">
-                    <button
-                        onClick={() => { setSource('local'); setPath(''); }}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-all ${source === 'local' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <HardDrive size={16} /> Local Server
-                    </button>
-                    <button
-                        onClick={() => { setSource('s3'); setPath(''); }}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-all ${source === 's3' ? 'bg-white shadow text-amber-600' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <Cloud size={16} /> AWS S3
-                    </button>
+                <div className="flex bg-slate-100 p-1 rounded-lg items-center divide-x divide-slate-200">
+                    <div className="flex pr-2">
+                        <button
+                            onClick={() => { setSource('local'); setPath(''); }}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs font-bold transition-all ${source === 'local' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <HardDrive size={14} /> Local Server
+                        </button>
+                        <button
+                            onClick={() => { setSource('s3'); setPath(''); }}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs font-bold transition-all ${source === 's3' ? 'bg-white shadow text-amber-600' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <Cloud size={14} /> AWS S3
+                        </button>
+                    </div>
+
+                    <div className="pl-2">
+                        <button
+                            onClick={runBulkOCR}
+                            disabled={ocrLoading}
+                            className={`flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all min-w-[160px] ${ocrLoading ? 'bg-red-100 text-red-500 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600 text-white shadow shadow-red-200'}`}
+                        >
+                            {ocrLoading ? <RefreshCw className="animate-spin" size={14} /> : <Power size={14} />}
+                            {ocrLoading ? 'Processing Batch...' : 'Trigger Global OCR Worker'}
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -212,6 +252,6 @@ export default function ServerFileManager() {
                     </tbody>
                 </table>
             </div>
-        </div>
+        </div >
     );
 }

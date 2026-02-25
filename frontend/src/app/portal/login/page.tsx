@@ -15,22 +15,22 @@ export default function PatientLogin() {
                         <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 text-blue-600 rounded-xl text-2xl mb-4">
                             🏥
                         </div>
-                        <h2 className="text-2xl font-bold text-slate-900">Patient Portal</h2>
-                        <p className="text-slate-500 mt-2">Securely access your medical archives</p>
+                        <h2 className="text-2xl font-bold text-slate-900">Client Portal</h2>
+                        <p className="text-slate-500 mt-2">Securely access your digitized archives</p>
                     </div>
 
                     <form className="space-y-5">
                         <div>
-                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Health ID / Unique ID</label>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Entity ID / Unique ID</label>
                             <input
                                 type="text"
                                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition font-medium text-slate-900"
-                                placeholder="PID-12345678"
+                                placeholder="ID-12345678"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Date of Birth</label>
+                            <label className="block text-xs font-bold uppercase text-slate-500 mb-1">Verification PIN / Date</label>
                             <input
                                 type="date"
                                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition font-medium text-slate-900"
@@ -40,7 +40,7 @@ export default function PatientLogin() {
                         <div className="flex items-start">
                             <input id="agree" type="checkbox" className="mt-1 h-4 w-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" />
                             <label htmlFor="agree" className="ml-2 block text-xs text-slate-500 leading-relaxed">
-                                I consent to the retrieval of my archived records for the purpose of personal healthcare management.
+                                I consent to the retrieval of my archived records for the purpose of personal or business record management.
                             </label>
                         </div>
 

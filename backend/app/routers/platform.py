@@ -31,8 +31,11 @@ async def get_settings(db: Session = Depends(get_db)):
         # Filter out any unexpected None entries to prevent AttributeError
         return {s.key: s.value for s in settings if s}
     except Exception as e:
-        print(f"Settings Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"🔥 Settings Critical Error: {e}")
+        # Return empty dict instead of 500 if possible, or at least log it
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Database error while fetching settings: {str(e)}")
 
 @router.post("/settings/{key}")
 async def update_setting(key: str, update: SettingUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -110,12 +113,12 @@ async def run_bulk_ocr(
     if not candidates:
         return {"status": "success", "message": "No pending files found for OCR."}
 
-    from ..routers.patients import run_post_confirmation_ocr
+    from ..routers.patients import run_manual_ocr_task
     
     count = 0
     for file in candidates:
         file.processing_stage = 'analyzing'
-        background_tasks.add_task(run_post_confirmation_ocr, file.file_id) # Fixed: Do not pass DB session
+        background_tasks.add_task(run_manual_ocr_task, file.file_id) # Fixed: Do not pass DB session
         count += 1
     
     db.commit() # Save 'analyzing' state
@@ -130,6 +133,27 @@ async def run_bulk_ocr(
         "message": f"Triggered OCR for {count} files.", 
         "candidates": [f.file_id for f in candidates]
     }
+
+@router.get("/system-error-logs")
+async def get_system_error_logs(
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user),
+    limit: int = 50
+):
+    """
+    Returns the latest system errors from the database.
+    Only accessible by SuperAdmins.
+    """
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+        raise HTTPException(status_code=403, detail="Not authorized to view system errors.")
+
+    try:
+        from ..models import SystemErrorLog
+        logs = db.query(SystemErrorLog).order_by(SystemErrorLog.timestamp.desc()).limit(limit).all()
+        return logs
+    except Exception as e:
+        print(f"System Error Logs fetching error: {e}")
+        raise HTTPException(status_code=500, detail="Could not fetch system error logs")
 
 @router.get("/ocr-status")
 async def get_ocr_status(

@@ -9,6 +9,7 @@ export const useTerminology = () => {
         mrd: 'MRD'
     });
     const [specialty, setSpecialty] = useState('General');
+    const [enabledModules, setEnabledModules] = useState<string[]>(['core']);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -23,6 +24,10 @@ export const useTerminology = () => {
 
                 const spec = decoded.specialty || 'General';
                 setSpecialty(spec);
+
+                // Extract Modular Settings
+                const modules = decoded.enabled_modules || ['core'];
+                setEnabledModules(modules);
 
                 const custom = decoded.terminology || {};
 
@@ -69,5 +74,5 @@ export const useTerminology = () => {
         }
     }, []);
 
-    return { terms, specialty };
+    return { terms, specialty, enabledModules };
 };

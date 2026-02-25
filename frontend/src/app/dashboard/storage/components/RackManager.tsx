@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Building2, Package, ScanLine, Trash2, Printer, X, Edit2, Save, AlertTriangle, CheckCircle, Info, AlertOctagon, AlertCircle } from 'lucide-react';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import { API_URL } from '../../../../config/api';
+import { useTerminology } from '@/hooks/useTerminology';
 
 interface RackManagerProps {
     racks: any[];
@@ -11,6 +12,7 @@ interface RackManagerProps {
 }
 
 const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) => {
+    const { terms } = useTerminology();
     const [rackForm, setRackForm] = useState({ label: '', aisle: 1, capacity: 100 });
     const [isCreatingRack, setIsCreatingRack] = useState(false);
     const [hospitals, setHospitals] = useState<any[]>([]); // For Admin Selection
@@ -745,7 +747,7 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                                                     <div class="label-page">
                                                                         <div class="header">
                                                                             <h3>DIGIFORT LABS</h3>
-                                                                            <div class="type-box">PATIENT (MED)</div>
+                                                                            <div class="type-box">${terms.patient.toUpperCase()} (MED)</div>
                                                                         </div>
                                                                         <div class="main-info">
                                                                             <div class="box-title">BOX: ${viewingBox.label}</div>
@@ -817,7 +819,7 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                                     />
                                                 </th>
                                                 <th className="px-2 py-2">Record ID</th>
-                                                <th className="px-2 py-2">Patient Name</th>
+                                                <th className="px-2 py-2">{terms.patient} Name</th>
                                                 <th className="px-2 py-2">UHID</th>
                                             </tr>
                                         </thead>

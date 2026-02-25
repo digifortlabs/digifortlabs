@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-load_dotenv()
+load_dotenv(override=True)
 
 # Use local PostgreSQL by default if env not set
 SQLALCHEMY_DATABASE_URL = os.getenv(
@@ -27,6 +27,9 @@ engine = create_engine(
     },
     pool_pre_ping=True,
     pool_recycle=300,
+    pool_size=5,          # Lowered to prevent exhausting PostgreSQL max_connections
+    max_overflow=10,      # Overflow allowed but strictly bounded
+    pool_timeout=120,     # Let background OCR tasks queue for heavily loaded servers
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

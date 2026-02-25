@@ -83,11 +83,15 @@ class S3Manager:
             # Return local static URL
             # Use settings.BACKEND_URL or fallback to relative path if served from same origin
             base_url = settings.BACKEND_URL or "http://localhost:8000"
+            # Remove /api suffix for static file serving mount
+            if base_url.endswith("/api"):
+                base_url = base_url[:-4]
+            
             if "localhost" in base_url and settings.ENVIRONMENT == "production":
                  # Fallback for when variable isn't set in prod
                  base_url = "" # Return relative path?
             
-            return f"{base_url}/local-storage/{object_name}"
+            return f"{base_url}/local_storage/{object_name}"
 
         try:
             response = self.s3_client.generate_presigned_url(
@@ -103,10 +107,19 @@ class S3Manager:
             print(f"[ERROR] Presign Error: {e}")
             return None
 
+    def _clean_key(self, object_name: str) -> str:
+        if object_name and object_name.startswith("s3://"):
+            parts = object_name.replace("s3://", "").split("/", 1)
+            if len(parts) == 2:
+                return parts[1]
+        return object_name
+
     def download_to_temp_cache(self, object_name, local_path):
         """
         Downloads file to local cache for temporary processing.
         """
+        object_name = self._clean_key(object_name)
+
         if self.mode == "local":
             try:
                 source_path = os.path.join(self.local_root, object_name)
@@ -139,6 +152,7 @@ class S3Manager:
         """
         Retrieves raw bytes from S3 or Local.
         """
+        object_name = self._clean_key(object_name)
         # Try local first as fallback for legacy files
         local_path = os.path.join(self.local_root, object_name)
         if os.path.exists(local_path):
@@ -160,6 +174,7 @@ class S3Manager:
         Deletes a file from S3 or Local.
         """
         success = True
+        object_name = self._clean_key(object_name)
         
         # Always attempt to delete from local storage (Legacy cleanup or Local mode)
         try:
@@ -191,6 +206,7 @@ class S3Manager:
         if self.mode != "s3":
             return {"StorageClass": "STANDARD", "Restore": None}
             
+        object_name = self._clean_key(object_name)
         try:
             response = self.s3_client.head_object(Bucket=self.bucket_name, Key=object_name)
             return {
