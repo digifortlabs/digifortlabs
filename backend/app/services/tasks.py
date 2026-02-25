@@ -4,8 +4,8 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from ..celery_app import celery_app
-from .database import SessionLocal
-from .models import TempAccessCache
+from ..database import SessionLocal
+from ..models import TempAccessCache
 
 
 @celery_app.task
