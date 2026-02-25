@@ -5,37 +5,37 @@ from sqlalchemy.orm import Session
 
 from ..celery_app import celery_app
 from ..database import SessionLocal
-from ..models import TempAccessCache
+# from ..models import TempAccessCache
 
 
-@celery_app.task
-def cleanup_expired_files():
-    """
-    Runs daily or hourly. 
-    Checks 'temp_access_cache' for files where expiry_timestamp < now.
-    Deletes the local file and removes the DB record.
-    """
-    db: Session = SessionLocal()
-    try:
-        now = datetime.utcnow()
-        expired_entries = db.query(TempAccessCache).filter(TempAccessCache.expiry_timestamp < now).all()
-        
-        deleted_count = 0
-        for entry in expired_entries:
-            if entry.local_path and os.path.exists(entry.local_path):
-                try:
-                    os.remove(entry.local_path)
-                    print(f"Deleted file: {entry.local_path}")
-                except OSError as e:
-                    print(f"Error deleting {entry.local_path}: {e}")
-            
-            db.delete(entry)
-            deleted_count += 1
-        
-        db.commit()
-        return f"Cleanup complete. Removed {deleted_count} expired files."
-    finally:
-        db.close()
+# @celery_app.task
+# def cleanup_expired_files():
+#     """
+#     Runs daily or hourly. 
+#     Checks 'temp_access_cache' for files where expiry_timestamp < now.
+#     Deletes the local file and removes the DB record.
+#     """
+#     db: Session = SessionLocal()
+#     try:
+#         now = datetime.utcnow()
+#         expired_entries = db.query(TempAccessCache).filter(TempAccessCache.expiry_timestamp < now).all()
+#         
+#         deleted_count = 0
+#         for entry in expired_entries:
+#             if entry.local_path and os.path.exists(entry.local_path):
+#                 try:
+#                     os.remove(entry.local_path)
+#                     print(f"Deleted file: {entry.local_path}")
+#                 except OSError as e:
+#                     print(f"Error deleting {entry.local_path}: {e}")
+#             
+#             db.delete(entry)
+#             deleted_count += 1
+#         
+#         db.commit()
+#         return f"Cleanup complete. Removed {deleted_count} expired files."
+#     finally:
+#         db.close()
 
 @celery_app.task
 def reset_monthly_bandwidth():
