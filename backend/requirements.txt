@@ -29,3 +29,4 @@ Pillow
 google-generativeai
 pylsd-nova
 scipy
+fastapi-csrf-protect
