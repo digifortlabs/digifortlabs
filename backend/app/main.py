@@ -127,7 +127,7 @@ async def verify_csrf(request: Request, csrf_protect: CsrfProtect = Depends()):
         # Exclude endpoints that create sessions/auth where token cannot exist yet
         if request.url.path.endswith("/auth/token") or request.url.path.endswith("/auth/request-password-reset"):
             return
-        csrf_protect.validate_csrf(request)
+        await csrf_protect.validate_csrf(request)
 
 app = FastAPI(
     title="THE DIGIFORT LABS - Hospital Archive",

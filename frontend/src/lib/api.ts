@@ -9,7 +9,7 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     };
 
     // Auto-detect JSON if body is an object and not FormData
-    if (options.body && !(options.body instanceof FormData) && typeof options.body === 'object') {
+    if (options.body && !(options.body instanceof FormData) && !(options.body instanceof URLSearchParams) && typeof options.body === 'object') {
         fetchOptions.body = JSON.stringify(options.body);
         fetchOptions.headers = {
             'Content-Type': 'application/json',

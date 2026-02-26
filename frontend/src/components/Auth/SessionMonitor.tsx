@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 
 export default function SessionMonitor() {
     const [isExpired, setIsExpired] = useState(false);
     const router = useRouter();
+    const pathname = usePathname();
 
     useEffect(() => {
         let lastActivity = Date.now();
@@ -22,6 +23,9 @@ export default function SessionMonitor() {
         window.addEventListener('scroll', updateActivity);
 
         const checkSession = async () => {
+            // Skip check if on login page
+            if (pathname === '/login') return;
+
             // Check Idle Time
             if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
                 // If idle, explicitly logout to clear cookie
@@ -63,7 +67,7 @@ export default function SessionMonitor() {
             window.removeEventListener('click', updateActivity);
             window.removeEventListener('scroll', updateActivity);
         };
-    }, [router]);
+    }, [router, pathname]);
 
     if (!isExpired) return null;
 

@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
 import { API_URL } from '../../config/api';
+import { apiFetch } from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Mail, Lock, ArrowRight, ShieldCheck, Activity, Globe } from 'lucide-react';
@@ -42,15 +43,12 @@ function LoginForm() {
             formData.append('password', password);
 
             const apiUrl = API_URL;
-            console.log(`🔵 [Login] URL: ${apiUrl}/auth/token`);
-
-            const res = await fetch(`${apiUrl}/auth/token`, {
+            const res = await apiFetch(`/auth/token`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
                 body: formData,
-                credentials: 'include', // Needed so the browser saves the Set-Cookie response
             });
 
             console.log(`🟢 [Login] Response Status: ${res.status}`);
