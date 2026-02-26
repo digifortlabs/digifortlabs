@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Building2, Package, ScanLine, Trash2, Printer, X, Edit2, Save, AlertTriangle, CheckCircle, Info, AlertOctagon, AlertCircle } from 'lucide-react';
 import ConfirmationModal from '@/components/ConfirmationModal';
-import { API_URL } from '../../../../config/api';
+import { apiFetch, API_URL } from '../../../../config/api';
 import { useTerminology } from '@/hooks/useTerminology';
 
 interface RackManagerProps {
@@ -62,20 +62,16 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
 
     const handleUpdateCapacity = async () => {
         if (!viewingBox) return;
-        const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/storage/boxes/${viewingBox.box_id}`, {
+            const data = await apiFetch(`storage/boxes/${viewingBox.box_id}`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ capacity: editCapacityValue })
             });
 
-            if (res.ok) {
+            if (data) {
                 setIsEditingCapacity(false);
                 setViewingBox({ ...viewingBox, capacity: editCapacityValue });
-                refreshData(); // Updates the main list
-            } else {
-                alert("Failed to update capacity");
+                refreshData();
             }
         } catch (e) { console.error(e); }
     };
@@ -88,22 +84,18 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
             type: 'warning',
             confirmText: "Remove Files",
             onConfirm: async () => {
-                const token = localStorage.getItem('token');
+                // Token is handled by HttpOnly cookies
                 try {
-                    const res = await fetch(`${API_URL}/storage/files/bulk-unassign`, {
+                    const data = await apiFetch(`storage/files/bulk-unassign`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                         body: JSON.stringify({ identifiers: selectedFiles })
                     });
 
-                    if (res.ok) {
-                        const data = await res.json();
+                    if (data) {
                         triggerToast(data.message || "Files Unassigned Successfully", "success");
                         setSelectedFiles([]);
-                        handleViewBox(viewingBox); // Refresh list
-                        refreshData(); // Refresh global stats
-                    } else {
-                        triggerToast("Failed to unassign files.", "error");
+                        handleViewBox(viewingBox);
+                        refreshData();
                     }
                 } catch (e) { console.error(e); }
             }
@@ -125,14 +117,12 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
     };
 
     const handleCreateRack = async () => {
-        const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/storage/racks`, {
+            const data = await apiFetch(`storage/racks`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify(rackForm)
             });
-            if (res.ok) {
+            if (data) {
                 setIsCreatingRack(false);
                 setRackForm({ label: '', aisle: 1, capacity: 100 });
                 refreshData();
@@ -148,31 +138,27 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
             type: 'danger',
             confirmText: "Delete Rack",
             onConfirm: async () => {
-                const token = localStorage.getItem('token');
+                // Token is handled by HttpOnly cookies
                 try {
-                    const res = await fetch(`${API_URL}/storage/racks/${id}`, {
-                        method: 'DELETE',
-                        headers: { Authorization: `Bearer ${token}` }
+                    const data = await apiFetch(`storage/racks/${id}`, {
+                        method: 'DELETE'
                     });
-                    if (res.ok) {
+                    if (data !== undefined) {
                         refreshData();
                         triggerToast("Rack Deleted Successfully", "success");
                     }
-                    else triggerToast("Failed to delete rack. Ensure it is empty first.", "error");
                 } catch (e) { console.error(e); }
             }
         });
     };
 
     const handleCreateBox = async () => {
-        const token = localStorage.getItem('token');
         if (!selectedRackForBox) return;
         const locationCode = `WH-A${selectedRackForBox.aisle}-${selectedRackForBox.label}`;
 
         try {
-            const res = await fetch(`${API_URL}/storage/boxes`, {
+            const data = await apiFetch(`storage/boxes`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({
                     label: boxForm.label,
                     capacity: boxForm.capacity,
@@ -182,7 +168,7 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                     hospital_id: boxForm.hospital_id || selectedRackForBox.hospital_id
                 })
             });
-            if (res.ok) {
+            if (data) {
                 setIsCreatingBox(false);
                 setSelectedRackForBox(null);
                 setBoxForm({ label: '', capacity: 500, category: 'IPD', hospital_id: '' });
@@ -199,17 +185,13 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
             type: 'danger',
             confirmText: "Delete Box",
             onConfirm: async () => {
-                const token = localStorage.getItem('token');
+                // Token is handled by HttpOnly cookies
                 try {
-                    const res = await fetch(`${API_URL}/storage/boxes/${id}`, {
-                        method: 'DELETE',
-                        headers: { Authorization: `Bearer ${token}` }
+                    const data = await apiFetch(`storage/boxes/${id}`, {
+                        method: 'DELETE'
                     });
-                    if (res.ok) {
+                    if (data !== undefined) {
                         refreshData();
-                    } else {
-                        const data = await res.json();
-                        alert(data.detail || "Failed to delete box.");
                     }
                 } catch (e) { console.error(e); }
             }
@@ -222,17 +204,15 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
         setIsEditingCapacity(false);
         setIsLoadingFiles(true);
         setSelectedFiles([]); // Reset selection
-        const token = localStorage.getItem('token');
+        // Token is handled by HttpOnly cookies
 
         // Parallel Fetch: Box Contents + Unassigned Files
         fetchUnassignedFiles();
 
         try {
-            const res = await fetch(`${API_URL}/storage/boxes/${box.box_id}/patients`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                setBoxFiles(await res.json());
+            const data = await apiFetch(`storage/boxes/${box.box_id}/patients`);
+            if (data) {
+                setBoxFiles(data);
             } else {
                 setBoxFiles([]);
             }
@@ -253,23 +233,19 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
             type: 'danger',
             confirmText: "Remove ALL",
             onConfirm: async () => {
-                const token = localStorage.getItem('token');
+                // Token is handled by HttpOnly cookies
                 const allIds = boxFiles.map(f => String(f.record_id));
 
                 try {
-                    const res = await fetch(`${API_URL}/storage/files/bulk-unassign`, {
+                    const data = await apiFetch(`storage/files/bulk-unassign`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                         body: JSON.stringify({ identifiers: allIds })
                     });
 
-                    if (res.ok) {
-                        const data = await res.json();
+                    if (data) {
                         alert(data.message);
-                        handleViewBox(viewingBox); // Refresh
+                        handleViewBox(viewingBox);
                         refreshData();
-                    } else {
-                        alert("Failed to remove files.");
                     }
                 } catch (e) { console.error(e); }
             }
@@ -284,13 +260,11 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
 
     const fetchUnassignedFiles = async () => {
         setIsLoadingUnassigned(true);
-        const token = localStorage.getItem('token');
+        // Token is handled by HttpOnly cookies
         try {
-            const res = await fetch(`${API_URL}/patients/?unassigned_only=true`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                setUnassignedFiles(await res.json());
+            const data = await apiFetch(`patients/?unassigned_only=true`);
+            if (data) {
+                setUnassignedFiles(data);
             }
         } catch (e) { console.error(e); }
         finally { setIsLoadingUnassigned(false); }
@@ -302,19 +276,17 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
             return;
         }
         setIsAddingString(true);
-        const token = localStorage.getItem('token');
+        // Token is handled by HttpOnly cookies
         try {
-            const res = await fetch(`${API_URL}/storage/files/bulk-assign`, {
+            const data = await apiFetch(`storage/files/bulk-assign`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({
                     box_id: viewingBox?.box_id,
                     identifiers: [identifier]
                 })
             });
 
-            const data = await res.json();
-            if (res.ok) {
+            if (data) {
                 if (data.assigned > 0) {
                     setAddInput('');
                     if (viewingBox) {
@@ -328,14 +300,12 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                         setViewingBox(null);
                     }
                 } else {
-                    alert(`Failed: ${data.errors.join(', ')}`);
+                    alert(`Failed: ${data.errors?.join(', ') || "Unknown error"}`);
                 }
-            } else {
-                alert(data.detail || "Failed to assign file.");
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Error assigning file");
+            alert(e.message || "Error assigning file");
         } finally {
             setIsAddingString(false);
         }
@@ -402,14 +372,9 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
 
                                         // Update label if rack and category are known
                                         if (selectedRackForBox && hId) {
-                                            const token = localStorage.getItem('token');
                                             try {
-                                                const res = await fetch(
-                                                    `${API_URL}/storage/next-sequence?hospital_id=${hId}&category=${boxForm.category}`,
-                                                    { headers: { Authorization: `Bearer ${token}` } }
-                                                );
-                                                if (res.ok) {
-                                                    const data = await res.json();
+                                                const data = await apiFetch(`storage/next-sequence?hospital_id=${hId}&category=${boxForm.category}`);
+                                                if (data) {
                                                     setBoxForm(prev => ({ ...prev, label: data.full_label }));
                                                 }
                                             } catch (e) { console.error(e); }
@@ -417,10 +382,9 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                     }}
                                     onFocus={async () => {
                                         if (hospitals.length === 0) {
-                                            const token = localStorage.getItem('token');
                                             try {
-                                                const res = await fetch(`${API_URL}/hospitals`, { headers: { Authorization: `Bearer ${token}` } });
-                                                if (res.ok) setHospitals(await res.json());
+                                                const data = await apiFetch(`hospitals`);
+                                                if (data) setHospitals(data);
                                             } catch (e) { console.error(e); }
                                         }
                                     }}
@@ -441,14 +405,9 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
 
                                         // Fetch auto-generated label
                                         if (rack) {
-                                            const token = localStorage.getItem('token');
                                             try {
-                                                const res = await fetch(
-                                                    `${API_URL}/storage/next-sequence?hospital_id=${boxForm.hospital_id || rack.hospital_id}&category=${boxForm.category}`,
-                                                    { headers: { Authorization: `Bearer ${token}` } }
-                                                );
-                                                if (res.ok) {
-                                                    const data = await res.json();
+                                                const data = await apiFetch(`storage/next-sequence?hospital_id=${boxForm.hospital_id || rack.hospital_id}&category=${boxForm.category}`);
+                                                if (data) {
                                                     setBoxForm(prev => ({ ...prev, label: data.full_label }));
                                                 }
                                             } catch (e) {
@@ -477,14 +436,9 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
 
                                         // Update label if rack is selected
                                         if (selectedRackForBox) {
-                                            const token = localStorage.getItem('token');
                                             try {
-                                                const res = await fetch(
-                                                    `${API_URL}/storage/next-sequence?hospital_id=${boxForm.hospital_id || selectedRackForBox.hospital_id}&category=${newCat}`,
-                                                    { headers: { Authorization: `Bearer ${token}` } }
-                                                );
-                                                if (res.ok) {
-                                                    const data = await res.json();
+                                                const data = await apiFetch(`storage/next-sequence?hospital_id=${boxForm.hospital_id || selectedRackForBox.hospital_id}&category=${newCat}`);
+                                                if (data) {
                                                     setBoxForm(prev => ({ ...prev, category: newCat, label: data.full_label }));
                                                 }
                                             } catch (e) {
@@ -541,19 +495,17 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                                 confirmText: "Add All",
                                                 onConfirm: async () => {
                                                     setIsAddingString(true);
-                                                    const token = localStorage.getItem('token');
+                                                    // Token is handled by HttpOnly cookies
                                                     try {
                                                         const allIds = unassignedFiles.map(f => String(f.record_id));
-                                                        const res = await fetch(`${API_URL}/storage/files/bulk-assign`, {
+                                                        const data = await apiFetch(`storage/files/bulk-assign`, {
                                                             method: 'POST',
-                                                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                                                             body: JSON.stringify({
                                                                 box_id: viewingBox?.box_id,
                                                                 identifiers: allIds
                                                             })
                                                         });
-                                                        const data = await res.json();
-                                                        if (res.ok) {
+                                                        if (data) {
                                                             triggerToast(data.message || "All Files Assigned", "success");
                                                             if (viewingBox) {
                                                                 handleViewBox(viewingBox);
@@ -561,7 +513,7 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                                             }
                                                             refreshData();
                                                         } else {
-                                                            triggerToast(data.detail || "Failed to assign all files.", "error");
+                                                            triggerToast("Failed to assign all files.", "error");
                                                             handleViewBox(viewingBox);
                                                         }
                                                     } catch (e) { console.error(e); }
@@ -654,16 +606,14 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                                     type: viewingBox.status === 'OPEN' ? 'warning' : 'info',
                                                     confirmText: viewingBox.status === 'OPEN' ? "Close Box" : "Open Box",
                                                     onConfirm: async () => {
-                                                        const token = localStorage.getItem('token');
+                                                        // Token is handled by HttpOnly cookies
                                                         try {
-                                                            const res = await fetch(`${API_URL}/storage/boxes/${viewingBox.box_id}/status`, {
+                                                            const data = await apiFetch(`storage/boxes/${viewingBox.box_id}/status`, {
                                                                 method: 'PATCH',
-                                                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                                                                 body: JSON.stringify({ is_open: viewingBox.status !== 'OPEN' })
                                                             });
 
-                                                            if (res.ok) {
-                                                                const data = await res.json();
+                                                            if (data) {
                                                                 setViewingBox({ ...viewingBox, status: data.is_open ? 'OPEN' : 'CLOSED' });
                                                                 refreshData();
                                                             }
@@ -940,11 +890,10 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
                                 onClick={async (e) => {
                                     e.stopPropagation();
                                     if (!confirm(`Mark box ${box.label} as ${box.status === 'OPEN' ? 'CLOSED' : 'OPEN'}?`)) return;
-                                    const token = localStorage.getItem('token');
+                                    // Token is handled by HttpOnly cookies
                                     try {
-                                        await fetch(`${API_URL}/storage/boxes/${box.box_id}/status`, {
+                                        await apiFetch(`storage/boxes/${box.box_id}/status`, {
                                             method: 'PATCH',
-                                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                                             body: JSON.stringify({ is_open: box.status !== 'OPEN' })
                                         });
                                         refreshData();
@@ -1000,3 +949,4 @@ const RackManager: React.FC<RackManagerProps> = ({ racks, boxes, refreshData }) 
 };
 
 export default RackManager;
+

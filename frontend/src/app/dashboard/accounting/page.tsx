@@ -114,23 +114,15 @@ export default function AccountingPage() {
     };
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            router.push('/login');
-            return;
-        }
-
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            if (payload.role !== 'superadmin') {
+        // Role is safely retrieved from localStorage set during login
+        if (typeof window !== 'undefined') {
+            const role = localStorage.getItem('userRole');
+            if (role === 'superadmin') {
+                setIsAuthorized(true);
+                fetchInvoices();
+            } else {
                 router.push('/dashboard');
-                return;
             }
-            setIsAuthorized(true);
-            fetchInvoices();
-        } catch (e) {
-            console.error("Failed to parse token", e);
-            router.push('/dashboard');
         }
     }, [router]);
 
@@ -553,3 +545,4 @@ export default function AccountingPage() {
         </div>
     );
 }
+

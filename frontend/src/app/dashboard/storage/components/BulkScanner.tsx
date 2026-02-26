@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { ScanLine, Loader2, Trash2, Camera, StopCircle, HardDrive, ArrowUpCircle } from 'lucide-react';
 import { Html5Qrcode } from "html5-qrcode";
-import { API_URL } from '../../../../config/api';
+import { apiFetch } from '../../../../config/api';
 
 interface BulkScannerProps {
     boxes: any[];
@@ -21,21 +21,17 @@ const BulkScanner: React.FC<BulkScannerProps> = ({ boxes, refreshData }) => {
 
     const handleUpgradeCapacity = async (newCap: number) => {
         if (!targetBox) return;
-        const token = localStorage.getItem('token');
         if (!confirm(`Upgrade box "${targetBox.label}" capacity to ${newCap}?`)) return;
 
         try {
-            const res = await fetch(`${API_URL}/storage/boxes/${targetBox.box_id}`, {
+            const data = await apiFetch(`storage/boxes/${targetBox.box_id}`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ capacity: newCap })
             });
 
-            if (res.ok) {
+            if (data) {
                 alert("Capacity Upgraded! Please continue scanning.");
                 refreshData();
-            } else {
-                alert("Failed to upgrade capacity.");
             }
         } catch (e) { console.error(e); }
     };
@@ -173,23 +169,17 @@ const BulkScanner: React.FC<BulkScannerProps> = ({ boxes, refreshData }) => {
         }
 
         setIsBulkSaving(true);
-        const token = localStorage.getItem('token');
 
         try {
-            const res = await fetch(`${API_URL}/storage/files/bulk-assign`, {
+            const data = await apiFetch(`storage/files/bulk-assign`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
                 body: JSON.stringify({
                     identifiers: bulkScannedItems,
                     box_id: bulkBoxId
                 })
             });
 
-            if (res.ok) {
-                const data = await res.json();
+            if (data) {
                 alert(data.message);
                 if (data.errors && data.errors.length > 0) {
                     alert(`Some errors occurred:\n${data.errors.join('\n')}`);
@@ -197,13 +187,10 @@ const BulkScanner: React.FC<BulkScannerProps> = ({ boxes, refreshData }) => {
                 setBulkScannedItems([]);
                 setBulkBoxId(null);
                 refreshData();
-            } else {
-                const err = await res.json();
-                alert(err.detail || "Bulk assign failed");
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Connection Error");
+            alert(e.message || "Connection Error");
         } finally {
             setIsBulkSaving(false);
         }
@@ -381,4 +368,5 @@ const BulkScanner: React.FC<BulkScannerProps> = ({ boxes, refreshData }) => {
 };
 
 export default BulkScanner;
+
 

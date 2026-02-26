@@ -21,11 +21,11 @@ from ..models import (
     PhysicalRack,
     InventoryLog,
     PhysicalMovementLog,
-    PatientDiagnosis,
     PatientProcedure
 )
 from ..utils import get_password_hash
-from .auth import get_current_user
+from .auth import get_current_user, require_permission
+from ..models import Permission
 from ..services.email_service import EmailService
 
 router = APIRouter()
@@ -112,9 +112,8 @@ class AdminCreate(BaseModel):
     legal_name: str # For convenience, to confirm context
 
 @router.get("/stats/platform")
-def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != UserRole.SUPER_ADMIN:
-        raise HTTPException(status_code=403, detail="Not authorized")
+def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
+    # RBAC handles authorization instead of hardcoded SUPER_ADMIN check
     
     total_hospitals = db.query(Hospital).count()
     active_hospitals = db.query(Hospital).filter(Hospital.is_active == True).count()
@@ -169,10 +168,8 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
     }
 
 @router.post("/", response_model=HospitalResponse)
-def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # 1. Auth Check
-    if current_user.role != UserRole.SUPER_ADMIN:
-        raise HTTPException(status_code=403, detail="Only Super Admins can onboard hospitals")
+def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
+    # RBAC handles authorization instead of hardcoded SUPER_ADMIN check
 
     # Check for duplicate email
     if db.query(Hospital).filter(Hospital.email == hospital.email).first():
@@ -231,16 +228,12 @@ def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), cur
     return db_hospital
 
 @router.get("/", response_model=List[HospitalResponse])
-def list_hospitals(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
-        # If not super admin or staff, forbid listing ALL.
-        raise HTTPException(status_code=403, detail="Not authorized")
+def list_hospitals(db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
     return db.query(Hospital).all()
 
 @router.post("/{hospital_id}/admin")
-def create_hospital_admin(hospital_id: int, admin_data: AdminCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != UserRole.SUPER_ADMIN:
-         raise HTTPException(status_code=403, detail="Not authorized")
+def create_hospital_admin(hospital_id: int, admin_data: AdminCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
+    # RBAC handles authorization 
     
     # Check if hospital exists
     hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
@@ -274,7 +267,7 @@ def create_hospital_admin(hospital_id: int, admin_data: AdminCreate, db: Session
     return {"message": f"Admin created for {hospital.legal_name}", "email": admin_data.email}
 
 @router.patch("/{hospital_id}", response_model=HospitalResponse)
-def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_SETTINGS))):
     # 1. Fetch Hospital
     db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
     if not db_hospital:
@@ -344,10 +337,7 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Sessi
     return db_hospital
 
 @router.post("/{hospital_id}/approve")
-def approve_update(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != UserRole.SUPER_ADMIN:
-        raise HTTPException(status_code=403, detail="Only Super Admin can approve")
-    
+def approve_update(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
     db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
     if not db_hospital or not db_hospital.pending_updates:
         raise HTTPException(status_code=404, detail="No pending updates found")
@@ -369,10 +359,7 @@ def approve_update(hospital_id: int, db: Session = Depends(get_db), current_user
     return {"message": "Updates approved and applied"}
 
 @router.post("/{hospital_id}/reject")
-def reject_update(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != UserRole.SUPER_ADMIN:
-        raise HTTPException(status_code=403, detail="Only Super Admin can reject")
-    
+def reject_update(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
     db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
     if not db_hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
@@ -392,9 +379,9 @@ def read_hospital(hospital_id: int, db: Session = Depends(get_db)):
     return db_hospital
 
 @router.get("/{hospital_id}/stats/space")
-def get_space_savings(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_space_savings(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.VIEW_HOSPITAL_REPORTS))):
     # Validate access
-    if current_user.hospital_id != hospital_id:
+    if current_user.role != UserRole.SUPER_ADMIN and current_user.hospital_id != hospital_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # 1. Count Total Digital Files (Confirmed Only)
@@ -443,10 +430,7 @@ def get_hospital_usage(hospital_id: int, db: Session = Depends(get_db), current_
     }
 
 @router.delete("/{hospital_id}")
-def delete_hospital(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != UserRole.SUPER_ADMIN:
-        raise HTTPException(status_code=403, detail="Only Super Admin can delete hospitals")
-    
+def delete_hospital(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
     db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
     if not db_hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")

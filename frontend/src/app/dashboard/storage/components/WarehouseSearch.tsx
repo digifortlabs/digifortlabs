@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Box, ArrowRight, Loader2 } from 'lucide-react';
-import { API_URL } from '../../../../config/api';
+import { apiFetch } from '../../../../config/api';
 
 interface WarehouseSearchProps {
     onNavigateToBox: (boxId: number) => void;
@@ -26,13 +26,10 @@ const WarehouseSearch: React.FC<WarehouseSearchProps> = ({ onNavigateToBox }) =>
 
         const search = async () => {
             setIsSearching(true);
-            const token = localStorage.getItem('token');
             try {
-                const res = await fetch(`${API_URL}/storage/search?q=${encodeURIComponent(debouncedQuery)}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                if (res.ok) {
-                    setResults(await res.json());
+                const data = await apiFetch(`storage/search?q=${encodeURIComponent(debouncedQuery)}`);
+                if (data) {
+                    setResults(data);
                 }
             } catch (e) {
                 console.error(e);
@@ -108,3 +105,4 @@ const WarehouseSearch: React.FC<WarehouseSearchProps> = ({ onNavigateToBox }) =>
 };
 
 export default WarehouseSearch;
+

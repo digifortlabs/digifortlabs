@@ -11,6 +11,17 @@ setup_logging()
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
+# --- SECURITY CHECKS ---
+if settings.ENVIRONMENT == "production" and settings.IS_UNSAFE_SECRET_KEY:
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.critical("🚨 CRITICAL SECURITY WARNING 🚨")
+    logger.critical("The application is running in PRODUCTION with the DEFAULT SECRET_KEY.")
+    logger.critical("This is a massive security risk. Authentication tokens can be forged.")
+    logger.critical("Please set the SECRET_KEY environment variable immediately.")
+    # Based on user feedback: "make sure website should not crash or data both"
+    # We will log a critical warning but allow the application to proceed.
+
 # --- AUTO MIGRATION (Fix for UndefinedColumn Errors) ---
 from sqlalchemy import text
 def run_migrations():
@@ -29,6 +40,12 @@ def run_migrations():
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS previous_login_at TIMESTAMP"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS known_devices TEXT DEFAULT '[]'"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP"))
+            
+            # Security Fix: Drop plain_password column if it exists
+            try:
+                conn.execute(text("ALTER TABLE users DROP COLUMN IF EXISTS plain_password"))
+            except Exception as drop_e:
+                print(f"Notice: Could not drop plain_password column (maybe it doesn't exist): {drop_e}")
 
             # 3. Add Medical Fields to Patients
             conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS doctor_name VARCHAR"))
@@ -90,12 +107,35 @@ def run_migrations():
 
 run_migrations()
 
+from fastapi_csrf_protect import CsrfProtect
+from fastapi_csrf_protect.exceptions import CsrfProtectError
+from pydantic import BaseModel
+from fastapi import Depends, Request
+
+class CsrfSettings(BaseModel):
+    secret_key: str = settings.SECRET_KEY
+    cookie_samesite: str = "lax"
+    cookie_secure: bool = settings.ENVIRONMENT == "production"
+
+@CsrfProtect.load_config
+def get_csrf_config():
+    return CsrfSettings()
+
+async def verify_csrf(request: Request, csrf_protect: CsrfProtect = Depends()):
+    # Apply CSRF to all mutative state changes
+    if request.method in ["POST", "PUT", "PATCH", "DELETE"]:
+        # Exclude endpoints that create sessions/auth where token cannot exist yet
+        if request.url.path.endswith("/auth/token") or request.url.path.endswith("/auth/request-password-reset"):
+            return
+        csrf_protect.validate_csrf(request)
+
 app = FastAPI(
     title="THE DIGIFORT LABS - Hospital Archive",
     description="Secure PDF Archival System for Hospitals ",
     version="1.0.0",
     docs_url=None if settings.ENVIRONMENT == "production" else "/docs",
     redoc_url=None if settings.ENVIRONMENT == "production" else "/redoc",
+    dependencies=[Depends(verify_csrf)]
 )
 
 import time
@@ -123,7 +163,7 @@ from .middleware.security import RateLimitMiddleware, SecurityHeadersMiddleware
 
 # Add security middleware
 app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware, requests_per_minute=60, auth_requests_per_minute=15)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=300, auth_requests_per_minute=60)
 app.add_middleware(BandwidthMiddleware)
 
 # IMPORTANT: CORS must be added LAST to be the outermost middleware 
@@ -137,6 +177,8 @@ is_dev_env = any("localhost" in origin for origin in cors_origins) or settings.E
 if is_dev_env:
     if "http://localhost:3000" not in cors_origins:
         cors_origins.append("http://localhost:3000")
+    if "https://localhost:3000" not in cors_origins:
+        cors_origins.append("https://localhost:3000")
         
 # Always secure live domain paths
 if "https://digifortlabs.com" not in cors_origins:
@@ -157,6 +199,10 @@ app.add_middleware(
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
+
+@app.exception_handler(CsrfProtectError)
+async def csrf_protect_exception_handler(request: Request, exc: CsrfProtectError):
+    return JSONResponse(status_code=403, content={"detail": exc.message})
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

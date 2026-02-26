@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Archive, Search, FileText, Calendar, Box, PackagePlus, FileQuestion, CheckSquare, Square } from 'lucide-react';
-import { API_URL } from '../../../../config/api';
+import { apiFetch } from '../../../../config/api';
 import { formatDate } from '../../../../lib/dateFormatter';
 import { useTerminology } from '@/hooks/useTerminology';
 
@@ -28,17 +28,12 @@ export default function ArchivedFilesList({ boxes = [], refreshData }: ArchivedF
         setLoading(true);
         setSelectedIds(new Set()); // Reset selection
         try {
-            const token = localStorage.getItem('token');
-            // Fetch unassigned if viewMode is unassigned
-            const url = viewMode === 'unassigned'
-                ? `${API_URL}/patients/?unassigned_only=true`
-                : `${API_URL}/patients/`;
+            const endpoint = viewMode === 'unassigned'
+                ? `patients/?unassigned_only=true`
+                : `patients/`;
 
-            const res = await fetch(url, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
+            const data = await apiFetch(endpoint);
+            if (data) {
                 if (viewMode === 'assigned') {
                     // Filter only patients assigned to a box
                     const archived = data.filter((p: any) => p.physical_box_id !== null);
@@ -77,30 +72,22 @@ export default function ArchivedFilesList({ boxes = [], refreshData }: ArchivedF
         if (!targetBoxId) return alert("Please select a box");
         setAssigning(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/storage/files/bulk-assign`, {
+            const data = await apiFetch(`storage/files/bulk-assign`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
                 body: JSON.stringify({
                     box_id: parseInt(targetBoxId),
                     identifiers: Array.from(selectedIds)
                 })
             });
-            const data = await res.json();
-            if (res.ok) {
+            if (data) {
                 alert(data.message);
                 setShowAssignModal(false);
                 fetchData();
                 if (refreshData) refreshData();
-            } else {
-                alert("Error: " + (data.detail || data.message));
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Failed to assign files");
+            alert(e.message || "Failed to assign files");
         } finally {
             setAssigning(false);
         }
@@ -310,3 +297,4 @@ export default function ArchivedFilesList({ boxes = [], refreshData }: ArchivedF
         </div>
     );
 }
+

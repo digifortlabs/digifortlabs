@@ -20,35 +20,43 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
     const [isProfileOpen, setIsProfileOpen] = useState(false);
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (token) {
+        const fetchUserRole = async () => {
             try {
-                const base64Url = token.split('.')[1];
-                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-                const jsonPayload = decodeURIComponent(atob(base64).split('').map((c) => {
-                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-                }).join(''));
-                const decoded = JSON.parse(jsonPayload);
-                if (decoded.hospital_name) {
-                    setHospitalName(decoded.hospital_name);
-                    document.title = `DF | ${decoded.hospital_name}`;
-                } else {
-                    document.title = "Digifort Labs | Dashboard";
-                }
-                if (decoded.sub) {
-                    setUserEmail(decoded.sub);
-                    localStorage.setItem('userEmail', decoded.sub);
+                const { apiFetch } = await import('@/lib/api');
+                const res = await apiFetch('/users/me');
+                if (res.ok) {
+                    const decoded = await res.json();
+                    if (decoded.hospital_name || (decoded.hospital && decoded.hospital.legal_name)) {
+                        const name = decoded.hospital_name || decoded.hospital.legal_name;
+                        setHospitalName(name);
+                        document.title = `DF | ${name}`;
+                    } else {
+                        document.title = "Digifort Labs | Dashboard";
+                    }
+                    if (decoded.email) {
+                        setUserEmail(decoded.email);
+                        localStorage.setItem('userEmail', decoded.email);
+                    }
                 }
             } catch (e) {
-                console.error("Error decoding token", e);
+                console.error("Error fetching user details", e);
             }
-        }
+        };
+        fetchUserRole();
     }, []);
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
         setIsMenuOpen(false);
-        localStorage.removeItem('token');
-        router.push('/login');
+        try {
+            const { apiFetch } = await import('@/lib/api');
+            await apiFetch('/auth/logout', { method: 'POST' });
+        } catch (e) {
+            console.error('Logout failed:', e);
+        } finally {
+            localStorage.removeItem('userRole');
+            localStorage.removeItem('userEmail');
+            router.push('/login');
+        }
     };
 
     const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');

@@ -2,7 +2,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { API_URL } from '../../../config/api';
+import { API_URL, apiFetch } from '../../../config/api';
 import { useTerminology } from '@/hooks/useTerminology';
 
 // Components
@@ -34,28 +34,25 @@ export default function WarehousePage() {
     const [stats, setStats] = useState({ totalFiles: 0, capacity: 0, utilization: 0, pending: 0, scannedToday: 0, openBoxes: 0 });
 
     const fetchAllData = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
         try {
-            const [layoutRes, logsRes, racksRes, boxesRes, reqsRes, statsRes] = await Promise.all([
-                fetch(`${API_URL}/storage/layout`, { headers: { Authorization: `Bearer ${token}` } }),
-                fetch(`${API_URL}/storage/logs`, { headers: { Authorization: `Bearer ${token}` } }),
-                fetch(`${API_URL}/storage/racks`, { headers: { Authorization: `Bearer ${token}` } }),
-                fetch(`${API_URL}/storage/boxes`, { headers: { Authorization: `Bearer ${token}` } }),
-                fetch(`${API_URL}/storage/requests`, { headers: { Authorization: `Bearer ${token}` } }),
-                fetch(`${API_URL}/stats/dashboard`, { headers: { Authorization: `Bearer ${token}` } }),
+            const [layoutData, logsData, racksData, boxesData, reqsData, statsData] = await Promise.all([
+                apiFetch(`storage/layout`),
+                apiFetch(`storage/logs`),
+                apiFetch(`storage/racks`),
+                apiFetch(`storage/boxes`),
+                apiFetch(`storage/requests`),
+                apiFetch(`stats/dashboard`),
             ]);
 
-            if (layoutRes.ok) setWarehouseData(await layoutRes.json());
-            if (logsRes.ok) setLogs(await logsRes.json());
+            if (layoutData) setWarehouseData(layoutData);
+            if (logsData) setLogs(logsData);
 
             let allBoxes: any[] = [];
-            if (boxesRes.ok) {
-                allBoxes = await boxesRes.json();
+            if (boxesData) {
+                allBoxes = boxesData;
                 setBoxes(allBoxes);
             }
-            if (racksRes.ok) setRacks(await racksRes.json());
+            if (racksData) setRacks(racksData);
 
             // Calc Stats
             // allBoxes is already parsed, use it directly
@@ -65,15 +62,13 @@ export default function WarehousePage() {
             const utilization = capacity > 0 ? Math.round((totalFiles / capacity) * 100) : 0;
 
             let pending = 0;
-            if (reqsRes.ok) {
-                const reqs = await reqsRes.json();
-                pending = reqs.filter((r: any) => ['Pending', 'Pending Approval'].includes(r.status)).length;
+            if (reqsData) {
+                pending = reqsData.filter((r: any) => ['Pending', 'Pending Approval'].includes(r.status)).length;
             }
 
             let scannedToday = 0;
-            if (statsRes.ok) {
-                const dash = await statsRes.json();
-                scannedToday = dash?.requests?.todays_scans || 0;
+            if (statsData) {
+                scannedToday = statsData?.requests?.todays_scans || 0;
             }
 
             setStats({ totalFiles, capacity, utilization, pending, scannedToday, openBoxes });
@@ -86,13 +81,10 @@ export default function WarehousePage() {
     };
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) { router.push('/login'); return; }
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            setUserRole(payload.role || '');
-            fetchAllData();
-        } catch (e) { console.error(e); }
+        const storedRole = localStorage.getItem('userRole') || '';
+        if (!storedRole) { router.push('/login'); return; }
+        setUserRole(storedRole);
+        fetchAllData();
     }, [router]);
 
     // Navigation Helper
@@ -201,3 +193,4 @@ export default function WarehousePage() {
         </div>
     );
 }
+

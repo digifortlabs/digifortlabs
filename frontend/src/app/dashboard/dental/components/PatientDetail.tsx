@@ -26,7 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import Odontogram from '@/components/dental/Odontogram';
 import ThreeDViewer from '@/components/dental/ThreeDViewer';
 import LiveScanner from '@/components/dental/LiveScanner';
-import { API_URL } from '@/config/api';
+import { API_URL, apiFetch } from '@/config/api';
 
 interface PatientDetailProps {
     patient: any;
@@ -91,48 +91,46 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
     const [isUploadingScan, setIsUploadingScan] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
 
-    const fetchScans = async () => {
+    const fetchScans = React.useCallback(async () => {
         try {
-            const response = await fetch(`${API_URL}/dental/scans/patient/${patient.patient_id}`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
-            if (response.ok) {
-                const data = await response.json();
+            const data = await apiFetch(`dental/scans/patient/${patient.patient_id}`);
+            if (data) {
                 setScans(data);
-                if (data.length > 0 && !selectedScanUrl) {
-                    // Auto-select first scan
-                    const scan = data[0];
-                    setSelectedScanUrl(scan.presigned_url || `${API_URL.replace('/api', '')}/${scan.file_path}`);
-                }
+
+                // Use a functional update to avoid depending on selectedScanUrl in the dependency array
+                setSelectedScanUrl(prev => {
+                    if (data.length > 0 && !prev) {
+                        const scan = data[0];
+                        return scan.presigned_url || `${API_URL.replace('/api', '')}/${scan.file_path}`;
+                    }
+                    return prev;
+                });
             }
         } catch (error) {
             console.error("Error fetching scans:", error);
         }
-    };
+    }, [patient.patient_id]); // Removed selectedScanUrl dependency to break infinite loop
 
     useEffect(() => {
         fetchScans();
-    }, [patient.patient_id]);
+    }, [fetchScans]);
 
     const handleDeleteAllScans = async () => {
         if (!confirm("Are you sure you want to delete ALL scans for this patient? This cannot be undone.")) return;
 
         try {
-            const response = await fetch(`${API_URL}/dental/scans/patient/${patient.patient_id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            const res = await apiFetch(`dental/scans/patient/${patient.patient_id}`, {
+                method: 'DELETE'
             });
 
-            if (response.ok) {
+            if (res === null) {
                 alert("All scans deleted successfully.");
                 setScans([]);
                 setSelectedScanUrl("");
-            } else {
-                alert("Failed to delete scans.");
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Delete error:", error);
-            alert("Error deleting scans.");
+            alert(error.message || "Error deleting scans.");
         }
     };
 
@@ -149,7 +147,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
 
         const xhr = new XMLHttpRequest();
         xhr.open('POST', `${API_URL}/dental/scans/${patient.patient_id}`, true);
-        xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('token')}`);
+        xhr.withCredentials = true; // Use HttpOnly cookies instead of manual Token header
 
         xhr.upload.onprogress = (event) => {
             if (event.lengthComputable) {
@@ -194,7 +192,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
 
                 const response = await fetch(`${API_URL}/dental/scans/${patient.patient_id}`, {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+                    credentials: 'include',
                     body: formData
                 });
 
@@ -218,29 +216,25 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
     const handleLaunchScanner = async () => {
         setIsScanning(true);
         try {
-            const response = await fetch(`${API_URL}/dental/scanner/launch`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            const data = await apiFetch(`dental/scanner/launch`, {
+                method: 'POST'
             });
 
-            if (response.ok) {
+            if (data) {
                 alert("Scanner software launched! Please perform the scan and export to 'C:\\DentalScans'.");
                 // TODO: Start polling for new files
-            } else {
-                const data = await response.json();
-                if (response.status === 404) {
-                    const path = prompt("Scanner software not found. Please enter the full path to your scanner .exe:", data.path || "");
-                    if (path) {
-                        // In a real app, save this to user prefs
-                        alert(`Path '${path}' noted. (Feature to save config pending)`);
-                    }
-                } else {
-                    alert("Failed to launch scanner: " + data.detail);
-                }
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Launch error:", error);
-            alert("Error launching scanner.");
+            if (error.status === 404) {
+                const data = error.data || {};
+                const path = prompt("Scanner software not found. Please enter the full path to your scanner .exe:", data.path || "");
+                if (path) {
+                    alert(`Path '${path}' noted. (Feature to save config pending)`);
+                }
+            } else {
+                alert("Failed to launch scanner: " + error.message);
+            }
         } finally {
             setTimeout(() => setIsScanning(false), 5000); // Reset state after 5s
         }
@@ -267,21 +261,16 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
         console.log("Saving Dental Record:", payload);
 
         try {
-            const response = await fetch(`${API_URL}/dental/patients/${patient.patient_id}`, {
+            const data = await apiFetch(`dental/patients/${patient.patient_id}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
                 body: JSON.stringify(payload)
             });
-            if (response.ok) {
+            if (data) {
                 alert("Record saved successfully!");
-            } else {
-                alert("Failed to save record.");
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Save error:", error);
+            alert(error.message || "Failed to save record.");
         } finally {
             setIsSaving(false);
         }
@@ -300,12 +289,8 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
         const cost = parseFloat(newProcedure.cost || "0");
 
         try {
-            const response = await fetch(`${API_URL}/dental/treatments`, {
+            const data = await apiFetch(`dental/treatments`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
                 body: JSON.stringify({
                     patient_id: patient.patient_id,
                     treatment_type: newProcedure.type,
@@ -317,9 +302,8 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                 })
             });
 
-            if (response.ok) {
-                const newTreatment = await response.json();
-                setTreatments([...treatments, newTreatment]);
+            if (data) {
+                setTreatments([...treatments, data]);
                 setIsAddProcedureOpen(false);
                 setNewProcedure({
                     type: "",
@@ -327,12 +311,10 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                     cost: "",
                     date: new Date().toISOString().split('T')[0]
                 }); // Reset form
-            } else {
-                alert("Failed to add procedure");
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error adding procedure:", error);
-            alert("Error adding procedure.");
+            alert(error.message || "Error adding procedure.");
         }
     };
 
@@ -1056,3 +1038,4 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
         </div >
     );
 }
+

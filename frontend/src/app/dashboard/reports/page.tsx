@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { API_URL } from '../../../config/api';
+import { API_URL, apiFetch } from '../../../config/api';
 import { Boxes, ShieldAlert, Download, RefreshCw, FileText, Stethoscope, Calendar, Building2, Filter, Search, ArrowUpDown, BarChart3, PieChart } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 
@@ -55,39 +55,30 @@ export default function ReportsPage() {
     }, [data, sortConfig]);
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) {
+        const storedRole = localStorage.getItem('userRole') || '';
+
+        if (!storedRole) {
             router.push('/login');
             return;
         }
 
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            // Allow all authorized roles to access reports
-            // if (payload.role !== 'superadmin') { ... } 
+        setUserRole(storedRole);
+        setIsAuthorized(true);
 
-            setUserRole(payload.role || '');
-            setIsAuthorized(true);
-
-            if (payload.role === 'superadmin' || payload.role === 'superadmin_staff') {
-                fetchHospitals(token);
-            }
-        } catch (e) {
-            console.error(e);
-            router.push('/dashboard');
+        if (storedRole === 'superadmin' || storedRole === 'superadmin_staff') {
+            fetchHospitals();
         }
     }, [router]);
 
-    const fetchHospitals = async (token: string) => {
+    const fetchHospitals = async () => {
         try {
-            const res = await fetch(`${API_URL}/hospitals/`, { headers: { Authorization: `Bearer ${token}` } });
-            if (res.ok) setHospitals(await res.json());
+            const data = await apiFetch(`hospitals/`);
+            if (data) setHospitals(data);
         } catch (e) { console.error(e); }
     };
 
     const fetchReport = async () => {
         setLoading(true);
-        const token = localStorage.getItem('token');
         try {
             const params = new URLSearchParams();
             if (startDate) params.append('start_date', startDate);
@@ -95,16 +86,13 @@ export default function ReportsPage() {
             if (selectedHospital) params.append('hospital_id', selectedHospital);
             if (searchQuery) params.append('search', searchQuery);
 
-            const res = await fetch(`${API_URL}/reports/${activeTab}?${params.toString()}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const json = await res.json();
+            const data = await apiFetch(`reports/${activeTab}?${params.toString()}`);
+            if (data) {
                 if (activeTab === 'clinical') {
-                    setData(json.details);
-                    setSummary(json.summary);
+                    setData(data.details);
+                    setSummary(data.summary);
                 } else {
-                    setData(json);
+                    setData(data);
                     setSummary(null);
                 }
             }
@@ -124,7 +112,6 @@ export default function ReportsPage() {
     };
 
     const handleExport = async () => {
-        const token = localStorage.getItem('token');
         const params = new URLSearchParams();
         if (startDate) params.append('start_date', startDate);
         if (endDate) params.append('end_date', endDate);
@@ -133,8 +120,11 @@ export default function ReportsPage() {
         params.append('export_csv', 'true');
 
         try {
+            // apiFetch doesn't handle blobs by default, so we'll use a modified fetch for downloads
+            // or we can use apiFetch if we modify it, but for now a direct fetch with credentials: 'include' is enough
+            // since tokens are in cookies.
             const res = await fetch(`${API_URL}/reports/${activeTab}?${params.toString()}`, {
-                headers: { Authorization: `Bearer ${token}` }
+                credentials: 'include'
             });
             if (res.ok) {
                 const blob = await res.blob();
@@ -433,3 +423,4 @@ export default function ReportsPage() {
         </div>
     );
 }
+

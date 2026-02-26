@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { API_URL } from '../../../config/api';
-import { Folder, File, Download, ArrowLeft, RefreshCw, HardDrive, Cloud, Trash2, Power } from 'lucide-react';
+import { apiFetch } from '../../../config/api';
+import { Folder, File, Download, ArrowLeft, RefreshCw, HardDrive, Cloud, Trash2, Power, Loader2 } from 'lucide-react';
 
 export default function ServerFileManager() {
     const router = useRouter();
@@ -13,59 +13,56 @@ export default function ServerFileManager() {
     const [error, setError] = useState('');
     const [bucket, setBucket] = useState('digifort-production-bucket'); // Default bucket
 
-    // Bulk OCR State
     const [ocrLoading, setOcrLoading] = useState(false);
+    const [isAuthorized, setIsAuthorized] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const role = localStorage.getItem('userRole');
+            if (role === 'superadmin') {
+                setIsAuthorized(true);
+                fetchFiles();
+            } else {
+                router.push('/dashboard');
+            }
+        }
+    }, [router]);
 
     // Bulk OCR Logic
     const runBulkOCR = async () => {
         if (!confirm("This will trigger background OCR for up to 50 pending files. Continue?")) return;
         setOcrLoading(true);
-        const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/platform/bulk-ocr?limit=50`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
+            const data = await apiFetch(`platform/bulk-ocr?limit=50`, {
+                method: 'POST'
             });
-            const data = await res.json();
-            if (res.ok) {
+            if (data) {
                 alert(data.message);
-            } else {
-                alert(`Error: ${data.detail || data.message}`);
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Failed to trigger OCR");
+            alert(e.message || "Failed to trigger OCR");
         } finally {
             setOcrLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchFiles();
-    }, [source, path]);
+        if (isAuthorized) {
+            fetchFiles();
+        }
+    }, [source, path, isAuthorized]);
 
     const fetchFiles = async () => {
         setLoading(true);
         setError('');
         try {
-            const token = localStorage.getItem('token');
-            if (!token) throw new Error("No token");
-
-            let url = `${API_URL}/server-files/list?source=${source}&path=${encodeURIComponent(path)}`;
+            let url = `server-files/list?source=${source}&path=${encodeURIComponent(path)}`;
             if (source === 's3') {
                 url += `&bucket=${bucket}`;
             }
 
-            const res = await fetch(url, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.detail || "Failed to list files");
-            }
-
-            const data = await res.json();
+            const data = await apiFetch(url);
             // Sort: Directories first, then files
             data.sort((a: any, b: any) => {
                 if (a.type === b.type) return a.name.localeCompare(b.name);
@@ -255,3 +252,4 @@ export default function ServerFileManager() {
         </div >
     );
 }
+

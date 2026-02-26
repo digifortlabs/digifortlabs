@@ -6,7 +6,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    network_mode: "host"
+    ports:
+      - "8000:8000"
     restart: always
     environment:
       - DATABASE_URL=${DATABASE_URL}
@@ -17,6 +18,8 @@ services:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
     volumes:
       - local_storage:/app/local_storage
+    networks:
+      - digifort-net
 
   # Worker for Cleanups
   worker:
@@ -24,7 +27,6 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     command: celery -A app.celery_app worker --loglevel=info
-    network_mode: "host"
     restart: always
     environment:
       - DATABASE_URL=${DATABASE_URL}
@@ -35,6 +37,8 @@ services:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
     volumes:
       - local_storage:/app/local_storage
+    networks:
+      - digifort-net
 
   # React Frontend
   frontend:
@@ -66,6 +70,26 @@ services:
       retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - digifort-net
+
+  # Automated Database Backups
+  db-backup:
+    image: prodrigestivill/postgres-backup-local:13
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_DB=${POSTGRES_DB:-digifortlabs}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - SCHEDULE=@daily
+      - BACKUP_KEEP_DAYS=30
+      - BACKUP_DIR=/backups
+    volumes:
+      - local_storage:/backups
     networks:
       - digifort-net
 

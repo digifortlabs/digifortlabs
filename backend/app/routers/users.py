@@ -5,8 +5,8 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import AuditLog, Hospital, User, UserRole
-from ..routers.auth import get_current_user
+from ..models import AuditLog, Hospital, User, UserRole, Permission
+from ..routers.auth import get_current_user, require_permission
 
 # ... (omitted lines)
 from ..utils import get_password_hash
@@ -14,7 +14,7 @@ from ..utils import get_password_hash
 router = APIRouter()
 
 @router.delete("/{user_id}")
-def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_USERS))):
     target_user = db.query(User).filter(User.user_id == user_id).first()
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -23,8 +23,6 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User 
     if current_user.role != UserRole.SUPER_ADMIN:
         if current_user.hospital_id != target_user.hospital_id:
             raise HTTPException(status_code=403, detail="Not authorized")
-        if current_user.role != UserRole.HOSPITAL_ADMIN:
-             raise HTTPException(status_code=403, detail="Not authorized")
 
     # Decouple from Audit Logs (Set user_id to NULL to keep history)
     db.query(AuditLog).filter(AuditLog.user_id == user_id).update({AuditLog.user_id: None})
@@ -68,7 +66,6 @@ class UserResponse(BaseModel):
     role: UserRole
     hospital_id: Optional[int] = None
     hospital: Optional[HospitalMini] = None
-    plain_password: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -83,18 +80,20 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
 @router.get("/", response_model=List[UserResponse])
 def get_users(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Security Check
-    if current_user.role not in [UserRole.HOSPITAL_ADMIN, UserRole.SUPER_ADMIN]:
+    if current_user.role not in [UserRole.HOSPITAL_ADMIN, UserRole.SUPER_ADMIN, UserRole.HOSPITAL_STAFF]:
         raise HTTPException(status_code=403, detail="Not authorized to view users")
 
     try:
         if current_user.role == UserRole.SUPER_ADMIN:
             return db.query(User).all()
 
-        # If not Super Admin, ensure plain_password is hidden
-        users = db.query(User).filter(User.hospital_id == current_user.hospital_id).all()
-        for u in users:
-            u.plain_password = None
-        return users
+        elif current_user.role == UserRole.HOSPITAL_ADMIN:
+            return db.query(User).filter(User.hospital_id == current_user.hospital_id).all()
+            
+        else: # HOSPITAL_STAFF
+            # Hospital staff can only see themselves (Issue 46)
+            return db.query(User).filter(User.user_id == current_user.user_id).all()
+            
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -119,10 +118,7 @@ def change_password(data: PasswordChange, db: Session = Depends(get_db), current
     return {"message": "Password updated successfully"}
 
 @router.post("/", response_model=UserResponse)
-def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # Security Check
-    if current_user.role not in [UserRole.HOSPITAL_ADMIN, UserRole.SUPER_ADMIN]:
-        raise HTTPException(status_code=403, detail="Not authorized to create users")
+def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_USERS))):
 
     # 1. Check Hospital Seat Limit (Only for Hospital-level users)
     target_hospital_id = current_user.hospital_id
@@ -166,7 +162,6 @@ def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: U
         email=user.email,
         full_name=user.full_name, # Fix: Populate full_name
         hashed_password=get_password_hash(user.password),
-        plain_password=user.password, # For visibility as requested
         role=user.role,
         hospital_id=target_hospital_id
     )
@@ -189,22 +184,48 @@ class UserUpdate(BaseModel):
     password: Optional[str] = None
 
 @router.patch("/{user_id}")
-def update_user(user_id: int, data: UserUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_user(user_id: int, data: UserUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_USERS))):
     target_user = db.query(User).filter(User.user_id == user_id).first()
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
         
-    # Permission Check
-    if current_user.role != UserRole.SUPER_ADMIN:
-         if current_user.hospital_id != target_user.hospital_id or current_user.role != UserRole.HOSPITAL_ADMIN:
-              raise HTTPException(status_code=403, detail="Not authorized")
+    # Permission & Isolation Check
+    is_self = current_user.user_id == target_user.user_id
+    if not is_self:
+        if current_user.role != UserRole.SUPER_ADMIN:
+            if current_user.hospital_id != target_user.hospital_id:
+                raise HTTPException(status_code=403, detail="Not authorized to update this user")
 
-    if data.role:
+    # Role updates are highly restricted
+    if data.role and data.role != target_user.role:
+        if is_self:
+            raise HTTPException(status_code=403, detail="Cannot change your own role")
+            
+        if current_user.role != UserRole.SUPER_ADMIN:
+            # Hospital Admins cannot promote anyone to SUPER_ADMIN or PLATFORM_STAFF
+            if data.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+                raise HTTPException(status_code=403, detail="Not authorized to assign platform-level roles")
+                
+        old_role = target_user.role
         target_user.role = data.role
+        
+        # Log the role change specifically
+        try:
+            from ..audit import log_audit
+            log_audit(db, current_user.user_id, "ROLE_CHANGED", f"Role changed for {target_user.email} from {old_role} to {data.role}", hospital_id=current_user.hospital_id)
+        except Exception as e:
+            print(f"Audit Log Error: {e}")
+            
+        # Invalidate target user's session so they must re-login with new permissions
+        import uuid
+        target_user.current_session_id = str(uuid.uuid4())
+
     if data.password:
         import uuid
         target_user.hashed_password = get_password_hash(data.password)
-        target_user.plain_password = data.password
+        target_user.plain_password = None # Clear plain password for security
+        if is_self:
+            current_user.force_password_change = False
         target_user.current_session_id = str(uuid.uuid4()) # Invalidate existing sessions
         
     try:

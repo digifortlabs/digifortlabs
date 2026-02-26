@@ -28,23 +28,33 @@ export default function DashboardLayout({
 
     useEffect(() => {
         setIsMounted(true);
-        const token = localStorage.getItem('token');
-        if (token) {
+        const checkAuth = async () => {
             try {
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                setUserRole(payload.role || '');
+                const { apiFetch } = await import('@/lib/api');
+                const res = await apiFetch('/users/me');
 
-                // Force Password Change Check
-                if (payload.force_password_change && pathname !== '/dashboard/settings') {
-                    // Prevent navigation away
-                    router.replace('/dashboard/settings');
+                if (!res.ok) {
+                    throw new Error("Unauthorized");
                 }
 
+                const user = await res.json();
+                setUserRole(user.role || '');
+                localStorage.setItem('userRole', user.role || '');
+
+                // Force Password Change Check (if backend sends this flag in the future)
+                if (user.force_password_change && pathname !== '/dashboard/settings') {
+                    router.replace('/dashboard/settings');
+                }
             } catch (e) {
-                console.error("Invalid token format", e);
+                console.error("Auth check failed", e);
+                localStorage.removeItem('userRole');
+                localStorage.removeItem('userEmail');
+                router.push('/login');
             }
-        }
-    }, [pathname]);
+        };
+
+        checkAuth();
+    }, [pathname, router]);
 
     if (!isMounted) {
         return null; // or a loading spinner

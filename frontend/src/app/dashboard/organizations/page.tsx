@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { API_URL } from '../../../config/api';
+import { API_URL, apiFetch } from '../../../config/api';
 import {
     Plus,
     Search,
@@ -115,15 +115,9 @@ export default function HospitalsPage() {
     }, []);
 
     const fetchHospitals = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return router.push('/login');
-
         try {
-            const res = await fetch(`${API_URL}/hospitals/`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
+            const data = await apiFetch(`hospitals/`);
+            if (data) {
                 setHospitals(data);
             }
         } catch (err) {
@@ -180,26 +174,22 @@ export default function HospitalsPage() {
             return;
         }
 
-        const token = localStorage.getItem('token');
+        // Token is handled by HttpOnly cookies
         try {
-            const res = await fetch(`${API_URL}/hospitals/${hospitalToDelete.hospital_id}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
+            const res = await apiFetch(`hospitals/${hospitalToDelete.hospital_id}`, {
+                method: 'DELETE'
             });
-            if (res.ok) {
+            if (res !== null) { // Expecting OK from apiFetch
                 alert('Client Deleted Successfully');
                 setHospitals(prev => prev.filter(h => h.hospital_id !== hospitalToDelete.hospital_id));
                 setShowDeleteModal(false);
                 setHospitalToDelete(null);
                 setDeleteConfirmation('');
                 fetchHospitals();
-            } else {
-                const err = await res.json();
-                alert(`Failed to delete: ${err.detail}`);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert('Error deleting hospital');
+            alert(`Failed to delete: ${error.message || 'Error deleting hospital'}`);
         }
     };
 
@@ -208,17 +198,13 @@ export default function HospitalsPage() {
     const runBulkOCR = async () => {
         if (!confirm("This will trigger background OCR for up to 50 pending files. Continue?")) return;
         setOcrLoading(true);
-        const token = localStorage.getItem('token');
+        // Token is handled by HttpOnly cookies
         try {
-            const res = await fetch(`${API_URL}/platform/bulk-ocr?limit=50`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
+            const data = await apiFetch(`platform/bulk-ocr?limit=50`, {
+                method: 'POST'
             });
-            const data = await res.json();
-            if (res.ok) {
+            if (data) {
                 alert(data.message);
-            } else {
-                alert(`Error: ${data.detail || data.message}`);
             }
         } catch (e) {
             console.error(e);
@@ -231,23 +217,19 @@ export default function HospitalsPage() {
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         setSubmitting(true);
-        const token = localStorage.getItem('token');
+        // Token is handled by HttpOnly cookies
 
         const url = isEditMode
-            ? `${API_URL}/hospitals/${currentHospitalId}`
-            : `${API_URL}/hospitals/`;
+            ? `hospitals/${currentHospitalId}`
+            : `hospitals/`;
 
         const method = isEditMode ? 'PATCH' : 'POST';
 
         try {
             // Modules are now passed explicitly from state
 
-            const res = await fetch(url, {
+            const data = await apiFetch(url, {
                 method: method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
                 body: JSON.stringify({
                     legal_name: legalName,
                     email,
@@ -269,7 +251,7 @@ export default function HospitalsPage() {
                 })
             });
 
-            if (res.ok) {
+            if (data) {
                 setShowModal(false);
                 fetchHospitals(); // Refresh list
                 const msg = isEditMode
@@ -282,13 +264,10 @@ export default function HospitalsPage() {
                 setPatientLabel('Patient'); setDoctorLabel('Doctor');
                 setIsEditMode(false);
                 setCurrentHospitalId(null);
-            } else {
-                const err = await res.json();
-                alert(`Error: ${err.detail}`);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert('Failed to save hospital');
+            alert(`Error: ${error.message || 'Failed to save hospital'}`);
         } finally {
             setSubmitting(false);
         }
@@ -844,3 +823,4 @@ const StatsCard = ({ title, value, icon: Icon, color }: any) => {
         </div>
     );
 };
+

@@ -14,15 +14,10 @@ export default function MaintenanceBanner() {
     const logoutScheduledRef = useRef(false); // Prevent multiple logout attempts
 
     useEffect(() => {
-        // Get user role from token
-        const token = localStorage.getItem('token');
-        if (token) {
-            try {
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                setUserRole(payload.role || '');
-            } catch (e) {
-                console.error("Invalid token", e);
-            }
+        // Get user role from localStorage (set during login)
+        const storedRole = localStorage.getItem('userRole');
+        if (storedRole) {
+            setUserRole(storedRole);
         }
 
         // Fetch platform settings
@@ -35,27 +30,26 @@ export default function MaintenanceBanner() {
 
                     // AUTO-LOGOUT: If maintenance mode is ON and user is NOT Super Admin
                     if (data.maintenance_mode === 'true' && !logoutScheduledRef.current) {
-                        const token = localStorage.getItem('token');
-                        if (token) {
-                            try {
-                                const payload = JSON.parse(atob(token.split('.')[1]));
-                                const role = payload.role || '';
+                        const role = localStorage.getItem('userRole') || '';
 
-                                // Logout all users except Super Admins
-                                if (role !== 'superadmin') {
-                                    console.log('🔒 Maintenance mode detected - showing warning before logout');
-                                    logoutScheduledRef.current = true; // Mark logout as scheduled
-                                    setShowMaintenanceWarning(true);
+                        // Logout all users except Super Admins
+                        if (role !== 'superadmin') {
+                            console.log('🔒 Maintenance mode detected - showing warning before logout');
+                            logoutScheduledRef.current = true; // Mark logout as scheduled
+                            setShowMaintenanceWarning(true);
 
-                                    // Give user 3 seconds to see the message before logout
-                                    setTimeout(() => {
-                                        localStorage.removeItem('token');
-                                        router.push('/login?reason=maintenance');
-                                    }, 3000);
+                            // Give user 3 seconds to see the message before logout
+                            setTimeout(async () => {
+                                try {
+                                    // Make a real logout call to the backend to clear the HttpOnly cookie
+                                    await fetch(`${API_URL}/auth/logout`, { method: 'POST' });
+                                } catch (e) {
+                                    // Ignore network errors on logout
                                 }
-                            } catch (e) {
-                                console.error("Token parse error during maintenance check", e);
-                            }
+
+                                localStorage.clear();
+                                router.push('/login?reason=maintenance');
+                            }, 3000);
                         }
                     }
                 } else {
@@ -144,3 +138,4 @@ export default function MaintenanceBanner() {
         </>
     );
 }
+

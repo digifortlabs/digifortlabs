@@ -5,9 +5,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from jose import jwt, JWTError
 from ..database import SessionLocal
 from ..models import BandwidthUsage
-
+from ..core.config import settings
 
 class BandwidthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -15,12 +16,24 @@ class BandwidthMiddleware(BaseHTTPMiddleware):
         if request.method not in ["POST", "GET"] or "patients" not in request.url.path:
              return await call_next(request)
 
-        # In a real app, identify hospital from JWT token or Header
-        # For MVP, we will assume a header 'X-Hospital-ID' is sent
-        hospital_id = request.headers.get("X-Hospital-ID")
+        # Instead of trusting X-Hospital-ID header exclusively, we extract it from the authenticated user
+        # However, this middleware runs before the auth router in some cases.
+        # So we pull it from request.state if available, otherwise fallback to parsing JWT.
+        hospital_id = getattr(request.state, "hospital_id", None)
         
         if not hospital_id:
-            # Skip tracking if no ID (or could block)
+            # Fallback: Extract from JWT token directly in middleware
+            token = request.cookies.get("access_token") or request.headers.get("Authorization")
+            if token:
+                token = token.replace("Bearer ", "")
+                try:
+                    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+                    hospital_id = payload.get("hospital_id")
+                except JWTError:
+                    pass
+
+        if not hospital_id:
+            # Skip tracking if no authenticated hospital context
             return await call_next(request)
 
         # Calculate Request Size (Approximate)

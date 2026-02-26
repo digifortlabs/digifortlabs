@@ -10,7 +10,7 @@ import {
     MapPin,
     ArrowLeftRight
 } from 'lucide-react';
-import { API_URL } from '../../../../config/api';
+import { apiFetch } from '../../../../config/api';
 
 interface FileTrackerProps {
     refreshLogs: () => void;
@@ -73,17 +73,14 @@ const FileTracker: React.FC<FileTrackerProps> = ({ refreshLogs }) => {
         const inputToUse = overrideInput || scanInput;
         if (!inputToUse) return;
         setIsScanning(true);
-        const token = localStorage.getItem('token');
+        // Token is handled by HttpOnly cookies
 
         try {
-            const res = await fetch(`${API_URL}/patients/?q=${encodeURIComponent(inputToUse)}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const data = await apiFetch(`patients/?q=${encodeURIComponent(inputToUse)}`);
 
-            if (res.ok) {
-                const results = await res.json();
-                if (results.length > 0) {
-                    const patient = results[0];
+            if (data) {
+                if (data.length > 0) {
+                    const patient = data[0];
                     setScanResult({
                         name: patient.full_name,
                         uhid: patient.uhid || patient.patient_u_id,
@@ -94,8 +91,6 @@ const FileTracker: React.FC<FileTrackerProps> = ({ refreshLogs }) => {
                     alert("No patient found.");
                     setScanResult(null);
                 }
-            } else {
-                alert("Scan failed.");
             }
         } catch (e) {
             console.error(e);
@@ -106,18 +101,13 @@ const FileTracker: React.FC<FileTrackerProps> = ({ refreshLogs }) => {
     };
 
     const processMovement = async (type: 'CHECK-IN' | 'CHECK-OUT') => {
-        const token = localStorage.getItem('token');
-        if (!token || !scanResult) return;
+        if (!scanResult) return;
 
         const dest = type === 'CHECK-IN' ? 'MRD Warehouse' : 'Doctor OPD';
 
         try {
-            const res = await fetch(`${API_URL}/storage/move`, {
+            const data = await apiFetch(`storage/move`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
                 body: JSON.stringify({
                     type: type,
                     uhid: scanResult.uhid,
@@ -126,7 +116,7 @@ const FileTracker: React.FC<FileTrackerProps> = ({ refreshLogs }) => {
                 })
             });
 
-            if (res.ok) {
+            if (data) {
                 refreshLogs();
                 setScanResult(null);
             }
@@ -216,3 +206,4 @@ const FileTracker: React.FC<FileTrackerProps> = ({ refreshLogs }) => {
 };
 
 export default FileTracker;
+

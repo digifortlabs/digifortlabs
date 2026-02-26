@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Plus, Trash2, Mail, Shield, AlertTriangle, Search, Edit2, Phone, Calendar, UserCheck, UserX, User } from 'lucide-react';
 import ConfirmationModal from '@/components/ConfirmationModal';
-import { API_URL } from '../../../config/api';
+import { apiFetch } from '@/config/api';
 
 export default function StaffManagement() {
     const [staff, setStaff] = useState<any[]>([]);
@@ -36,12 +36,9 @@ export default function StaffManagement() {
 
     const fetchStaff = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/users/`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                setStaff(await res.json());
+            const data = await apiFetch(`users/`);
+            if (data) {
+                setStaff(data);
             }
         } catch (err) {
             console.error(err);
@@ -54,22 +51,16 @@ export default function StaffManagement() {
         e.preventDefault();
         setError('');
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/users/`, {
+            const data = await apiFetch(`users/`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
                 body: JSON.stringify(newStaff)
             });
 
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || "Failed to create staff");
-
-            setShowModal(false);
-            setNewStaff({ email: '', password: '', role: 'mrd_staff' });
-            fetchStaff();
+            if (data) {
+                setShowModal(false);
+                setNewStaff({ email: '', password: '', role: 'mrd_staff' });
+                fetchStaff();
+            }
         } catch (err: any) {
             setError(err.message);
         }
@@ -83,27 +74,17 @@ export default function StaffManagement() {
             type: 'danger',
             confirmText: "Remove User",
             onConfirm: async () => {
-                const token = localStorage.getItem('token');
-                if (!token) return;
                 try {
-                    const res = await fetch(`${API_URL}/users/${id}`, {
-                        method: 'DELETE',
-                        headers: { Authorization: `Bearer ${token}` }
+                    const data = await apiFetch(`users/${id}`, {
+                        method: 'DELETE'
                     });
-                    if (res.ok) {
+                    if (data !== undefined) {
                         setStaff(staff.filter(u => u.user_id !== id));
-                        // Optionally add a toast notification here if a toast library is imported
-                        // toast.success("Staff member removed successfully");
-                    } else {
-                        // Optionally add a toast notification here
-                        // toast.error("Failed to remove staff member");
                     }
                 } catch (e) {
                     console.error(e);
-                    // Optionally add a toast notification here
-                    // toast.error("An error occurred");
                 } finally {
-                    setConfirmModal({ ...confirmModal, isOpen: false }); // Close modal after action
+                    setConfirmModal({ ...confirmModal, isOpen: false });
                 }
             }
         });
@@ -216,3 +197,4 @@ export default function StaffManagement() {
         </div>
     );
 }
+

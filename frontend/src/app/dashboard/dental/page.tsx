@@ -26,7 +26,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { API_URL } from '@/config/api';
+import { API_URL, apiFetch } from '@/config/api';
 import { formatDate } from '@/lib/dateFormatter';
 import PatientDetail from './components/PatientDetail';
 import AppointmentModal from './components/AppointmentModal';
@@ -72,12 +72,8 @@ export default function DentalDashboard() {
             const startTime = new Date(year, month - 1, day, hours, minutes);
             const endTime = new Date(startTime.getTime() + 30 * 60000); // Default 30 min
 
-            const response = await fetch(`${API_URL}/dental/appointments`, {
+            const data = await apiFetch(`dental/appointments`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
                 body: JSON.stringify({
                     patient_id: apt.patient_id, // We need to add this to the modal callback
                     doctor_name: "Dr. Himani Desai", // Default or from modal
@@ -88,16 +84,14 @@ export default function DentalDashboard() {
                 })
             });
 
-            if (response.ok) {
-                const newApt = await response.json();
-                setAppointments(prev => [newApt, ...prev]);
+            if (data) {
+                setAppointments(prev => [data, ...prev]);
                 setShowAppointmentModal(false);
                 alert("Appointment scheduled successfully!");
-            } else {
-                alert("Failed to schedule appointment.");
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Schedule error:", error);
+            alert(error.message || "Failed to schedule appointment.");
         } finally {
             setIsSaving(false);
         }
@@ -105,12 +99,8 @@ export default function DentalDashboard() {
 
     const fetchNextIds = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/dental/next-ids`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
+            const data = await apiFetch(`dental/next-ids`);
+            if (data) {
                 setNewPatientData(prev => ({
                     ...prev,
                     uhid: data.next_uhid,
@@ -162,29 +152,23 @@ export default function DentalDashboard() {
     const checkExistingUHID = async (uhid: string) => {
         if (!uhid || uhid.length < 3) return;
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/dental/check/uhid/${uhid}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.exists) {
-                    const p = data.patient;
-                    setNewPatientData(prev => ({
-                        ...prev,
-                        full_name: p.full_name || prev.full_name,
-                        phone: p.phone || prev.phone,
-                        email: p.email || prev.email,
-                        gender: p.gender || prev.gender,
-                        date_of_birth: p.date_of_birth ? p.date_of_birth.split('T')[0] : prev.date_of_birth,
-                        address: p.address || prev.address,
-                        medical_history: p.medical_history || prev.medical_history,
-                        allergies: p.allergies || prev.allergies,
-                        medications: p.medications || prev.medications,
-                        chief_complaint: p.chief_complaint || prev.chief_complaint
-                    }));
-                    alert(`✨ Patient found! Details from ${data.source} records have been auto-filled.`);
-                }
+            const data = await apiFetch(`dental/check/uhid/${uhid}`);
+            if (data && data.exists) {
+                const p = data.patient;
+                setNewPatientData(prev => ({
+                    ...prev,
+                    full_name: p.full_name || prev.full_name,
+                    phone: p.phone || prev.phone,
+                    email: p.email || prev.email,
+                    gender: p.gender || prev.gender,
+                    date_of_birth: p.date_of_birth ? p.date_of_birth.split('T')[0] : prev.date_of_birth,
+                    address: p.address || prev.address,
+                    medical_history: p.medical_history || prev.medical_history,
+                    allergies: p.allergies || prev.allergies,
+                    medications: p.medications || prev.medications,
+                    chief_complaint: p.chief_complaint || prev.chief_complaint
+                }));
+                alert(`✨ Patient found! Details from ${data.source} records have been auto-filled.`);
             }
         } catch (err) {
             console.error("Error checking UHID:", err);
@@ -215,23 +199,18 @@ export default function DentalDashboard() {
         if (!confirm("Are you sure you want to delete this patient?")) return;
 
         try {
-            const res = await fetch(`${API_URL}/dental/patients/${patientId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
+            const res = await apiFetch(`dental/patients/${patientId}`, {
+                method: 'DELETE'
             });
 
-            if (res.ok) {
+            if (res === null) {
                 setPatients(patients.filter(p => p.patient_id !== patientId));
                 if (selectedPatient?.patient_id === patientId) setSelectedPatient(null);
                 alert("Patient deleted successfully.");
-            } else {
-                alert("Failed to delete patient.");
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Delete error:", error);
-            alert("Error deleting patient.");
+            alert(error.message || "Error deleting patient.");
         }
     };
 
@@ -252,28 +231,22 @@ export default function DentalDashboard() {
             };
 
             const url = editingId
-                ? `${API_URL}/dental/patients/${editingId}`
-                : `${API_URL}/dental/patients`;
+                ? `dental/patients/${editingId}`
+                : `dental/patients`;
 
             const method = editingId ? 'PUT' : 'POST';
 
-            const res = await fetch(url, {
+            const data = await apiFetch(url, {
                 method: method,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
                 body: JSON.stringify(payload)
             });
 
-            if (res.ok) {
-                const savedPatient = await res.json();
-
+            if (data) {
                 if (editingId) {
-                    setPatients(patients.map(p => p.patient_id === editingId ? savedPatient : p));
+                    setPatients(patients.map(p => p.patient_id === editingId ? data : p));
                     alert("Patient updated successfully!");
                 } else {
-                    setPatients([savedPatient, ...patients]);
+                    setPatients([data, ...patients]);
                     alert("Patient registered successfully!");
                 }
 
@@ -293,13 +266,10 @@ export default function DentalDashboard() {
                     medications: '',
                     chief_complaint: ''
                 });
-            } else {
-                const errData = await res.json();
-                alert(`Failed to register patient: ${errData.detail || "Unknown error"}`);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert("An error occurred while registering patient.");
+            alert(error.message || "An error occurred while registering patient.");
         } finally {
             setIsSaving(false);
         }
@@ -325,22 +295,15 @@ export default function DentalDashboard() {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const token = localStorage.getItem('token');
-                const [patientsRes, appointmentsRes, statsRes] = await Promise.all([
-                    fetch(`${API_URL}/dental/patients`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    }),
-                    fetch(`${API_URL}/dental/appointments`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    }),
-                    fetch(`${API_URL}/dental/stats`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    })
+                const [patientsData, appointmentsData, statsData] = await Promise.all([
+                    apiFetch(`dental/patients`),
+                    apiFetch(`dental/appointments`),
+                    apiFetch(`dental/stats`)
                 ]);
 
-                if (patientsRes.ok) setPatients(await patientsRes.json());
-                if (appointmentsRes.ok) setAppointments(await appointmentsRes.json());
-                if (statsRes.ok) setDentalStats(await statsRes.json());
+                if (patientsData) setPatients(patientsData);
+                if (appointmentsData) setAppointments(appointmentsData);
+                if (statsData) setDentalStats(statsData);
 
             } catch (error) {
                 console.error("Failed to fetch dental data:", error);
@@ -766,3 +729,4 @@ export default function DentalDashboard() {
         </div >
     );
 }
+

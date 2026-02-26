@@ -13,9 +13,17 @@ export default function Sidebar({ userRole }: SidebarProps) {
     const pathname = usePathname();
     const { terms, specialty, enabledModules = [] } = useTerminology();
 
-    const handleLogout = () => {
-        localStorage.removeItem('token');
-        router.push('/login');
+    const handleLogout = async () => {
+        try {
+            const { apiFetch } = await import('@/lib/api');
+            await apiFetch('/auth/logout', { method: 'POST' });
+        } catch (e) {
+            console.error('Logout failed:', e);
+        } finally {
+            localStorage.removeItem('userRole');
+            localStorage.removeItem('userEmail');
+            router.push('/login');
+        }
     };
 
     const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');

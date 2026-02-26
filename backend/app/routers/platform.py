@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 import os
 
 from ..database import get_db
-from ..models import SystemSetting, User, UserRole
-from ..routers.auth import get_current_user
+from ..models import SystemSetting, User, UserRole, Permission
+from ..routers.auth import get_current_user, require_permission
 from ..audit import log_audit
 
 router = APIRouter()
@@ -38,9 +38,8 @@ async def get_settings(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Database error while fetching settings: {str(e)}")
 
 @router.post("/settings/{key}")
-async def update_setting(key: str, update: SettingUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != UserRole.SUPER_ADMIN:
-        raise HTTPException(status_code=403, detail="Not authorized")
+async def update_setting(key: str, update: SettingUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_PLATFORM_SETTINGS))):
+    # RBAC handles authorization instead of hardcoded SUPER_ADMIN check
     
     setting = db.query(SystemSetting).filter(SystemSetting.key == key).first()
     if not setting:
@@ -62,13 +61,11 @@ async def update_setting(key: str, update: SettingUpdate, db: Session = Depends(
 async def clear_system_cache(
     request: Request,
     db: Session = Depends(get_db), 
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission(Permission.MANAGE_PLATFORM_SETTINGS))
 ):
     """
     Clears server-side statistics and logs a system-wide cache clear event.
     """
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
-        raise HTTPException(status_code=403, detail="Not authorized")
 
     # Reset in-memory statistics
     app_state = request.app.state
@@ -137,15 +134,13 @@ async def run_bulk_ocr(
 @router.get("/system-error-logs")
 async def get_system_error_logs(
     db: Session = Depends(get_db), 
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.VIEW_ALL_AUDITS)),
     limit: int = 50
 ):
     """
     Returns the latest system errors from the database.
-    Only accessible by SuperAdmins.
+    Secured by VIEW_ALL_AUDITS permission.
     """
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
-        raise HTTPException(status_code=403, detail="Not authorized to view system errors.")
 
     try:
         from ..models import SystemErrorLog

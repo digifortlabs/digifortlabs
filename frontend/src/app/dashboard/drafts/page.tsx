@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { API_URL } from '../../../config/api';
+import { apiFetch } from '../../../config/api';
 import { formatDate, formatDateTime } from '../../../lib/dateFormatter';
 import { useTerminology } from '@/hooks/useTerminology';
 
@@ -15,26 +15,24 @@ export default function DraftsPage() {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            router.push('/login');
-            return;
+        // Token is handled by HttpOnly cookies
+        // Role is safely retrieved from localStorage set during login
+        if (typeof window !== 'undefined') {
+            const role = localStorage.getItem('userRole');
+            if (role) {
+                setUserRole(role);
+                fetchDrafts();
+            } else {
+                router.push('/login');
+            }
         }
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setUserRole(payload.role);
-        fetchDrafts(token);
     }, [router]);
 
-    const fetchDrafts = async (token: string) => {
+    const fetchDrafts = async () => {
         setIsLoading(true);
-        const apiUrl = API_URL;
         try {
-            const res = await fetch(`${apiUrl}/storage/drafts`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                setDrafts(await res.json());
-            }
+            const data = await apiFetch(`storage/drafts`);
+            if (data) setDrafts(data);
         } catch (e) {
             console.error(e);
         } finally {
@@ -44,30 +42,24 @@ export default function DraftsPage() {
 
     const handleConfirm = async (fileId: number) => {
         if (!confirm("Confirm this file for final upload?")) return;
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
         try {
-            const res = await fetch(`${apiUrl}/patients/files/${fileId}/confirm`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
+            const res = await apiFetch(`patients/files/${fileId}/confirm`, {
+                method: 'POST'
             });
-            if (res.ok) {
-                fetchDrafts(token || '');
+            if (res !== null) {
+                fetchDrafts();
             }
         } catch (e) { console.error(e); }
     };
 
     const handleDiscard = async (fileId: number) => {
         if (!confirm("Discard this draft?")) return;
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
         try {
-            const res = await fetch(`${apiUrl}/patients/files/${fileId}/draft`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
+            const res = await apiFetch(`patients/files/${fileId}/draft`, {
+                method: 'DELETE'
             });
-            if (res.ok) {
-                fetchDrafts(token || '');
+            if (res === null) {
+                fetchDrafts();
             }
         } catch (e) { console.error(e); }
     };
@@ -75,23 +67,17 @@ export default function DraftsPage() {
     const handleConfirmAll = async () => {
         if (!confirm("Are you sure you want to confirm ALL pending drafts? This will move all files to final storage and start OCR.")) return;
         setIsLoading(true);
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
         try {
-            const res = await fetch(`${apiUrl}/storage/confirm-all`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
+            const data = await apiFetch(`storage/confirm-all`, {
+                method: 'POST'
             });
-            const data = await res.json();
-            if (res.ok) {
+            if (data) {
                 alert(data.message || `Successfully confirmed drafts.`);
-                fetchDrafts(token || '');
-            } else {
-                alert(`Error: ${data.detail || 'Failed to confirm all'}`);
+                fetchDrafts();
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("An error occurred during bulk confirmation.");
+            alert(e.message || "An error occurred during bulk confirmation.");
         } finally {
             setIsLoading(false);
         }
@@ -175,3 +161,4 @@ export default function DraftsPage() {
 
     );
 }
+

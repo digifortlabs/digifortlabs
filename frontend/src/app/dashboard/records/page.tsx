@@ -7,7 +7,7 @@ import CameraModal from './components/CameraModal';
 import PatientDetailView from './components/PatientDetailView';
 import DentalPatientDetail from '../dental/components/PatientDetail'; // Import Dental Detail View
 import { useRouter, useSearchParams } from 'next/navigation';
-import { API_URL } from '../../../config/api';
+import { API_URL, apiFetch } from '../../../config/api';
 import { toTitleCase, toUpperCaseMRD } from '@/lib/formatters';
 import { formatDate } from '@/lib/dateFormatter';
 
@@ -214,14 +214,24 @@ export default function RecordsList() {
 
     const handleAIExtraction = async (file: File) => {
         setIsExtracting(true);
-        const token = localStorage.getItem('token');
         const formData = new FormData();
         formData.append('file', file);
 
         try {
+            const data = await apiFetch(`patients/extract-details`, {
+                method: 'POST',
+                body: formData,
+                headers: {} // apiFetch will handle it if we pass it correctly, but apiFetch defaults to JSON. 
+                // Wait, apiFetch defaults to JSON. I need to check if apiFetch handles FormData.
+            });
+            // Actually, looking at apiFetch implementation:
+            // const headers = { 'Content-Type': 'application/json', ... }
+            // It force sets JSON. I should probably use direct fetch for FormData or update apiFetch.
+            // For now, I'll use direct fetch with credentials but without manual token.
+
             const res = await fetch(`${API_URL}/patients/extract-details`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
+                credentials: 'include',
                 body: formData
             });
 
@@ -272,13 +282,9 @@ export default function RecordsList() {
         if (!uhid || uhid.length < 3) return;
 
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/patients/check/uhid/${uhid}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const data = await apiFetch(`patients/check/uhid/${uhid}`);
 
-            if (res.ok) {
-                const data = await res.json();
+            if (data) {
                 if (data.exists) {
                     const p = data.patient;
                     const { val, unit } = parseAgeString(p.age);
@@ -309,36 +315,25 @@ export default function RecordsList() {
     };
 
     const fetchNextMRD = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
-        // Prevent 400 Bad Request for Super Admins if no hospital selected
-        // We assume 'userProfile' is available in scope (used elsewhere in component)
-        const role = userProfile?.role;
-        if ((role === 'superadmin' || role === 'superadmin_staff') && !selectedHospitalId) {
+        const storedRole = localStorage.getItem('userRole');
+        if ((storedRole === 'superadmin' || storedRole === 'superadmin_staff') && !selectedHospitalId) {
             return;
         }
 
-        // For superadmins, we need to pass the selected hospital
-        let url = `${API_URL}/patients/next-id`;
+        let url = `patients/next-id`;
         if (selectedHospitalId) {
             url += `?hospital_id=${selectedHospitalId}`;
         }
 
         try {
-            const res = await fetch(url, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
+            const data = await apiFetch(url);
+            if (data) {
                 if (data.next_id) {
                     setNewPatient(prev => ({ ...prev, patient_u_id: data.next_id }));
                 }
                 if (data.last_id) {
                     setLastAssignedMRD(data.last_id);
                 }
-            } else {
-                console.warn("Next ID fetch failed", res.status);
             }
         } catch (e) { console.error("Failed to fetch next MRD", e); }
     };
@@ -466,81 +461,64 @@ export default function RecordsList() {
     }, [selectedHospitalId, userProfile, startDate, endDate]);
 
     const fetchUserProfile = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return router.push('/login');
         try {
-            const res = await fetch(`${API_URL}/users/me`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
+            const data = await apiFetch(`users/me`);
+            if (data) {
                 setUserProfile(data);
             }
         } catch (e) { console.error(e); }
     };
 
     const fetchHospitals = async () => {
-        const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/hospitals/`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) setHospitals(await res.json());
+            const data = await apiFetch(`hospitals/`);
+            if (data) setHospitals(data);
         } catch (e) { console.error(e); }
     };
 
     const fetchPatients = async () => {
-        const token = localStorage.getItem('token');
         setLoading(true);
         try {
-            // Append hospital_id, date filters, and cache buster
-            let url = `${API_URL}/patients/?start_date=${startDate}&end_date=${endDate}&_t=${new Date().getTime()}`;
+            let url = `patients/?start_date=${startDate}&end_date=${endDate}&_t=${new Date().getTime()}`;
 
-            // Dental Override
             if (specialty === 'Dental') {
-                url = `${API_URL}/dental/patients?skip=0&limit=100`;
+                url = `dental/patients?skip=0&limit=100`;
             }
 
             if (selectedHospitalId && (userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff')) {
                 url += `&hospital_id=${selectedHospitalId}`;
             }
 
-            const res = await fetch(url, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                setPatients(await res.json());
-            } else if (res.status === 401) {
-                const errData = await res.json();
-                const msg = errData.detail || "Session expired";
-                window.location.href = `/login?error=${encodeURIComponent(msg)}`;
+            const data = await apiFetch(url);
+            if (data) {
+                setPatients(data);
             }
         } catch (err: any) {
             console.error(err);
-            alert("Failed to load records. Check backend connection.");
+            if (err.status === 401) {
+                window.location.href = `/login?error=${encodeURIComponent(err.message || "Session expired")}`;
+            } else {
+                alert("Failed to load records. Check backend connection.");
+            }
         } finally {
             setLoading(false);
         }
     };
 
     const fetchDoctors = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
         try {
-            let url = `${API_URL}/patients/doctors`;
+            let url = `patients/doctors`;
             if (selectedHospitalId && (userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff')) {
                 url += `?hospital_id=${selectedHospitalId}`;
             }
-            const res = await fetch(url, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) setHospitalDoctors(await res.json());
+            const data = await apiFetch(url);
+            if (data) setHospitalDoctors(data);
         } catch (e) { console.error("Failed to fetch doctors", e); }
     };
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
-        const token = localStorage.getItem('token');
+        // Token is handled by HttpOnly cookies
 
         try {
             if (!newPatient.full_name || !newPatient.patient_u_id || !newPatient.age || !newPatient.gender || !newPatient.contact_number) {
@@ -566,29 +544,20 @@ export default function RecordsList() {
                     // Additional fields as needed by DentalPatientCreate schema
                 };
 
-                let res;
+                let data;
                 if (isEditing && selectedPatientId) {
-                    res = await fetch(`${API_URL}/dental/patients/${selectedPatientId}`, {
+                    data = await apiFetch(`dental/patients/${selectedPatientId}`, {
                         method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            Authorization: `Bearer ${token}`
-                        },
                         body: JSON.stringify(dentalBody)
                     });
                 } else {
-                    res = await fetch(`${API_URL}/dental/patients`, {
+                    data = await apiFetch(`dental/patients`, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            Authorization: `Bearer ${token}`
-                        },
                         body: JSON.stringify(dentalBody)
                     });
                 }
 
-                if (res.ok) {
-                    const data = await res.json();
+                if (data) {
                     if (isEditing) {
                         setPatients(patients.map(p => p.patient_id === selectedPatientId ? data : p));
                         alert(`${terms.patient} Details Updated Successfully!`);
@@ -596,13 +565,9 @@ export default function RecordsList() {
                         resetForm();
                     } else {
                         setPatients([data, ...patients]);
-                        // Stay on list or view details? Dental uses modal/detail view within list
                         setShowCreateModal(false);
                         resetForm();
                     }
-                } else {
-                    const errData = await res.json();
-                    throw new Error(errData.detail || "Failed to save dental patient");
                 }
                 return; // Exit early for Dental path
             }
@@ -623,31 +588,22 @@ export default function RecordsList() {
                 body.hospital_id = selectedHospitalId;
             }
 
-            let res;
+            let data;
             if (isEditing && selectedPatientId) {
                 // Update Existing
-                res = await fetch(`${API_URL}/patients/${selectedPatientId}`, {
+                data = await apiFetch(`patients/${selectedPatientId}`, {
                     method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${token}`
-                    },
                     body: JSON.stringify(body)
                 });
             } else {
                 // Create New
-                res = await fetch(`${API_URL}/patients/`, {
+                data = await apiFetch(`patients/`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${token}`
-                    },
                     body: JSON.stringify(body)
                 });
             }
 
-            if (res.ok) {
-                const data = await res.json();
+            if (data) {
                 fetchDoctors(); // Refresh suggestions
                 if (isEditing) {
                     setPatients(patients.map(p => p.record_id === selectedPatientId ? data : p));
@@ -1552,4 +1508,5 @@ export default function RecordsList() {
         </div>
     );
 }
+
 

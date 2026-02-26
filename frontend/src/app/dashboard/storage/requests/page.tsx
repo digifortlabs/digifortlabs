@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 
 import { useRouter } from 'next/navigation';
-import { API_URL } from '../../../../config/api';
+import { API_URL, apiFetch } from '../../../../config/api';
 
 interface Request {
     request_id: number;
@@ -21,25 +21,21 @@ export default function RequestsPage() {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) {
+        const storedRole = localStorage.getItem('userRole') || '';
+        if (!storedRole) {
             router.push('/login');
             return;
         }
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setUserRole(payload.role);
-        fetchRequests(token);
+        setUserRole(storedRole);
+        fetchRequests();
     }, [router]);
 
-    const fetchRequests = async (token: string) => {
+    const fetchRequests = async () => {
         setIsLoading(true);
-        const apiUrl = API_URL;
         try {
-            const res = await fetch(`${apiUrl}/storage/requests`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                setRequests(await res.json());
+            const data = await apiFetch(`storage/requests`);
+            if (data) {
+                setRequests(data);
             }
         } catch (e) {
             console.error(e);
@@ -49,16 +45,12 @@ export default function RequestsPage() {
     };
 
     const updateStatus = async (id: number, status: string) => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        const apiUrl = API_URL;
         try {
-            const res = await fetch(`${apiUrl}/storage/requests/${id}/status?status=${status}`, {
-                method: 'PATCH',
-                headers: { Authorization: `Bearer ${token}` }
+            const res = await apiFetch(`storage/requests/${id}/status?status=${status}`, {
+                method: 'PATCH'
             });
-            if (res.ok) {
-                fetchRequests(token);
+            if (res !== null) {
+                fetchRequests();
             }
         } catch (e) { console.error(e); }
     };
@@ -138,3 +130,4 @@ export default function RequestsPage() {
 
     );
 }
+

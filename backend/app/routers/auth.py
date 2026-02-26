@@ -1,7 +1,12 @@
 import uuid
 import random
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
+from fastapi.responses import JSONResponse
+
+# Rate limiting storage for OTPs
+otp_request_tracker = defaultdict(list)
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -10,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..core.config import settings
 from ..database import get_db
-from ..models import SystemSetting, User, UserRole, PasswordResetOTP
+from ..models import SystemSetting, User, UserRole, PasswordResetOTP, Permission, ROLE_PERMISSIONS
 from ..utils import create_access_token, verify_password
 from ..audit import log_audit
 from ..services.email_service import EmailService
@@ -33,6 +38,16 @@ class PasswordResetConfirm(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+from fastapi_csrf_protect import CsrfProtect
+
+@router.get("/csrf-token")
+async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
+    """Returns a CSRF token and sets the signed cookie for frontend usage."""
+    csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
+    response = JSONResponse(content={"csrf_token": csrf_token})
+    csrf_protect.set_csrf_cookie(signed_token, response)
+    return response
 
 
 
@@ -211,22 +226,58 @@ async def login_for_access_token(
     # Final Commit for Session & Audit
     db.commit()
     
-    return {"access_token": access_token, "token_type": "bearer"}
+    # Return as JSONResponse and set the secure HttpOnly cookie
+    response = JSONResponse(content={
+        "message": "Login successful",
+        # Optionally return non-sensitive user metadata here if frontend needs it immediately
+        "role": user.role,
+        "email": user.email,
+        "specialty": user.hospital.specialty if user.hospital else "General",
+        "enabled_modules": user.hospital.enabled_modules if user.hospital else ["core"],
+        "terminology": user.hospital.terminology if user.hospital else {}
+    })
+    
+    # Calculate max_age in seconds based on expiration
+    max_age = int(expires_delta.total_seconds()) if expires_delta else settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    
+    response.set_cookie(
+        key="access_token",
+        value=f"Bearer {access_token}",
+        httponly=True,
+        secure=settings.ENVIRONMENT == "production", # Must be true in prod for HTTPS
+        samesite="lax", # Protects against CSRF for most GET navigations, but strict is safer if API is same-domain
+        max_age=max_age,
+        path="/"
+    )
+    
+    return response
 
 
 @router.post("/request-password-reset")
 async def request_password_reset(request: PasswordResetRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(func.lower(User.email) == func.lower(request.email)).first()
+    email = request.email.lower()
+    
+    # Rate limiting: 3 requests per hour
+    now = datetime.now(IST)
+    otp_request_tracker[email] = [t for t in otp_request_tracker[email] if now - t < timedelta(hours=1)]
+    
+    if len(otp_request_tracker[email]) >= 3:
+        raise HTTPException(status_code=429, detail="Too many OTP requests. Try again in 1 hour.")
+    
+    otp_request_tracker[email].append(now)
+
+    user = db.query(User).filter(func.lower(User.email) == email).first()
     if not user:
         return {"message": "If this email is registered, you will receive an OTP shortly."}
     
     # Invalidate previous active OTPs
     db.query(PasswordResetOTP).filter(
-        func.lower(PasswordResetOTP.email) == func.lower(request.email),
+        func.lower(PasswordResetOTP.email) == email,
         PasswordResetOTP.is_used == False
     ).update({PasswordResetOTP.is_used: True}, synchronize_session=False)
 
-    otp_code = str(random.randint(100000, 999999))
+    # Generate 8-digit secure OTP
+    otp_code = str(random.randint(10000000, 99999999))
     # Expires in 10 mins (IST)
     expires_at = datetime.now(IST) + timedelta(minutes=10)
 
@@ -234,7 +285,8 @@ async def request_password_reset(request: PasswordResetRequest, db: Session = De
     otp_entry = PasswordResetOTP(
         email=user.email,
         otp_code=otp_code,
-        expires_at=expires_at
+        expires_at=expires_at,
+        attempt_count=0
     )
     db.add(otp_entry)
     db.commit()
@@ -250,24 +302,36 @@ async def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_d
     from ..models import PasswordResetOTP
     from ..utils import get_password_hash
     
+    email = data.email.lower()
+    
     # Find Valid OTP
     otp_entry = db.query(PasswordResetOTP).filter(
-        func.lower(PasswordResetOTP.email) == func.lower(data.email),
-        PasswordResetOTP.otp_code == data.otp,
+        func.lower(PasswordResetOTP.email) == email,
         PasswordResetOTP.is_used == False,
         PasswordResetOTP.expires_at > datetime.now(IST)
     ).first()
 
     if not otp_entry:
         raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+        
+    # Check attempt count (max 5 attempts to protect against brute force)
+    if otp_entry.attempt_count >= 5:
+        otp_entry.is_used = True
+        db.commit()
+        raise HTTPException(status_code=429, detail="Too many failed attempts. Request a new OTP.")
+        
+    # Verify OTP
+    if otp_entry.otp_code != data.otp:
+        otp_entry.attempt_count += 1
+        db.commit()
+        raise HTTPException(status_code=400, detail=f"Invalid OTP. {5 - otp_entry.attempt_count} attempts remaining.")
 
     # Update User Password
-    user = db.query(User).filter(func.lower(User.email) == func.lower(data.email)).first()
+    user = db.query(User).filter(func.lower(User.email) == email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     user.hashed_password = get_password_hash(data.new_password)
-    user.plain_password = data.new_password # Demo transparency
     
     # Unlock account if it was locked
     user.locked_until = None
@@ -281,12 +345,28 @@ async def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_d
     return {"message": "Password updated successfully"}
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+def get_current_user(request: Request, db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
     )
+    
+    # 1. Try to get token from HttpOnly Cookie
+    token = request.cookies.get("access_token")
+    
+    # 2. Fallback to Authorization Header (for Swagger UI / programmatic API access)
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header
+            
+    if not token:
+        raise credentials_exception
+
+    # Strip 'Bearer ' prefix if present
+    if token.startswith("Bearer "):
+         token = token.replace("Bearer ", "")
+
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         email: str = payload.get("sub")
@@ -332,3 +412,45 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         db.commit()
     
     return user
+
+
+def require_permission(required_permission: Permission):
+    """
+    Dependency generator that checks if the current user has the required permission.
+    """
+    def permission_checker(current_user: User = Depends(get_current_user)):
+        # Give SUPER_ADMIN bypass if they magically don't have it in the mapping
+        if current_user.role == UserRole.SUPER_ADMIN:
+            return current_user
+            
+        user_permissions = ROLE_PERMISSIONS.get(current_user.role, [])
+        if required_permission not in user_permissions:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission denied. Require: {required_permission.value}"
+            )
+        return current_user
+    return permission_checker
+
+
+@router.post("/logout")
+async def logout(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Logs the user out by clearing the HttpOnly cookie and session ID."""
+    import uuid
+    
+    # Invalidate session in DB immediately
+    current_user.current_session_id = str(uuid.uuid4())
+    db.commit()
+    
+    response = JSONResponse(content={"message": "Successfully logged out"})
+    
+    # Clear the cookie explicitly
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        secure=settings.ENVIRONMENT == "production",
+        httponly=True,
+        samesite="lax"
+    )
+    
+    return response

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { API_URL } from '../../../config/api';
+import { API_URL, apiFetch } from '../../../config/api';
 
 interface User {
     user_id: number;
@@ -22,48 +22,44 @@ export default function UsersPage() {
     const [planLimits] = useState({ 'Standard': 2, 'Premium': 5, 'Enterprise': 10 });
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) {
+        const storedRole = localStorage.getItem('userRole') || '';
+        const storedHospitalId = localStorage.getItem('hospital_id');
+
+        if (!storedRole) {
             router.push('/login');
             return;
         }
 
-        // Basic Role Check
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setCurrentUserRole(payload.role);
-        if (payload.role !== 'hospital_admin' && payload.role !== 'website_admin') {
+        setCurrentUserRole(storedRole);
+
+        if (storedRole !== 'hospital_admin' && storedRole !== 'website_admin') {
             alert("Unauthorized Access");
             router.push('/dashboard');
             return;
         }
 
-        fetchUsers(token);
-        fetchHospitalPlan(token);
+        fetchUsers();
+        if (storedHospitalId) {
+            fetchHospitalPlan(storedHospitalId);
+        }
     }, [router]);
 
-    const fetchHospitalPlan = async (token: string) => {
-        const apiUrl = API_URL;
+    const fetchHospitalPlan = async (hospitalId: string) => {
         try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            const res = await fetch(`${apiUrl}/hospitals/${payload.hospital_id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                setHospitalInfo(await res.json());
+            const data = await apiFetch(`hospitals/${hospitalId}`);
+            if (data) {
+                setHospitalInfo(data);
             }
         } catch (error) {
             console.error(error);
         }
     };
 
-    const fetchUsers = async (token: string) => {
-        const apiUrl = API_URL;
+    const fetchUsers = async () => {
         try {
-            const res = await fetch(`${apiUrl}/users/`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                setUsers(await res.json());
+            const data = await apiFetch(`users/`);
+            if (data) {
+                setUsers(data);
             }
         } catch (error) {
             console.error(error);
@@ -71,36 +67,25 @@ export default function UsersPage() {
     };
 
     const handleCreateUser = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
         try {
-            const apiUrl = API_URL;
-            const res = await fetch(`${apiUrl}/users/`, {
+            const res = await apiFetch(`users/`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
                 body: JSON.stringify(newUser)
             });
 
-            if (res.ok) {
+            if (res) {
                 setShowModal(false);
                 setNewUser({ email: '', password: '', role: 'mrd_staff' });
-                fetchUsers(token);
+                fetchUsers();
                 alert("User Created Successfully!");
-            } else {
-                const err = await res.json();
-                alert(`Error: ${err.detail}`);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            alert(`Error: ${error.message}`);
         }
     };
 
     const handleLogout = () => {
-        localStorage.removeItem('token');
         router.push('/login');
     };
 
@@ -233,3 +218,4 @@ export default function UsersPage() {
         </div >
     );
 }
+

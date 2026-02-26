@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { X, Shield, Lock, AlertCircle, Loader2, Download, ZoomIn, ZoomOut, Maximize, RotateCw } from 'lucide-react';
-import { API_URL } from '@/config/api';
+import { API_URL, apiFetch } from '@/config/api';
 import { Document, Page, pdfjs } from 'react-pdf';
 import ConfirmationModal from './ConfirmationModal';
 
@@ -56,19 +56,14 @@ const SecurePDFViewer: React.FC<SecurePDFViewerProps> = ({ fileId, filename, onC
 
     useEffect(() => {
         const fetchFile = async () => {
-            const token = localStorage.getItem('token');
+            // Token is handled by HttpOnly cookies
             const email = localStorage.getItem('userEmail') || 'Confidential';
             setUserEmail(email);
 
-            if (!token) {
-                setError("Authentication required");
-                setLoading(false);
-                return;
-            }
-
             try {
-                const res = await fetch(`${API_URL}/patients/files/${fileId}/serve?token=${token}`, {
-                    method: 'GET'
+                const res = await fetch(`${API_URL}/patients/files/${fileId}/serve`, {
+                    method: 'GET',
+                    credentials: 'include'
                 });
 
                 if (res.ok) {
@@ -119,19 +114,13 @@ const SecurePDFViewer: React.FC<SecurePDFViewerProps> = ({ fileId, filename, onC
     };
 
     const handleRequestDownload = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
         setIsRequesting(true);
         try {
-            const res = await fetch(`${API_URL}/patients/files/${fileId}/request-download`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
+            const data = await apiFetch(`patients/files/${fileId}/request-download`, {
+                method: 'POST'
             });
 
-            const data = await res.json();
-
-            if (res.ok) {
+            if (data) {
                 if (data.status === 'direct' && data.url) {
                     // Trigger Download
                     window.location.href = data.url;
@@ -154,20 +143,13 @@ const SecurePDFViewer: React.FC<SecurePDFViewerProps> = ({ fileId, filename, onC
                 if (data.remaining_requests !== undefined) {
                     setRemainingRequests(data.remaining_requests);
                 }
-            } else {
-                setModal({
-                    isOpen: true,
-                    title: 'Request Failed',
-                    message: data.detail || "Unable to process your request.",
-                    type: 'danger'
-                });
             }
-        } catch (e) {
-            console.error(e);
+        } catch (error: any) {
+            console.error(error);
             setModal({
                 isOpen: true,
-                title: 'Network Error',
-                message: "Please check your connection and try again.",
+                title: 'Request Failed',
+                message: error.message || "Unable to process your request.",
                 type: 'danger'
             });
         } finally {
@@ -317,3 +299,4 @@ const SecurePDFViewer: React.FC<SecurePDFViewerProps> = ({ fileId, filename, onC
 };
 
 export default SecurePDFViewer;
+

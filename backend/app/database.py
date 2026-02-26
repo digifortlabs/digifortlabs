@@ -27,9 +27,9 @@ engine = create_engine(
     },
     pool_pre_ping=True,
     pool_recycle=300,
-    pool_size=5,          # Lowered to prevent exhausting PostgreSQL max_connections
-    max_overflow=10,      # Overflow allowed but strictly bounded
-    pool_timeout=120,     # Let background OCR tasks queue for heavily loaded servers
+    pool_size=20,          # Increased to handle heavier concurrent OCR tasks
+    max_overflow=30,       # Bumped to 30 to prevent QueuePool limits
+    pool_timeout=120,      # Let background OCR tasks queue for heavily loaded servers
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

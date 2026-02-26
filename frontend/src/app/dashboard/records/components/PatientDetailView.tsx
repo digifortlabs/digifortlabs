@@ -7,7 +7,7 @@ import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Act
 import DigitizationScanner from '../../../../components/Scanner/DigitizationScanner';
 import SecurePDFViewer from '@/components/SecurePDFViewer';
 import ConfirmationModal from '@/components/ConfirmationModal';
-import { API_URL } from '../../../../config/api';
+import { API_URL, apiFetch } from '../../../../config/api';
 import { formatDate } from '@/lib/dateFormatter';
 import { useTerminology } from '@/hooks/useTerminology';
 
@@ -274,22 +274,16 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
 
     const handleSaveProfile = async () => {
         setIsSavingProfile(true);
-        const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/patients/${id}`, {
+            const updated = await apiFetch(`patients/${id}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
                 body: JSON.stringify(editData)
             });
 
-            if (res.ok) {
-                const updated = await res.json();
+            if (updated) {
                 setPatient(updated);
                 setIsEditingProfile(false);
-                if (token) fetchDoctors(token); // Refresh doctor list for suggestions
+                fetchDoctors(); // Refresh doctor list for suggestions
                 triggerToast(`${terms.patient} Record Updated Successfully!`, "success");
             } else {
                 triggerToast(`Failed to update ${terms.patient} record.`, "error");
@@ -302,1734 +296,1644 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
         }
     };
 
-    useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            router.push('/login');
-            return;
-        }
-
-        // Get Role
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            setUserRole(payload.role);
-        } catch (e) { console.error("Token parse error", e); }
-
-        if (id) {
-            fetchPatient(token, id);
-            fetchDiagnoses(token);
-            fetchProcedures(token);
-            fetchDoctors(token);
-        }
-    }, [id, router]);
-
-    const fetchDoctors = async (token: string) => {
-        try {
-            const res = await fetch(`${API_URL}/patients/doctors`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) setHospitalDoctors(await res.json());
-        } catch (e) { console.error("Failed to fetch doctors", e); }
-    };
-
-
-    const fetchPatient = async (token: string, patientId: string) => {
-        if (isDeletingRef.current) return; // Prevent fetching if deletion is in progress
-        const apiUrl = API_URL;
-        setError(null);
-        try {
-            const res = await fetch(`${apiUrl}/patients/${patientId}?t=${new Date().getTime()}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                setPatient(await res.json());
-            } else {
-                const errDetail = await res.text();
-                console.error("Fetch Error:", errDetail);
-                setError(`${terms.patient} not found or access denied.`);
-            }
-        } catch (error) {
-            console.error(error);
-            setError(`Failed to load ${terms.patient.toLowerCase()} data. Please check network connection.`);
-        }
-    };
-
-    // Auto-refresh polling
-    useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token || !id || !patient) return;
-
-        // Update ref if patient changes (initial load or manual refresh)
-        // Only update ref if we are NOT polling for a specific event to avoid race conditions with the check below,
-        // or ensure we handle it correctly. Actually, we should update ref on every patient update EXCEPT when we are about to check.
-        // Simplified: Just check difference.
-        if (patient.files) {
-            const currentCount = patient.files.length;
-            if (isPollingForDesktop && currentCount > prevFileCountRef.current) {
-                // New file detected!
-                triggerToast("File uploaded successfully via Desktop App!", "success");
-                setIsPollingForDesktop(false); // Stop polling immediately on success
-            }
-            prevFileCountRef.current = currentCount;
-        }
-
-        const hasProcessing = patient.files.some(f => f.processing_stage === 'analyzing' || f.upload_status === 'draft');
-
-        // Poll if: 
-        // 1. Files are processing/analyzing
-        // 2. We just launched the Desktop App (isPollingForDesktop is true)
-        if (hasProcessing || isPollingForDesktop) {
-            const interval = setInterval(() => {
-                fetchPatient(token, id);
-            }, 3000); // Faster polling (3s) for better UX
-
-            // Security: Add a timeout for desktop polling so it doesn't poll forever if app is closed
-            let timeout: NodeJS.Timeout;
-            if (isPollingForDesktop) {
-                timeout = setTimeout(() => {
-                    setIsPollingForDesktop(false);
-                    triggerToast("Desktop scanner timeout. Polling stopped.", "info");
-                }, 300000); // 5 minutes timeout
-            }
-
-            return () => {
-                clearInterval(interval);
-                if (timeout) clearTimeout(timeout);
-            };
-        }
-    }, [patient?.files?.length, id, isPollingForDesktop]);
-
-    // Handlers (Copy-pasted logic mostly)
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            const newFiles = Array.from(e.target.files).map(file => ({
-                id: Math.random().toString(36).substr(2, 9),
-                originalFile: file,
-                status: 'pending' as UploadStatus,
-                progress: 0
-            }));
-            setFileQueue(prev => [...prev, ...newFiles]);
-        }
-    };
-
-    const removeFile = (id: string) => {
-        if (isUploading) return;
-        setFileQueue(prev => prev.filter(f => f.id !== id));
-    };
-
-    const compressFile = async (file: File): Promise<File> => {
-        if (file.type.startsWith('image/')) {
-            try {
-                return await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true });
-            } catch (error) { console.error("Compression failed", error); return file; }
-        }
-        return file;
-    };
-
-    const uploadSingleFile = (item: FileQueueItem, token: string) => {
-        return new Promise<number>((resolve, reject) => {
-            const formData = new FormData();
-            formData.append('file', item.compressedFile || item.originalFile);
-
-            const xhr = new XMLHttpRequest();
-            abortControllers.current[item.id] = xhr;
-
-            xhr.open('POST', `${API_URL}/patients/${id}/upload`, true);
-            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) {
-                    const pct = Math.round((e.loaded / e.total) * 100);
-                    setFileQueue(prev => prev.map(f =>
-                        f.id === item.id ? { ...f, status: 'uploading', progress: pct } : f
-                    ));
-                }
-            };
-
-            xhr.onload = () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    const response = JSON.parse(xhr.responseText);
-                    resolve(response.file_id);
-                } else {
-                    reject(xhr.responseText);
-                }
-            };
-
-            xhr.onerror = () => reject("Network Error");
-            xhr.send(formData);
-        });
-    };
-
-    const startProcessing = async () => {
-        if (fileQueue.length === 0) return;
-
-        setConfirmModal({
-            isOpen: true,
-            title: "Confirm Upload",
-            message: `You are about to upload ${fileQueue.length} file(s). Continue?`,
-            type: 'info',
-            confirmText: "Upload All",
-            onConfirm: async () => {
-                setIsUploading(true);
-                const token = localStorage.getItem('token') || '';
-
-                for (const item of fileQueue) {
-                    if (item.status === 'completed') continue;
-                    if (item.status === 'pending') {
-                        setFileQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: 'compressing', progress: 0 } : f));
-                        try {
-                            const compressed = await compressFile(item.originalFile);
-                            setFileQueue(prev => prev.map(f => f.id === item.id ? { ...f, compressedFile: compressed } : f));
-                            item.compressedFile = compressed;
-                        } catch (e) { console.error(e); }
-                    }
-                    try {
-                        setFileQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: 'uploading', progress: 0 } : f));
-                        const fileId = await uploadSingleFile(item, token);
-                        setFileQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: 'completed', progress: 100, backendFileId: fileId } : f));
-                    } catch (error) {
-                        setFileQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: 'error', error: String(error) } : f));
-                    }
-                }
-                setIsUploading(false);
-
-                // Wait a moment for backend to commit transaction before refreshing
-                setTimeout(async () => {
-                    if (id) {
-                        await fetchPatient(token, id);
-                        fetchDiagnoses(token);
-                        fetchProcedures(token);
-                    }
-                    // Clear queue
-                    const successCount = fileQueue.filter(f => f.status === 'completed').length;
-                    if (successCount > 0) {
-                        triggerToast(`Successfully uploaded ${successCount} file(s)!`, "success");
-                        if (onFileUpdate) onFileUpdate();
-                    }
-                    setFileQueue([]);
-                }, 1000);
-            }
-        });
-    };
-
-    const fetchDiagnoses = async (token: string) => {
-        try {
-            const res = await fetch(`${API_URL}/icd11/diagnoses/patients/${id}/diagnoses`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) setDiagnoses(await res.json());
-        } catch (e) { console.error(e); }
-    };
-
-    const fetchProcedures = async (token: string) => {
-        try {
-            const res = await fetch(`${API_URL}/icd11/procedures/patients/${id}/procedures`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) setProcedures(await res.json());
-        } catch (e) { console.error(e); }
-    };
-
-    const searchDiagnoses = async (q: string) => {
-        setDiagSearch(q);
-        if (q.length < 2) { setDiagResults([]); return; }
-        setIsSearchingDiag(true);
-        const token = localStorage.getItem('token');
-        try {
-            const res = await fetch(`${API_URL}/icd11/diagnoses/search?q=${q}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) setDiagResults(await res.json());
-        } catch (e) { console.error(e); } finally { setIsSearchingDiag(false); }
-    };
-
-    const searchProcedures = async (q: string) => {
-        setProcSearch(q);
-        if (q.length < 2) { setProcResults([]); return; }
-        setIsSearchingProc(true);
-        const token = localStorage.getItem('token');
-        try {
-            const res = await fetch(`${API_URL}/icd11/procedures/search?q=${q}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) setProcResults(await res.json());
-        } catch (e) { console.error(e); } finally { setIsSearchingProc(false); }
-    };
-
-    const addDiagnosis = async () => {
-        if (!selectedCode) return;
-        const token = localStorage.getItem('token');
-        try {
-            const res = await fetch(`${API_URL}/icd11/diagnoses/patients/${id}/diagnoses`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ code: selectedCode.code, notes: diagNotes })
-            });
-            if (res.ok) {
-                setShowDiagModal(false);
-                setSelectedCode(null);
-                setDiagNotes('');
-                setDiagSearch('');
-                setIsAddingDiag(false);
-                fetchDiagnoses(token || '');
-                triggerToast("Diagnosis Added!", "success");
-            }
-        } catch (e) { console.error(e); }
-    };
-
-    const addProcedure = async () => {
-        if (!selectedProcCode) return;
-        const token = localStorage.getItem('token') || '';
-        try {
-            const res = await fetch(`${API_URL}/icd11/procedures/patients/${id}/procedures`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ code: selectedProcCode.code, notes: procNotes })
-            });
-            if (res.ok) {
-                setShowProcModal(false);
-                setSelectedProcCode(null);
-                setProcNotes('');
-                setProcSearch('');
-                setIsAddingProc(false);
-                fetchProcedures(token);
-                triggerToast("Procedure Added!", "success");
-            }
-        } catch (e) { console.error(e); }
-    };
-
-    const deleteProcedure = async (procId: number) => {
-        setConfirmModal({
-            isOpen: true,
-            title: "Delete Procedure",
-            message: "Are you sure you want to delete this procedure?",
-            type: 'danger',
-            confirmText: "Delete",
-            onConfirm: async () => {
-                const token = localStorage.getItem('token') || '';
-                try {
-                    const res = await fetch(`${API_URL}/icd11/procedures/patients/${id}/procedures/${procId}`, {
-                        method: 'DELETE',
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
-                    if (res.ok) {
-                        fetchProcedures(token);
-                        triggerToast("Procedure Removed.", "info");
-                    }
-                } catch (e) { console.error(e); }
-            }
-        });
-    };
-
-    const deleteDiagnosis = async (diagId: number) => {
-        setConfirmModal({
-            isOpen: true,
-            title: "Remove Diagnosis",
-            message: "Are you sure you want to remove this diagnosis?",
-            type: 'danger',
-            confirmText: "Remove",
-            onConfirm: async () => {
-                const token = localStorage.getItem('token');
-                try {
-                    await fetch(`${API_URL}/icd11/diagnoses/patients/${id}/diagnoses/${diagId}`, {
-                        method: 'DELETE',
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
-                    fetchDiagnoses(token || '');
-                } catch (e) { console.error(e); }
-            }
-        });
-    };
-
-    const handleRequestDeletion = async (fileId: number) => {
-        const isDirectDelete = userRole === 'hospital_admin' || userRole === 'superadmin';
-        const confirmMsg = isDirectDelete
-            ? "WARNING: This will PERMANENTLY delete the file. This action cannot be undone. Continue?"
-            : "Request deletion for this file? This will require Admin approval.";
-
-        setConfirmModal({
-            isOpen: true,
-            title: isDirectDelete ? "Permanent Delete" : "Request Deletion",
-            message: confirmMsg,
-            type: 'danger',
-            confirmText: isDirectDelete ? "Delete Forever" : "Request Delete",
-            onConfirm: async () => {
-                const token = localStorage.getItem('token');
-                const apiUrl = API_URL;
-                try {
-                    const res = await fetch(`${apiUrl}/patients/files/${fileId}/request-deletion`, {
-                        method: 'POST',
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
-                    const data = await res.json();
-
-                    if (res.ok) {
-                        triggerToast(data.message || "Operation successful.", "success");
-                        if (id) fetchPatient(token || '', id);
-                        if (onFileUpdate) onFileUpdate();
-                    } else {
-                        triggerToast(`Failed: ${data.detail || "Unknown error"}`, "error");
-                    }
-                } catch (e) { console.error(e); }
-            }
-        });
+useEffect(() => {
+    // Token is handled by HttpOnly cookies
+    // Role is safely retrieved from localStorage set during login
+    if (typeof window !== 'undefined') {
+        const role = localStorage.getItem('userRole');
+        if (role) setUserRole(role);
     }
 
-    const handleConfirmUpload = async (fileId: number) => {
-        if (confirmingFiles.has(fileId)) return;
+    if (id) {
+        fetchPatient(id);
+        fetchDiagnoses();
+        fetchProcedures();
+        fetchDoctors();
+    }
+}, [id, router]);
 
-        setConfirmModal({
-            isOpen: true,
-            title: "Confirm Upload",
-            message: "Confirm this file for final upload? It will become visible to Admins.",
-            type: 'success',
-            confirmText: "Confirm Upload",
-            onConfirm: async () => {
-                // Immediately set to confirming state to hide the prompt buttons in the UI
-                setConfirmingFiles(prev => new Set(prev).add(fileId));
+const fetchDoctors = async () => {
+    try {
+        const list = await apiFetch(`patients/doctors`);
+        if (list) setHospitalDoctors(list);
+    } catch (e) { console.error("Failed to fetch doctors", e); }
+};
 
-                const token = localStorage.getItem('token');
-                const apiUrl = API_URL;
-                try {
-                    const res = await fetch(`${apiUrl}/patients/files/${fileId}/confirm`, {
-                        method: 'POST',
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
-                    if (res.ok) {
-                        triggerToast("File confirmed and published!", "success");
-                        if (id) fetchPatient(token || '', id);
-                        if (onFileUpdate) onFileUpdate();
-                    } else {
-                        triggerToast("Failed to confirm file.", "error");
-                        setConfirmingFiles(prev => {
-                            const next = new Set(prev);
-                            next.delete(fileId);
-                            return next;
-                        });
-                    }
-                } catch (e) {
-                    console.error(e);
-                    setConfirmingFiles(prev => {
-                        const next = new Set(prev);
-                        next.delete(fileId);
-                        return next;
-                    });
-                }
-            }
-        });
-    };
 
-    const handleDiscardDraft = async (fileId: number) => {
-        setConfirmModal({
-            isOpen: true,
-            title: "Discard Draft",
-            message: "Discard this draft? This action cannot be undone.",
-            type: 'warning',
-            confirmText: "Discard",
-            onConfirm: async () => {
-                const token = localStorage.getItem('token');
-                const apiUrl = API_URL;
-                try {
-                    const res = await fetch(`${apiUrl}/patients/files/${fileId}/draft`, {
-                        method: 'DELETE',
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
-                    if (res.ok) {
-                        triggerToast("Draft discarded successfully", "info");
-                        if (id) fetchPatient(token || '', id);
-                        if (onFileUpdate) onFileUpdate();
-                    }
-                } catch (e) { console.error(e); }
-            }
-        });
-    };
-
-    const handleRestoreFile = async (fileId: number, tier: string = 'Expedited') => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
-        try {
-            const res = await fetch(`${API_URL}/patients/files/${fileId}/restore?tier=${tier}`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                triggerToast(data.message, "success");
-                // Refresh data to show status
-                fetchPatient(token, patientId.toString());
-                if (onFileUpdate) onFileUpdate();
-            } else {
-                const errorData = await res.json();
-                triggerToast(errorData.detail || "Restoration request failed", "error");
-            }
-        } catch (e) {
-            console.error(e);
-            triggerToast("An error occurred", "error");
+const fetchPatient = async (patientId: string) => {
+    if (isDeletingRef.current) return;
+    setError(null);
+    try {
+        const data = await apiFetch(`patients/${patientId}?t=${new Date().getTime()}`);
+        if (data) {
+            setPatient(data);
         }
-    };
+    } catch (error) {
+        console.error(error);
+        setError(`Failed to load ${terms.patient.toLowerCase()} data. Please check network connection.`);
+    }
+};
 
-    const handleRunOCR = async (fileId: number) => {
-        setConfirmModal({
-            isOpen: true,
-            title: "Run OCR & AI",
-            message: "Run AI Extraction on this file? This will process in the background.",
-            type: 'info',
-            confirmText: "Run AI",
-            onConfirm: async () => {
-                const token = localStorage.getItem('token');
-                const apiUrl = API_URL;
-                try {
-                    const res = await fetch(`${apiUrl}/patients/${id}/files/${fileId}/run-ocr`, {
-                        method: 'POST',
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
-                    if (res.ok) {
-                        triggerToast("AI Processing Triggered! Check progress bar...", "info");
-                        if (id) fetchPatient(token || '', id);
-                    } else {
-                        const err = await res.json();
-                        triggerToast(`Failed: ${err.detail || "Unknown error"}`, "error");
-                    }
-                } catch (e) { console.error(e); }
-            }
-        });
-    };
+// Auto-refresh polling
+useEffect(() => {
+    if (!id || !patient) return;
 
-    const saveOCRText = async () => {
-        if (!viewTextFile) return;
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
+    // Update ref if patient changes (initial load or manual refresh)
+    // Only update ref if we are NOT polling for a specific event to avoid race conditions with the check below,
+    // or ensure we handle it correctly. Actually, we should update ref on every patient update EXCEPT when we are about to check.
+    // Simplified: Just check difference.
+    if (patient.files) {
+        const currentCount = patient.files.length;
+        if (isPollingForDesktop && currentCount > prevFileCountRef.current) {
+            // New file detected!
+            triggerToast("File uploaded successfully via Desktop App!", "success");
+            setIsPollingForDesktop(false); // Stop polling immediately on success
+        }
+        prevFileCountRef.current = currentCount;
+    }
 
-        try {
-            const res = await fetch(`${apiUrl}/patients/files/${viewTextFile.file_id}/ocr`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify({ ocr_text: editedOCRText, tags: editedTags })
-            });
+    const hasProcessing = patient.files.some(f => f.processing_stage === 'analyzing' || f.upload_status === 'draft');
 
-            if (res.ok) {
-                triggerToast("OCR Text Updated Successfully!", "success");
-                setIsEditingOCR(false);
-                // Update local state to reflect change immediately
-                setViewTextFile({ ...viewTextFile, ocr_text: editedOCRText, tags: editedTags });
-                if (id && token) fetchPatient(token, id); // Refresh user data to persist in list
-            } else {
-                triggerToast("Failed to update text.", "error");
-            }
-        } catch (e) { console.error(e); triggerToast("Network Error", "error"); }
-    };
+    // Poll if: 
+    // 1. Files are processing/analyzing
+    // 2. We just launched the Desktop App (isPollingForDesktop is true)
+    if (hasProcessing || isPollingForDesktop) {
+        const interval = setInterval(() => {
+            fetchPatient(id);
+        }, 3000); // Faster polling (3s) for better UX
 
-    const fetchBoxes = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        const apiUrl = API_URL;
-        try {
-            const res = await fetch(`${apiUrl}/storage/boxes`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) setAvailableBoxes(await res.json());
-        } catch (e) { console.error(e); }
-    };
-
-    const handleAssignBox = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedBoxId) return;
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        const apiUrl = API_URL;
-
-        try {
-            const res = await fetch(`${apiUrl}/storage/patients/${id}/assign-box`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ box_id: parseInt(selectedBoxId) })
-            });
-
-            if (res.ok) {
-                triggerToast("Assigned to Box Successfully", "success");
-                setShowBoxModal(false);
-                if (id) fetchPatient(token, id);
-            } else {
-                triggerToast("Failed to assign box", "error");
-            }
-        } catch (e) { console.error(e); }
-    };
-
-    const handleRequestPhysicalFile = async () => {
-        if (!patient?.physical_box_id) {
-            triggerToast("This patient is not assigned to any physical box.", "error");
-            return;
+        // Security: Add a timeout for desktop polling so it doesn't poll forever if app is closed
+        let timeout: NodeJS.Timeout;
+        if (isPollingForDesktop) {
+            timeout = setTimeout(() => {
+                setIsPollingForDesktop(false);
+                triggerToast("Desktop scanner timeout. Polling stopped.", "info");
+            }, 300000); // 5 minutes timeout
         }
 
-        setConfirmModal({
-            isOpen: true,
-            title: "Request Physical Box",
-            message: "Request the physical box containing this file?",
-            type: 'info',
-            confirmText: "Send Request",
-            onConfirm: async () => {
-                const token = localStorage.getItem('token');
-                const apiUrl = API_URL;
-                try {
-                    const res = await fetch(`${apiUrl}/storage/requests`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                        body: JSON.stringify({ box_id: patient.physical_box_id, requester_name: "Auto" })
-                    });
-
-                    if (res.ok) {
-                        triggerToast("Request sent successfully! Check the 'File Requests' page.", "success");
-                    } else {
-                        const data = await res.json();
-                        triggerToast(`Failed: ${data.detail || "Could not send request"}`, "error");
-                    }
-                } catch (e) { console.error(e); triggerToast("Network error", "error"); }
-            }
-        });
-    };
-
-    const handleDeletePatient = async () => {
-        setConfirmModal({
-            isOpen: true,
-            title: "Delete Patient Record",
-            message: `DANGER ZONE \n\nTo PERMANENTLY delete this patient and ALL their files, type "delete" below:`,
-            type: 'danger',
-            confirmText: "Delete",
-            onConfirm: async (input?: string) => {
-                if (input !== "delete") {
-                    triggerToast("Deletion cancelled. Input did not match 'delete'.", "info");
-                    return;
-                }
-
-                isDeletingRef.current = true; // Block further fetches
-                const token = localStorage.getItem('token');
-                const apiUrl = API_URL;
-
-                try {
-                    const res = await fetch(`${apiUrl}/patients/${id}`, {
-                        method: 'DELETE',
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
-
-                    if (res.ok) {
-                        triggerToast("Patient record deleted successfully.", "success");
-                        if (onDeleteSuccess) onDeleteSuccess();
-                        else if (onBack) onBack();
-                    } else {
-                        isDeletingRef.current = false; // Reset if failed
-                        const data = await res.json();
-                        triggerToast(`Failed: ${data.detail || "Unknown error"}`, "error");
-                    }
-                } catch (e) {
-                    isDeletingRef.current = false;
-                    console.error(e);
-                    triggerToast("Network error.", "error");
-                }
-            },
-            requiresInput: true,
-            inputPlaceholder: 'type "delete" to confirm'
-        });
-    };
-
-    const handleCameraCapture = (imageFile: File) => {
-        const queueItem: FileQueueItem = {
-            id: Math.random().toString(36).substr(2, 9),
-            originalFile: imageFile,
-            status: 'pending',
-            progress: 0
+        return () => {
+            clearInterval(interval);
+            if (timeout) clearTimeout(timeout);
         };
-        setFileQueue(prev => [...prev, queueItem]);
-        setShowCameraModal(false);
-        triggerToast(`Captured image added to queue!`, "success");
-    };
+    }
+}, [patient?.files?.length, id, isPollingForDesktop]);
 
-    if (error) {
-        return (
-            <div className="p-8 flex flex-col items-center justify-center min-h-[50vh]">
-                <div className="text-red-500 font-bold mb-4">⚠️ Error Loading Patient</div>
-                <p className="text-gray-600 mb-6">{error}</p>
-                {onBack && (
-                    <button onClick={onBack} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200">
-                        Go Back
-                    </button>
-                )}
-            </div>
-        );
+// Handlers (Copy-pasted logic mostly)
+const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+        const newFiles = Array.from(e.target.files).map(file => ({
+            id: Math.random().toString(36).substr(2, 9),
+            originalFile: file,
+            status: 'pending' as UploadStatus,
+            progress: 0
+        }));
+        setFileQueue(prev => [...prev, ...newFiles]);
+    }
+};
+
+const removeFile = (id: string) => {
+    if (isUploading) return;
+    setFileQueue(prev => prev.filter(f => f.id !== id));
+};
+
+const compressFile = async (file: File): Promise<File> => {
+    if (file.type.startsWith('image/')) {
+        try {
+            return await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true });
+        } catch (error) { console.error("Compression failed", error); return file; }
+    }
+    return file;
+};
+
+const uploadSingleFile = (item: FileQueueItem) => {
+    return new Promise<number>((resolve, reject) => {
+        const formData = new FormData();
+        formData.append('file', item.compressedFile || item.originalFile);
+
+        const xhr = new XMLHttpRequest();
+        abortControllers.current[item.id] = xhr;
+
+        xhr.open('POST', `${API_URL}/patients/${id}/upload`, true);
+        // Cookies handle auth now
+        xhr.withCredentials = true;
+
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+                const pct = Math.round((e.loaded / e.total) * 100);
+                setFileQueue(prev => prev.map(f =>
+                    f.id === item.id ? { ...f, status: 'uploading', progress: pct } : f
+                ));
+            }
+        };
+
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                const response = JSON.parse(xhr.responseText);
+                resolve(response.file_id);
+            } else {
+                reject(xhr.responseText);
+            }
+        };
+
+        xhr.onerror = () => reject("Network Error");
+        xhr.send(formData);
+    });
+};
+
+const startProcessing = async () => {
+    if (fileQueue.length === 0) return;
+
+    setConfirmModal({
+        isOpen: true,
+        title: "Confirm Upload",
+        message: `You are about to upload ${fileQueue.length} file(s). Continue?`,
+        type: 'info',
+        confirmText: "Upload All",
+        onConfirm: async () => {
+            setIsUploading(true);
+            // Token is handled by HttpOnly cookies
+
+            for (const item of fileQueue) {
+                if (item.status === 'completed') continue;
+                if (item.status === 'pending') {
+                    setFileQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: 'compressing', progress: 0 } : f));
+                    try {
+                        const compressed = await compressFile(item.originalFile);
+                        setFileQueue(prev => prev.map(f => f.id === item.id ? { ...f, compressedFile: compressed } : f));
+                        item.compressedFile = compressed;
+                    } catch (e) { console.error(e); }
+                }
+                try {
+                    setFileQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: 'uploading', progress: 0 } : f));
+                    const fileId = await uploadSingleFile(item);
+                    setFileQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: 'completed', progress: 100, backendFileId: fileId } : f));
+                } catch (error) {
+                    setFileQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: 'error', error: String(error) } : f));
+                }
+            }
+            setIsUploading(false);
+
+            // Wait a moment for backend to commit transaction before refreshing
+            setTimeout(async () => {
+                if (id) {
+                    await fetchPatient(id);
+                    fetchDiagnoses();
+                    fetchProcedures();
+                }
+                // Clear queue
+                const successCount = fileQueue.filter(f => f.status === 'completed').length;
+                if (successCount > 0) {
+                    triggerToast(`Successfully uploaded ${successCount} file(s)!`, "success");
+                    if (onFileUpdate) onFileUpdate();
+                }
+                setFileQueue([]);
+            }, 1000);
+        }
+    });
+};
+
+const fetchDiagnoses = async () => {
+    try {
+        const list = await apiFetch(`icd11/diagnoses/patients/${id}/diagnoses`);
+        if (list) setDiagnoses(list);
+    } catch (e) { console.error(e); }
+};
+
+const fetchProcedures = async () => {
+    try {
+        const list = await apiFetch(`icd11/procedures/patients/${id}/procedures`);
+        if (list) setProcedures(list);
+    } catch (e) { console.error(e); }
+};
+
+const searchDiagnoses = async (q: string) => {
+    setDiagSearch(q);
+    if (q.length < 2) { setDiagResults([]); return; }
+    setIsSearchingDiag(true);
+    try {
+        const list = await apiFetch(`icd11/diagnoses/search?q=${q}`);
+        if (list) setDiagResults(list);
+    } catch (e) { console.error(e); } finally { setIsSearchingDiag(false); }
+};
+
+const searchProcedures = async (q: string) => {
+    setProcSearch(q);
+    if (q.length < 2) { setProcResults([]); return; }
+    setIsSearchingProc(true);
+    try {
+        const list = await apiFetch(`icd11/procedures/search?q=${q}`);
+        if (list) setProcResults(list);
+    } catch (e) { console.error(e); } finally { setIsSearchingProc(false); }
+};
+
+const addDiagnosis = async () => {
+    if (!selectedCode) return;
+    try {
+        await apiFetch(`icd11/diagnoses/patients/${id}/diagnoses`, {
+            method: 'POST',
+            body: JSON.stringify({ code: selectedCode.code, notes: diagNotes })
+        });
+
+        setShowDiagModal(false);
+        setSelectedCode(null);
+        setDiagNotes('');
+        setDiagSearch('');
+        setIsAddingDiag(false);
+        fetchDiagnoses();
+        triggerToast("Diagnosis Added!", "success");
+    } catch (e) { console.error(e); }
+};
+
+const addProcedure = async () => {
+    if (!selectedProcCode) return;
+    try {
+        await apiFetch(`icd11/procedures/patients/${id}/procedures`, {
+            method: 'POST',
+            body: JSON.stringify({ code: selectedProcCode.code, notes: procNotes })
+        });
+
+        setShowProcModal(false);
+        setSelectedProcCode(null);
+        setProcNotes('');
+        setProcSearch('');
+        setIsAddingProc(false);
+        fetchProcedures();
+        triggerToast("Procedure Added!", "success");
+    } catch (e) { console.error(e); }
+};
+
+const deleteProcedure = async (procId: number) => {
+    setConfirmModal({
+        isOpen: true,
+        title: "Delete Procedure",
+        message: "Are you sure you want to delete this procedure?",
+        type: 'danger',
+        confirmText: "Delete",
+        onConfirm: async () => {
+            try {
+                await apiFetch(`icd11/procedures/patients/${id}/procedures/${procId}`, {
+                    method: 'DELETE'
+                });
+                fetchProcedures();
+                triggerToast("Procedure Removed.", "info");
+            } catch (e) { console.error(e); }
+        }
+    });
+};
+
+const deleteDiagnosis = async (diagId: number) => {
+    setConfirmModal({
+        isOpen: true,
+        title: "Remove Diagnosis",
+        message: "Are you sure you want to remove this diagnosis?",
+        type: 'danger',
+        confirmText: "Remove",
+        onConfirm: async () => {
+            try {
+                await apiFetch(`icd11/diagnoses/patients/${id}/diagnoses/${diagId}`, {
+                    method: 'DELETE'
+                });
+                fetchDiagnoses();
+            } catch (e) { console.error(e); }
+        }
+    });
+};
+
+const handleRequestDeletion = async (fileId: number) => {
+    const isDirectDelete = userRole === 'hospital_admin' || userRole === 'superadmin';
+    const confirmMsg = isDirectDelete
+        ? "WARNING: This will PERMANENTLY delete the file. This action cannot be undone. Continue?"
+        : "Request deletion for this file? This will require Admin approval.";
+
+    setConfirmModal({
+        isOpen: true,
+        title: isDirectDelete ? "Permanent Delete" : "Request Deletion",
+        message: confirmMsg,
+        type: 'danger',
+        confirmText: isDirectDelete ? "Delete Forever" : "Request Delete",
+        onConfirm: async () => {
+            try {
+                const data = await apiFetch(`patients/files/${fileId}/request-deletion`, {
+                    method: 'POST'
+                });
+
+                triggerToast(data.message || "Operation successful.", "success");
+                if (id) fetchPatient(id);
+                if (onFileUpdate) onFileUpdate();
+            } catch (e: any) {
+                triggerToast(`Failed: ${e.message || "Unknown error"}`, "error");
+            }
+        }
+    });
+}
+
+const handleConfirmUpload = async (fileId: number) => {
+    if (confirmingFiles.has(fileId)) return;
+
+    setConfirmModal({
+        isOpen: true,
+        title: "Confirm Upload",
+        message: "Confirm this file for final upload? It will become visible to Admins.",
+        type: 'success',
+        confirmText: "Confirm Upload",
+        onConfirm: async () => {
+            setConfirmingFiles(prev => new Set(prev).add(fileId));
+
+            try {
+                await apiFetch(`patients/files/${fileId}/confirm`, {
+                    method: 'POST'
+                });
+
+                triggerToast("File confirmed and published!", "success");
+                if (id) fetchPatient(id);
+                if (onFileUpdate) onFileUpdate();
+            } catch (e) {
+                console.error(e);
+                triggerToast("Failed to confirm file.", "error");
+                setConfirmingFiles(prev => {
+                    const next = new Set(prev);
+                    next.delete(fileId);
+                    return next;
+                });
+            }
+        }
+    });
+};
+
+const handleDiscardDraft = async (fileId: number) => {
+    setConfirmModal({
+        isOpen: true,
+        title: "Discard Draft",
+        message: "Discard this draft? This action cannot be undone.",
+        type: 'warning',
+        confirmText: "Discard",
+        onConfirm: async () => {
+            try {
+                await apiFetch(`patients/files/${fileId}/draft`, {
+                    method: 'DELETE'
+                });
+
+                triggerToast("Draft discarded successfully", "info");
+                if (id) fetchPatient(id);
+                if (onFileUpdate) onFileUpdate();
+            } catch (e) { console.error(e); }
+        }
+    });
+};
+
+const handleRestoreFile = async (fileId: number, tier: string = 'Expedited') => {
+    try {
+        const data = await apiFetch(`patients/files/${fileId}/restore?tier=${tier}`, {
+            method: 'POST'
+        });
+
+        triggerToast(data.message || "Restore generated", "success");
+        // Refresh data to show status
+        fetchPatient(patientId.toString());
+        if (onFileUpdate) onFileUpdate();
+    } catch (e: any) {
+        console.error(e);
+        triggerToast(e.message || "Restoration request failed", "error");
+    }
+};
+
+const handleRunOCR = async (fileId: number) => {
+    setConfirmModal({
+        isOpen: true,
+        title: "Run OCR & AI",
+        message: "Run AI Extraction on this file? This will process in the background.",
+        type: 'info',
+        confirmText: "Run AI",
+        onConfirm: async () => {
+            try {
+                await apiFetch(`patients/${id}/files/${fileId}/run-ocr`, {
+                    method: 'POST'
+                });
+
+                triggerToast("AI Processing Triggered! Check progress bar...", "info");
+                if (id) fetchPatient(id);
+            } catch (e: any) {
+                triggerToast(`Failed: ${e.message || "Unknown error"}`, "error");
+            }
+        }
+    });
+};
+
+const saveOCRText = async () => {
+    if (!viewTextFile) return;
+    
+    try {
+        const res = await apiFetch(`patients/files/${viewTextFile.file_id}/ocr`, {
+            method: 'PUT',
+            body: JSON.stringify({ ocr_text: editedOCRText, tags: editedTags })
+        });
+
+        if (res) {
+            triggerToast("OCR Text Updated Successfully!", "success");
+            setIsEditingOCR(false);
+            setViewTextFile({ ...viewTextFile, ocr_text: editedOCRText, tags: editedTags });
+            if (id) fetchPatient(id);
+        } else {
+            triggerToast("Failed to update text.", "error");
+        }
+    } catch (e) { 
+        console.error(e); 
+        triggerToast("Network Error", "error"); 
+    }
+};
+
+const fetchBoxes = async () => {
+    try {
+        const boxes = await apiFetch('storage/boxes');
+        if (boxes) setAvailableBoxes(boxes);
+    } catch (e) { 
+        console.error(e); 
+    }
+};
+
+const handleAssignBox = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBoxId) return;
+
+    try {
+        const res = await apiFetch(`storage/patients/${id}/assign-box`, {
+            method: 'POST',
+            body: JSON.stringify({ box_id: parseInt(selectedBoxId) })
+        });
+
+        if (res) {
+            triggerToast("Assigned to Box Successfully", "success");
+            setShowBoxModal(false);
+            if (id) fetchPatient(id);
+        } else {
+            triggerToast("Failed to assign box", "error");
+        }
+    } catch (e) { 
+        console.error(e); 
+        triggerToast("Network error", "error");
+    }
+};
+
+const handleRequestPhysicalFile = async () => {
+    if (!patient?.physical_box_id) {
+        triggerToast("This patient is not assigned to any physical box.", "error");
+        return;
     }
 
-    if (!patient) return <div className="p-8 text-center text-slate-500 font-medium">Loading patient record...</div>;
+    setConfirmModal({
+        isOpen: true,
+        title: "Request Physical Box",
+        message: "Request the physical box containing this file?",
+        type: 'info',
+        confirmText: "Send Request",
+        onConfirm: async () => {
+            try {
+                const res = await apiFetch(`storage/requests`, {
+                    method: 'POST',
+                    body: JSON.stringify({ box_id: patient.physical_box_id, requester_name: "Auto" })
+                });
 
+                if (res !== null) {
+                    triggerToast("Request sent successfully! Check the 'File Requests' page.", "success");
+                } else {
+                    triggerToast("Failed: Could not send request", "error");
+                }
+            } catch (e) { console.error(e); triggerToast("Network error", "error"); }
+        }
+    });
+};
+
+const handleDeletePatient = async () => {
+    setConfirmModal({
+        isOpen: true,
+        title: "Delete Patient Record",
+        message: `DANGER ZONE \n\nTo PERMANENTLY delete this patient and ALL their files, type "delete" below:`,
+        type: 'danger',
+        confirmText: "Delete",
+        onConfirm: async (input?: string) => {
+            if (input !== "delete") {
+                triggerToast("Deletion cancelled. Input did not match 'delete'.", "info");
+                return;
+            }
+
+            isDeletingRef.current = true; // Block further fetches
+
+            try {
+                const res = await apiFetch(`patients/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (res !== null) {
+                    triggerToast("Patient record deleted successfully.", "success");
+                    if (onDeleteSuccess) onDeleteSuccess();
+                    else if (onBack) onBack();
+                } else {
+                    isDeletingRef.current = false; // Reset if failed
+                    triggerToast("Failed: Unknown error", "error");
+                }
+            } catch (e) {
+                isDeletingRef.current = false;
+                console.error(e);
+                triggerToast("Network error.", "error");
+            }
+        },
+        requiresInput: true,
+        inputPlaceholder: 'type "delete" to confirm'
+    });
+};
+
+const handleCameraCapture = (imageFile: File) => {
+    const queueItem: FileQueueItem = {
+        id: Math.random().toString(36).substr(2, 9),
+        originalFile: imageFile,
+        status: 'pending',
+        progress: 0
+    };
+    setFileQueue(prev => [...prev, queueItem]);
+    setShowCameraModal(false);
+    triggerToast(`Captured image added to queue!`, "success");
+};
+
+if (error) {
     return (
-        <>
-            <div className="flex-1 bg-white h-full overflow-y-auto">
-                <div className="p-4">
-                    <div className="mb-2 flex justify-between items-start">
-                        <div className="flex-1">
-                            {onBack && (
-                                <button onClick={onBack} className="text-gray-500 hover:text-gray-700 mb-2 font-medium flex items-center gap-1 text-sm">
-                                    ← Back to List
-                                </button>
+        <div className="p-8 flex flex-col items-center justify-center min-h-[50vh]">
+            <div className="text-red-500 font-bold mb-4">⚠️ Error Loading Patient</div>
+            <p className="text-gray-600 mb-6">{error}</p>
+            {onBack && (
+                <button onClick={onBack} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200">
+                    Go Back
+                </button>
+            )}
+        </div>
+    );
+}
+
+if (!patient) return <div className="p-8 text-center text-slate-500 font-medium">Loading patient record...</div>;
+
+return (
+    <>
+        <div className="flex-1 bg-white h-full overflow-y-auto">
+            <div className="p-4">
+                <div className="mb-2 flex justify-between items-start">
+                    <div className="flex-1">
+                        {onBack && (
+                            <button onClick={onBack} className="text-gray-500 hover:text-gray-700 mb-2 font-medium flex items-center gap-1 text-sm">
+                                ← Back to List
+                            </button>
+                        )}
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-xl font-black text-gray-800 tracking-tight">{patient.full_name}</h1>
+                            {patient.physical_box_id ? (
+                                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 uppercase tracking-wide shadow-sm">Archived</span>
+                            ) : patient.files && patient.files.length > 0 ? (
+                                <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 uppercase tracking-wide shadow-sm">Digital</span>
+                            ) : (
+                                <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-200 uppercase tracking-wide shadow-sm">Physical</span>
                             )}
-                            <div className="flex items-center gap-3">
-                                <h1 className="text-xl font-black text-gray-800 tracking-tight">{patient.full_name}</h1>
-                                {patient.physical_box_id ? (
-                                    <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 uppercase tracking-wide shadow-sm">Archived</span>
-                                ) : patient.files && patient.files.length > 0 ? (
-                                    <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 uppercase tracking-wide shadow-sm">Digital</span>
-                                ) : (
-                                    <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-200 uppercase tracking-wide shadow-sm">Physical</span>
-                                )}
-                                <div className="flex items-center gap-2">
-                                    <span className="px-2 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black rounded-lg border border-indigo-100 uppercase shadow-sm">
-                                        MRD (IPD): {patient.patient_u_id}
+                            <div className="flex items-center gap-2">
+                                <span className="px-2 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black rounded-lg border border-indigo-100 uppercase shadow-sm">
+                                    MRD (IPD): {patient.patient_u_id}
+                                </span>
+                                {patient.uhid && (
+                                    <span className="px-2 py-1 bg-slate-50 text-slate-500 text-[10px] font-black rounded-lg border border-slate-100 uppercase shadow-sm">
+                                        UHID: {patient.uhid}
                                     </span>
+                                )}
+                            </div>
+                            {['IPD', 'OPD', 'MLC', 'BRT', 'DHT'].map(cat => (
+                                <button
+                                    key={cat}
+                                    onClick={async () => {
+                                        if (patient.patient_category === cat) return;
+                                        setConfirmModal({
+                                            isOpen: true,
+                                            title: "Change Category",
+                                            message: `Change patient category to ${cat}?`,
+                                            type: 'info',
+                                            confirmText: "Change",
+                                            onConfirm: async () => {
+                                                try {
+                                                    const res = await apiFetch(`patients/${id}`, {
+                                                        method: 'PUT',
+                                                        body: JSON.stringify({ patient_category: cat })
+                                                    });
+                                                    if (res !== null) {
+                                                        triggerToast(`Category updated to ${cat}`, "success");
+                                                        fetchPatient(id);
+                                                    } else {
+                                                        triggerToast("Failed to update category", "error");
+                                                    }
+                                                } catch (e) {
+                                                    console.error(e);
+                                                    triggerToast("Network error", "error");
+                                                }
+                                            }
+                                        });
+                                    }}
+                                    className={`px-2 py-1 text-[10px] font-black rounded-lg border uppercase tracking-wide shadow-sm transition-all
+                                        ${(patient.patient_category === cat || (cat === 'IPD' && patient.patient_category === 'STANDARD'))
+                                            ? (cat === 'MLC' ? 'bg-red-600 text-white border-red-600 ring-2 ring-red-100' :
+                                                cat === 'BRT' ? 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-100' :
+                                                    'bg-slate-800 text-white border-slate-800 ring-2 ring-slate-200')
+                                            : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50 hover:text-slate-600'
+                                        }`}
+                                >
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Patient Details Grid / Edit Form */}
+                        <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-y-2 gap-x-4 text-sm border-t border-gray-100 pt-4">
+                            {isEditingProfile ? (
+                                <>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Full Name</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                            value={editData.full_name || ''}
+                                            onChange={e => setEditData({ ...editData, full_name: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">MRD / IPD No.</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 font-mono outline-none focus:border-indigo-500"
+                                            value={editData.patient_u_id || ''}
+                                            onChange={e => setEditData({ ...editData, patient_u_id: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">UHID</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 font-mono outline-none focus:border-indigo-500"
+                                            value={editData.uhid || ''}
+                                            onChange={e => setEditData({ ...editData, uhid: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Category</label>
+                                        <select
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                            value={editData.patient_category || 'STANDARD'}
+                                            onChange={e => setEditData({ ...editData, patient_category: e.target.value })}
+                                        >
+                                            <option value="STANDARD">STANDARD</option>
+                                            <option value="IPD">IPD</option>
+                                            <option value="OPD">OPD</option>
+                                            <option value="MLC">MCL (Medico-Legal)</option>
+                                            <option value="BRT">Birth</option>
+                                            <option value="DHT">Death</option>
+                                        </select>
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Contact No.</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 font-mono outline-none focus:border-indigo-500"
+                                            value={editData.contact_number || ''}
+                                            onChange={e => setEditData({ ...editData, contact_number: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Doctor(s)</label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {editData.doctor_name ? editData.doctor_name.split(',').map((d: string) => d.trim()).filter(Boolean).map((doc: string, idx: number) => (
+                                                <span key={idx} className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 border border-indigo-200">
+                                                    {doc}
+                                                    <button onClick={() => removeDoctorTag(doc)} className="hover:text-red-500"><X size={12} /></button>
+                                                </span>
+                                            )) : <span className="text-xs text-slate-400 italic">No doctors added</span>}
+                                        </div>
+                                        <div className="flex gap-2 relative">
+                                            <input
+                                                type="text"
+                                                className="flex-1 border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                                value={doctorInput}
+                                                onChange={e => {
+                                                    setDoctorInput(e.target.value);
+                                                    setShowDoctorSuggestions(true);
+                                                }}
+                                                onFocus={() => setShowDoctorSuggestions(true)}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        addDoctorTag(doctorInput);
+                                                        setShowDoctorSuggestions(false);
+                                                    }
+                                                }}
+                                                placeholder="Type Doctor Name & Press Enter"
+                                            />
+                                            {showDoctorSuggestions && doctorInput.length > 0 && (
+                                                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto">
+                                                    {(hospitalDoctors || [])
+                                                        .filter(d => d.toLowerCase().includes(doctorInput.toLowerCase()) &&
+                                                            !(editData.doctor_name || "").toLowerCase().includes(d.toLowerCase()))
+                                                        .map((doc, idx) => (
+                                                            <button
+                                                                key={idx}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    addDoctorTag(doc);
+                                                                    setShowDoctorSuggestions(false);
+                                                                }}
+                                                                className="w-full text-left px-4 py-2 hover:bg-indigo-50 text-sm font-bold text-slate-700 border-b border-slate-50 last:border-0"
+                                                            >
+                                                                {doc}
+                                                            </button>
+                                                        ))
+                                                    }
+                                                </div>
+                                            )}
+                                            <button
+                                                onClick={() => {
+                                                    addDoctorTag(doctorInput);
+                                                    setShowDoctorSuggestions(false);
+                                                }}
+                                                className="px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold border border-indigo-100 hover:bg-indigo-100 transition-all"
+                                            >
+                                                Add
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Weight (kg)</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                            value={editData.weight || ''}
+                                            onChange={e => setEditData({ ...editData, weight: e.target.value })}
+                                            placeholder="e.g. 70kg"
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Discharge Date</label>
+                                        <input
+                                            type="date"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                            value={editData.discharge_date || ''}
+                                            onChange={e => setEditData({ ...editData, discharge_date: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Diagnosis</label>
+                                        <textarea
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500 h-20"
+                                            value={editData.diagnosis || ''}
+                                            onChange={e => setEditData({ ...editData, diagnosis: e.target.value })}
+                                            placeholder="Enter Diagnosis..."
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Operative Notes</label>
+                                        <textarea
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500 h-20"
+                                            value={editData.operative_notes || ''}
+                                            onChange={e => setEditData({ ...editData, operative_notes: e.target.value })}
+                                            placeholder="Enter Operative Notes..."
+                                        />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Mediclaim</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                            value={editData.mediclaim || ''}
+                                            onChange={e => setEditData({ ...editData, mediclaim: e.target.value })}
+                                            placeholder="e.g. Yes/No/Policy No."
+                                        />
+                                    </div>
+                                    <div className="md:col-span-3 col-span-2">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Address</label>
+                                        <input
+                                            type="text"
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                            value={editData.address || ''}
+                                            onChange={e => setEditData({ ...editData, address: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Medical Summary</label>
+                                        <textarea
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500 h-20"
+                                            value={editData.medical_summary || ''}
+                                            onChange={e => setEditData({ ...editData, medical_summary: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Remarks</label>
+                                        <textarea
+                                            className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500 h-20"
+                                            value={editData.remarks || ''}
+                                            onChange={e => setEditData({ ...editData, remarks: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="md:col-span-4 col-span-2 flex justify-end">
+                                        <button
+                                            onClick={handleSaveProfile}
+                                            disabled={isSavingProfile}
+                                            className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-black shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all flex items-center gap-2 w-full md:w-auto justify-center"
+                                        >
+                                            {isSavingProfile ? <><Loader2 className="animate-spin" size={20} /> Saving...</> : 'Save Patient Record'}
+                                        </button>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
                                     {patient.uhid && (
-                                        <span className="px-2 py-1 bg-slate-50 text-slate-500 text-[10px] font-black rounded-lg border border-slate-100 uppercase shadow-sm">
-                                            UHID: {patient.uhid}
+                                        <div>
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">UHID</span>
+                                            <p className="font-bold text-gray-700 font-mono">{patient.uhid}</p>
+                                        </div>
+                                    )}
+                                    {patient.aadhaar_number && (
+                                        <div>
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Aadhaar No.</span>
+                                            <p className="font-bold text-gray-700 font-mono tracking-wider">{patient.aadhaar_number.replace(/(\d{4})(?=\d)/g, "$1 ")}</p>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mb-0.5">Doctor(s)</span>
+                                        <div className="flex flex-wrap gap-1.5 mt-1">
+                                            {patient.doctor_name ? patient.doctor_name.split(',').map((d: string) => d.trim()).filter(Boolean).map((doc: string, idx: number) => (
+                                                <span key={idx} className="bg-white border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded-lg text-[10px] font-black shadow-sm flex items-center gap-1.5">
+                                                    <Stethoscope size={10} className="text-indigo-400" />
+                                                    {doc}
+                                                </span>
+                                            )) : <span className="text-slate-300 italic text-xs">Not assigned</span>}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mb-0.5">Weight</span>
+                                        <p className="font-bold text-gray-800">
+                                            {patient.weight || <span className="text-slate-300 italic">—</span>}
+                                        </p>
+                                    </div>
+                                    {(patient.age || patient.gender) && (
+                                        <div>
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Demographics</span>
+                                            <p className="font-semibold text-gray-700">
+                                                {patient.age ? (typeof patient.age === 'number' || !isNaN(Number(patient.age)) ? `${patient.age} Y` : patient.age) : ''}
+                                                {patient.age && patient.gender ? ' / ' : ''}
+                                                {patient.gender || ''}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {patient.contact_number && (
+                                        <div>
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Contact</span>
+                                            <p className="font-semibold text-gray-700 font-mono">{patient.contact_number}</p>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Mediclaim</span>
+                                        <p className="font-semibold text-slate-700">
+                                            {patient.mediclaim || <span className="text-slate-300 italic">—</span>}
+                                        </p>
+                                    </div>
+                                    {patient.discharge_date && (
+                                        <div>
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Discharged</span>
+                                            <p className="font-semibold text-gray-700">{formatDate(patient.discharge_date)}</p>
+                                        </div>
+                                    )}
+                                    {patient.address && (
+                                        <div className="col-span-2">
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Address</span>
+                                            <p className="font-semibold text-gray-700 truncate" title={patient.address}>
+                                                {patient.address} {patient.city ? `, ${patient.city}` : ''}
+                                            </p>
+                                        </div>
+                                    )}
+                                    <div className="col-span-2">
+                                        <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mb-0.5">Diagnosis</span>
+                                        <p className="text-slate-700 font-medium whitespace-pre-wrap">
+                                            {patient.diagnosis || <span className="text-slate-300 italic">No direct diagnosis recorded.</span>}
+                                        </p>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mb-0.5">Operative Notes</span>
+                                        <p className="text-slate-700 font-medium whitespace-pre-wrap">
+                                            {patient.operative_notes || <span className="text-slate-300 italic">—</span>}
+                                        </p>
+                                    </div>
+                                    <div className="col-span-2 border-t border-slate-50 pt-3">
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Medical Summary</span>
+                                        <p className="text-slate-600 text-xs whitespace-pre-wrap leading-relaxed">
+                                            {patient.medical_summary || <span className="text-slate-300 italic">—</span>}
+                                        </p>
+                                    </div>
+                                    <div className="col-span-2 border-t border-slate-50 pt-3">
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Remarks</span>
+                                        <p className="text-slate-600 text-xs whitespace-pre-wrap leading-relaxed">
+                                            {patient.remarks || <span className="text-slate-300 italic">—</span>}
+                                        </p>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Header Actions Sidebar */}
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                        {/* Physical Storage Badge - Smaller & Above */}
+                        {!['hospital_admin', 'mrd_staff'].includes(userRole) && (
+                            <div className="bg-amber-50/50 backdrop-blur-sm border border-amber-200 rounded-lg px-2 py-1.5 flex flex-col items-start gap-1 shadow-sm w-full min-w-[140px]">
+                                <div className="flex items-center gap-1.5 w-full">
+                                    <Archive size={12} className="text-amber-600" />
+                                    <p className="text-[9px] text-amber-700 font-black uppercase tracking-widest whitespace-nowrap">Physical Storage</p>
+                                </div>
+
+                                {patient.box_label ? (
+                                    <div className="flex items-center justify-between w-full gap-2">
+                                        <div className="flex items-center gap-1">
+                                            <Box size={12} className="text-amber-500" />
+                                            <p className="text-xs font-black text-amber-900">{patient.box_label}</p>
+                                        </div>
+                                        <div className="bg-white/50 px-1.5 py-0.5 rounded border border-amber-100 flex items-center gap-1">
+                                            <span className="text-[8px] font-black text-amber-500">LOC</span>
+                                            <p className="text-[8px] font-bold text-amber-700">{patient.box_location_code}</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-[9px] text-amber-400 italic font-bold">
+                                        {(patient.files || []).length > 0 ? 'Not Assigned' : 'Upload Files to Assign'}
+                                    </p>
+                                )}
+
+                                {/* Role Restriction & File Requirement */}
+                                {(userRole === 'mrd_staff' || userRole === 'website_admin') && (patient.files || []).length > 0 && (
+                                    <button
+                                        onClick={() => {
+                                            fetchBoxes();
+                                            setShowBoxModal(true);
+                                        }}
+                                        className="text-[9px] bg-white border border-amber-200 text-amber-700 px-2 py-1 rounded hover:bg-amber-50 font-black transition-all shadow-sm w-full mt-0.5 flex items-center justify-center gap-1"
+                                    >
+                                        <Plus size={10} />
+                                        {patient.box_label ? 'Update' : 'Assign'}
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        <button
+                            onClick={() => setIsEditingProfile(!isEditingProfile)}
+                            className={`px-4 py-2 rounded-xl border text-xs font-black transition-all shadow-md flex items-center gap-2 w-full justify-center
+                            ${isEditingProfile ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' : 'bg-indigo-600 text-white border-indigo-500 hover:bg-indigo-700 hover:shadow-indigo-500/25'}`}
+                        >
+                            {isEditingProfile ? <><X size={14} /> Cancel Edit</> : <><Pencil size={14} /> Edit Profile</>}
+                        </button>
+                    </div>
+                </div>
+
+
+
+                {/* Digitized Files Section - Moved Above Diagnoses */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 mb-3">
+                    <div className="flex justify-between items-center mb-3 border-b pb-2">
+                        <h2 className="text-base font-semibold">Digitized Files ({(patient.files || []).length})</h2>
+                        {(userRole === 'website_staff' || userRole === 'data_uploader' || userRole === 'website_admin' || userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'superadmin' || userRole === 'superadmin_staff') && (
+                            <div className="flex gap-2">
+                                {isPollingForDesktop && (
+                                    <button
+                                        onClick={() => {
+                                            setIsPollingForDesktop(false);
+                                            triggerToast("Polling stopped.", "info");
+                                        }}
+                                        className="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-amber-200 flex items-center gap-2 animate-pulse"
+                                    >
+                                        <Loader2 size={14} className="animate-spin" /> Stop Polling
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => setShowScanner(true)}
+                                    className="bg-purple-600 text-white px-3 py-1.5 rounded-full text-xs font-bold hover:bg-purple-700 flex items-center gap-2"
+                                >
+                                    <Camera size={14} /> Scan
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        // Token is handled by HttpOnly cookies
+                                        // Encode Base64 to handle special characters and spaces safely in protocol URI
+                                        const pNameB64 = btoa(unescape(encodeURIComponent(patient.full_name || '')));
+                                        const pmrdB64 = btoa(unescape(encodeURIComponent(patient.patient_u_id || '')));
+                                        const protocolUrl = `digifort://upload?token=cookie_auth_handled&patient_id=${patient.record_id}&patient_name_b64=${pNameB64}&mrd_b64=${pmrdB64}&api_url=${API_URL}`;
+                                        window.open(protocolUrl, '_self');
+                                        setIsPollingForDesktop(true);
+                                        triggerToast("Waiting for scanner uploads...", "info");
+                                    }}
+                                    className="bg-blue-600 text-white px-3 py-1.5 rounded-full text-xs font-bold hover:bg-blue-700 flex items-center gap-2"
+                                >
+                                    <Monitor size={14} /> Desktop App
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {(patient.files || []).length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {(patient.files || []).map((file) => (
+                            <div key={file.file_id} className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow">
+                                <div className="flex items-start justify-between mb-4">
+                                    <div className={`p-2 rounded-lg ${file.upload_status === 'draft' ? 'bg-orange-50 text-orange-500' : 'bg-red-50 text-red-600'}`}>
+                                        <FileType size={20} />
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-xs text-gray-400 block">{formatDate(file.upload_date)}</span>
+                                        {file.upload_status === 'draft' && <span className="text-[10px] font-bold text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full">DRAFT</span>}
+                                    </div>
+                                </div>
+                                <h3 className="font-medium text-gray-800 truncate" title={file.filename}>{file.filename}</h3>
+                                <div className="flex justify-between items-center mb-1">
+                                    <p className="text-xs text-gray-500">{file.file_size_mb ? file.file_size_mb.toFixed(2) : 0} MB</p>
+                                    <p className="text-xs font-bold text-slate-700">{file.page_count || 0} Pages</p>
+                                </div>
+                                <div className="flex justify-between items-center mb-4">
+                                    {file.is_searchable && (
+                                        <span
+                                            className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer hover:bg-green-200"
+                                            onClick={() => setViewTextFile(file)}
+                                            title="Text Extracted & Indexed"
+                                        >
+                                            🔍 SEARCHABLE
+                                        </span>
+                                    )}
+                                    {file.upload_status === 'confirmed' && !file.is_searchable && file.processing_stage === 'analyzing' && (
+                                        <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
+                                            <Loader2 size={10} className="animate-spin" /> ANALYZING OCR...
                                         </span>
                                     )}
                                 </div>
-                                {['IPD', 'OPD', 'MLC', 'BRT', 'DHT'].map(cat => (
-                                    <button
-                                        key={cat}
-                                        onClick={async () => {
-                                            if (patient.patient_category === cat) return;
-                                            setConfirmModal({
-                                                isOpen: true,
-                                                title: "Change Category",
-                                                message: `Change patient category to ${cat}?`,
-                                                type: 'info',
-                                                confirmText: "Change",
-                                                onConfirm: async () => {
-                                                    const token = localStorage.getItem('token');
-                                                    if (!token) return;
-                                                    try {
-                                                        const res = await fetch(`${API_URL}/patients/${id}`, {
-                                                            method: 'PUT',
-                                                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                                                            body: JSON.stringify({ patient_category: cat })
-                                                        });
-                                                        if (res.ok) {
-                                                            triggerToast(`Category updated to ${cat}`, "success");
-                                                            fetchPatient(token, id);
-                                                        } else {
-                                                            triggerToast("Failed to update category", "error");
-                                                        }
-                                                    } catch (e) {
-                                                        console.error(e);
-                                                        triggerToast("Network error", "error");
-                                                    }
-                                                }
-                                            });
-                                        }}
-                                        className={`px-2 py-1 text-[10px] font-black rounded-lg border uppercase tracking-wide shadow-sm transition-all
-                                        ${(patient.patient_category === cat || (cat === 'IPD' && patient.patient_category === 'STANDARD'))
-                                                ? (cat === 'MLC' ? 'bg-red-600 text-white border-red-600 ring-2 ring-red-100' :
-                                                    cat === 'BRT' ? 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-100' :
-                                                        'bg-slate-800 text-white border-slate-800 ring-2 ring-slate-200')
-                                                : 'bg-white text-slate-400 border-slate-200 hover:bg-slate-50 hover:text-slate-600'
-                                            }`}
-                                    >
-                                        {cat}
-                                    </button>
-                                ))}
-                            </div>
 
-                            {/* Patient Details Grid / Edit Form */}
-                            <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-y-2 gap-x-4 text-sm border-t border-gray-100 pt-4">
-                                {isEditingProfile ? (
-                                    <>
-                                        <div className="col-span-2">
-                                            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Full Name</label>
-                                            <input
-                                                type="text"
-                                                className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
-                                                value={editData.full_name || ''}
-                                                onChange={e => setEditData({ ...editData, full_name: e.target.value })}
-                                            />
-                                        </div>
-                                        <div className="col-span-1">
-                                            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">MRD / IPD No.</label>
-                                            <input
-                                                type="text"
-                                                className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 font-mono outline-none focus:border-indigo-500"
-                                                value={editData.patient_u_id || ''}
-                                                onChange={e => setEditData({ ...editData, patient_u_id: e.target.value })}
-                                            />
-                                        </div>
-                                        <div className="col-span-1">
-                                            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">UHID</label>
-                                            <input
-                                                type="text"
-                                                className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 font-mono outline-none focus:border-indigo-500"
-                                                value={editData.uhid || ''}
-                                                onChange={e => setEditData({ ...editData, uhid: e.target.value })}
-                                            />
-                                        </div>
-                                        <div className="col-span-1">
-                                            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Category</label>
-                                            <select
-                                                className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
-                                                value={editData.patient_category || 'STANDARD'}
-                                                onChange={e => setEditData({ ...editData, patient_category: e.target.value })}
-                                            >
-                                                <option value="STANDARD">STANDARD</option>
-                                                <option value="IPD">IPD</option>
-                                                <option value="OPD">OPD</option>
-                                                <option value="MLC">MCL (Medico-Legal)</option>
-                                                <option value="BRT">Birth</option>
-                                                <option value="DHT">Death</option>
-                                            </select>
-                                        </div>
-                                        <div className="col-span-1">
-                                            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Contact No.</label>
-                                            <input
-                                                type="text"
-                                                className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 font-mono outline-none focus:border-indigo-500"
-                                                value={editData.contact_number || ''}
-                                                onChange={e => setEditData({ ...editData, contact_number: e.target.value })}
-                                            />
-                                        </div>
-                                        <div className="col-span-2">
-                                            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Doctor(s)</label>
-                                            <div className="flex flex-wrap gap-2 mb-2">
-                                                {editData.doctor_name ? editData.doctor_name.split(',').map((d: string) => d.trim()).filter(Boolean).map((doc: string, idx: number) => (
-                                                    <span key={idx} className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 border border-indigo-200">
-                                                        {doc}
-                                                        <button onClick={() => removeDoctorTag(doc)} className="hover:text-red-500"><X size={12} /></button>
-                                                    </span>
-                                                )) : <span className="text-xs text-slate-400 italic">No doctors added</span>}
-                                            </div>
-                                            <div className="flex gap-2 relative">
-                                                <input
-                                                    type="text"
-                                                    className="flex-1 border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
-                                                    value={doctorInput}
-                                                    onChange={e => {
-                                                        setDoctorInput(e.target.value);
-                                                        setShowDoctorSuggestions(true);
-                                                    }}
-                                                    onFocus={() => setShowDoctorSuggestions(true)}
-                                                    onKeyDown={e => {
-                                                        if (e.key === 'Enter') {
-                                                            e.preventDefault();
-                                                            addDoctorTag(doctorInput);
-                                                            setShowDoctorSuggestions(false);
-                                                        }
-                                                    }}
-                                                    placeholder="Type Doctor Name & Press Enter"
-                                                />
-                                                {showDoctorSuggestions && doctorInput.length > 0 && (
-                                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-40 overflow-y-auto">
-                                                        {(hospitalDoctors || [])
-                                                            .filter(d => d.toLowerCase().includes(doctorInput.toLowerCase()) &&
-                                                                !(editData.doctor_name || "").toLowerCase().includes(d.toLowerCase()))
-                                                            .map((doc, idx) => (
-                                                                <button
-                                                                    key={idx}
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        addDoctorTag(doc);
-                                                                        setShowDoctorSuggestions(false);
-                                                                    }}
-                                                                    className="w-full text-left px-4 py-2 hover:bg-indigo-50 text-sm font-bold text-slate-700 border-b border-slate-50 last:border-0"
-                                                                >
-                                                                    {doc}
-                                                                </button>
-                                                            ))
-                                                        }
-                                                    </div>
-                                                )}
-                                                <button
-                                                    onClick={() => {
-                                                        addDoctorTag(doctorInput);
-                                                        setShowDoctorSuggestions(false);
-                                                    }}
-                                                    className="px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold border border-indigo-100 hover:bg-indigo-100 transition-all"
-                                                >
-                                                    Add
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="col-span-1">
-                                            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Weight (kg)</label>
-                                            <input
-                                                type="text"
-                                                className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
-                                                value={editData.weight || ''}
-                                                onChange={e => setEditData({ ...editData, weight: e.target.value })}
-                                                placeholder="e.g. 70kg"
-                                            />
-                                        </div>
-                                        <div className="col-span-2">
-                                            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Discharge Date</label>
-                                            <input
-                                                type="date"
-                                                className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
-                                                value={editData.discharge_date || ''}
-                                                onChange={e => setEditData({ ...editData, discharge_date: e.target.value })}
-                                            />
-                                        </div>
-                                        <div className="col-span-2">
-                                            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Diagnosis</label>
-                                            <textarea
-                                                className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500 h-20"
-                                                value={editData.diagnosis || ''}
-                                                onChange={e => setEditData({ ...editData, diagnosis: e.target.value })}
-                                                placeholder="Enter Diagnosis..."
-                                            />
-                                        </div>
-                                        <div className="col-span-2">
-                                            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Operative Notes</label>
-                                            <textarea
-                                                className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500 h-20"
-                                                value={editData.operative_notes || ''}
-                                                onChange={e => setEditData({ ...editData, operative_notes: e.target.value })}
-                                                placeholder="Enter Operative Notes..."
-                                            />
-                                        </div>
-                                        <div className="col-span-1">
-                                            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Mediclaim</label>
-                                            <input
-                                                type="text"
-                                                className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
-                                                value={editData.mediclaim || ''}
-                                                onChange={e => setEditData({ ...editData, mediclaim: e.target.value })}
-                                                placeholder="e.g. Yes/No/Policy No."
-                                            />
-                                        </div>
-                                        <div className="md:col-span-3 col-span-2">
-                                            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Address</label>
-                                            <input
-                                                type="text"
-                                                className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500"
-                                                value={editData.address || ''}
-                                                onChange={e => setEditData({ ...editData, address: e.target.value })}
-                                            />
-                                        </div>
-                                        <div className="col-span-2">
-                                            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Medical Summary</label>
-                                            <textarea
-                                                className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500 h-20"
-                                                value={editData.medical_summary || ''}
-                                                onChange={e => setEditData({ ...editData, medical_summary: e.target.value })}
-                                            />
-                                        </div>
-                                        <div className="col-span-2">
-                                            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Remarks</label>
-                                            <textarea
-                                                className="w-full border border-slate-200 p-2 rounded-lg font-bold text-slate-700 outline-none focus:border-indigo-500 h-20"
-                                                value={editData.remarks || ''}
-                                                onChange={e => setEditData({ ...editData, remarks: e.target.value })}
-                                            />
-                                        </div>
-                                        <div className="md:col-span-4 col-span-2 flex justify-end">
-                                            <button
-                                                onClick={handleSaveProfile}
-                                                disabled={isSavingProfile}
-                                                className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-black shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all flex items-center gap-2 w-full md:w-auto justify-center"
-                                            >
-                                                {isSavingProfile ? <><Loader2 className="animate-spin" size={20} /> Saving...</> : 'Save Patient Record'}
-                                            </button>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        {patient.uhid && (
-                                            <div>
-                                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">UHID</span>
-                                                <p className="font-bold text-gray-700 font-mono">{patient.uhid}</p>
-                                            </div>
-                                        )}
-                                        {patient.aadhaar_number && (
-                                            <div>
-                                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Aadhaar No.</span>
-                                                <p className="font-bold text-gray-700 font-mono tracking-wider">{patient.aadhaar_number.replace(/(\d{4})(?=\d)/g, "$1 ")}</p>
-                                            </div>
-                                        )}
-                                        <div>
-                                            <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mb-0.5">Doctor(s)</span>
-                                            <div className="flex flex-wrap gap-1.5 mt-1">
-                                                {patient.doctor_name ? patient.doctor_name.split(',').map((d: string) => d.trim()).filter(Boolean).map((doc: string, idx: number) => (
-                                                    <span key={idx} className="bg-white border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded-lg text-[10px] font-black shadow-sm flex items-center gap-1.5">
-                                                        <Stethoscope size={10} className="text-indigo-400" />
-                                                        {doc}
-                                                    </span>
-                                                )) : <span className="text-slate-300 italic text-xs">Not assigned</span>}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mb-0.5">Weight</span>
-                                            <p className="font-bold text-gray-800">
-                                                {patient.weight || <span className="text-slate-300 italic">—</span>}
-                                            </p>
-                                        </div>
-                                        {(patient.age || patient.gender) && (
-                                            <div>
-                                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Demographics</span>
-                                                <p className="font-semibold text-gray-700">
-                                                    {patient.age ? (typeof patient.age === 'number' || !isNaN(Number(patient.age)) ? `${patient.age} Y` : patient.age) : ''}
-                                                    {patient.age && patient.gender ? ' / ' : ''}
-                                                    {patient.gender || ''}
-                                                </p>
-                                            </div>
-                                        )}
-                                        {patient.contact_number && (
-                                            <div>
-                                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Contact</span>
-                                                <p className="font-semibold text-gray-700 font-mono">{patient.contact_number}</p>
-                                            </div>
-                                        )}
-                                        <div>
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Mediclaim</span>
-                                            <p className="font-semibold text-slate-700">
-                                                {patient.mediclaim || <span className="text-slate-300 italic">—</span>}
-                                            </p>
-                                        </div>
-                                        {patient.discharge_date && (
-                                            <div>
-                                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Discharged</span>
-                                                <p className="font-semibold text-gray-700">{formatDate(patient.discharge_date)}</p>
-                                            </div>
-                                        )}
-                                        {patient.address && (
-                                            <div className="col-span-2">
-                                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-0.5">Address</span>
-                                                <p className="font-semibold text-gray-700 truncate" title={patient.address}>
-                                                    {patient.address} {patient.city ? `, ${patient.city}` : ''}
-                                                </p>
-                                            </div>
-                                        )}
-                                        <div className="col-span-2">
-                                            <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mb-0.5">Diagnosis</span>
-                                            <p className="text-slate-700 font-medium whitespace-pre-wrap">
-                                                {patient.diagnosis || <span className="text-slate-300 italic">No direct diagnosis recorded.</span>}
-                                            </p>
-                                        </div>
-                                        <div className="col-span-2">
-                                            <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mb-0.5">Operative Notes</span>
-                                            <p className="text-slate-700 font-medium whitespace-pre-wrap">
-                                                {patient.operative_notes || <span className="text-slate-300 italic">—</span>}
-                                            </p>
-                                        </div>
-                                        <div className="col-span-2 border-t border-slate-50 pt-3">
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Medical Summary</span>
-                                            <p className="text-slate-600 text-xs whitespace-pre-wrap leading-relaxed">
-                                                {patient.medical_summary || <span className="text-slate-300 italic">—</span>}
-                                            </p>
-                                        </div>
-                                        <div className="col-span-2 border-t border-slate-50 pt-3">
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Remarks</span>
-                                            <p className="text-slate-600 text-xs whitespace-pre-wrap leading-relaxed">
-                                                {patient.remarks || <span className="text-slate-300 italic">—</span>}
-                                            </p>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Header Actions Sidebar */}
-                        <div className="flex flex-col items-end gap-2 shrink-0">
-                            {/* Physical Storage Badge - Smaller & Above */}
-                            {!['hospital_admin', 'mrd_staff'].includes(userRole) && (
-                                <div className="bg-amber-50/50 backdrop-blur-sm border border-amber-200 rounded-lg px-2 py-1.5 flex flex-col items-start gap-1 shadow-sm w-full min-w-[140px]">
-                                    <div className="flex items-center gap-1.5 w-full">
-                                        <Archive size={12} className="text-amber-600" />
-                                        <p className="text-[9px] text-amber-700 font-black uppercase tracking-widest whitespace-nowrap">Physical Storage</p>
-                                    </div>
-
-                                    {patient.box_label ? (
-                                        <div className="flex items-center justify-between w-full gap-2">
-                                            <div className="flex items-center gap-1">
-                                                <Box size={12} className="text-amber-500" />
-                                                <p className="text-xs font-black text-amber-900">{patient.box_label}</p>
-                                            </div>
-                                            <div className="bg-white/50 px-1.5 py-0.5 rounded border border-amber-100 flex items-center gap-1">
-                                                <span className="text-[8px] font-black text-amber-500">LOC</span>
-                                                <p className="text-[8px] font-bold text-amber-700">{patient.box_location_code}</p>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <p className="text-[9px] text-amber-400 italic font-bold">
-                                            {(patient.files || []).length > 0 ? 'Not Assigned' : 'Upload Files to Assign'}
-                                        </p>
-                                    )}
-
-                                    {/* Role Restriction & File Requirement */}
-                                    {(userRole === 'mrd_staff' || userRole === 'website_admin') && (patient.files || []).length > 0 && (
+                                {/* Compact Action Row */}
+                                <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-50 bg-gray-50/50 -mx-3 -mb-3 p-2 rounded-b-lg">
+                                    {file.is_glacier && file.restore_status !== 'AVAILABLE' ? (
                                         <button
-                                            onClick={() => {
-                                                fetchBoxes();
-                                                setShowBoxModal(true);
-                                            }}
-                                            className="text-[9px] bg-white border border-amber-200 text-amber-700 px-2 py-1 rounded hover:bg-amber-50 font-black transition-all shadow-sm w-full mt-0.5 flex items-center justify-center gap-1"
-                                        >
-                                            <Plus size={10} />
-                                            {patient.box_label ? 'Update' : 'Assign'}
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-
-                            <button
-                                onClick={() => setIsEditingProfile(!isEditingProfile)}
-                                className={`px-4 py-2 rounded-xl border text-xs font-black transition-all shadow-md flex items-center gap-2 w-full justify-center
-                            ${isEditingProfile ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100' : 'bg-indigo-600 text-white border-indigo-500 hover:bg-indigo-700 hover:shadow-indigo-500/25'}`}
-                            >
-                                {isEditingProfile ? <><X size={14} /> Cancel Edit</> : <><Pencil size={14} /> Edit Profile</>}
-                            </button>
-                        </div>
-                    </div>
-
-
-
-                    {/* Digitized Files Section - Moved Above Diagnoses */}
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 mb-3">
-                        <div className="flex justify-between items-center mb-3 border-b pb-2">
-                            <h2 className="text-base font-semibold">Digitized Files ({(patient.files || []).length})</h2>
-                            {(userRole === 'website_staff' || userRole === 'data_uploader' || userRole === 'website_admin' || userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'superadmin' || userRole === 'superadmin_staff') && (
-                                <div className="flex gap-2">
-                                    {isPollingForDesktop && (
-                                        <button
-                                            onClick={() => {
-                                                setIsPollingForDesktop(false);
-                                                triggerToast("Polling stopped.", "info");
-                                            }}
-                                            className="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-amber-200 flex items-center gap-2 animate-pulse"
-                                        >
-                                            <Loader2 size={14} className="animate-spin" /> Stop Polling
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={() => setShowScanner(true)}
-                                        className="bg-purple-600 text-white px-3 py-1.5 rounded-full text-xs font-bold hover:bg-purple-700 flex items-center gap-2"
-                                    >
-                                        <Camera size={14} /> Scan
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            const token = localStorage.getItem('token');
-                                            // Encode Base64 to handle special characters and spaces safely in protocol URI
-                                            const pNameB64 = btoa(unescape(encodeURIComponent(patient.full_name || '')));
-                                            const pmrdB64 = btoa(unescape(encodeURIComponent(patient.patient_u_id || '')));
-                                            const protocolUrl = `digifort://upload?token=${token}&patient_id=${patient.record_id}&patient_name_b64=${pNameB64}&mrd_b64=${pmrdB64}&api_url=${API_URL}`;
-                                            window.open(protocolUrl, '_self');
-                                            setIsPollingForDesktop(true);
-                                            triggerToast("Waiting for scanner uploads...", "info");
-                                        }}
-                                        className="bg-blue-600 text-white px-3 py-1.5 rounded-full text-xs font-bold hover:bg-blue-700 flex items-center gap-2"
-                                    >
-                                        <Monitor size={14} /> Desktop App
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {(patient.files || []).length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {(patient.files || []).map((file) => (
-                                <div key={file.file_id} className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow">
-                                    <div className="flex items-start justify-between mb-4">
-                                        <div className={`p-2 rounded-lg ${file.upload_status === 'draft' ? 'bg-orange-50 text-orange-500' : 'bg-red-50 text-red-600'}`}>
-                                            <FileType size={20} />
-                                        </div>
-                                        <div className="text-right">
-                                            <span className="text-xs text-gray-400 block">{formatDate(file.upload_date)}</span>
-                                            {file.upload_status === 'draft' && <span className="text-[10px] font-bold text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full">DRAFT</span>}
-                                        </div>
-                                    </div>
-                                    <h3 className="font-medium text-gray-800 truncate" title={file.filename}>{file.filename}</h3>
-                                    <div className="flex justify-between items-center mb-1">
-                                        <p className="text-xs text-gray-500">{file.file_size_mb ? file.file_size_mb.toFixed(2) : 0} MB</p>
-                                        <p className="text-xs font-bold text-slate-700">{file.page_count || 0} Pages</p>
-                                    </div>
-                                    <div className="flex justify-between items-center mb-4">
-                                        {file.is_searchable && (
-                                            <span
-                                                className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer hover:bg-green-200"
-                                                onClick={() => setViewTextFile(file)}
-                                                title="Text Extracted & Indexed"
-                                            >
-                                                🔍 SEARCHABLE
-                                            </span>
-                                        )}
-                                        {file.upload_status === 'confirmed' && !file.is_searchable && file.processing_stage === 'analyzing' && (
-                                            <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
-                                                <Loader2 size={10} className="animate-spin" /> ANALYZING OCR...
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* Compact Action Row */}
-                                    <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-50 bg-gray-50/50 -mx-3 -mb-3 p-2 rounded-b-lg">
-                                        {file.is_glacier && file.restore_status !== 'AVAILABLE' ? (
-                                            <button
-                                                disabled={file.restore_status === 'RETRIEVING'}
-                                                onClick={() => handleRestoreFile(file.file_id)}
-                                                title={file.restore_status === 'RETRIEVING' ? 'Retrieving...' : 'Retrieve from Archive'}
-                                                className={`p-1.5 rounded-md transition-all flex items-center justify-center
+                                            disabled={file.restore_status === 'RETRIEVING'}
+                                            onClick={() => handleRestoreFile(file.file_id)}
+                                            title={file.restore_status === 'RETRIEVING' ? 'Retrieving...' : 'Retrieve from Archive'}
+                                            className={`p-1.5 rounded-md transition-all flex items-center justify-center
                                                     ${file.restore_status === 'RETRIEVING'
-                                                        ? 'bg-amber-50 text-amber-600 cursor-wait'
-                                                        : 'bg-white text-amber-600 hover:bg-amber-50 border border-transparent hover:border-amber-200'}`}
-                                            >
-                                                {file.restore_status === 'RETRIEVING' ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                                            </button>
-                                        ) : (
-                                            <button
-                                                onClick={() => setViewSecureFile(file)}
-                                                className="flex-1 py-1.5 bg-indigo-600 text-white rounded-md text-xs font-bold hover:bg-indigo-700 flex items-center justify-center gap-1.5 shadow-sm transition-all shadow-indigo-200"
-                                            >
-                                                <Shield size={12} /> Secure View
-                                            </button>
-                                        )}
-
-                                        <button
-                                            onClick={() => setViewTextFile(file)}
-                                            className="px-3 py-1.5 bg-white text-slate-600 border border-slate-200 rounded-md text-xs font-bold hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-all"
-                                            title="Edit OCR / Tags"
+                                                    ? 'bg-amber-50 text-amber-600 cursor-wait'
+                                                    : 'bg-white text-amber-600 hover:bg-amber-50 border border-transparent hover:border-amber-200'}`}
                                         >
-                                            <FileText size={14} />
+                                            {file.restore_status === 'RETRIEVING' ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
                                         </button>
-
-                                        {/* Manual OCR Trigger */}
-                                        {(file.upload_status === 'confirmed' && (!file.is_searchable || file.processing_stage === 'failed' || file.processing_stage === 'analyzing')) && (
-                                            <button
-                                                onClick={() => handleRunOCR(file.file_id)}
-                                                className="px-3 py-1.5 bg-white text-slate-600 border border-slate-200 rounded-md text-xs font-bold hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-all"
-                                                title="Run OCR"
-                                            >
-                                                <Sparkles size={14} />
-                                            </button>
-                                        )}
-
-                                        {file.upload_status === 'draft' ? (
-                                            <div className="flex gap-1 ml-auto">
-                                                {!confirmingFiles.has(file.file_id) ? (
-                                                    <>
-                                                        <button onClick={() => handleConfirmUpload(file.file_id)} className="px-2 py-1.5 bg-green-100 text-green-700 rounded-md text-xs font-bold hover:bg-green-200" title="Confirm Upload"><CheckCircle size={14} /></button>
-                                                        <button onClick={() => handleDiscardDraft(file.file_id)} className="px-2 py-1.5 bg-gray-100 text-gray-500 rounded-md text-xs font-bold hover:bg-gray-200" title="Discard Draft"><X size={14} /></button>
-                                                    </>
-                                                ) : (
-                                                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-600 rounded-md text-[10px] font-bold">
-                                                        <Loader2 size={12} className="animate-spin" /> Publishing...
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            userRole !== 'mrd_staff' && (
-                                                <button
-                                                    onClick={() => handleRequestDeletion(file.file_id)}
-                                                    className={`ml-auto p-1.5 rounded-md transition-colors ${userRole === 'hospital_admin' || userRole === 'website_admin' ? 'text-red-500 hover:bg-red-50 hover:text-red-600' : 'text-amber-500 hover:bg-amber-50 hover:text-amber-600'}`}
-                                                    title={userRole === 'hospital_admin' || userRole === 'website_admin' ? 'Delete File' : 'Request Deletion'}
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            )
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-12 text-gray-500">
-                            <p>No files uploaded for this {terms.patient}.</p>
-                        </div>
-                    )}
-
-                    {/* Upload Section for Staff */}
-                    {(userRole === 'website_staff' || userRole === 'data_uploader' || userRole === 'website_admin' || userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'superadmin' || userRole === 'superadmin_staff') && (
-                        <div className="mt-8 pt-8 border-t border-gray-100">
-                            <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
-                                <h3 className="text-sm font-bold text-gray-400 uppercase">Input Files</h3>
-                                <div className="flex gap-2">
-
-                                    {fileQueue.length > 0 && !isUploading && (
+                                    ) : (
                                         <button
-                                            onClick={startProcessing}
-                                            className="bg-indigo-600 text-white px-3 py-1.5 rounded-full text-xs font-bold hover:bg-indigo-700 flex items-center gap-2"
+                                            onClick={() => setViewSecureFile(file)}
+                                            className="flex-1 py-1.5 bg-indigo-600 text-white rounded-md text-xs font-bold hover:bg-indigo-700 flex items-center justify-center gap-1.5 shadow-sm transition-all shadow-indigo-200"
                                         >
-                                            <PlayCircle size={14} /> Upload All
+                                            <Shield size={12} /> Secure View
                                         </button>
                                     )}
-                                </div>
-                            </div>
 
-                            <div className={`relative group transition-all duration-300 ${isUploading ? 'opacity-50 pointer-events-none grayscale' : 'opacity-100'}`}>
-                                <div className="relative bg-white border-2 border-dashed border-slate-200 hover:border-indigo-300 rounded-xl p-4 text-center transition-all cursor-pointer overflow-hidden">
-                                    <input
-                                        type="file"
-                                        multiple
-                                        accept=".pdf, .mp4, .mov, .avi, .mkv"
-                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                                        onChange={handleFileSelect}
-                                        disabled={isUploading}
-                                    />
-                                    <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                                        <Upload className="text-indigo-600" size={20} />
-                                    </div>
-                                    <h4 className="text-sm font-black text-slate-700 mb-1">Click to Select Files</h4>
-                                </div>
-                            </div>
+                                    <button
+                                        onClick={() => setViewTextFile(file)}
+                                        className="px-3 py-1.5 bg-white text-slate-600 border border-slate-200 rounded-md text-xs font-bold hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-all"
+                                        title="Edit OCR / Tags"
+                                    >
+                                        <FileText size={14} />
+                                    </button>
 
-                            {/* File Queue List */}
-                            {fileQueue.length > 0 && (
-                                <div className="mt-6 space-y-3">
-                                    {fileQueue.map((item) => (
-                                        <div key={item.id} className="bg-white border border-slate-100 rounded-xl p-3 shadow-sm relative overflow-hidden">
-                                            {(item.status === 'uploading' || item.status === 'compressing') && (
-                                                <div className="absolute bottom-0 left-0 h-1 bg-indigo-50 w-full">
-                                                    <div
-                                                        className={`h-full transition-all duration-300 ${item.status === 'compressing' ? 'bg-amber-400 w-full animate-pulse' : 'bg-indigo-500'}`}
-                                                        style={{ width: item.status === 'uploading' ? `${item.progress}%` : '100%' }}
-                                                    ></div>
+                                    {/* Manual OCR Trigger */}
+                                    {(file.upload_status === 'confirmed' && (!file.is_searchable || file.processing_stage === 'failed' || file.processing_stage === 'analyzing')) && (
+                                        <button
+                                            onClick={() => handleRunOCR(file.file_id)}
+                                            className="px-3 py-1.5 bg-white text-slate-600 border border-slate-200 rounded-md text-xs font-bold hover:bg-slate-50 flex items-center justify-center gap-1.5 transition-all"
+                                            title="Run OCR"
+                                        >
+                                            <Sparkles size={14} />
+                                        </button>
+                                    )}
+
+                                    {file.upload_status === 'draft' ? (
+                                        <div className="flex gap-1 ml-auto">
+                                            {!confirmingFiles.has(file.file_id) ? (
+                                                <>
+                                                    <button onClick={() => handleConfirmUpload(file.file_id)} className="px-2 py-1.5 bg-green-100 text-green-700 rounded-md text-xs font-bold hover:bg-green-200" title="Confirm Upload"><CheckCircle size={14} /></button>
+                                                    <button onClick={() => handleDiscardDraft(file.file_id)} className="px-2 py-1.5 bg-gray-100 text-gray-500 rounded-md text-xs font-bold hover:bg-gray-200" title="Discard Draft"><X size={14} /></button>
+                                                </>
+                                            ) : (
+                                                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-600 rounded-md text-[10px] font-bold">
+                                                    <Loader2 size={12} className="animate-spin" /> Publishing...
                                                 </div>
                                             )}
-                                            <div className="flex items-center gap-3 relative z-10">
-                                                <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-500 shrink-0">
-                                                    {item.originalFile.type.includes('image') ? <FileType size={14} /> : <PlayCircle size={14} />}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex justify-between items-start">
-                                                        <p className="font-bold text-xs text-slate-700 truncate">{item.originalFile.name}</p>
-                                                        {item.status === 'pending' && (
-                                                            <button onClick={() => removeFile(item.id)} className="text-slate-300 hover:text-red-500"><X size={14} /></button>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-2 mt-0.5">
-                                                        {item.status === 'compressing' && <span className="text-[10px] text-amber-600 flex items-center gap-1"><Loader2 size={8} className="animate-spin" /> Optimizing</span>}
-                                                        {item.status === 'uploading' && <span className="text-[10px] text-indigo-600">Uploading {item.progress}%</span>}
-                                                        {item.status === 'completed' && <span className="text-[10px] text-green-600 flex items-center gap-1"><CheckCircle size={8} /> Done</span>}
-                                                    </div>
-                                                </div>
-                                            </div>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* Specialty Specific Data */}
-                {specialty === 'Dental' && (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                        <div className="flex justify-between items-center mb-4 border-b pb-2">
-                            <h2 className="text-lg font-semibold flex items-center gap-2">
-                                🦷 Tooth Information
-                            </h2>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Primary Complaint</label>
-                                <p className="text-sm text-slate-700 font-medium">
-                                    {patient.specialty_data?.primary_complaint || 'No records found.'}
-                                </p>
-                            </div>
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Tooth Numbers Involved</label>
-                                <div className="flex flex-wrap gap-2">
-                                    {patient.specialty_data?.tooth_numbers?.length > 0 ? (
-                                        patient.specialty_data.tooth_numbers.map((t: string) => (
-                                            <span key={t} className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md text-xs font-bold border border-indigo-100">
-                                                #{t}
-                                            </span>
-                                        ))
                                     ) : (
-                                        <p className="text-sm text-slate-400 italic">No teeth specified.</p>
+                                        userRole !== 'mrd_staff' && (
+                                            <button
+                                                onClick={() => handleRequestDeletion(file.file_id)}
+                                                className={`ml-auto p-1.5 rounded-md transition-colors ${userRole === 'hospital_admin' || userRole === 'website_admin' ? 'text-red-500 hover:bg-red-50 hover:text-red-600' : 'text-amber-500 hover:bg-amber-50 hover:text-amber-600'}`}
+                                                title={userRole === 'hospital_admin' || userRole === 'website_admin' ? 'Delete File' : 'Request Deletion'}
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        )
                                     )}
                                 </div>
                             </div>
-                        </div>
-                        <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-100 flex items-start gap-3">
-                            <Info className="text-amber-500 mt-1" size={16} />
-                            <p className="text-xs text-amber-700 leading-relaxed italic">
-                                Note: Advanced tooth charting and treatment planning are available in the Dental Specialty module.
-                            </p>
-                        </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-12 text-gray-500">
+                        <p>No files uploaded for this {terms.patient}.</p>
                     </div>
                 )}
 
-                {specialty === 'ENT' && (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                        <div className="flex justify-between items-center mb-4 border-b pb-2">
-                            <h2 className="text-lg font-semibold flex items-center gap-2">
-                                <Ear className="text-rose-500" /> ENT Clinical Findings
-                            </h2>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Chief Complaint</label>
-                                <p className="text-sm text-slate-700 font-medium">
-                                    {patient.specialty_data?.chief_complaint || 'No records found.'}
-                                </p>
-                            </div>
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Otoscopy / Nasal Findings</label>
-                                <p className="text-sm text-slate-700 font-medium">
-                                    {patient.specialty_data?.clinical_findings || 'No findings recorded.'}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="mt-4 p-4 bg-rose-50 rounded-xl border border-rose-100 flex items-start gap-3">
-                            <Activity className="text-rose-500 mt-1" size={16} />
-                            <p className="text-xs text-rose-700 leading-relaxed italic">
-                                Note: Specialized ENT diagnostic reports and audio-visual recordings can be attached in the File section.
-                            </p>
-                        </div>
-                    </div>
-                )}
+                {/* Upload Section for Staff */}
+                {(userRole === 'website_staff' || userRole === 'data_uploader' || userRole === 'website_admin' || userRole === 'hospital_admin' || userRole === 'mrd_staff' || userRole === 'superadmin' || userRole === 'superadmin_staff') && (
+                    <div className="mt-8 pt-8 border-t border-gray-100">
+                        <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
+                            <h3 className="text-sm font-bold text-gray-400 uppercase">Input Files</h3>
+                            <div className="flex gap-2">
 
-                {/* Clinical Diagnoses Card */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                    <div className="flex justify-between items-center mb-4 border-b pb-2">
-                        <h2 className="text-lg font-semibold flex items-center gap-2">
-                            <Stethoscope className="text-indigo-600" size={20} /> Clinical Diagnoses
-                        </h2>
-                        {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'website_staff' || userRole === 'superadmin') && (
-                            <button
-                                onClick={() => setIsAddingDiag(!isAddingDiag)}
-                                className={`text-xs px-3 py-1.5 rounded-lg border font-bold transition-all ${isAddingDiag ? 'bg-red-50 text-red-600 border-red-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'}`}
-                            >
-                                {isAddingDiag ? 'Cancel' : <><Plus size={14} /> Add</>}
-                            </button>
-                        )}
-                    </div>
-
-                    {isAddingDiag && (
-                        <div className="mb-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 animate-in fade-in slide-in-from-top-2">
-                            <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Search ICD-11 Database</p>
-                            {!selectedCode ? (
-                                <>
-                                    <div className="relative">
-                                        {isSearchingDiag ? (
-                                            <Loader2 className="absolute left-3 top-2.5 text-indigo-400 animate-spin" size={16} />
-                                        ) : (
-                                            <Search className="absolute left-3 top-2.5 text-indigo-400" size={16} />
-                                        )}
-                                        <input
-                                            autoFocus
-                                            className="w-full border border-indigo-200 p-2 pl-10 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                            placeholder="Search diagnosis (e.g. Diabetes, Fever)..."
-                                            value={diagSearch}
-                                            onChange={e => searchDiagnoses(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="mt-2 max-h-48 overflow-y-auto bg-white rounded-lg border border-indigo-100 shadow-sm">
-                                        {diagResults.length > 0 ? diagResults.map(r => (
-                                            <div key={r.code} onClick={() => setSelectedCode(r)} className="p-3 hover:bg-indigo-50 cursor-pointer border-b last:border-0 border-slate-50 flex flex-col">
-                                                <span className="font-bold text-indigo-700 text-xs">{r.code}</span>
-                                                <span className="text-sm text-slate-700">{r.description}</span>
-                                            </div>
-                                        )) : diagSearch.length >= 2 ? (
-                                            <div className="p-4 text-center text-slate-400 text-xs italic">No matching codes found.</div>
-                                        ) : null}
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="space-y-3">
-                                    <div className="bg-white p-3 rounded-lg border border-indigo-200">
-                                        <span className="font-black text-indigo-700 text-xs">{selectedCode.code}</span>
-                                        <p className="text-sm font-bold text-slate-800">{selectedCode.description}</p>
-                                    </div>
-                                    <textarea
-                                        className="w-full border border-indigo-200 p-3 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-20"
-                                        placeholder="Add clinical notes (optional)..."
-                                        value={diagNotes}
-                                        onChange={e => setDiagNotes(e.target.value)}
-                                    />
-                                    <div className="flex gap-2">
-                                        <button onClick={addDiagnosis} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 w-full transition-all">Add to Record</button>
-                                        <button onClick={() => setSelectedCode(null)} className="text-slate-500 px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50 w-full transition-all">Cancel</button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {diagnoses.length > 0 ? (
-                        <div className="space-y-2">
-                            {diagnoses.map(diag => (
-                                <div key={diag.diagnosis_id} className="p-3 bg-slate-50 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-100 flex justify-between group">
-                                    <div>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 rounded text-xs">{diag.code}</span>
-                                            <span className="font-semibold text-slate-700 text-sm">{diag.description}</span>
-                                        </div>
-                                        {diag.notes && <p className="text-xs text-slate-500 mt-1 italic">"{diag.notes}"</p>}
-                                    </div>
-                                    {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'website_admin') && (
-                                        <button onClick={() => deleteDiagnosis(diag.diagnosis_id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    ) : <p className="text-sm text-slate-400 italic">No diagnoses recorded.</p>}
-                </div>
-
-                {/* Clinical Procedures Card */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-                    <div className="flex justify-between items-center mb-4 border-b pb-2">
-                        <h2 className="text-lg font-semibold flex items-center gap-2">
-                            <Syringe className="text-emerald-600" size={20} /> Procedures
-                        </h2>
-                        {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'superadmin') && (
-                            <button
-                                onClick={() => setIsAddingProc(!isAddingProc)}
-                                className={`text-xs px-3 py-1.5 rounded-lg border font-bold transition-all ${isAddingProc ? 'bg-red-50 text-red-600 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100'}`}
-                            >
-                                {isAddingProc ? 'Cancel' : <><Plus size={14} /> Add</>}
-                            </button>
-                        )}
-                    </div>
-
-                    {isAddingProc && (
-                        <div className="mb-4 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-top-2">
-                            <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2">Search Procedures</p>
-                            {!selectedProcCode ? (
-                                <>
-                                    <div className="relative">
-                                        {isSearchingProc ? (
-                                            <Loader2 className="absolute left-3 top-2.5 text-emerald-400 animate-spin" size={16} />
-                                        ) : (
-                                            <Search className="absolute left-3 top-2.5 text-emerald-400" size={16} />
-                                        )}
-                                        <input
-                                            autoFocus
-                                            className="w-full border border-emerald-200 p-2 pl-10 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                                            placeholder="Search procedure (e.g. Surgery, X-Ray)..."
-                                            value={procSearch}
-                                            onChange={e => searchProcedures(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="mt-2 max-h-48 overflow-y-auto bg-white rounded-lg border border-emerald-100 shadow-sm">
-                                        {procResults.length > 0 ? procResults.map(r => (
-                                            <div key={r.code} onClick={() => setSelectedProcCode(r)} className="p-3 hover:bg-emerald-50 cursor-pointer border-b last:border-0 border-slate-50 flex flex-col">
-                                                <span className="font-bold text-emerald-700 text-xs">{r.code}</span>
-                                                <span className="text-sm text-slate-700">{r.description}</span>
-                                            </div>
-                                        )) : procSearch.length >= 2 ? (
-                                            <div className="p-4 text-center text-slate-400 text-xs italic">No matching procedures found.</div>
-                                        ) : null}
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="space-y-3">
-                                    <div className="bg-white p-3 rounded-lg border border-emerald-200">
-                                        <span className="font-black text-emerald-700 text-xs">{selectedProcCode.code}</span>
-                                        <p className="text-sm font-bold text-slate-800">{selectedProcCode.description}</p>
-                                    </div>
-                                    <textarea
-                                        className="w-full border border-emerald-200 p-3 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none h-20"
-                                        placeholder="Add procedure notes..."
-                                        value={procNotes}
-                                        onChange={e => setProcNotes(e.target.value)}
-                                    />
-                                    <div className="flex gap-2">
-                                        <button onClick={addProcedure} className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-700 w-full transition-all">Add to Record</button>
-                                        <button onClick={() => setSelectedProcCode(null)} className="text-slate-500 px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50 w-full transition-all">Cancel</button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {procedures.length > 0 ? (
-                        <div className="space-y-2">
-                            {procedures.map((proc, idx) => (
-                                <div key={idx} className="p-3 bg-slate-50 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-100 flex justify-between group">
-                                    <div>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 rounded text-xs">{proc.code}</span>
-                                            <span className="font-semibold text-slate-700 text-sm">{proc.description}</span>
-                                        </div>
-                                        {proc.notes && <p className="text-xs text-slate-500 mt-1 italic">"{proc.notes}"</p>}
-                                    </div>
-                                    {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'website_admin') && (
-                                        <button onClick={() => deleteProcedure(proc.procedure_id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    ) : <p className="text-sm text-slate-400 italic">No procedures recorded.</p>}
-                </div>
-
-                <div className="mt-12 pt-8 border-t border-red-100 flex justify-center">
-                    <button
-                        onClick={handleDeletePatient}
-                        className="px-6 py-3 bg-red-50 text-red-600 font-bold rounded-xl border border-red-200 hover:bg-red-100 hover:border-red-300 transition-all flex items-center gap-2"
-                    >
-                        <Trash2 size={18} /> Delete {terms.patient} Record
-                    </button>
-                </div>
-            </div>
-
-            {/* Modals (Text View, Box, Diagnosis, Procedure, Scanner) - Reduced boilerplate for brevity, assuming standard implementations similar to original */}
-            {
-                viewTextFile && (
-                    <div className="fixed inset-0 bg-slate-900 bg-opacity-70 flex items-center justify-center p-4 z-[70]">
-                        <div className="bg-white rounded-xl p-6 max-w-lg w-full h-[80vh] flex flex-col">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="font-bold text-lg">OCR Text Content</h3>
-                                <button onClick={() => setViewTextFile(null)} className="text-gray-400 hover:text-gray-600">✕</button>
-                            </div>
-
-                            <div className="flex-1 overflow-hidden flex flex-col gap-4">
-                                {isEditingOCR && (
-                                    <div>
-                                        <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Tags (Comma Separated)</label>
-                                        <input
-                                            type="text"
-                                            value={editedTags}
-                                            onChange={(e) => setEditedTags(e.target.value)}
-                                            className="w-full border p-2 rounded-lg text-sm font-semibold text-indigo-700"
-                                            placeholder="e.g. Lab Report, Urgent, Blood Test"
-                                        />
-                                    </div>
-                                )}
-                                <div className="flex-1 flex flex-col">
-                                    <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Extracted Text</label>
-                                    {isEditingOCR ? (
-                                        <textarea
-                                            className="flex-1 w-full p-4 border rounded-lg font-mono text-xs focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
-                                            value={editedOCRText}
-                                            onChange={(e) => setEditedOCRText(e.target.value)}
-                                        />
-                                    ) : (
-                                        <div className="flex-1 overflow-auto bg-slate-50 p-4 text-xs font-mono rounded-lg border border-slate-100 whitespace-pre-wrap">
-                                            {viewTextFile?.ocr_text || <span className="text-gray-400 italic">No text content found. Click Edit to add text manually.</span>}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="mt-4 flex justify-end gap-2 border-t pt-4">
-                                {isEditingOCR ? (
-                                    <>
-                                        <button
-                                            onClick={() => setIsEditingOCR(false)}
-                                            className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold hover:bg-gray-200"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            onClick={saveOCRText}
-                                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-sm"
-                                        >
-                                            Save Changes
-                                        </button>
-                                    </>
-                                ) : (
+                                {fileQueue.length > 0 && !isUploading && (
                                     <button
-                                        onClick={() => setIsEditingOCR(true)}
-                                        className="px-4 py-2 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-lg text-sm font-bold hover:bg-indigo-100"
+                                        onClick={startProcessing}
+                                        className="bg-indigo-600 text-white px-3 py-1.5 rounded-full text-xs font-bold hover:bg-indigo-700 flex items-center gap-2"
                                     >
-                                        Edit Text
+                                        <PlayCircle size={14} /> Upload All
                                     </button>
                                 )}
                             </div>
                         </div>
-                    </div>
-                )
-            }
 
-            {
-                showBoxModal && (
-                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div className="bg-white rounded-lg p-6 max-w-sm w-full">
-                            <h2 className="text-lg font-bold mb-4">Assign Box</h2>
-                            <select className="w-full border p-2 mb-4" value={selectedBoxId} onChange={e => setSelectedBoxId(e.target.value)}>
-                                <option value="">Select Box</option>
-                                {availableBoxes.map(b => <option key={b.box_id} value={b.box_id}>{b.label}</option>)}
-                            </select>
-                            <div className="flex justify-end gap-2">
-                                <button onClick={() => setShowBoxModal(false)} className="px-3 py-1 bg-gray-200 rounded">Cancel</button>
-                                <button onClick={handleAssignBox} className="px-3 py-1 bg-indigo-600 text-white rounded">Save</button>
+                        <div className={`relative group transition-all duration-300 ${isUploading ? 'opacity-50 pointer-events-none grayscale' : 'opacity-100'}`}>
+                            <div className="relative bg-white border-2 border-dashed border-slate-200 hover:border-indigo-300 rounded-xl p-4 text-center transition-all cursor-pointer overflow-hidden">
+                                <input
+                                    type="file"
+                                    multiple
+                                    accept=".pdf, .mp4, .mov, .avi, .mkv"
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                    onChange={handleFileSelect}
+                                    disabled={isUploading}
+                                />
+                                <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <Upload className="text-indigo-600" size={20} />
+                                </div>
+                                <h4 className="text-sm font-black text-slate-700 mb-1">Click to Select Files</h4>
+                            </div>
+                        </div>
+
+                        {/* File Queue List */}
+                        {fileQueue.length > 0 && (
+                            <div className="mt-6 space-y-3">
+                                {fileQueue.map((item) => (
+                                    <div key={item.id} className="bg-white border border-slate-100 rounded-xl p-3 shadow-sm relative overflow-hidden">
+                                        {(item.status === 'uploading' || item.status === 'compressing') && (
+                                            <div className="absolute bottom-0 left-0 h-1 bg-indigo-50 w-full">
+                                                <div
+                                                    className={`h-full transition-all duration-300 ${item.status === 'compressing' ? 'bg-amber-400 w-full animate-pulse' : 'bg-indigo-500'}`}
+                                                    style={{ width: item.status === 'uploading' ? `${item.progress}%` : '100%' }}
+                                                ></div>
+                                            </div>
+                                        )}
+                                        <div className="flex items-center gap-3 relative z-10">
+                                            <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-500 shrink-0">
+                                                {item.originalFile.type.includes('image') ? <FileType size={14} /> : <PlayCircle size={14} />}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex justify-between items-start">
+                                                    <p className="font-bold text-xs text-slate-700 truncate">{item.originalFile.name}</p>
+                                                    {item.status === 'pending' && (
+                                                        <button onClick={() => removeFile(item.id)} className="text-slate-300 hover:text-red-500"><X size={14} /></button>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    {item.status === 'compressing' && <span className="text-[10px] text-amber-600 flex items-center gap-1"><Loader2 size={8} className="animate-spin" /> Optimizing</span>}
+                                                    {item.status === 'uploading' && <span className="text-[10px] text-indigo-600">Uploading {item.progress}%</span>}
+                                                    {item.status === 'completed' && <span className="text-[10px] text-green-600 flex items-center gap-1"><CheckCircle size={8} /> Done</span>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Specialty Specific Data */}
+            {specialty === 'Dental' && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                    <div className="flex justify-between items-center mb-4 border-b pb-2">
+                        <h2 className="text-lg font-semibold flex items-center gap-2">
+                            🦷 Tooth Information
+                        </h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Primary Complaint</label>
+                            <p className="text-sm text-slate-700 font-medium">
+                                {patient.specialty_data?.primary_complaint || 'No records found.'}
+                            </p>
+                        </div>
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Tooth Numbers Involved</label>
+                            <div className="flex flex-wrap gap-2">
+                                {patient.specialty_data?.tooth_numbers?.length > 0 ? (
+                                    patient.specialty_data.tooth_numbers.map((t: string) => (
+                                        <span key={t} className="bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md text-xs font-bold border border-indigo-100">
+                                            #{t}
+                                        </span>
+                                    ))
+                                ) : (
+                                    <p className="text-sm text-slate-400 italic">No teeth specified.</p>
+                                )}
                             </div>
                         </div>
                     </div>
-                )
-            }
+                    <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-100 flex items-start gap-3">
+                        <Info className="text-amber-500 mt-1" size={16} />
+                        <p className="text-xs text-amber-700 leading-relaxed italic">
+                            Note: Advanced tooth charting and treatment planning are available in the Dental Specialty module.
+                        </p>
+                    </div>
+                </div>
+            )}
 
-            {
-                showScanner && (
-                    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-                        <div className="w-full h-full max-w-7xl max-h-[95vh] bg-white rounded-xl overflow-hidden shadow-2xl">
-                            <DigitizationScanner
-                                onComplete={async (pdfFile) => {
-                                    const queueItem: FileQueueItem = {
-                                        id: Math.random().toString(36).substr(2, 9),
-                                        originalFile: pdfFile,
-                                        status: 'pending',
-                                        progress: 0
-                                    };
-                                    setFileQueue(prev => [...prev, queueItem]);
-                                    setShowScanner(false);
-                                    triggerToast(`Scanned PDF added to queue!`, "success");
-                                }}
-                                onCancel={() => setShowScanner(false)}
-                            />
+            {specialty === 'ENT' && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                    <div className="flex justify-between items-center mb-4 border-b pb-2">
+                        <h2 className="text-lg font-semibold flex items-center gap-2">
+                            <Ear className="text-rose-500" /> ENT Clinical Findings
+                        </h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Chief Complaint</label>
+                            <p className="text-sm text-slate-700 font-medium">
+                                {patient.specialty_data?.chief_complaint || 'No records found.'}
+                            </p>
+                        </div>
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Otoscopy / Nasal Findings</label>
+                            <p className="text-sm text-slate-700 font-medium">
+                                {patient.specialty_data?.clinical_findings || 'No findings recorded.'}
+                            </p>
                         </div>
                     </div>
-                )
-            }
+                    <div className="mt-4 p-4 bg-rose-50 rounded-xl border border-rose-100 flex items-start gap-3">
+                        <Activity className="text-rose-500 mt-1" size={16} />
+                        <p className="text-xs text-rose-700 leading-relaxed italic">
+                            Note: Specialized ENT diagnostic reports and audio-visual recordings can be attached in the File section.
+                        </p>
+                    </div>
+                </div>
+            )}
 
-            {/* Secure PDF Viewer Overlay */}
-            {
-                viewSecureFile && (
-                    <SecurePDFViewer
-                        fileId={viewSecureFile.file_id}
-                        filename={viewSecureFile.filename}
-                        onClose={() => setViewSecureFile(null)}
-                    />
-                )
-            }
-
-            {/* Custom Toast Notification */}
-            {
-                showToast && (
-                    <div className={`fixed bottom-6 right-6 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in z-[100] border ${toastType === 'success' ? 'bg-slate-900 border-slate-700 text-white' :
-                        toastType === 'error' ? 'bg-red-50 border-red-200 text-red-900' :
-                            'bg-blue-50 border-blue-200 text-blue-900'
-                        }`}>
-                        <div className={`rounded-full p-1 ${toastType === 'success' ? 'bg-green-500' :
-                            toastType === 'error' ? 'bg-red-500' :
-                                'bg-blue-500'
-                            }`}>
-                            {toastType === 'success' && <CheckCircle size={16} className="text-white" />}
-                            {toastType === 'error' && <AlertCircle size={16} className="text-white" />}
-                            {toastType === 'info' && <Info size={16} className="text-white" />}
-                        </div>
-                        <div>
-                            <p className="font-bold text-sm tracking-wide">{toastMessage}</p>
-                            {isPollingForDesktop && toastType === 'success' && <p className="text-[10px] opacity-70 font-medium">Synced with Desktop App</p>}
-                        </div>
-                        <button onClick={() => setShowToast(false)} className="opacity-50 hover:opacity-100 ml-2">
-                            <X size={14} />
+            {/* Clinical Diagnoses Card */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                <div className="flex justify-between items-center mb-4 border-b pb-2">
+                    <h2 className="text-lg font-semibold flex items-center gap-2">
+                        <Stethoscope className="text-indigo-600" size={20} /> Clinical Diagnoses
+                    </h2>
+                    {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'website_staff' || userRole === 'superadmin') && (
+                        <button
+                            onClick={() => setIsAddingDiag(!isAddingDiag)}
+                            className={`text-xs px-3 py-1.5 rounded-lg border font-bold transition-all ${isAddingDiag ? 'bg-red-50 text-red-600 border-red-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100'}`}
+                        >
+                            {isAddingDiag ? 'Cancel' : <><Plus size={14} /> Add</>}
                         </button>
+                    )}
+                </div>
+
+                {isAddingDiag && (
+                    <div className="mb-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 animate-in fade-in slide-in-from-top-2">
+                        <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Search ICD-11 Database</p>
+                        {!selectedCode ? (
+                            <>
+                                <div className="relative">
+                                    {isSearchingDiag ? (
+                                        <Loader2 className="absolute left-3 top-2.5 text-indigo-400 animate-spin" size={16} />
+                                    ) : (
+                                        <Search className="absolute left-3 top-2.5 text-indigo-400" size={16} />
+                                    )}
+                                    <input
+                                        autoFocus
+                                        className="w-full border border-indigo-200 p-2 pl-10 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        placeholder="Search diagnosis (e.g. Diabetes, Fever)..."
+                                        value={diagSearch}
+                                        onChange={e => searchDiagnoses(e.target.value)}
+                                    />
+                                </div>
+                                <div className="mt-2 max-h-48 overflow-y-auto bg-white rounded-lg border border-indigo-100 shadow-sm">
+                                    {diagResults.length > 0 ? diagResults.map(r => (
+                                        <div key={r.code} onClick={() => setSelectedCode(r)} className="p-3 hover:bg-indigo-50 cursor-pointer border-b last:border-0 border-slate-50 flex flex-col">
+                                            <span className="font-bold text-indigo-700 text-xs">{r.code}</span>
+                                            <span className="text-sm text-slate-700">{r.description}</span>
+                                        </div>
+                                    )) : diagSearch.length >= 2 ? (
+                                        <div className="p-4 text-center text-slate-400 text-xs italic">No matching codes found.</div>
+                                    ) : null}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="space-y-3">
+                                <div className="bg-white p-3 rounded-lg border border-indigo-200">
+                                    <span className="font-black text-indigo-700 text-xs">{selectedCode.code}</span>
+                                    <p className="text-sm font-bold text-slate-800">{selectedCode.description}</p>
+                                </div>
+                                <textarea
+                                    className="w-full border border-indigo-200 p-3 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-20"
+                                    placeholder="Add clinical notes (optional)..."
+                                    value={diagNotes}
+                                    onChange={e => setDiagNotes(e.target.value)}
+                                />
+                                <div className="flex gap-2">
+                                    <button onClick={addDiagnosis} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 w-full transition-all">Add to Record</button>
+                                    <button onClick={() => setSelectedCode(null)} className="text-slate-500 px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50 w-full transition-all">Cancel</button>
+                                </div>
+                            </div>
+                        )}
                     </div>
-                )
-            }
-            {/* Confirmation Modal */}
-            <ConfirmationModal
-                isOpen={confirmModal.isOpen}
-                onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
-                onConfirm={confirmModal.onConfirm}
-                title={confirmModal.title}
-                message={confirmModal.message}
-                type={confirmModal.type}
-                confirmText={confirmModal.confirmText}
-                requiresInput={confirmModal.requiresInput}
-                isLoading={confirmModal.isLoading}
-                closeOnConfirm={confirmModal.closeOnConfirm}
-                inputPlaceholder={confirmModal.inputPlaceholder}
-            />
-        </>
-    );
+                )}
+
+                {diagnoses.length > 0 ? (
+                    <div className="space-y-2">
+                        {diagnoses.map(diag => (
+                            <div key={diag.diagnosis_id} className="p-3 bg-slate-50 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-100 flex justify-between group">
+                                <div>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 rounded text-xs">{diag.code}</span>
+                                        <span className="font-semibold text-slate-700 text-sm">{diag.description}</span>
+                                    </div>
+                                    {diag.notes && <p className="text-xs text-slate-500 mt-1 italic">"{diag.notes}"</p>}
+                                </div>
+                                {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'website_admin') && (
+                                    <button onClick={() => deleteDiagnosis(diag.diagnosis_id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                ) : <p className="text-sm text-slate-400 italic">No diagnoses recorded.</p>}
+            </div>
+
+            {/* Clinical Procedures Card */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                <div className="flex justify-between items-center mb-4 border-b pb-2">
+                    <h2 className="text-lg font-semibold flex items-center gap-2">
+                        <Syringe className="text-emerald-600" size={20} /> Procedures
+                    </h2>
+                    {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'superadmin') && (
+                        <button
+                            onClick={() => setIsAddingProc(!isAddingProc)}
+                            className={`text-xs px-3 py-1.5 rounded-lg border font-bold transition-all ${isAddingProc ? 'bg-red-50 text-red-600 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100'}`}
+                        >
+                            {isAddingProc ? 'Cancel' : <><Plus size={14} /> Add</>}
+                        </button>
+                    )}
+                </div>
+
+                {isAddingProc && (
+                    <div className="mb-4 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-top-2">
+                        <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2">Search Procedures</p>
+                        {!selectedProcCode ? (
+                            <>
+                                <div className="relative">
+                                    {isSearchingProc ? (
+                                        <Loader2 className="absolute left-3 top-2.5 text-emerald-400 animate-spin" size={16} />
+                                    ) : (
+                                        <Search className="absolute left-3 top-2.5 text-emerald-400" size={16} />
+                                    )}
+                                    <input
+                                        autoFocus
+                                        className="w-full border border-emerald-200 p-2 pl-10 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        placeholder="Search procedure (e.g. Surgery, X-Ray)..."
+                                        value={procSearch}
+                                        onChange={e => searchProcedures(e.target.value)}
+                                    />
+                                </div>
+                                <div className="mt-2 max-h-48 overflow-y-auto bg-white rounded-lg border border-emerald-100 shadow-sm">
+                                    {procResults.length > 0 ? procResults.map(r => (
+                                        <div key={r.code} onClick={() => setSelectedProcCode(r)} className="p-3 hover:bg-emerald-50 cursor-pointer border-b last:border-0 border-slate-50 flex flex-col">
+                                            <span className="font-bold text-emerald-700 text-xs">{r.code}</span>
+                                            <span className="text-sm text-slate-700">{r.description}</span>
+                                        </div>
+                                    )) : procSearch.length >= 2 ? (
+                                        <div className="p-4 text-center text-slate-400 text-xs italic">No matching procedures found.</div>
+                                    ) : null}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="space-y-3">
+                                <div className="bg-white p-3 rounded-lg border border-emerald-200">
+                                    <span className="font-black text-emerald-700 text-xs">{selectedProcCode.code}</span>
+                                    <p className="text-sm font-bold text-slate-800">{selectedProcCode.description}</p>
+                                </div>
+                                <textarea
+                                    className="w-full border border-emerald-200 p-3 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none h-20"
+                                    placeholder="Add procedure notes..."
+                                    value={procNotes}
+                                    onChange={e => setProcNotes(e.target.value)}
+                                />
+                                <div className="flex gap-2">
+                                    <button onClick={addProcedure} className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-700 w-full transition-all">Add to Record</button>
+                                    <button onClick={() => setSelectedProcCode(null)} className="text-slate-500 px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold hover:bg-slate-50 w-full transition-all">Cancel</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {procedures.length > 0 ? (
+                    <div className="space-y-2">
+                        {procedures.map((proc, idx) => (
+                            <div key={idx} className="p-3 bg-slate-50 rounded-xl hover:bg-white hover:shadow-md transition-all border border-slate-100 flex justify-between group">
+                                <div>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 rounded text-xs">{proc.code}</span>
+                                        <span className="font-semibold text-slate-700 text-sm">{proc.description}</span>
+                                    </div>
+                                    {proc.notes && <p className="text-xs text-slate-500 mt-1 italic">"{proc.notes}"</p>}
+                                </div>
+                                {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'website_admin') && (
+                                    <button onClick={() => deleteProcedure(proc.procedure_id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                ) : <p className="text-sm text-slate-400 italic">No procedures recorded.</p>}
+            </div>
+
+            <div className="mt-12 pt-8 border-t border-red-100 flex justify-center">
+                <button
+                    onClick={handleDeletePatient}
+                    className="px-6 py-3 bg-red-50 text-red-600 font-bold rounded-xl border border-red-200 hover:bg-red-100 hover:border-red-300 transition-all flex items-center gap-2"
+                >
+                    <Trash2 size={18} /> Delete {terms.patient} Record
+                </button>
+            </div>
+        </div>
+
+        {/* Modals (Text View, Box, Diagnosis, Procedure, Scanner) - Reduced boilerplate for brevity, assuming standard implementations similar to original */}
+        {
+            viewTextFile && (
+                <div className="fixed inset-0 bg-slate-900 bg-opacity-70 flex items-center justify-center p-4 z-[70]">
+                    <div className="bg-white rounded-xl p-6 max-w-lg w-full h-[80vh] flex flex-col">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-lg">OCR Text Content</h3>
+                            <button onClick={() => setViewTextFile(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+                        </div>
+
+                        <div className="flex-1 overflow-hidden flex flex-col gap-4">
+                            {isEditingOCR && (
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Tags (Comma Separated)</label>
+                                    <input
+                                        type="text"
+                                        value={editedTags}
+                                        onChange={(e) => setEditedTags(e.target.value)}
+                                        className="w-full border p-2 rounded-lg text-sm font-semibold text-indigo-700"
+                                        placeholder="e.g. Lab Report, Urgent, Blood Test"
+                                    />
+                                </div>
+                            )}
+                            <div className="flex-1 flex flex-col">
+                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Extracted Text</label>
+                                {isEditingOCR ? (
+                                    <textarea
+                                        className="flex-1 w-full p-4 border rounded-lg font-mono text-xs focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                                        value={editedOCRText}
+                                        onChange={(e) => setEditedOCRText(e.target.value)}
+                                    />
+                                ) : (
+                                    <div className="flex-1 overflow-auto bg-slate-50 p-4 text-xs font-mono rounded-lg border border-slate-100 whitespace-pre-wrap">
+                                        {viewTextFile?.ocr_text || <span className="text-gray-400 italic">No text content found. Click Edit to add text manually.</span>}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="mt-4 flex justify-end gap-2 border-t pt-4">
+                            {isEditingOCR ? (
+                                <>
+                                    <button
+                                        onClick={() => setIsEditingOCR(false)}
+                                        className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold hover:bg-gray-200"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={saveOCRText}
+                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-sm"
+                                    >
+                                        Save Changes
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    onClick={() => setIsEditingOCR(true)}
+                                    className="px-4 py-2 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-lg text-sm font-bold hover:bg-indigo-100"
+                                >
+                                    Edit Text
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )
+        }
+
+        {
+            showBoxModal && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+                        <h2 className="text-lg font-bold mb-4">Assign Box</h2>
+                        <select className="w-full border p-2 mb-4" value={selectedBoxId} onChange={e => setSelectedBoxId(e.target.value)}>
+                            <option value="">Select Box</option>
+                            {availableBoxes.map(b => <option key={b.box_id} value={b.box_id}>{b.label}</option>)}
+                        </select>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setShowBoxModal(false)} className="px-3 py-1 bg-gray-200 rounded">Cancel</button>
+                            <button onClick={handleAssignBox} className="px-3 py-1 bg-indigo-600 text-white rounded">Save</button>
+                        </div>
+                    </div>
+                </div>
+            )
+        }
+
+        {
+            showScanner && (
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                    <div className="w-full h-full max-w-7xl max-h-[95vh] bg-white rounded-xl overflow-hidden shadow-2xl">
+                        <DigitizationScanner
+                            onComplete={async (pdfFile) => {
+                                const queueItem: FileQueueItem = {
+                                    id: Math.random().toString(36).substr(2, 9),
+                                    originalFile: pdfFile,
+                                    status: 'pending',
+                                    progress: 0
+                                };
+                                setFileQueue(prev => [...prev, queueItem]);
+                                setShowScanner(false);
+                                triggerToast(`Scanned PDF added to queue!`, "success");
+                            }}
+                            onCancel={() => setShowScanner(false)}
+                        />
+                    </div>
+                </div>
+            )
+        }
+
+        {/* Secure PDF Viewer Overlay */}
+        {
+            viewSecureFile && (
+                <SecurePDFViewer
+                    fileId={viewSecureFile.file_id}
+                    filename={viewSecureFile.filename}
+                    onClose={() => setViewSecureFile(null)}
+                />
+            )
+        }
+
+        {/* Custom Toast Notification */}
+        {
+            showToast && (
+                <div className={`fixed bottom-6 right-6 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in z-[100] border ${toastType === 'success' ? 'bg-slate-900 border-slate-700 text-white' :
+                    toastType === 'error' ? 'bg-red-50 border-red-200 text-red-900' :
+                        'bg-blue-50 border-blue-200 text-blue-900'
+                    }`}>
+                    <div className={`rounded-full p-1 ${toastType === 'success' ? 'bg-green-500' :
+                        toastType === 'error' ? 'bg-red-500' :
+                            'bg-blue-500'
+                        }`}>
+                        {toastType === 'success' && <CheckCircle size={16} className="text-white" />}
+                        {toastType === 'error' && <AlertCircle size={16} className="text-white" />}
+                        {toastType === 'info' && <Info size={16} className="text-white" />}
+                    </div>
+                    <div>
+                        <p className="font-bold text-sm tracking-wide">{toastMessage}</p>
+                        {isPollingForDesktop && toastType === 'success' && <p className="text-[10px] opacity-70 font-medium">Synced with Desktop App</p>}
+                    </div>
+                    <button onClick={() => setShowToast(false)} className="opacity-50 hover:opacity-100 ml-2">
+                        <X size={14} />
+                    </button>
+                </div>
+            )
+        }
+        {/* Confirmation Modal */}
+        <ConfirmationModal
+            isOpen={confirmModal.isOpen}
+            onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+            onConfirm={confirmModal.onConfirm}
+            title={confirmModal.title}
+            message={confirmModal.message}
+            type={confirmModal.type}
+            confirmText={confirmModal.confirmText}
+            requiresInput={confirmModal.requiresInput}
+            isLoading={confirmModal.isLoading}
+            closeOnConfirm={confirmModal.closeOnConfirm}
+            inputPlaceholder={confirmModal.inputPlaceholder}
+        />
+    </>
+);
 }
+

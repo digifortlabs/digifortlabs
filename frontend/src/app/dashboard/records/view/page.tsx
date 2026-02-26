@@ -8,7 +8,7 @@ import DigitizationScanner from '@/components/Scanner/DigitizationScanner';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import { useTerminology } from '@/hooks/useTerminology';
 
-import { API_URL } from '@/config/api';
+import { apiFetch, API_URL } from '@/config/api';
 import { formatDate } from '@/lib/dateFormatter';
 
 interface FileData {
@@ -194,7 +194,7 @@ function PatientDetailContent() {
         return file;
     };
 
-    const uploadSingleFile = (item: FileQueueItem, token: string) => {
+    const uploadSingleFile = (item: FileQueueItem) => {
         return new Promise<number>((resolve, reject) => {
             const formData = new FormData();
             formData.append('file', item.compressedFile || item.originalFile);
@@ -203,7 +203,7 @@ function PatientDetailContent() {
             abortControllers.current[item.id] = xhr;
 
             xhr.open('POST', `${API_URL}/patients/${id}/upload`, true);
-            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.withCredentials = true; // Use cookies
 
             xhr.upload.onprogress = (e) => {
                 if (e.lengthComputable) {
@@ -231,7 +231,7 @@ function PatientDetailContent() {
     const startProcessing = async () => {
         if (fileQueue.length === 0) return;
         setIsUploading(true);
-        const token = localStorage.getItem('token') || '';
+        // Token is handled by HttpOnly cookies
 
         for (const item of fileQueue) {
             if (item.status === 'completed') continue;
@@ -249,7 +249,7 @@ function PatientDetailContent() {
             // 2. Upload
             try {
                 setFileQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: 'uploading', progress: 0 } : f));
-                const fileId = await uploadSingleFile(item, token);
+                const fileId = await uploadSingleFile(item);
                 setFileQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: 'completed', progress: 100, backendFileId: fileId } : f));
             } catch (error) {
                 setFileQueue(prev => prev.map(f => f.id === item.id ? { ...f, status: 'error', error: String(error) } : f));
@@ -260,70 +260,61 @@ function PatientDetailContent() {
         alert("Batch Upload Complete!");
         setFileQueue([]); // Clear queue or keep completed? Let's clear for now to refresh list
         if (id) {
-            fetchPatient(token, id);
-            fetchDiagnoses(token);
-            fetchProcedures(token);
+            fetchPatient(id);
+            fetchDiagnoses();
+            fetchProcedures();
         }
     };
 
     // ICD-11 Helpers
-    const fetchDiagnoses = async (token: string) => {
+    const fetchDiagnoses = async () => {
         try {
-            const res = await fetch(`${API_URL}/icd11/diagnoses/patients/${id}/diagnoses`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) setDiagnoses(await res.json());
+            const data = await apiFetch(`icd11/diagnoses/patients/${id}/diagnoses`);
+            if (data) setDiagnoses(data);
         } catch (e) { console.error(e); }
     };
 
-    const fetchProcedures = async (token: string) => {
+    const fetchProcedures = async () => {
         try {
-            const res = await fetch(`${API_URL}/icd11/patients/${id}/procedures`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) setProcedures(await res.json());
+            const data = await apiFetch(`icd11/patients/${id}/procedures`);
+            if (data) setProcedures(data);
         } catch (e) { console.error(e); }
     };
 
     const searchDiagnoses = async (q: string) => {
         setDiagSearch(q);
         if (q.length < 2) { setDiagResults([]); return; }
-        const token = localStorage.getItem('token');
+        // Token is handled by HttpOnly cookies
         try {
-            const res = await fetch(`${API_URL}/icd11/diagnoses/search?q=${q}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) setDiagResults(await res.json());
+            const data = await apiFetch(`icd11/diagnoses/search?q=${q}`);
+            if (data) setDiagResults(data);
         } catch (e) { console.error(e); }
     };
 
     const searchProcedures = async (q: string) => {
         setProcSearch(q);
         if (q.length < 2) { setProcResults([]); return; }
-        const token = localStorage.getItem('token');
+        // Token is handled by HttpOnly cookies
         try {
-            const res = await fetch(`${API_URL}/icd11/procedures/search?q=${q}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) setProcResults(await res.json());
+            const data = await apiFetch(`icd11/procedures/search?q=${q}`);
+            if (data) setProcResults(data);
         } catch (e) { console.error(e); }
     };
 
     const addDiagnosis = async () => {
         if (!selectedCode) return;
-        const token = localStorage.getItem('token');
+        // Token is handled by HttpOnly cookies
         try {
-            const res = await fetch(`${API_URL}/icd11/diagnoses/patients/${id}/diagnoses`, {
+            const data = await apiFetch(`icd11/diagnoses/patients/${id}/diagnoses`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ code: selectedCode.code, notes: diagNotes })
             });
-            if (res.ok) {
+            if (data) {
                 setShowDiagModal(false);
                 setSelectedCode(null);
                 setDiagNotes('');
                 setDiagSearch('');
-                fetchDiagnoses(token || '');
+                fetchDiagnoses();
                 alert("Diagnosis Added!");
             }
         } catch (e) { console.error(e); }
@@ -331,22 +322,21 @@ function PatientDetailContent() {
 
     const addProcedure = async () => {
         if (!selectedProcCode) return;
-        const token = localStorage.getItem('token') || '';
+        // Token is handled by HttpOnly cookies
         try {
-            const res = await fetch(`${API_URL}/icd11/patients/${id}/procedures`, {
+            const data = await apiFetch(`icd11/patients/${id}/procedures`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({
                     code: selectedProcCode.code,
                     notes: procNotes
                 })
             });
-            if (res.ok) {
+            if (data) {
                 setShowProcModal(false);
                 setSelectedProcCode(null);
                 setProcNotes('');
                 setProcSearch('');
-                fetchProcedures(token);
+                fetchProcedures();
                 alert("Procedure Added!");
             }
         } catch (e) { console.error(e); }
@@ -360,14 +350,13 @@ function PatientDetailContent() {
             type: 'danger',
             confirmText: "Delete",
             onConfirm: async () => {
-                const token = localStorage.getItem('token') || '';
+                // Token is handled by HttpOnly cookies
                 try {
-                    const res = await fetch(`${API_URL}/icd11/patients/${id}/procedures/${procId}`, {
-                        method: 'DELETE',
-                        headers: { Authorization: `Bearer ${token}` }
+                    const data = await apiFetch(`icd11/patients/${id}/procedures/${procId}`, {
+                        method: 'DELETE'
                     });
-                    if (res.ok) {
-                        fetchProcedures(token);
+                    if (data !== undefined) {
+                        fetchProcedures();
                         triggerToast("Procedure Removed.", "info");
                     }
                 } catch (e) { console.error(e); }
@@ -383,13 +372,12 @@ function PatientDetailContent() {
             type: 'warning',
             confirmText: "Remove",
             onConfirm: async () => {
-                const token = localStorage.getItem('token');
+                // Token is handled by HttpOnly cookies
                 try {
-                    await fetch(`${API_URL}/icd11/diagnoses/patients/${id}/diagnoses/${diagId}`, {
-                        method: 'DELETE',
-                        headers: { Authorization: `Bearer ${token}` }
+                    await apiFetch(`icd11/diagnoses/patients/${id}/diagnoses/${diagId}`, {
+                        method: 'DELETE'
                     });
-                    fetchDiagnoses(token || '');
+                    fetchDiagnoses();
                 } catch (e) { console.error(e); }
             }
         });
@@ -406,56 +394,49 @@ function PatientDetailContent() {
     const [selectedBoxId, setSelectedBoxId] = useState<string>('');
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            router.push('/login');
-            return;
+        if (typeof window !== 'undefined') {
+            const role = localStorage.getItem('userRole');
+            if (role) {
+                setUserRole(role);
+            } else {
+                router.push('/login');
+                return;
+            }
         }
 
-        // Get Role
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        setUserRole(payload.role);
-
         if (id) {
-            fetchPatient(token, id);
-            fetchDiagnoses(token);
+            fetchPatient(id);
+            fetchDiagnoses();
         }
     }, [router, id]);
 
 
     const [error, setError] = useState<string | null>(null);
 
-    const fetchPatient = async (token: string, patientId: string) => {
-        const apiUrl = API_URL;
+    const fetchPatient = async (patientId: string) => {
         setError(null);
         try {
-            const res = await fetch(`${apiUrl}/patients/${patientId}?t=${new Date().getTime()}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                setPatient(await res.json());
+            const data = await apiFetch(`patients/${patientId}?t=${new Date().getTime()}`);
+            if (data) {
+                setPatient(data);
             } else {
-                const errDetail = await res.text();
-                console.error("Fetch Error:", errDetail);
                 setError(`${terms.patient} not found or access denied.`);
-                // router.push('/dashboard/records'); // Optional: redirect or show error
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            setError(`Failed to load ${terms.patient.toLowerCase()} data. Please check network connection.`);
+            setError(error.message || `Failed to load ${terms.patient.toLowerCase()} data. Please check network connection.`);
         }
     };
 
     // Added Polling for OCR/Processing Stages - Moved here to ensure fetchPatient is defined
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token || !id || !patient) return;
+        if (!id || !patient) return;
 
         const hasProcessing = patient.files.some(f => f.processing_stage === 'analyzing' || f.upload_status === 'draft');
 
         if (hasProcessing) {
             const interval = setInterval(() => {
-                fetchPatient(token, id);
+                fetchPatient(id);
             }, 5000); // Poll every 5 seconds
             return () => clearInterval(interval);
         }
@@ -464,114 +445,85 @@ function PatientDetailContent() {
     // Auto-refresh when user returns to tab (for Desktop Scanner visibility)
     useEffect(() => {
         const onFocus = () => {
-            const token = localStorage.getItem('token');
-            if (token && id) {
+            if (id) {
                 console.log("Tab focused, refreshing patient data...");
-                fetchPatient(token, id);
+                fetchPatient(id);
             }
         };
         window.addEventListener('focus', onFocus);
         return () => window.removeEventListener('focus', onFocus);
     }, [id]);
 
-
-
-
-
     const handleRequestDeletion = async (fileId: number) => {
         const isDirectDelete = userRole === 'hospital_admin' || userRole === 'website_admin';
         const confirmMsg = isDirectDelete
-            ? "ARNING: This will PERMANENTLY delete the file. This action cannot be undone. Continue?"
+            ? "WARNING: This will PERMANENTLY delete the file. This action cannot be undone. Continue?"
             : "Request deletion for this file? This will require Admin approval.";
 
         if (!confirm(confirmMsg)) return;
 
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
         try {
-            const res = await fetch(`${apiUrl}/patients/files/${fileId}/request-deletion`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
+            const data = await apiFetch(`patients/files/${fileId}/request-deletion`, {
+                method: 'POST'
             });
-            const data = await res.json();
 
-            if (res.ok) {
+            if (data) {
                 alert(data.message || "Operation successful.");
-                if (id) fetchPatient(token || '', id);
-            } else {
-                alert(`Failed: ${data.detail || "Unknown error"}`);
+                if (id) fetchPatient(id);
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
+            alert(`Failed: ${e.message || "Unknown error"}`);
         }
-    }
-
+    };
 
     const handleConfirmUpload = async (fileId: number) => {
         if (!confirm("Confirm this file for final upload? It will become visible to Admins.")) return;
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
         try {
-            const res = await fetch(`${apiUrl}/patients/files/${fileId}/confirm`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
+            const data = await apiFetch(`patients/files/${fileId}/confirm`, {
+                method: 'POST'
             });
-            if (res.ok) {
+            if (data) {
                 alert("File confirmed and published!");
-                if (id) fetchPatient(token || '', id);
+                if (id) fetchPatient(id);
             }
         } catch (e) { console.error(e); }
     };
 
     const handleDiscardDraft = async (fileId: number) => {
         if (!confirm("Discard this draft? This action cannot be undone.")) return;
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
         try {
-            const res = await fetch(`${apiUrl}/patients/files/${fileId}/draft`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
+            const data = await apiFetch(`patients/files/${fileId}/draft`, {
+                method: 'DELETE'
             });
-            if (res.ok) {
+            if (data !== undefined) {
                 alert("Draft discarded successfully");
-                if (id) fetchPatient(token || '', id);
+                if (id) fetchPatient(id);
             }
         } catch (e) { console.error(e); }
     };
 
     const fetchBoxes = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        const apiUrl = API_URL;
         try {
-            const res = await fetch(`${apiUrl}/storage/boxes`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) setAvailableBoxes(await res.json());
+            const data = await apiFetch(`storage/boxes`);
+            if (data) setAvailableBoxes(data);
         } catch (e) { console.error(e); }
     };
 
     const handleAssignBox = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedBoxId) return;
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        const apiUrl = API_URL;
 
         try {
-            const res = await fetch(`${apiUrl}/storage/patients/${id}/assign-box`, {
+            const data = await apiFetch(`storage/patients/${id}/assign-box`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
                 body: JSON.stringify({ box_id: parseInt(selectedBoxId) })
             });
 
-            if (res.ok) {
+            if (data) {
                 alert("Assigned to Box Successfully");
                 setShowBoxModal(false);
-                if (id) fetchPatient(token, id);
+                if (id) fetchPatient(id);
             } else {
                 alert("Failed to assign box");
             }
@@ -585,35 +537,23 @@ function PatientDetailContent() {
         }
         if (!confirm("Request the physical box containing this file?")) return;
 
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
-
         try {
-            const res = await fetch(`${apiUrl}/storage/requests`, {
+            const data = await apiFetch(`storage/requests`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
                 body: JSON.stringify({
                     box_id: patient.physical_box_id,
                     requester_name: "Auto"
                 })
             });
 
-            if (res.ok) {
+            if (data) {
                 alert("Request sent successfully! Check the 'File Requests' page.");
-            } else {
-                const data = await res.json();
-                alert(`Failed: ${data.detail || "Could not send request"}`);
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Network error");
+            alert(`Failed: ${e.message || "Could not send request"}`);
         }
     };
-
-
 
     const handleDeletePatient = async () => {
         const input = prompt(`DANGER ZONE \n\nTo PERMANENTLY delete this ${terms.patient.toLowerCase()} and ALL their files, type "delete" below:`);
@@ -622,30 +562,23 @@ function PatientDetailContent() {
             return;
         }
 
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
-
         try {
-            const res = await fetch(`${apiUrl}/patients/${id}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
+            const data = await apiFetch(`patients/${id}`, {
+                method: 'DELETE'
             });
 
-            if (res.ok) {
+            if (data !== undefined) {
                 alert(`${terms.patient} record deleted successfully.`);
                 router.replace('/dashboard/records');
-            } else {
-                const data = await res.json();
-                alert(`Failed: ${data.detail || "Unknown error"}`);
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Network error.");
+            alert(e.message || "Network error.");
         }
     };
 
     const handleLogout = () => {
-        localStorage.removeItem('token');
+        localStorage.clear();
         router.push('/login');
     };
 
@@ -827,14 +760,13 @@ function PatientDetailContent() {
                                             onClick={() => {
                                                 const newTags = prompt("Enter tags (comma separated):", file.tags || "");
                                                 if (newTags !== null) {
-                                                    fetch(`${API_URL}/patients/files/${file.file_id}/tags`, {
+                                                    apiFetch(`patients/files/${file.file_id}/tags`, {
                                                         method: 'PUT',
-                                                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
                                                         body: JSON.stringify({ tags: newTags })
-                                                    }).then(res => {
-                                                        if (res.ok) alert("Tags saved!");
-                                                        window.location.reload();
-                                                    });
+                                                    }).then(() => {
+                                                        alert("Tags saved!");
+                                                        if (id) fetchPatient(id);
+                                                    }).catch(e => console.error(e));
                                                 }
                                             }}
                                             className="text-[10px] font-bold text-slate-400 hover:text-indigo-600 flex items-center gap-1 transition"
@@ -850,9 +782,8 @@ function PatientDetailContent() {
                                                 if (!details) return;
 
                                                 try {
-                                                    const res = await fetch(`${API_URL}/qa/report`, {
+                                                    const data = await apiFetch(`qa/report`, {
                                                         method: 'POST',
-                                                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
                                                         body: JSON.stringify({
                                                             file_id: file.file_id,
                                                             issue_type: issue,
@@ -860,7 +791,7 @@ function PatientDetailContent() {
                                                             severity: 'medium'
                                                         })
                                                     });
-                                                    if (res.ok) alert("Issue reported to QA Monitor");
+                                                    if (data) alert("Issue reported to QA Monitor");
                                                 } catch (e) { console.error(e); }
                                             }}
                                             className="text-[10px] font-bold text-red-400 hover:text-red-600 flex items-center gap-1 transition"
@@ -873,16 +804,17 @@ function PatientDetailContent() {
                                 <div className="flex flex-col gap-2">
                                     <button
                                         onClick={async () => {
-                                            const token = localStorage.getItem('token');
+                                            // Token is handled by HttpOnly cookies
                                             const apiUrl = API_URL;
-                                            if (!token) return;
                                             try {
                                                 const res = await fetch(`${apiUrl}/patients/files/${file.file_id}/url`, {
-                                                    headers: { Authorization: `Bearer ${token}` }
+                                                    method: 'GET',
+                                                    credentials: 'include' // Use cookies
                                                 });
                                                 if (res.ok) {
                                                     const data = await res.json();
-                                                    window.open(`${data.url}?token=${token}`, '_blank');
+                                                    // Pass skip_token=1 to backend if needed, or assume backend handles session via cookie
+                                                    window.open(data.url, '_blank');
                                                 } else {
                                                     alert("Could not access file");
                                                 }
@@ -960,8 +892,8 @@ function PatientDetailContent() {
                                 </button>
                                 <button
                                     onClick={() => {
-                                        const token = localStorage.getItem('token');
-                                        const protocolUrl = `digifort://upload?token=${token}&patient_id=${patient.record_id}&patient_name=${encodeURIComponent(patient.full_name)}&mrd=${patient.patient_u_id}&api_url=${API_URL}`;
+                                        // Use dummy token or skip it if Desktop app supports session/cookie (likely needs secret/temp token)
+                                        const protocolUrl = `digifort://upload?patient_id=${patient.record_id}&patient_name=${encodeURIComponent(patient.full_name)}&mrd=${patient.patient_u_id}&api_url=${API_URL}`;
                                         window.open(protocolUrl, '_self');
                                     }}
                                     className="bg-blue-600 text-white px-4 py-1.5 rounded-full text-xs font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-500/30 flex items-center gap-2"
@@ -1536,5 +1468,6 @@ export default function PatientDetailPage() {
         </Suspense>
     );
 }
+
 
 

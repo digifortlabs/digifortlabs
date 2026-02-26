@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from 'react';
+import { apiFetch } from '@/config/api';
 import { format } from 'date-fns';
 
 interface AuditLog {
@@ -24,18 +24,17 @@ export default function AuditPage() {
     const fetchLogs = async () => {
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/audit/logs`, {
-                headers: { Authorization: `Bearer ${token}` },
-                params: {
-                    page,
-                    page_size: 20,
-                    search: search || undefined,
-                    action: actionFilter || undefined,
-                },
-            });
-            setLogs(res.data.logs);
-            setTotalPages(res.data.pages);
+            const params = new URLSearchParams();
+            params.append('page', page.toString());
+            params.append('page_size', '20');
+            if (search) params.append('search', search);
+            if (actionFilter) params.append('action', actionFilter);
+
+            const data = await apiFetch(`audit/logs?${params.toString()}`);
+            if (data) {
+                setLogs(data.logs);
+                setTotalPages(data.pages);
+            }
         } catch (error) {
             console.error('Failed to fetch audit logs', error);
         } finally {
@@ -52,20 +51,22 @@ export default function AuditPage() {
 
     const handleExport = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/audit/logs`, {
-                headers: { Authorization: `Bearer ${token}` },
-                params: { export_csv: true },
-                responseType: 'blob',
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/audit/logs?export_csv=true`, {
+                credentials: 'include'
             });
 
-            const url = window.URL.createObjectURL(new Blob([response.data]));
+            if (!response.ok) throw new Error("Export failed");
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
             link.setAttribute('download', `audit_logs_${new Date().toISOString().slice(0, 10)}.csv`);
             document.body.appendChild(link);
             link.click();
+            link.remove();
         } catch (error) {
+            console.error(error);
             alert('Export failed');
         }
     };
@@ -131,9 +132,9 @@ export default function AuditPage() {
                                     <td className="p-4 font-medium text-blue-600">{log.user_email}</td>
                                     <td className="p-4">
                                         <span className={`px-2 py-1 rounded text-xs font-semibold ${log.action.includes('DELETE') ? 'bg-red-100 text-red-800' :
-                                                log.action.includes('LOGIN') ? 'bg-green-100 text-green-800' :
-                                                    log.action.includes('UPLOAD') ? 'bg-blue-100 text-blue-800' :
-                                                        'bg-gray-100 text-gray-800'
+                                            log.action.includes('LOGIN') ? 'bg-green-100 text-green-800' :
+                                                log.action.includes('UPLOAD') ? 'bg-blue-100 text-blue-800' :
+                                                    'bg-gray-100 text-gray-800'
                                             }`}>
                                             {log.action}
                                         </span>
@@ -167,3 +168,4 @@ export default function AuditPage() {
         </div>
     );
 }
+

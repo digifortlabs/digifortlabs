@@ -4,23 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function SessionMonitor() {
-    const [timeLeft, setTimeLeft] = useState<number | null>(null);
-    const [showCountdown, setShowCountdown] = useState(false);
+    const [isExpired, setIsExpired] = useState(false);
     const router = useRouter();
-
-    const parseJwt = (token: string) => {
-        try {
-            const base64Url = token.split('.')[1];
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
-                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-            }).join(''));
-
-            return JSON.parse(jsonPayload);
-        } catch (e) {
-            return null;
-        }
-    };
 
     useEffect(() => {
         let lastActivity = Date.now();
@@ -36,49 +21,40 @@ export default function SessionMonitor() {
         window.addEventListener('click', updateActivity);
         window.addEventListener('scroll', updateActivity);
 
-        const checkToken = () => {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                setShowCountdown(false);
-                setTimeLeft(null);
-                return;
-            }
-
+        const checkSession = async () => {
             // Check Idle Time
             if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
-                localStorage.removeItem('token');
+                // If idle, explicitly logout to clear cookie
+                try {
+                    const { apiFetch } = await import('@/lib/api');
+                    await apiFetch('/auth/logout', { method: 'POST' });
+                } catch (e) { }
+                localStorage.removeItem('userRole');
+                localStorage.removeItem('userEmail');
                 router.push('/login?error=Session timed out due to inactivity.');
                 return;
             }
 
-            const decoded = parseJwt(token);
-            if (!decoded || !decoded.exp) {
-                return;
-            }
-
-            const expiry = decoded.exp * 1000;
-            const now = Date.now();
-            const diff = Math.floor((expiry - now) / 1000);
-
-            if (diff <= 0) {
-                // Token already expired
-                localStorage.removeItem('token');
-                router.push('/login?error=Session expired. Please log in again.');
-                return;
-            }
-
-            if (diff <= 60) {
-                setShowCountdown(true);
-                setTimeLeft(diff);
-            } else {
-                setShowCountdown(false);
-                setTimeLeft(null);
+            // Ping backend to verify if HttpOnly cookie session is still alive
+            try {
+                const { apiFetch } = await import('@/lib/api');
+                const res = await apiFetch('/users/me');
+                if (res.status === 401) {
+                    setIsExpired(true);
+                    localStorage.removeItem('userRole');
+                    localStorage.removeItem('userEmail');
+                }
+            } catch (e) {
+                console.error("Session monitor ping failed", e);
             }
         };
 
-        // Check every second
-        const interval = setInterval(checkToken, 1000);
-        checkToken();
+        // Check every 5 minutes (300000 ms) instead of every second
+        // Less intrusive now that we rely on backend state
+        const interval = setInterval(checkSession, 300000);
+
+        // Initial check deferred briefly to let main page load
+        setTimeout(checkSession, 5000);
 
         return () => {
             clearInterval(interval);
@@ -89,18 +65,23 @@ export default function SessionMonitor() {
         };
     }, [router]);
 
-    if (!showCountdown || timeLeft === null) return null;
+    if (!isExpired) return null;
 
     return (
-        <div className="fixed bottom-6 right-6 z-[9999] animate-bounce">
-            <div className="bg-red-600 text-white px-6 py-4 rounded-2xl shadow-2xl border-4 border-white flex flex-col items-center gap-1 min-w-[200px]">
-                <span className="text-xs font-bold uppercase tracking-widest opacity-80">Session Expiring In</span>
-                <span className="text-3xl font-black">{timeLeft}s</span>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full border border-slate-200 text-center animate-in zoom-in-95 duration-300 transform">
+                <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </div>
+                <h3 className="text-xl font-black text-slate-800 mb-2">Session Expired</h3>
+                <p className="text-sm text-slate-500 mb-6 font-medium">Your session has expired or your permissions have changed. Please log in again to continue.</p>
                 <button
                     onClick={() => router.push('/login')}
-                    className="mt-2 text-[10px] bg-white text-red-600 px-3 py-1 rounded-full font-bold hover:bg-red-50"
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition duration-200 shadow-lg shadow-indigo-200"
                 >
-                    RE-AUTHENTICATE NOW
+                    Return to Login
                 </button>
             </div>
         </div>

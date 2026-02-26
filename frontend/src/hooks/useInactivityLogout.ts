@@ -19,17 +19,8 @@ export function useInactivityLogout(config: InactivityConfig) {
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
     const resetTimer = (isActivity: boolean = false) => {
-        // Get Role
-        const token = localStorage.getItem('token');
-        let role = '';
-        if (token) {
-            try {
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                role = payload.role || '';
-            } catch (e) {
-                console.error("Token parse error in inactivity check", e);
-            }
-        }
+        // Get Role from localStorage (set during auth check)
+        const role = localStorage.getItem('userRole') || '';
 
         // If this is a natural activity event (mouse/keyboard) AND 
         // the user role is in forcedRoles, DO NOT reset the timer.
@@ -68,10 +59,18 @@ export function useInactivityLogout(config: InactivityConfig) {
 
         // Set logout timer
         const logoutTime = config.timeoutMinutes * 60 * 1000;
-        timeoutRef.current = setTimeout(() => {
+        timeoutRef.current = setTimeout(async () => {
             console.log('🔒 Auto-logout due to inactivity');
-            localStorage.removeItem('token');
-            router.push('/login?reason=inactivity');
+            try {
+                const { apiFetch } = await import('@/lib/api');
+                await apiFetch('/auth/logout', { method: 'POST' });
+            } catch (e) {
+                console.error("Backend logout failed", e);
+            } finally {
+                localStorage.removeItem('userRole');
+                localStorage.removeItem('userEmail');
+                router.push('/login?reason=inactivity');
+            }
         }, logoutTime);
     };
 

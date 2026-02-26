@@ -205,10 +205,13 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
         print(f"✅ Processing Complete: {file_id}")
 
     except Exception as e:
+        db.rollback()
         import traceback
         error_msg = traceback.format_exc()
         # Fallback to local file logging in case PM2 is dropping stdout
-        with open("/home/ec2-user/.pm2/logs/custom_trace.log", "a") as errFile:
+        import tempfile
+        log_path = os.path.join(tempfile.gettempdir(), "custom_trace.log")
+        with open(log_path, "a") as errFile:
             errFile.write(f"\n--- UPLOAD CRASH ---\nFile ID: {file_id}\n{error_msg}\n")
         print(f"❌ Background Task Error for {file_id}:\n{error_msg}")
         try:
@@ -366,12 +369,14 @@ def run_manual_ocr_task(file_id: int):
             db.commit()
             
         except Exception as e:
+            db.rollback()
             log_ocr(f"❌ Manual OCR Error during processing: {e}")
             db_file.processing_stage = 'failed' 
             db_file.processing_progress = 0
             db.commit()
             
     except Exception as e:
+        db.rollback()
         log_ocr(f"❌ Manual OCR Task Error: {e}")
     finally:
         db.close()
@@ -392,6 +397,7 @@ def process_pdf_background_legacy(file_id: int, file_bytes: bytes):
                 db.commit()
                 # log_audit(db, system_user_id, "OCR_COMPLETED", ...) - Optional
     except Exception as e:
+        db.rollback()
         print(f"OCR Background Error: {e}")
     finally:
         db.close()
@@ -426,7 +432,18 @@ from typing import List, Optional, Union
 
 # ...
 
-class PatientResponse(BaseModel):
+class PatientMedicalBase(BaseModel):
+    # New Medical Fields
+    doctor_name: Optional[str] = None
+    weight: Optional[str] = None
+    diagnosis: Optional[str] = None
+    operative_notes: Optional[str] = None
+    mediclaim: Optional[str] = None
+    medical_summary: Optional[str] = None
+    remarks: Optional[str] = None
+
+
+class PatientResponse(PatientMedicalBase):
     record_id: int
     patient_u_id: str
     hospital_id: int
@@ -437,7 +454,6 @@ class PatientResponse(BaseModel):
     gender: Optional[str] = None
     address: Optional[str] = None
     contact_number: Optional[str] = None
-    email_id: Optional[str] = None
     email_id: Optional[str] = None
     aadhaar_number: Optional[str] = None
     patient_category: str = "STANDARD" # STANDARD, MLC, BIRTH, DEATH
@@ -462,22 +478,13 @@ class PatientResponse(BaseModel):
     def price_per_extra_page(self) -> float:
         return self.hospital.price_per_extra_page if self.hospital else 1.0
 
-    # New Medical Fields
-    doctor_name: Optional[str] = None
-    weight: Optional[str] = None
-    diagnosis: Optional[str] = None
-    operative_notes: Optional[str] = None
-    mediclaim: Optional[str] = None
-    medical_summary: Optional[str] = None
-    remarks: Optional[str] = None
-
     mother_record_id: Optional[int] = None
     mother_details: Optional[dict] = None # Basic info about mother if linked
 
     class Config:
         from_attributes = True
 
-class PatientCreate(BaseModel):
+class PatientCreate(PatientMedicalBase):
     patient_u_id: str
     uhid: Optional[str] = None
     full_name: str
@@ -486,26 +493,16 @@ class PatientCreate(BaseModel):
     address: Optional[str] = None
     contact_number: Optional[str] = None
     email_id: Optional[str] = None
-    email_id: Optional[str] = None
     aadhaar_number: Optional[str] = None
     patient_category: str = "STANDARD" # STANDARD, MLC, BIRTH, DEATH
     dob: Optional[datetime.datetime] = None
     admission_date: Optional[datetime.datetime] = None
     discharge_date: Optional[datetime.datetime] = None  # Made optional for registration
-    discharge_date: Optional[datetime.datetime] = None  # Made optional for registration
     hospital_id: Optional[int] = None
     mother_record_id: Optional[int] = None
 
-    # New Medical Fields
-    doctor_name: Optional[str] = None
-    weight: Optional[str] = None
-    diagnosis: Optional[str] = None
-    operative_notes: Optional[str] = None
-    mediclaim: Optional[str] = None
-    medical_summary: Optional[str] = None
-    remarks: Optional[str] = None
 
-class PatientUpdate(BaseModel):
+class PatientUpdate(PatientMedicalBase):
     patient_u_id: Optional[str] = None
     uhid: Optional[str] = None
     full_name: Optional[str] = None
@@ -518,18 +515,9 @@ class PatientUpdate(BaseModel):
     patient_category: str = "STANDARD" # STANDARD, MLC, BIRTH, DEATH
     dob: Optional[datetime.datetime] = None
     admission_date: Optional[datetime.datetime] = None
-    admission_date: Optional[datetime.datetime] = None
     discharge_date: Optional[datetime.datetime] = None
     mother_record_id: Optional[int] = None
 
-    # New Medical Fields
-    doctor_name: Optional[str] = None
-    weight: Optional[str] = None
-    diagnosis: Optional[str] = None
-    operative_notes: Optional[str] = None
-    mediclaim: Optional[str] = None
-    medical_summary: Optional[str] = None
-    remarks: Optional[str] = None
 
 class PatientDetailResponse(PatientResponse):
     pass
@@ -681,12 +669,20 @@ async def upload_patient_file(
         # 1. Save to Temp File (Stream to disk to avoid Memory Crash)
         import tempfile
         try:
-            tmp_fd, tmp_path = tempfile.mkstemp(suffix=ext)
-            os.close(tmp_fd)
-            
-            with open(tmp_path, "wb") as buffer:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
+                tmp_path = temp_file.name
+                
+                # Check Magic Bytes to prevent spoofing
+                first_chunk = await file.read(1024 * 1024)
+                if not first_chunk:
+                    raise HTTPException(status_code=400, detail="Empty file upload")
+                    
+                if ext == '.pdf' and not first_chunk.startswith(b'%PDF-'):
+                    raise HTTPException(status_code=400, detail="Invalid file content: Spoofed PDF detected")
+                
+                temp_file.write(first_chunk)
                 while content := await file.read(1024 * 1024): # 1MB chunks
-                    buffer.write(content)
+                    temp_file.write(content)
 
             # --- COMPRESSION STEP ---
             file_size = os.path.getsize(tmp_path)
@@ -1323,26 +1319,16 @@ def get_file_url(file_id: int, db: Session = Depends(get_db), current_user: User
 def serve_file(
     file_id: int, 
     background_tasks: BackgroundTasks, # Added background_tasks
-    token: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Decrypt and stream file to browser using disk-based buffering for memory efficiency.
-    Allows authentication via query param 'token' for direct browser viewing.
+    Requires standard Authorization header with Bearer token.
     """
-    from ..routers.auth import get_current_user as verify_user
     import tempfile
     from fastapi.responses import FileResponse
     
-    # Authenticate manually since standard Depends(get_current_user) won't work for tags/embeds
-    if not token:
-        raise HTTPException(status_code=401, detail="Authentication token required in query params")
-        
-    try:
-        current_user = verify_user(token=token, db=db)
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
-
     is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
     
     query = db.query(PDFFile).join(Patient).filter(PDFFile.file_id == file_id)
@@ -1518,6 +1504,7 @@ def monitor_restoration_and_email(file_id: int, hospital_email: str):
                 break
             time.sleep(60)
     except Exception as e:
+        db.rollback()
         print(f"❌ monitor_restoration error: {e}")
     finally:
         db.close()

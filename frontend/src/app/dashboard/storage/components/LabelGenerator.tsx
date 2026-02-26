@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Search, Printer, User, QrCode as QrIcon, FileText } from 'lucide-react';
 import QRCode from "react-qr-code";
-import { API_URL } from '../../../../config/api';
+import { apiFetch } from '../../../../config/api';
 
 const PrintStyles = `
     @page { size: 1in 2in; margin: 0; }
@@ -123,14 +123,10 @@ const LabelGenerator = () => {
         if (!uhidSearch) return;
         setIsSearching(true);
         setSearchResults([]);
-        const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/patients/?q=${encodeURIComponent(uhidSearch)}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const results = await res.json();
-                setSearchResults(results.map((p: any) => ({
+            const data = await apiFetch(`patients/?q=${encodeURIComponent(uhidSearch)}`);
+            if (data) {
+                setSearchResults(data.map((p: any) => ({
                     ...p,
                     displayTitle: p.full_name,
                     displaySub: p.uhid || p.patient_u_id,
@@ -139,7 +135,7 @@ const LabelGenerator = () => {
                     displayType: 'PATIENT (MED)',
                     displayBox: p.box_label
                 })));
-                if (results.length === 0) alert("No patient found.");
+                if (data.length === 0) alert("No patient found.");
             }
         } catch (e) { console.error(e); }
         finally { setIsSearching(false); }
@@ -149,16 +145,12 @@ const LabelGenerator = () => {
         if (!searchQuery) return;
         setIsSearching(true);
         setSearchResults([]);
-        const token = localStorage.getItem('token');
-        const endpoint = mode === 'BOX' ? '/storage/boxes' : '/storage/racks';
+        const endpoint = mode === 'BOX' ? 'storage/boxes' : 'storage/racks';
 
         try {
-            const res = await fetch(`${API_URL}${endpoint}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const list = await res.json();
-                const matches = list.filter((i: any) => i.label.toLowerCase().includes(searchQuery.toLowerCase()));
+            const data = await apiFetch(endpoint);
+            if (data) {
+                const matches = data.filter((i: any) => i.label.toLowerCase().includes(searchQuery.toLowerCase()));
 
                 setSearchResults(matches.map((m: any) => ({
                     ...m,
@@ -365,3 +357,4 @@ const LabelGenerator = () => {
 };
 
 export default LabelGenerator;
+

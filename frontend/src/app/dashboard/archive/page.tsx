@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Archive, Search, FileText, Calendar, Box } from 'lucide-react';
-import { API_URL } from '../../../config/api';
+import { apiFetch } from '../../../config/api';
 import { formatDate } from '@/lib/dateFormatter';
 import { useTerminology } from '@/hooks/useTerminology';
 
@@ -18,12 +18,8 @@ export default function ArchiveView() {
 
     const fetchArchive = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/patients/`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
+            const data = await apiFetch(`patients/`);
+            if (data) {
                 // Filter only patients assigned to a box
                 const archived = data.filter((p: any) => p.physical_box_id !== null);
                 setArchivedFiles(archived);
@@ -120,3 +116,4 @@ export default function ArchiveView() {
         </div>
     );
 }
+

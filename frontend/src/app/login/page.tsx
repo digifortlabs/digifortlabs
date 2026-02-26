@@ -50,6 +50,7 @@ function LoginForm() {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
                 body: formData,
+                credentials: 'include', // Needed so the browser saves the Set-Cookie response
             });
 
             console.log(`🟢 [Login] Response Status: ${res.status}`);
@@ -61,9 +62,20 @@ function LoginForm() {
             }
 
             const data = await res.json();
-            console.log("🟢 [Login] Success, Token received.");
-            localStorage.setItem('token', data.access_token);
+            console.log("🟢 [Login] Success, HttpOnly Cookie set.");
+
+            // SECURITY IMPORVEMENT: The token is now in a secure HttpOnly cookie!
+            // We no longer expose the JWT to localStorage where XSS could steal it.
+            // We only store non-sensitive UI state.
             localStorage.setItem('userEmail', email); // Store for Secure View Watermark
+
+            // Also store basic info if frontend needs it immediately
+            if (data.role) localStorage.setItem('userRole', data.role);
+            if (data.specialty) localStorage.setItem('userSpecialty', data.specialty);
+            if (data.enabled_modules) localStorage.setItem('userModules', JSON.stringify(data.enabled_modules));
+            if (data.terminology) localStorage.setItem('userTerminology', JSON.stringify(data.terminology));
+            if (data.hospital_id) localStorage.setItem('hospital_id', data.hospital_id.toString());
+
             router.push('/dashboard');
 
         } catch (err: any) {

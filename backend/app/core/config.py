@@ -37,8 +37,13 @@ class Settings:
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "720"))
     
+    @property
+    def IS_UNSAFE_SECRET_KEY(self) -> bool:
+        return self.SECRET_KEY == "super-secret-key-change-this-in-prod"
+    
     # CORS - Read from environment or use defaults
-    def __init__(self):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         cors_env = os.getenv("BACKEND_CORS_ORIGINS")
         if cors_env:
             try:
@@ -47,6 +52,9 @@ class Settings:
                 self.BACKEND_CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"]
         else:
             self.BACKEND_CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"]
+            
+        if self.ENVIRONMENT == "production" and self.IS_UNSAFE_SECRET_KEY:
+            raise ValueError("CRITICAL SECURITY ERROR: SECRET_KEY must be configured in production!")
 
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     BACKEND_URL: str = os.getenv("BACKEND_URL", "http://localhost:8000")

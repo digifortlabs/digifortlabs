@@ -40,24 +40,16 @@ export default function FileRequestManager() {
     };
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            try {
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                setUserRole(payload.role);
-            } catch (e) {
-                console.error("Token decode failed", e);
-            }
+        const storedRole = localStorage.getItem('userRole');
+        if (storedRole) {
+            setUserRole(storedRole);
         }
         fetchRequests();
     }, []);
 
     const fetchRequests = async () => {
-        const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/storage/requests`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await fetch(`${API_URL}/storage/requests`);
             if (res.ok) setRequests(await res.json());
         } catch (err) {
             console.error(err);
@@ -72,11 +64,8 @@ export default function FileRequestManager() {
 
     const searchPatients = async (query: string) => {
         if (!query) { setSearchResults([]); return; }
-        const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/patients/`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await fetch(`${API_URL}/patients/`);
             if (res.ok) {
                 const data = await res.json();
                 const filtered = data.filter((p: any) =>
@@ -96,13 +85,11 @@ export default function FileRequestManager() {
             return;
         }
 
-        const token = localStorage.getItem('token');
         try {
             const res = await fetch(`${API_URL}/storage/requests`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     box_id: patient.physical_box_id,
@@ -124,11 +111,9 @@ export default function FileRequestManager() {
     };
 
     const updateStatus = async (id: number, status: string) => {
-        const token = localStorage.getItem('token');
         try {
             const res = await fetch(`${API_URL}/storage/requests/${id}/status?status=${status}`, {
-                method: 'PATCH',
-                headers: { Authorization: `Bearer ${token}` }
+                method: 'PATCH'
             });
             if (res.ok) {
                 triggerToast(`Request ${status}`, "success");
@@ -149,11 +134,9 @@ export default function FileRequestManager() {
             type: 'danger',
             confirmText: "Delete",
             onConfirm: async () => {
-                const token = localStorage.getItem('token');
                 try {
                     const res = await fetch(`${API_URL}/storage/requests/${id}`, {
-                        method: 'DELETE',
-                        headers: { Authorization: `Bearer ${token}` }
+                        method: 'DELETE'
                     });
                     if (res.ok) {
                         triggerToast("Request Deleted", "success");
@@ -432,12 +415,12 @@ export default function FileRequestManager() {
 
             {showToast && (
                 <div className={`fixed bottom-6 right-6 px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in z-[100] border ${toastType === 'success' ? 'bg-slate-900 border-slate-700 text-white' :
-                        toastType === 'error' ? 'bg-red-50 border-red-200 text-red-900' :
-                            'bg-blue-50 border-blue-200 text-blue-900'
+                    toastType === 'error' ? 'bg-red-50 border-red-200 text-red-900' :
+                        'bg-blue-50 border-blue-200 text-blue-900'
                     }`}>
                     <div className={`rounded-full p-1 ${toastType === 'success' ? 'bg-green-500' :
-                            toastType === 'error' ? 'bg-red-500' :
-                                'bg-blue-500'
+                        toastType === 'error' ? 'bg-red-500' :
+                            'bg-blue-500'
                         }`}>
                         {toastType === 'success' && <CheckCircle size={16} className="text-white" />}
                         {toastType === 'error' && <AlertCircle size={16} className="text-white" />}
@@ -451,3 +434,4 @@ export default function FileRequestManager() {
         </div>
     );
 }
+

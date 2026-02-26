@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { FileText, Search, Plus, Clock, CheckCircle2, AlertCircle, Box } from 'lucide-react';
-import { API_URL } from '../../../config/api';
+import { API_URL, apiFetch } from '../../../config/api';
 import { formatDate } from '@/lib/dateFormatter';
 
 export default function FileRequests() {
@@ -14,25 +14,17 @@ export default function FileRequests() {
     const [processingId, setProcessingId] = useState<number | null>(null);
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            try {
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                setUserRole(payload.role);
-            } catch (e) {
-                console.error("Token decode failed", e);
-            }
+        if (typeof window !== 'undefined') {
+            const storedRole = localStorage.getItem('userRole') || '';
+            setUserRole(storedRole);
         }
         fetchRequests();
     }, []);
 
     const fetchRequests = async () => {
-        const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/storage/requests`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) setRequests(await res.json());
+            const data = await apiFetch(`storage/requests`);
+            if (data) setRequests(data);
         } catch (err) {
             console.error(err);
         }
@@ -46,14 +38,9 @@ export default function FileRequests() {
 
     const searchPatients = async (query: string) => {
         if (!query || query.length < 2) { setSearchResults([]); return; }
-        const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/storage/search?q=${encodeURIComponent(query)}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                // Map storage search results to the format expected by the UI
+            const data = await apiFetch(`storage/search?q=${encodeURIComponent(query)}`);
+            if (data) {
                 const mapped = data.map((item: any) => ({
                     ...item,
                     full_name: item.patient_name,
@@ -72,70 +59,57 @@ export default function FileRequests() {
             return;
         }
 
-        const token = localStorage.getItem('token');
         setProcessingId(patient.record_id);
 
         try {
-            const res = await fetch(`${API_URL}/storage/requests`, {
+            const res = await apiFetch(`storage/requests`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
                 body: JSON.stringify({
                     box_id: patient.physical_box_id,
                     requester_name: "Auto" // Backend will populate this with user email
                 })
             });
 
-            if (res.ok) {
+            if (res !== null) {
                 alert("Request Submitted Successfully!");
                 setView('list');
                 fetchRequests();
-            } else {
-                const d = await res.json();
-                alert(d.detail || "Failed");
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
+            alert(err.message || "Failed");
         } finally {
             setProcessingId(null);
         }
     };
 
     const updateStatus = async (id: number, status: string) => {
-        const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/storage/requests/${id}/status?status=${status}`, {
-                method: 'PATCH',
-                headers: { Authorization: `Bearer ${token}` }
+            const res = await apiFetch(`storage/requests/${id}/status?status=${status}`, {
+                method: 'PATCH'
             });
-            if (res.ok) {
+            if (res !== null) {
                 alert(`Request ${status}`);
                 fetchRequests();
-            } else {
-                alert("Action Failed");
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
+            alert(e.message || "Action Failed");
         }
     };
 
     const deleteRequest = async (id: number) => {
         if (!confirm("Are you sure you want to delete this request?")) return;
-        const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/storage/requests/${id}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
+            const res = await apiFetch(`storage/requests/${id}`, {
+                method: 'DELETE'
             });
-            if (res.ok) {
+            if (res === null) {
                 fetchRequests();
-            } else {
-                alert("Failed to delete request.");
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
+            alert(e.message || "Failed to delete request.");
         }
     };
 
@@ -332,22 +306,17 @@ export default function FileRequests() {
                                                     <button
                                                         onClick={async () => {
                                                             if (!confirm("Are you sure you want to delete this request history? This cannot be undone.")) return;
-                                                            const token = localStorage.getItem('token');
                                                             try {
-                                                                const res = await fetch(`${API_URL}/storage/requests/${req.request_id}`, {
-                                                                    method: 'DELETE',
-                                                                    headers: { Authorization: `Bearer ${token}` }
+                                                                const res = await apiFetch(`storage/requests/${req.request_id}`, {
+                                                                    method: 'DELETE'
                                                                 });
-                                                                if (res.ok) {
+                                                                if (res === null) {
                                                                     fetchRequests();
                                                                     alert("Request deleted successfully");
-                                                                } else {
-                                                                    const d = await res.json();
-                                                                    alert(d.detail || "Failed to delete");
                                                                 }
-                                                            } catch (e) {
+                                                            } catch (e: any) {
                                                                 console.error(e);
-                                                                alert("Network error");
+                                                                alert(e.message || "Network error");
                                                             }
                                                         }}
                                                         className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition"
@@ -421,3 +390,4 @@ export default function FileRequests() {
         </div>
     );
 }
+

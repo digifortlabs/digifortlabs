@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { API_URL } from '../../../config/api';
+import { API_URL, apiFetch } from '../../../config/api';
 
 import { Loader2 } from 'lucide-react';
 import CompanyProfileSettings from './components/CompanyProfileSettings';
@@ -36,41 +36,31 @@ export default function SettingsPage() {
     const [mustChangePassword, setMustChangePassword] = useState(false);
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) {
+        const storedRole = localStorage.getItem('userRole') || '';
+        const storedHospitalId = localStorage.getItem('hospital_id') ? parseInt(localStorage.getItem('hospital_id') as string) : null;
+        if (!storedRole) {
             router.push('/login');
         } else {
-            try {
-                const payload = JSON.parse(atob(token.split('.')[1]));
-                setUserRole(payload.role);
-                setHospitalId(payload.hospital_id);
+            setUserRole(storedRole);
+            setHospitalId(storedHospitalId);
 
-                if (payload.role !== 'website_admin' && payload.hospital_id) {
-                    fetchProfile(payload.hospital_id, token);
-                }
-                if (['website_admin', 'superadmin'].includes(payload.role)) {
-                    fetchPlatformStaff(token);
-                    fetchSystemSettings(token);
-                }
-                if (payload.force_password_change) {
-                    setMustChangePassword(true);
-                }
-            } catch (error) {
-                console.error("Invalid token:", error);
-                localStorage.removeItem('token');
-                router.push('/login');
+            if (storedRole !== 'website_admin' && storedHospitalId) {
+                fetchProfile(storedHospitalId);
+            }
+            if (['website_admin', 'superadmin'].includes(storedRole)) {
+                fetchPlatformStaff();
+                fetchSystemSettings();
+            }
+            if (localStorage.getItem('force_password_change') === 'true') {
+                setMustChangePassword(true);
             }
         }
-    }, []);
+    }, [router]);
 
-    const fetchSystemSettings = async (token: string) => {
-        const apiUrl = API_URL;
+    const fetchSystemSettings = async () => {
         try {
-            const res = await fetch(`${apiUrl}/platform/settings`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
+            const data = await apiFetch(`platform/settings`);
+            if (data) {
                 setSystemSettings({
                     maintenance_mode: data.maintenance_mode || 'false',
                     announcement: data.announcement || '',
@@ -81,26 +71,17 @@ export default function SettingsPage() {
     };
 
     const updateSystemSetting = async (key: string, value: string) => {
-        const token = localStorage.getItem('token');
-        const apiUrl = API_URL;
         try {
-            const res = await fetch(`${apiUrl}/platform/settings/${key}`, {
+            const res = await apiFetch(`platform/settings/${key}`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
                 body: JSON.stringify({ value })
             });
-            if (res.ok) {
+            if (res !== null) {
                 setSystemSettings(prev => ({ ...prev, [key]: value }));
-                // No alert for silent success or maybe a small toast?
-            } else {
-                alert("Failed to update system setting.");
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert("Connection error while updating settings.");
+            alert(`Failed to update setting: ${error.message}`);
         }
     };
 
@@ -110,14 +91,9 @@ export default function SettingsPage() {
     const [ocrLogs, setOcrLogs] = useState<string[]>([]);
 
     const fetchOcrStats = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
         try {
-            const res = await fetch(`${API_URL}/platform/ocr-status`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
+            const data = await apiFetch(`platform/ocr-status`);
+            if (data) {
                 setOcrStats({
                     pending: data.pending_ocr,
                     analyzing: data.analyzing,
@@ -130,14 +106,9 @@ export default function SettingsPage() {
     };
 
     const fetchOcrLogs = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
         try {
-            const res = await fetch(`${API_URL}/platform/ocr-logs`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
+            const data = await apiFetch(`platform/ocr-logs`);
+            if (data) {
                 setOcrLogs(data.logs || []);
             }
         } catch (error) {
@@ -150,15 +121,11 @@ export default function SettingsPage() {
     const [loadingErrors, setLoadingErrors] = useState(false);
 
     const fetchSystemErrors = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
         setLoadingErrors(true);
         try {
-            const res = await fetch(`${API_URL}/platform/system-error-logs`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                setSystemErrors(await res.json());
+            const data = await apiFetch(`platform/system-error-logs`);
+            if (data) {
+                setSystemErrors(data);
             }
         } catch (error) {
             console.error(error);
@@ -183,36 +150,25 @@ export default function SettingsPage() {
     const runBulkOCR = async () => {
         if (!confirm("This will trigger background OCR for up to 50 pending files. Continue?")) return;
         setOcrLoading(true);
-        const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`${API_URL}/platform/bulk-ocr?limit=50`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
+            const data = await apiFetch(`platform/bulk-ocr?limit=50`, {
+                method: 'POST'
             });
-            const data = await res.json();
-            if (res.ok) {
-                // No alert, rely on stats update
-                // alert(data.message);
+            if (data) {
                 fetchOcrStats();
-            } else {
-                alert(`Error: ${data.detail || data.message}`);
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Failed to trigger OCR");
+            alert(`Error: ${e.message || "Failed to trigger OCR"}`);
         } finally {
             setOcrLoading(false);
         }
     };
 
-    const fetchPlatformStaff = async (token: string) => {
-        const apiUrl = API_URL;
+    const fetchPlatformStaff = async () => {
         try {
-            const res = await fetch(`${apiUrl}/users/`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const allUsers = await res.json();
+            const allUsers = await apiFetch(`users/`);
+            if (allUsers) {
                 setPlatformStaff(allUsers.filter((u: any) => u.role === 'superadmin_staff'));
             }
         } catch (error) {
@@ -222,17 +178,10 @@ export default function SettingsPage() {
 
     const handleCreateStaff = async (e: React.FormEvent) => {
         e.preventDefault();
-        const token = localStorage.getItem('token');
-        if (!token) return;
 
         try {
-            const apiUrl = API_URL;
-            const res = await fetch(`${apiUrl}/users/`, {
+            const res = await apiFetch(`users/`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
                 body: JSON.stringify({
                     email: newStaff.email,
                     password: newStaff.password,
@@ -240,29 +189,24 @@ export default function SettingsPage() {
                 })
             });
 
-            if (res.ok) {
+            if (res) {
                 alert("Platform Staff created successfully!");
                 setShowStaffModal(false);
                 setNewStaff({ email: '', password: '' });
-                fetchPlatformStaff(token);
-            } else {
-                const err = await res.json();
-                alert(err.detail || "Failed to create staff");
+                fetchPlatformStaff();
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            alert(error.message || "Failed to create staff");
         }
     };
 
     const handleUpdateStaff = async (e: React.FormEvent) => {
         e.preventDefault();
-        const token = localStorage.getItem('token');
-        if (!token || !editingStaff) return;
+        if (!editingStaff) return;
 
         try {
-            const apiUrl = API_URL;
             const body: any = {};
-            // Only send password if provided
             if (editStaffData.password) {
                 body.password = editStaffData.password;
             } else {
@@ -270,51 +214,39 @@ export default function SettingsPage() {
                 return;
             }
 
-            const res = await fetch(`${apiUrl}/users/${editingStaff.user_id}`, {
+            const res = await apiFetch(`users/${editingStaff.user_id}`, {
                 method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
                 body: JSON.stringify(body)
             });
 
-            if (res.ok) {
+            if (res !== null) {
                 alert("Staff updated successfully!");
                 setShowEditStaffModal(false);
                 setEditingStaff(null);
                 setEditStaffData({ password: '' });
-                fetchPlatformStaff(token);
-            } else {
-                const err = await res.json();
-                alert(err.detail || "Failed to update staff");
+                fetchPlatformStaff();
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            alert(error.message || "Failed to update staff");
         }
     };
 
     const handleDeleteStaff = async (staffId: number) => {
         if (!confirm("Are you sure you want to permanently delete this staff member? This action cannot be undone.")) return;
-        const token = localStorage.getItem('token');
-        if (!token) return;
 
         try {
-            const apiUrl = API_URL;
-            const res = await fetch(`${apiUrl}/users/${staffId}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${token}` }
+            const res = await apiFetch(`users/${staffId}`, {
+                method: 'DELETE'
             });
 
-            if (res.ok) {
+            if (res === null) {
                 alert("Staff member deleted successfully.");
-                fetchPlatformStaff(token);
-            } else {
-                const err = await res.json();
-                alert(err.detail || "Failed to delete staff");
+                fetchPlatformStaff();
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            alert(error.message || "Failed to delete staff");
         }
     };
 
@@ -331,44 +263,30 @@ export default function SettingsPage() {
             return;
         }
 
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
         try {
-            const apiUrl = API_URL;
-            const res = await fetch(`${apiUrl}/users/change-password`, {
+            const res = await apiFetch(`users/change-password`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
                 body: JSON.stringify({
                     old_password: passwordData.old,
                     new_password: passwordData.new
                 })
             });
 
-            if (res.ok) {
+            if (res) {
                 alert("Password changed successfully! You will now be logged out to re-authenticate.");
                 localStorage.removeItem('token');
                 router.push('/login');
-            } else {
-                const err = await res.json();
-                alert(err.detail || "Failed to change password");
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            alert(error.message || "Failed to change password");
         }
     };
 
-    const fetchProfile = async (id: number, token: string) => {
-        const apiUrl = API_URL;
+    const fetchProfile = async (id: number) => {
         try {
-            const res = await fetch(`${apiUrl}/hospitals/${id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
+            const data = await apiFetch(`hospitals/${id}`);
+            if (data) {
                 setProfile({
                     director_name: data.director_name || '',
                     registration_number: data.registration_number || '',
@@ -389,27 +307,20 @@ export default function SettingsPage() {
     };
 
     const handleSaveProfile = async () => {
-        const token = localStorage.getItem('token');
-        if (!token || !hospitalId) return;
+        if (!hospitalId) return;
 
         try {
-            const apiUrl = API_URL;
-            const res = await fetch(`${apiUrl}/hospitals/${hospitalId}`, {
+            const res = await apiFetch(`hospitals/${hospitalId}`, {
                 method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
                 body: JSON.stringify(profile)
             });
 
-            if (res.ok) {
+            if (res) {
                 alert("Client Profile Updated Successfully!");
-            } else {
-                alert("Failed to update profile.");
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            alert("Failed to update profile.");
         }
     };
 
@@ -903,3 +814,4 @@ export default function SettingsPage() {
 
     );
 }
+

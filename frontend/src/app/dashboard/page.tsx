@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { API_URL } from '../../config/api';
+import { API_URL, apiFetch } from '../../config/api';
 import { formatDateTime, formatDate } from '@/lib/dateFormatter';
 import {
     Activity,
@@ -64,13 +64,11 @@ export default function CommandCenter() {
 
     const handleClearCache = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_URL}/platform/clear-cache`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
+            const res = await apiFetch(`platform/clear-cache`, {
+                method: 'POST'
             });
 
-            if (!res.ok) throw new Error("Backend clear failed");
+            if (res === null) throw new Error("Backend clear failed");
 
             // Clear local storage (except token)
             Object.keys(localStorage).forEach(key => {
@@ -113,35 +111,26 @@ export default function CommandCenter() {
     });
 
     useEffect(() => {
-        // Simulations and Fetching
-        const token = localStorage.getItem('token');
-        if (!token) return router.push('/login');
-
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            // Ensure lowercase for consistent checks
-            const rule = (payload.role || '').toLowerCase();
-            setUserRole(rule);
-        } catch (e) {
-            console.error("Failed to parse token", e);
+        // Role is handled by localStorage now during login
+        if (typeof window !== 'undefined') {
+            const storedRole = localStorage.getItem('userRole');
+            if (!storedRole) {
+                router.push('/login');
+                return;
+            }
+            setUserRole((storedRole || '').toLowerCase());
         }
 
         // Fetch Real Dashboard Stats (with optional hospital_id for drill-down)
-        const url = hospitalId
-            ? `${API_URL}/stats/dashboard?hospital_id=${hospitalId}`
-            : `${API_URL}/stats/dashboard`;
+        const fetchDashboardData = async () => {
+            const url = hospitalId
+                ? `stats/dashboard?hospital_id=${hospitalId}`
+                : `stats/dashboard`;
 
-        fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-            .then(res => {
-                if (res.status === 401) {
-                    localStorage.removeItem('token');
-                    router.push('/login');
-                    throw new Error("Unauthorized");
-                }
-                if (!res.ok) throw new Error("Failed to fetch stats");
-                return res.json();
-            })
-            .then(data => {
+            try {
+                const data = await apiFetch(url);
+                if (!data) return; // apiFetch handles 401 redirects and errors
+
                 setStats(data);
                 setWarehouseCapacity(data.warehouse ? data.warehouse.capacity_pct : 0);
                 setSystemHealth(data.system ? data.system.health : 'Unknown');
@@ -151,51 +140,48 @@ export default function CommandCenter() {
                 if (data.qa_issues) {
                     setQaIssues(data.qa_issues);
                 }
-            })
-            .catch(err => console.error("Stats Fetch Error:", err));
+            } catch (err) {
+                console.error("Stats Fetch Error:", err);
+            }
 
-        // Fetch Recent Patients if looking at specific hospital
-        if (hospitalId) {
-            setLoadingPatients(true);
-            fetch(`${API_URL}/patients/?hospital_id=${hospitalId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            })
-                .then(res => res.json())
-                .then(data => {
-                    // Take top 5 recent
-                    setPatients(Array.isArray(data) ? data.slice(0, 5) : []);
-                })
-                .catch(err => console.error("Patients Fetch Error:", err))
-                .finally(() => setLoadingPatients(false));
-        }
+            // Fetch Recent Patients if looking at specific hospital
+            if (hospitalId) {
+                setLoadingPatients(true);
+                try {
+                    const patientData = await apiFetch(`patients/?hospital_id=${hospitalId}`);
+                    if (patientData) {
+                        setPatients(Array.isArray(patientData) ? patientData.slice(0, 5) : []);
+                    }
+                } catch (err) {
+                    console.error("Patients Fetch Error:", err);
+                } finally {
+                    setLoadingPatients(false);
+                }
+            }
+        };
 
-    }, [hospitalId]);
+        fetchDashboardData();
+    }, [hospitalId, router]);
 
     // Separate Effect for Session Timer
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
+        // Simplified session timer using localStorage login time if we strictly need it,
+        // or removing it as JWT parsing is no longer possible client-side securely with HttpOnly
+        const loginTimeStr = localStorage.getItem('loginTime');
+        const iat = loginTimeStr ? parseInt(loginTimeStr) : Math.floor(Date.now() / 1000); // Fallback to now if not set
 
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            if (payload.iat) {
-                // Initial calculation
-                const updateTimer = () => {
-                    const now = Math.floor(Date.now() / 1000);
-                    const diff = now - payload.iat;
-                    const h = Math.floor(diff / 3600).toString().padStart(2, '0');
-                    const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
-                    const s = (diff % 60).toString().padStart(2, '0');
-                    setSessionDuration(`${h}:${m}:${s}`);
-                };
+        const updateTimer = () => {
+            const now = Math.floor(Date.now() / 1000);
+            const diff = now - iat;
+            const h = Math.floor(diff / 3600).toString().padStart(2, '0');
+            const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
+            const s = (diff % 60).toString().padStart(2, '0');
+            setSessionDuration(`${h}:${m}:${s}`);
+        };
 
-                updateTimer(); // Run immediately
-                const interval = setInterval(updateTimer, 1000);
-                return () => clearInterval(interval);
-            }
-        } catch (e) {
-            // Silent fail for timer
-        }
+        updateTimer(); // Run immediately
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
     }, []);
 
     // Live Clock Effect
@@ -633,15 +619,12 @@ export default function CommandCenter() {
                                             onConfirm: async () => {
                                                 setConfirmModal(prev => ({ ...prev, isLoading: true }));
                                                 try {
-                                                    const token = localStorage.getItem('token');
+                                                    // Token is handled by HttpOnly cookies
 
                                                     // 1. Fetch Drafts List
-                                                    const listRes = await fetch(`${API_URL}/storage/drafts${hospitalId ? `?hospital_id=${hospitalId}` : ''}`, {
-                                                        headers: { Authorization: `Bearer ${token}` }
-                                                    });
-                                                    const drafts = await listRes.json();
+                                                    const drafts = await apiFetch(`storage/drafts${hospitalId ? `?hospital_id=${hospitalId}` : ''}`);
 
-                                                    if (!listRes.ok || !Array.isArray(drafts)) throw new Error("Failed to fetch drafts list");
+                                                    if (!Array.isArray(drafts)) throw new Error("Failed to fetch drafts list");
 
                                                     if (drafts.length === 0) {
                                                         setConfirmModal(prev => ({
@@ -659,12 +642,11 @@ export default function CommandCenter() {
                                                     for (const file of drafts) {
                                                         setConfirmModal(prev => ({ ...prev, message: `Publishing: ${file.filename}\n(Patient: ${file.patient_name})` }));
 
-                                                        const confRes = await fetch(`${API_URL}/patients/files/${file.file_id}/confirm`, {
-                                                            method: 'POST',
-                                                            headers: { Authorization: `Bearer ${token}` }
+                                                        const confRes = await apiFetch(`patients/files/${file.file_id}/confirm`, {
+                                                            method: 'POST'
                                                         });
 
-                                                        if (confRes.ok) successCount++;
+                                                        if (confRes !== null) successCount++;
                                                         // We continue even if one fails
                                                     }
 
@@ -716,15 +698,12 @@ export default function CommandCenter() {
                                                 onConfirm: async () => {
                                                     setConfirmModal(prev => ({ ...prev, isLoading: true }));
                                                     try {
-                                                        const token = localStorage.getItem('token');
+                                                        // Token is handled by HttpOnly cookies
 
                                                         // 1. Fetch Drafts List
-                                                        const listRes = await fetch(`${API_URL}/storage/drafts${hospitalId ? `?hospital_id=${hospitalId}` : ''}`, {
-                                                            headers: { Authorization: `Bearer ${token}` }
-                                                        });
-                                                        const drafts = await listRes.json();
+                                                        const drafts = await apiFetch(`storage/drafts${hospitalId ? `?hospital_id=${hospitalId}` : ''}`);
 
-                                                        if (!listRes.ok || !Array.isArray(drafts)) throw new Error("Failed to fetch drafts list");
+                                                        if (!Array.isArray(drafts)) throw new Error("Failed to fetch drafts list");
 
                                                         if (drafts.length === 0) {
                                                             setConfirmModal(prev => ({
@@ -742,12 +721,11 @@ export default function CommandCenter() {
                                                         for (const file of drafts) {
                                                             setConfirmModal(prev => ({ ...prev, message: `Publishing: ${file.filename}\n(Patient: ${file.patient_name})` }));
 
-                                                            const confRes = await fetch(`${API_URL}/patients/files/${file.file_id}/confirm`, {
-                                                                method: 'POST',
-                                                                headers: { Authorization: `Bearer ${token}` }
+                                                            const confRes = await apiFetch(`patients/files/${file.file_id}/confirm`, {
+                                                                method: 'POST'
                                                             });
 
-                                                            if (confRes.ok) successCount++;
+                                                            if (confRes !== null) successCount++;
                                                         }
 
                                                         // 3. Show Final Result
@@ -897,7 +875,7 @@ export default function CommandCenter() {
                                             try {
                                                 const res = await fetch(`${API_URL}/qa/${selectedIssue.id}/resolve`, {
                                                     method: 'POST',
-                                                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                                                    credentials: 'include'
                                                 });
                                                 if (res.ok) {
                                                     setQaIssues(prev => prev.filter(i => i.id !== selectedIssue.id));
@@ -1019,3 +997,4 @@ const ActionButton = ({ icon, label, onClick, className = "" }: any) => (
         {label}
     </button>
 );
+
