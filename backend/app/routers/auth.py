@@ -415,6 +415,30 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
     return user
 
 
+@router.get("/session-token")
+async def get_session_token(current_user: User = Depends(get_current_user)):
+    """Returns the JWT for the currently active session. Useful for desktop app handoff."""
+    token_data = {
+        "sub": current_user.email, 
+        "role": current_user.role, 
+        "hospital_id": current_user.hospital_id,
+        "hospital_name": current_user.hospital.legal_name if current_user.hospital else None,
+        "specialty": current_user.hospital.specialty if current_user.hospital else "General",
+        "terminology": current_user.hospital.terminology if current_user.hospital else {},
+        "enabled_modules": current_user.hospital.enabled_modules if current_user.hospital else ["core"],
+        "session_id": current_user.current_session_id,
+        "force_password_change": current_user.force_password_change or False,
+        "previous_login": current_user.previous_login_at.isoformat() if current_user.previous_login_at else None
+    }
+    
+    expires_delta = None
+    if current_user.role == UserRole.SUPER_ADMIN:
+        expires_delta = timedelta(days=30)
+
+    access_token = create_access_token(data=token_data, expires_delta=expires_delta)
+    return {"access_token": access_token}
+
+
 def require_permission(required_permission: Permission):
     """
     Dependency generator that checks if the current user has the required permission.

@@ -1316,14 +1316,32 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
                                         <Camera size={14} /> Scan
                                     </button>
                                     <button
-                                        onClick={() => {
+                                        onClick={async () => {
                                             // Token is handled by HttpOnly cookies but for desktop scanner we pass it via sessionStorage
-                                            const sessionToken = typeof window !== 'undefined' ? sessionStorage.getItem('access_token') : null;
+                                            let sessionToken = typeof window !== 'undefined' ? sessionStorage.getItem('access_token') : null;
+
+                                            // If missing (e.g. user was logged in before our changes), fetch it explicitly
+                                            if (!sessionToken) {
+                                                try {
+                                                    const res = await apiFetch('/auth/session-token');
+                                                    if (res && res.access_token) {
+                                                        sessionToken = res.access_token;
+                                                        sessionStorage.setItem('access_token', sessionToken);
+                                                    }
+                                                } catch (e) {
+                                                    console.error("Failed to fetch session token", e);
+                                                }
+                                            }
+
+                                            if (!sessionToken) {
+                                                triggerToast("Auth error. Please re-login.", "error");
+                                                return;
+                                            }
 
                                             // Encode Base64 to handle special characters and spaces safely in protocol URI
                                             const pNameB64 = btoa(unescape(encodeURIComponent(patient.full_name || '')));
                                             const pmrdB64 = btoa(unescape(encodeURIComponent(patient.patient_u_id || '')));
-                                            const protocolUrl = `digifort://upload?token=${sessionToken || 'no_token_found'}&patient_id=${patient.record_id}&patient_name_b64=${pNameB64}&mrd_b64=${pmrdB64}&api_url=${API_URL}`;
+                                            const protocolUrl = `digifort://upload?token=${sessionToken}&patient_id=${patient.record_id}&patient_name_b64=${pNameB64}&mrd_b64=${pmrdB64}&api_url=${API_URL}`;
                                             window.open(protocolUrl, '_self');
                                             setIsPollingForDesktop(true);
                                             triggerToast("Waiting for scanner uploads...", "info");

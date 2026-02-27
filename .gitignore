@@ -52,3 +52,6 @@ yarn-error.log*
 # Logs
 backend/logs/*.log
 backend/logs/*.log.*
+
+# localhost
+*.bat
