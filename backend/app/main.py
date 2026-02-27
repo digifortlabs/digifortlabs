@@ -124,8 +124,13 @@ def get_csrf_config():
 async def verify_csrf(request: Request, csrf_protect: CsrfProtect = Depends()):
     # Apply CSRF to all mutative state changes
     if request.method in ["POST", "PUT", "PATCH", "DELETE"]:
+        path = request.url.path
         # Exclude endpoints that create sessions/auth where token cannot exist yet
-        if request.url.path.endswith("/auth/token") or request.url.path.endswith("/auth/request-password-reset"):
+        # OR desktop scanner app endpoints that cannot manage browser cookies
+        if (path.endswith("/auth/token") or 
+            path.endswith("/auth/request-password-reset") or
+            "/scanner/" in path or 
+            path.endswith("/upload")):
             return
         await csrf_protect.validate_csrf(request)
 

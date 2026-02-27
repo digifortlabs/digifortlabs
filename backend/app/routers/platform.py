@@ -226,16 +226,20 @@ async def download_scanner_app():
     """
     Downloads the current scanner app.
     """
-    # Path where we uploaded the EXE (frontend/public)
-    # We use valid absolute path on the server
-    exe_path = "/home/ec2-user/digifortlabs/frontend/public/DigifortScanner.exe"
+    # Optimized for Docker deployment: files are copied into the backend image
+    # The path is relative to the app root in the container
+    exe_path = os.path.join(os.getcwd(), "app", "static", "DigifortScanner.exe")
     
     if os.path.exists(exe_path):
         return FileResponse(exe_path, media_type='application/vnd.microsoft.portable-executable', filename="DigifortScanner.exe")
     else:
-        # Fallback to local source if dev environment
-        local_path = "local_scanner/dist/DigifortScanner.exe"
-        if os.path.exists(local_path):
-             return FileResponse(local_path, media_type='application/vnd.microsoft.portable-executable', filename="DigifortScanner.exe")
-             
+        # Fallback for different environments or local dev
+        fallbacks = [
+            "backend/app/static/DigifortScanner.exe",
+            "local_scanner/dist/DigifortScanner.exe"
+        ]
+        for path in fallbacks:
+            if os.path.exists(path):
+                return FileResponse(path, media_type='application/vnd.microsoft.portable-executable', filename="DigifortScanner.exe")
+                
         raise HTTPException(status_code=404, detail="Scanner app not found on server.")
