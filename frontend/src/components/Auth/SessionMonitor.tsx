@@ -12,6 +12,18 @@ export default function SessionMonitor() {
         let lastActivity = Date.now();
         const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 Minutes
 
+        // List of routes that don't require an active session
+        const PUBLIC_ROUTES = [
+            '/',
+            '/about',
+            '/contact',
+            '/services',
+            '/login',
+            '/register',
+            '/privacy',
+            '/terms'
+        ];
+
         const updateActivity = () => {
             lastActivity = Date.now();
         };
@@ -23,10 +35,15 @@ export default function SessionMonitor() {
         window.addEventListener('scroll', updateActivity);
 
         const checkSession = async () => {
-            // Skip check if on login page
-            if (pathname === '/login') return;
+            // 1. Skip check if on a public page
+            if (PUBLIC_ROUTES.includes(pathname)) return;
 
-            // Check Idle Time
+            // 2. Only check if we think we are logged in (based on localStorage)
+            // This prevents the modal for pure guest visitors on non-whitelisted but potentially accessible pages
+            const userRole = localStorage.getItem('userRole');
+            if (!userRole) return;
+
+            // 3. Check Idle Time
             if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
                 // If idle, explicitly logout to clear cookie
                 try {
@@ -39,17 +56,21 @@ export default function SessionMonitor() {
                 return;
             }
 
-            // Ping backend to verify if HttpOnly cookie session is still alive
+            // 4. Ping backend to verify if HttpOnly cookie session is still alive
             try {
                 const { apiFetch } = await import('@/lib/api');
                 const res = await apiFetch('/users/me');
+
+                // If 401, the HttpOnly cookie is gone or invalid
                 if (res.status === 401) {
                     setIsExpired(true);
                     localStorage.removeItem('userRole');
                     localStorage.removeItem('userEmail');
                 }
             } catch (e) {
-                console.error("Session monitor ping failed", e);
+                // IMPORTANT: If the server is just down (network error), don't show "Session Expired"
+                // Only show it if the server explicitly says 401.
+                console.error("Session monitor ping failed (server might be down)", e);
             }
         };
 
