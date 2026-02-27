@@ -229,6 +229,7 @@ async def login_for_access_token(
     # Return as JSONResponse and set the secure HttpOnly cookie
     response = JSONResponse(content={
         "message": "Login successful",
+        "access_token": access_token, # Needed for desktop app handoff
         # Optionally return non-sensitive user metadata here if frontend needs it immediately
         "role": user.role,
         "email": user.email,

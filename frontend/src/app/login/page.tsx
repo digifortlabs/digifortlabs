@@ -66,6 +66,7 @@ function LoginForm() {
             // We no longer expose the JWT to localStorage where XSS could steal it.
             // We only store non-sensitive UI state.
             localStorage.setItem('userEmail', email); // Store for Secure View Watermark
+            if (data.access_token) sessionStorage.setItem('access_token', data.access_token); // For Scanner protocol handoff
 
             // Also store basic info if frontend needs it immediately
             if (data.role) localStorage.setItem('userRole', data.role);

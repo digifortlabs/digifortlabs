@@ -935,6 +935,8 @@ class ScannerApp:
             logger.error(f"Update check failed: {e}")
 
     def perform_update(self, version):
+        import subprocess # Local import to ensure scope in frozen app
+
         try:
             url = f"{self.api_url}/platform/scanner-download"
             res = requests.get(url, timeout=30) # Increased timeout for binary
@@ -1447,7 +1449,7 @@ except Exception as e:
                 "optimize": True
             }
             
-            if is_bw_session:
+            if self.color_mode.get() == "B&W":
                 # 1-bit images use extremely efficient Group 4 style compression in PDF
                 save_params["resolution"] = 300.0
             else:
