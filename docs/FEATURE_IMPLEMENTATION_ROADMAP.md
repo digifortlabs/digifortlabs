@@ -7,7 +7,7 @@
 
 ## 🎯 PLATFORM MODULES
 
-### 1. **MRD (Medical Records Department)** - ✅ CURRENT (70% Complete)
+### 1. **MRD (Medical Records Department)** - ✅ CURRENT (85% Complete)
 Core archival and document management system
 
 ### 2. **Dental OPD** - 🟡 IN PROGRESS (40% Complete)
@@ -24,7 +24,7 @@ Complete hospital operations management
 ## 📊 IMPLEMENTATION PHASES
 
 ### **PHASE 1: MRD (Medical Records Department)** - 12 Weeks
-**Status**: 70% Complete | **Priority**: HIGH | **Target**: Production Ready
+**Status**: 85% Complete | **Priority**: HIGH | **Target**: Production Ready
 
 #### Core Features (Completed ✅)
 - ✅ Patient record management
@@ -36,13 +36,12 @@ Complete hospital operations management
 - ✅ Audit logging
 - ✅ Bandwidth monitoring
 
-#### Remaining Work (30%)
+#### Remaining Work (15%)
 **Week 1-2: Security Fixes (CRITICAL)**
-- [ ] Remove plaintext passwords (#1)
-- [ ] Implement CSRF protection (#4)
-- [ ] Move tokens to HttpOnly cookies (#15)
-- [ ] Fix RBAC privilege escalation (#46)
-- [ ] Add database backups (#28)
+- [ ] Remove hardcoded `SECRET_KEY` fallback in production
+- [ ] Fix hospital ID spoofing by deriving hospital context from JWT claims
+- [ ] Implement CSRF protection middleware and token flow
+- [ ] Complete RBAC with permission-based authorization checks
 
 **Week 3-4: Core Enhancements**
 - [ ] Implement file magic number validation
@@ -553,7 +552,7 @@ const modules = {
 
 | Phase | Module | Duration | Start | End | Status |
 |-------|--------|----------|-------|-----|--------|
-| 1 | MRD | 12 weeks | Week 1 | Week 12 | 70% ✅ |
+| 1 | MRD | 12 weeks | Week 1 | Week 12 | 85% ✅ |
 | 2 | Dental OPD | 8 weeks | Week 13 | Week 20 | 40% 🟡 |
 | 3 | Clinic OPD | 10 weeks | Week 21 | Week 30 | 0% 🔴 |
 | 4 | HMS | 16 weeks | Week 31 | Week 46 | 0% 🔴 |
