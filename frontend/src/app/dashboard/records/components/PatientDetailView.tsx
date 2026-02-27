@@ -1323,9 +1323,9 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
                                             // If missing (e.g. user was logged in before our changes), fetch it explicitly
                                             if (!sessionToken) {
                                                 try {
-                                                    const res = await apiFetch('/auth/session-token');
+                                                    const res: any = await apiFetch('/auth/session-token');
                                                     if (res && res.access_token) {
-                                                        sessionToken = res.access_token;
+                                                        sessionToken = res.access_token as string;
                                                         sessionStorage.setItem('access_token', sessionToken);
                                                     }
                                                 } catch (e) {

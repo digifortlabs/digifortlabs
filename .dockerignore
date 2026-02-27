@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+local_storage
+postgres_data
+node_modules
+.next
+venv
+__pycache__
+*.log
+local_scanner/dist
+local_scanner/build
+local_scanner/*.spec
+output
+coverage
+.scanner_sessions
