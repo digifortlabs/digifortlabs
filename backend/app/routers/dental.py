@@ -1174,3 +1174,140 @@ def create_dental_inventory_item(item: DentalInventoryItemCreate, db: Session = 
     db.commit()
     db.refresh(db_item)
     return db_item
+
+# --- 3D Scans ---
+
+s3 = S3Manager()
+
+@router.post("/scans/{patient_id}", response_model=ScanResponse)
+async def upload_dental_scan(
+    patient_id: int,
+    file: UploadFile = File(...),
+    scan_type: str = "Intraoral",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload a 3D scan file (.stl, .ply, .glb, .obj, .jpg, .png) for a dental patient."""
+    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Validate file extension
+    allowed_ext = {'.stl', '.ply', '.glb', '.obj', '.jpg', '.jpeg', '.png'}
+    file_ext = os.path.splitext(file.filename or '')[1].lower()
+    if file_ext not in allowed_ext:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {file_ext}. Allowed: {', '.join(allowed_ext)}")
+
+    # Build S3 object key
+    safe_name = sanitize_name(os.path.splitext(file.filename or 'scan')[0])
+    object_key = f"dental_scans/hospital_{current_user.hospital_id}/patient_{patient_id}/{safe_name}_{int(datetime.now().timestamp())}{file_ext}"
+
+    # Upload to S3 / local storage
+    content_type = file.content_type or "application/octet-stream"
+    success, result = s3.upload_file(file.file, object_key, content_type=content_type)
+    if not success:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {result}")
+
+    # Generate presigned URL for immediate use
+    presigned_url = s3.generate_presigned_url(object_key, expiration=3600)
+
+    # Save record to DB
+    db_scan = Dental3DScan(
+        patient_id=patient_id,
+        scan_type=scan_type,
+        file_path=object_key,
+        file_name=file.filename or "scan" + file_ext,
+        uploaded_at=datetime.utcnow()
+    )
+    db.add(db_scan)
+    db.commit()
+    db.refresh(db_scan)
+
+    return ScanResponse(
+        scan_id=db_scan.scan_id,
+        patient_id=db_scan.patient_id,
+        scan_type=db_scan.scan_type,
+        file_path=db_scan.file_path,
+        file_name=db_scan.file_name,
+        uploaded_at=db_scan.uploaded_at,
+        notes=db_scan.notes,
+        presigned_url=presigned_url
+    )
+
+
+@router.get("/scans/patient/{patient_id}", response_model=List[ScanResponse])
+def get_patient_scans(
+    patient_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """List all scans for a patient with fresh presigned URLs."""
+    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    scans = db.query(Dental3DScan).filter(
+        Dental3DScan.patient_id == patient_id
+    ).order_by(Dental3DScan.uploaded_at.desc()).all()
+
+    result = []
+    for scan in scans:
+        presigned_url = s3.generate_presigned_url(scan.file_path, expiration=3600)
+        result.append(ScanResponse(
+            scan_id=scan.scan_id,
+            patient_id=scan.patient_id,
+            scan_type=scan.scan_type,
+            file_path=scan.file_path,
+            file_name=scan.file_name,
+            uploaded_at=scan.uploaded_at,
+            notes=scan.notes,
+            presigned_url=presigned_url
+        ))
+    return result
+
+
+@router.delete("/scans/{scan_id}")
+def delete_dental_scan(
+    scan_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a single scan from S3 and the database."""
+    scan = db.query(Dental3DScan).filter(Dental3DScan.scan_id == scan_id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == scan.patient_id).first()
+    if current_user.hospital_id and patient and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    s3.delete_file(scan.file_path)
+    db.delete(scan)
+    db.commit()
+    return {"detail": "Scan deleted successfully"}
+
+
+@router.delete("/scans/patient/{patient_id}")
+def delete_all_patient_scans(
+    patient_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete ALL scans for a patient from S3 and the database."""
+    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    scans = db.query(Dental3DScan).filter(Dental3DScan.patient_id == patient_id).all()
+    for scan in scans:
+        s3.delete_file(scan.file_path)
+        db.delete(scan)
+
+    db.commit()
+    return None  # 204 No Content

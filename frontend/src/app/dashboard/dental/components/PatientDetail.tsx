@@ -19,13 +19,11 @@ import { Textarea } from '@/components/ui/textarea';
 import {
     ChevronLeft, Save, Plus, Clock, FileText,
     Zap, Activity, LayoutGrid, DollarSign,
-    Box, Stethoscope, History, Pill, ChevronRight,
-    Camera
+    Box, Stethoscope, History, Pill, ChevronRight
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import Odontogram from '@/components/dental/Odontogram';
 import ThreeDViewer from '@/components/dental/ThreeDViewer';
-import LiveScanner from '@/components/dental/LiveScanner';
 import PeriodontalChart from '@/components/dental/PeriodontalChart';
 import { API_URL, apiFetch } from '@/config/api';
 import { ShieldAlert, Beaker, Braces, MessageSquare } from 'lucide-react';
@@ -39,7 +37,7 @@ interface PatientDetailProps {
 export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
     const [activeTab, setActiveTab] = useState("examination");
     const [isSaving, setIsSaving] = useState(false);
-    const [liveScannerOpen, setLiveScannerOpen] = useState(false);
+
 
     // Clinical State
     // Clinical State - Safely merge defaults in case backend data is empty object {}
@@ -265,66 +263,6 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
         xhr.send(formData);
     };
 
-    const handleLiveScanSave = async (files: File[]) => {
-        setIsUploadingScan(true);
-        let successCount = 0;
-
-        try {
-            // Upload sequentially
-            for (const file of files) {
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('scan_type', 'Intraoral Photo');
-
-                const response = await fetch(`${API_URL}/dental/scans/${patient.patient_id}`, {
-                    method: 'POST',
-                    credentials: 'include',
-                    body: formData
-                });
-
-                if (response.ok) successCount++;
-            }
-
-            if (successCount > 0) {
-                toast.success(`Successfully saved ${successCount} images.`);
-                fetchScans();
-            }
-        } catch (error) {
-            console.error("Live save error:", error);
-            toast.error("Error saving live scans.");
-        } finally {
-            setIsUploadingScan(false);
-        }
-    };
-
-    const [isScanning, setIsScanning] = useState(false);
-
-    const handleLaunchScanner = async () => {
-        setIsScanning(true);
-        try {
-            const data = await apiFetch(`dental/scanner/launch`, {
-                method: 'POST'
-            });
-
-            if (data) {
-                toast.success("Scanner software launched! Please perform the scan and export to 'C:\\DentalScans'.");
-                // TODO: Start polling for new files
-            }
-        } catch (error: any) {
-            console.error("Launch error:", error);
-            if (error.status === 404) {
-                const data = error.data || {};
-                const path = prompt("Scanner software not found. Please enter the full path to your scanner .exe:", data.path || "");
-                if (path) {
-                    toast.success(`Path '${path}' noted. (Feature to save config pending)`);
-                }
-            } else {
-                toast.error(error.message || "Unknown error");
-            }
-        } finally {
-            setTimeout(() => setIsScanning(false), 5000); // Reset state after 5s
-        }
-    };
 
     const handleAddMedication = (med: string) => {
         const newMed = {
@@ -1106,24 +1044,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                             )}
                                         </div>
 
-                                        <div
-                                            onClick={() => setLiveScannerOpen(true)}
-                                            className="p-4 rounded-xl border-2 border-dashed border-slate-200 hover:border-emerald-400 transition-colors cursor-pointer group bg-emerald-50/10"
-                                        >
-                                            <div className="flex flex-col items-center justify-center py-6 text-center">
-                                                <Camera className="w-8 h-8 text-emerald-400 group-hover:text-emerald-600 transition-colors mb-2" />
-                                                <h5 className="font-semibold text-slate-900">Live Camera</h5>
-                                                <p className="text-[10px] text-slate-500 mt-1">Capture from Intraoral Cam</p>
-                                            </div>
-                                        </div>
                                     </div>
-
-                                    {/* Live Scanner Modal */}
-                                    <LiveScanner
-                                        isOpen={liveScannerOpen}
-                                        onClose={() => setLiveScannerOpen(false)}
-                                        onSave={handleLiveScanSave}
-                                    />
 
                                     <div className="space-y-3 flex-1 overflow-y-auto max-h-[300px]">
                                         {scans.length === 0 ? (
