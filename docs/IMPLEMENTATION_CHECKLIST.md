@@ -148,28 +148,28 @@
 - [x] `/dashboard/pharma/expiry` - Expiry alerts
 
 #### Legal
-- [ ] `/dashboard/legal` - Main dashboard
+- [x] `/dashboard/legal` - Main dashboard
 - [ ] `/dashboard/legal/clients` - Client list
 - [ ] `/dashboard/legal/clients/new` - Register client
-- [ ] `/dashboard/legal/cases` - Case list
+- [x] `/dashboard/legal/cases` - Case list
 - [ ] `/dashboard/legal/cases/[id]` - Case details
-- [ ] `/dashboard/legal/hearings` - Hearing calendar
-- [ ] `/dashboard/legal/billing` - Billing
+- [x] `/dashboard/legal/hearings` - Hearing calendar
+- [x] `/dashboard/legal/billing` - Billing
 
 #### Corporate
-- [ ] `/dashboard/corporate` - Main dashboard
+- [x] `/dashboard/corporate` - Main dashboard
 - [ ] `/dashboard/corporate/employees` - Employee list
 - [ ] `/dashboard/corporate/employees/new` - Register employee
-- [ ] `/dashboard/corporate/attendance` - Attendance tracker
-- [ ] `/dashboard/corporate/projects` - Project list
+- [x] `/dashboard/corporate/attendance` - Attendance tracker
+- [x] `/dashboard/corporate/projects` - Project list
 - [ ] `/dashboard/corporate/projects/[id]` - Project details
-- [ ] `/dashboard/corporate/tasks` - Task board
+- [x] `/dashboard/corporate/tasks` - Task board
 
 #### HMS
-- [ ] `/dashboard/hms` - Main dashboard
+- [x] `/dashboard/hms` - Main dashboard
 - [ ] `/dashboard/hms/wards` - Ward management
-- [ ] `/dashboard/hms/beds` - Bed allocation
-- [ ] `/dashboard/hms/admissions` - IPD admissions
+- [x] `/dashboard/hms/beds` - Bed allocation
+- [x] `/dashboard/hms/admissions` - IPD admissions
 - [ ] `/dashboard/hms/admissions/[id]` - Admission details
 - [ ] `/dashboard/hms/discharge` - Discharge management
 
@@ -187,15 +187,15 @@
 - [x] Medicine inventory table
 - [x] POS interface
 - [ ] Client forms
-- [ ] Case tracker
-- [ ] Hearing calendar
+- [x] Case tracker
+- [x] Hearing calendar
 - [ ] Employee forms
-- [ ] Attendance tracker
-- [ ] Project board
-- [ ] Task cards
+- [x] Attendance tracker
+- [x] Project board
+- [x] Task cards
 - [ ] Ward manager
-- [ ] Bed allocation grid
-- [ ] Admission forms
+- [x] Bed allocation grid
+- [x] Admission forms
 
 ---
 
