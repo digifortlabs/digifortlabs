@@ -37,12 +37,12 @@ DIGIFORT LABS has successfully completed **100% of backend implementation** acro
 |--------|----------|---------|----------|----------|---------|------------------|
 | **MRD** | Medical Records | ✅ | ✅ | ✅ | 100% | ✅ Production Ready |
 | **Clinic OPD** | General Clinic | ✅ | ✅ | ✅ | 100% | ✅ Production Ready |
-| **Dental OPD** | Dental Practice | ✅ | 🟡 90% | ✅ | 90% | 7 days |
+| **Dental OPD** | Dental Practice | ✅ | ✅ | ✅ | 100% | ✅ Production Ready |
 | **ENT OPD** | ENT Clinic | ✅ | 🟡 75% | ✅ | 75% | 15 days |
 | **Pharma Manufacturers** | Pharmaceutical | ✅ | 🟡 70% | ✅ | 85% | 15 days |
-| **Legal** | Law Firm | ✅ | 🔴 20% | ✅ | 20% | 45 days |
-| **Corporate** | Business | ✅ | 🔴 20% | ✅ | 20% | 45 days |
-| **HMS** | Hospital | ✅ | 🔴 20% | ✅ | 20% | 50 days |
+| **Legal** | Law Firm | ✅ | 🟡 70% | ✅ | 70% | 15 days |
+| **Corporate** | Business | ✅ | 🟡 70% | ✅ | 70% | 15 days |
+| **HMS** | Hospital | ✅ | 🟡 70% | ✅ | 70% | 20 days |
 
 **Legend**: ✅ Complete | 🟡 Partial | 🔴 Missing
 
@@ -226,87 +226,76 @@ Pharma Module ✅ COMPLETE:
 ✅ /dashboard/pharma/stock - Batch production & stock management
 ✅ /dashboard/pharma/sales - B2B Point of Sale system
 
-Legal Module 🟡 MVP:
+Legal Module 🟡 70% MVP:
 ✅ /dashboard/legal - Law firm main dashboard
+✅ /dashboard/legal/cases - Case tracking & details
+✅ /dashboard/legal/hearings - Hearing calendar
+✅ /dashboard/legal/billing - Invoicing system
 🔴 /dashboard/legal/clients - Missing Client list & registration
-🔴 /dashboard/legal/cases - Missing Case tracking & details
-🔴 /dashboard/legal/hearings - Missing Hearing calendar
-🔴 /dashboard/legal/billing - Missing Invoicing system
 
-Corporate Module 🟡 MVP:
+Corporate Module 🟡 70% MVP:
 ✅ /dashboard/corporate - Corporate main dashboard
+✅ /dashboard/corporate/attendance - Timesheets & Attendance
+✅ /dashboard/corporate/projects - Project tracking
+✅ /dashboard/corporate/tasks - Kanban board
 🔴 /dashboard/corporate/employees - Missing Employee directory
-🔴 /dashboard/corporate/attendance - Missing Timesheets
-🔴 /dashboard/corporate/projects - Missing Project tracking
-🔴 /dashboard/corporate/tasks - Missing Kanban board
 
-HMS Module 🟡 MVP:
+HMS Module 🟡 70% MVP:
 ✅ /dashboard/hms - Hospital main dashboard
+✅ /dashboard/hms/beds - Bed allocation grid
+✅ /dashboard/hms/admissions - IPD workflows & Discharge summaries
 🔴 /dashboard/hms/wards - Missing Ward management
-🔴 /dashboard/hms/beds - Missing Bed allocation grid
-🔴 /dashboard/hms/admissions - Missing IPD workflows
-🔴 /dashboard/hms/discharge - Missing Discharge summaries
 ```
 
 ### Missing Frontend Modules
 
-- **Legal** — Has a 146-line bare stub only. Needs full rebuild: clients, cases, hearings, billing
-- **Corporate** — Has a 146-line bare stub only. Needs full rebuild: employees, attendance, projects, tasks
-- **HMS** — Has a 168-line bare stub only. Needs full rebuild: wards, beds, admissions, discharge
+- **ENT** — Missing audiometry forms & analytics
+- **Pharma** — Missing manufacturing & analytics UI
+- **Legal** — Missing document upload & analytics
+- **Corporate** — Missing leave management & payroll
+- **HMS** — Missing OT scheduling & billing
 
-> All three use plain HTML instead of the project's Shadcn/Tailwind design system.
+> All frontend dashboards have been migrated to the proper Shadcn/Tailwind design system.
 
 ---
 
 ## 📈 PRODUCTION READINESS
 
-### 5 MODULES READY FOR DEPLOYMENT
+### 3 MODULES READY FOR DEPLOYMENT
 
 1. **MRD Module** - Production Ready Now
    - Status: 100% complete
    - Revenue potential: High (existing pilot customers)
 
-2. **Dental OPD Module** - Production Ready Now
-   - Status: 100% complete
-   - Revenue potential: High (specialized market)
-
-3. **Pharma Manufacturers Module** - Production Ready Now
-   - Status: 100% complete
-   - Revenue potential: High (B2B pharmaceutical industry)
-
-4. **ENT Module** - Production Ready Now
-   - Status: 100% complete
-   - Revenue potential: Medium (specialized market)
-
-5. **Clinic OPD Module** - Production Ready Now
+2. **Clinic OPD Module** - Production Ready Now
    - Status: 100% complete
    - Revenue potential: Very High (broad market appeal)
 
-### Modules In Progress
-
-6. **Dental OPD Module** - 7 days to production
-   - Status: 90% (missing 3D scan backend endpoint)
+3. **Dental OPD Module** - Production Ready Now
+   - Status: 100% complete
    - Revenue potential: High (specialized market)
 
-7. **ENT Module** - 15 days to production
+### Modules In Progress
+
+4. **ENT Module** - 15 days to production
    - Status: 75% (missing audiometry forms, surgery scheduling, analytics)
    - Revenue potential: Medium (specialized market)
 
-8. **Pharma Module** - 15 days to production
+5. **Pharma Module** - 15 days to production
    - Status: 85% (missing manufacturing & analytics UI)
    - Revenue potential: High (B2B pharmaceutical)
 
-9. **Legal Module** - 45 days to production
-   - Status: 20% (backend complete, frontend is a bare stub)
+6. **Legal Module** - 15 days to production
+   - Status: 70% (core MVPs built; missing document upload & analytics)
    - Revenue potential: High (law firm market)
 
-10. **Corporate Module** - 45 days to production
-    - Status: 20% (backend complete, frontend is a bare stub)
-    - Revenue potential: Very High (broad business market)
+7. **Corporate Module** - 15 days to production
+   - Status: 70% (core MVPs built; missing leave management & payroll)
+   - Revenue potential: Very High (broad business market)
 
-11. **HMS Module** - 50 days to production
-    - Status: 20% (backend complete, frontend is a bare stub)
-    - Revenue potential: Very High (hospital market)
+8. **HMS Module** - 20 days to production
+   - Status: 70% (core MVPs built; missing OT scheduling & billing)
+   - Revenue potential: Very High (hospital market)
 
 ---
 
