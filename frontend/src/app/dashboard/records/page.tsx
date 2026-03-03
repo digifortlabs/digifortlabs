@@ -59,6 +59,39 @@ export default function RecordsList() {
     // Sorting
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>({ key: 'discharge_date', direction: 'desc' });
 
+    // Global Search State
+    const [globalSearchTerm, setGlobalSearchTerm] = useState('');
+    const [globalSearchResults, setGlobalSearchResults] = useState<any[]>([]);
+    const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
+
+    // Hospital Management (for Super Admins) - MOVED UP TO AVOID SCOPE ERROR
+    const [userProfile, setUserProfile] = useState<any>(null);
+    const [hospitals, setHospitals] = useState<any[]>([]);
+    const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null);
+
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(() => {
+            if (globalSearchTerm.length > 2) {
+                const searchAPI = async () => {
+                    setIsSearchingGlobal(true);
+                    try {
+                        let url = `patients/search/?q=${encodeURIComponent(globalSearchTerm)}`;
+                        if (selectedHospitalId) {
+                            url += `&hospital_id=${selectedHospitalId}`;
+                        }
+                        const data = await apiFetch(url);
+                        if (data) setGlobalSearchResults(data);
+                    } catch (e) { console.error(e) }
+                    finally { setIsSearchingGlobal(false) }
+                }
+                searchAPI();
+            } else {
+                setGlobalSearchResults([]);
+            }
+        }, 500);
+        return () => clearTimeout(delayDebounceFn);
+    }, [globalSearchTerm, selectedHospitalId]);
+
     // Date Filtering
     const getMonthRange = () => {
         const now = new Date();
@@ -96,10 +129,7 @@ export default function RecordsList() {
         setSortConfig({ key, direction });
     };
 
-    // Hospital Management (for Super Admins)
-    const [userProfile, setUserProfile] = useState<any>(null);
-    const [hospitals, setHospitals] = useState<any[]>([]);
-    const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null);
+
 
     // New Patient Form State
     const [newPatient, setNewPatient] = useState<NewPatientState>({
@@ -736,11 +766,41 @@ export default function RecordsList() {
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input
                             type="text"
-                            placeholder={`Search ${terms.patient}s...`}
+                            placeholder={`Deep Search (names, UHID, documents)...`}
                             className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-medium transition"
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
+                            value={globalSearchTerm}
+                            onChange={e => {
+                                setGlobalSearchTerm(e.target.value);
+                                setSearchTerm(e.target.value);
+                            }}
                         />
+                        {isSearchingGlobal && (
+                            <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin text-indigo-500" size={18} />
+                        )}
+
+                        {globalSearchResults.length > 0 && globalSearchTerm.length > 2 && (
+                            <div className="absolute top-full mt-2 w-full md:w-[400px] z-50 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-[60vh] overflow-y-auto hidden-scrollbar">
+                                <div className="p-3 border-b border-slate-50 bg-slate-50 font-bold text-xs text-slate-500 sticky top-0">
+                                    Found {globalSearchResults.length} matches across all files
+                                </div>
+                                {globalSearchResults.map((res: any, idx: number) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => router.push(`/dashboard/records/view?id=${res.patient_id}`)}
+                                        className="w-full text-left p-4 border-b border-slate-100 hover:bg-slate-50 transition-colors flex flex-col gap-1.5"
+                                    >
+                                        <div className="flex justify-between items-start gap-2">
+                                            <span className="font-bold text-indigo-600 text-sm line-clamp-2 leading-tight">{res.filename}</span>
+                                            <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 flex-shrink-0 py-0.5 rounded font-black">{res.match_type}</span>
+                                        </div>
+                                        <span className="text-xs font-bold text-slate-400">Folder: {res.patient_name}</span>
+                                        {res.ocr_snippet && (
+                                            <div className="mt-1 text-xs text-slate-600 italic border-l-2 border-amber-400 pl-3 py-1 bg-amber-50/30 rounded-r" dangerouslySetInnerHTML={{ __html: res.ocr_snippet }} />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Date Filters */}

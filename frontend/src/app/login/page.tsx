@@ -15,10 +15,23 @@ function LoginForm() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
+    // MFA State
+    const [mfaRequired, setMfaRequired] = useState(false);
+    const [otpCode, setOtpCode] = useState('');
+    const [deviceId, setDeviceId] = useState('');
+
     const router = useRouter();
     const searchParams = useSearchParams();
 
     useEffect(() => {
+        // Device ID Management
+        let storedDeviceId = localStorage.getItem('device_id');
+        if (!storedDeviceId) {
+            storedDeviceId = crypto.randomUUID();
+            localStorage.setItem('device_id', storedDeviceId);
+        }
+        setDeviceId(storedDeviceId);
+
         const errorMsg = searchParams.get('error');
         const reason = searchParams.get('reason');
 
@@ -35,106 +48,146 @@ function LoginForm() {
         e.preventDefault();
         setLoading(true);
         setError('');
-        console.log("🔵 [Login] Starting login request...");
 
         try {
+            if (mfaRequired) {
+                // Submit OTP Verification
+                const res = await apiFetch(`/auth/mfa/verify-device`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        email,
+                        password,
+                        otp_code: otpCode,
+                        device_id: deviceId
+                    }),
+                });
+
+                // If it succeeds, it returns the standard token payload
+                completeLogin(res);
+                return;
+            }
+
+            // Initial Password Submit
             const formData = new URLSearchParams();
             formData.append('username', email);
             formData.append('password', password);
 
-            const apiUrl = API_URL;
             const res = await apiFetch(`/auth/token`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Device-Id': deviceId
                 },
                 body: formData,
             });
 
-            console.log(`🟢 [Login] Response Status: ${res.status}`);
-
-            if (!res.ok) {
-                const errorData = await res.json();
-                console.error('[Login] Failed:', res.status, errorData);
-                throw new Error(errorData.detail || 'Invalid credentials');
+            if (res && (res as any).mfa_required) {
+                setMfaRequired(true);
+                setLoading(false);
+                return;
             }
 
-            const data = await res.json();
-            console.log("🟢 [Login] Success, HttpOnly Cookie set.");
-
-            // SECURITY IMPORVEMENT: The token is now in a secure HttpOnly cookie!
-            // We no longer expose the JWT to localStorage where XSS could steal it.
-            // We only store non-sensitive UI state.
-            localStorage.setItem('userEmail', email); // Store for Secure View Watermark
-            if (data.access_token) sessionStorage.setItem('access_token', data.access_token); // For Scanner protocol handoff
-
-            // Also store basic info if frontend needs it immediately
-            if (data.role) localStorage.setItem('userRole', data.role);
-            if (data.specialty) localStorage.setItem('userSpecialty', data.specialty);
-            if (data.enabled_modules) localStorage.setItem('userModules', JSON.stringify(data.enabled_modules));
-            if (data.terminology) localStorage.setItem('userTerminology', JSON.stringify(data.terminology));
-            if (data.hospital_id) localStorage.setItem('hospital_id', data.hospital_id.toString());
-
-            router.push('/dashboard');
+            // Normal successful login
+            completeLogin(res);
 
         } catch (err: any) {
             console.error('[Login] Error:', err);
-            setError(err.message || 'Invalid email or password. Please try again.');
+            setError(err.message || 'Invalid credentials or verification code.');
         } finally {
             setLoading(false);
         }
     };
 
+    const completeLogin = (data: any) => {
+        localStorage.setItem('userEmail', email); // Store for Secure View Watermark
+        if (data.access_token) sessionStorage.setItem('access_token', data.access_token); // For Scanner protocol handoff
+
+        if (data.role) localStorage.setItem('userRole', data.role);
+        if (data.specialty) localStorage.setItem('userSpecialty', data.specialty);
+        if (data.enabled_modules) localStorage.setItem('userModules', JSON.stringify(data.enabled_modules));
+        if (data.terminology) localStorage.setItem('userTerminology', JSON.stringify(data.terminology));
+        if (data.hospital_id) localStorage.setItem('hospital_id', data.hospital_id.toString());
+
+        router.push('/dashboard');
+    }
+
     return (
         <div className="w-full max-w-md mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700">
             <div className="mb-10">
-                <h2 className="text-3xl font-black text-slate-900 tracking-tight">Welcome Back</h2>
-                <p className="text-slate-500 mt-2 font-medium">Please enter your credentials to access the portal.</p>
+                <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+                    {mfaRequired ? 'Verify Device' : 'Welcome Back'}
+                </h2>
+                <p className="text-slate-500 mt-2 font-medium">
+                    {mfaRequired
+                        ? 'We noticed a new device. Enter the verification code sent to your email.'
+                        : 'Please enter your credentials to access the portal.'}
+                </p>
             </div>
 
             <form className="space-y-6" onSubmit={handleLogin}>
-                <div className="space-y-4">
-                    <div className="relative group">
-                        <Mail className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
-                        <input
-                            id="email"
-                            name="email"
-                            type="email"
-                            autoComplete="email"
-                            required
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
-                            placeholder="name@company.com"
-                        />
+                {!mfaRequired ? (
+                    <div className="space-y-4 animate-in slide-in-from-left-4">
+                        <div className="relative group">
+                            <Mail className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
+                            <input
+                                id="email"
+                                name="email"
+                                type="email"
+                                autoComplete="email"
+                                required
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
+                                placeholder="name@company.com"
+                            />
+                        </div>
+
+                        <div className="relative group">
+                            <Lock className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
+                            <input
+                                id="password"
+                                name="password"
+                                type="password"
+                                autoComplete="current-password"
+                                required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
+                                placeholder="••••••••"
+                            />
+                        </div>
                     </div>
-
-                    <div className="relative group">
-                        <Lock className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
-                        <input
-                            id="password"
-                            name="password"
-                            type="password"
-                            autoComplete="current-password"
-                            required
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
-                            placeholder="••••••••"
-                        />
+                ) : (
+                    <div className="space-y-4 animate-in slide-in-from-right-4">
+                        <div className="relative group">
+                            <ShieldCheck className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
+                            <input
+                                id="otp"
+                                name="otp"
+                                type="text"
+                                maxLength={6}
+                                required
+                                value={otpCode}
+                                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                                className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all text-center tracking-[0.5em] text-lg"
+                                placeholder="000000"
+                            />
+                        </div>
                     </div>
-                </div>
+                )}
 
-                <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500" />
-                        <span className="text-sm font-medium text-slate-600">Remember me</span>
-                    </label>
+                {!mfaRequired && (
+                    <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500" />
+                            <span className="text-sm font-medium text-slate-600">Remember me</span>
+                        </label>
 
-                    <Link href="/forgot-password" className="text-sm font-bold text-indigo-600 hover:text-indigo-700">
-                        Forgot Password?
-                    </Link>
-                </div>
+                        <Link href="/forgot-password" className="text-sm font-bold text-indigo-600 hover:text-indigo-700">
+                            Forgot Password?
+                        </Link>
+                    </div>
+                )}
 
                 {error && (
                     <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm font-bold flex items-center gap-2 animate-in zoom-in-95">
@@ -149,14 +202,40 @@ function LoginForm() {
                 >
                     {loading ? (
                         <>Processing...</>
+                    ) : mfaRequired ? (
+                        <>Verify Device <ArrowRight size={16} /></>
                     ) : (
                         <>Sign In <ArrowRight size={16} /></>
                     )}
                 </button>
 
-                <p className="text-center text-sm font-medium text-slate-500">
-                    Don't have an account? <a href="/contact" className="text-indigo-600 font-bold hover:underline">Contact Sales</a>
-                </p>
+                {mfaRequired && (
+                    <button
+                        type="button"
+                        onClick={() => setMfaRequired(false)}
+                        className="w-full text-center text-sm font-bold text-slate-500 hover:text-slate-700 mt-4"
+                    >
+                        Back to Login
+                    </button>
+                )}
+
+                <div className="relative my-8">
+                    <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-slate-200"></div>
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-white px-2 text-slate-500 font-bold">New User?</span>
+                    </div>
+                </div>
+
+                <div className="flex gap-3">
+                    <Link href="/demo" className="flex-1 py-3 px-4 bg-indigo-50 text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-100 transition-all text-center border border-indigo-200">
+                        Try Demo
+                    </Link>
+                    <Link href="/contact" className="flex-1 py-3 px-4 bg-slate-50 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-100 transition-all text-center border border-slate-200">
+                        Contact Sales
+                    </Link>
+                </div>
             </form>
         </div>
     );

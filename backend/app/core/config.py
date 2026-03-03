@@ -34,6 +34,7 @@ class Settings:
 
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "super-secret-key-change-this-in-prod")
+    CSRF_SECRET_KEY: str = os.getenv("CSRF_SECRET_KEY", "csrf-secret-key-change-in-prod")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "720"))
     
@@ -54,7 +55,7 @@ class Settings:
             self.BACKEND_CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"]
             
         if self.ENVIRONMENT == "production" and self.IS_UNSAFE_SECRET_KEY:
-            raise ValueError("CRITICAL SECURITY ERROR: SECRET_KEY must be configured in production!")
+            pass # Validation moved to main.py to prevent hard crashes per user request
 
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     BACKEND_URL: str = os.getenv("BACKEND_URL", "http://localhost:8000")

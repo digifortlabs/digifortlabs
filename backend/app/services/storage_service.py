@@ -135,3 +135,66 @@ class StorageService:
         db.commit()
         print(f"✅ Auto-Assigned Patient {patient.full_name} to Box {selected_box.label}")
         return selected_box
+    @staticmethod
+    def migrate_s3_draft_to_final(db: Session, file_id: int):
+        """
+        Moves a file from draft/ or drafts/ prefix to its final location.
+        """
+        from .s3_handler import S3Manager
+        from ..models import PDFFile
+        
+        db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+        if not db_file:
+            return False, "File not found"
+            
+        if not db_file.s3_key:
+            return False, "S3 Key not found"
+            
+        old_key = db_file.s3_key
+        # Logic: If it's already confirmed and doesn't have draft prefix, skip
+        if "draft/" not in old_key and "drafts/" not in old_key:
+            return True, "Already in final location"
+            
+        # Generate new key based on hospital/year/month logic
+        # Structured like: hospital_name/year/month/mrd_uuid.ext.enc
+        patient = db_file.patient
+        date_source = patient.discharge_date or patient.admission_date or datetime.now()
+        year_str = date_source.strftime("%Y")
+        month_str = date_source.strftime("%m")
+        
+        import re
+        def simple_sanitize(name: str) -> str:
+            return re.sub(r'[^a-zA-Z0-9_\-]', '_', str(name))
+            
+        hospital_name = simple_sanitize(patient.hospital.legal_name or f"Hospital_{patient.hospital_id}")
+        mrd_number = simple_sanitize(patient.patient_u_id)
+        
+        import os
+        import uuid
+        ext = os.path.splitext(old_key)[1]
+        new_key = f"{hospital_name}/{year_str}/{month_str}/{mrd_number}_{uuid.uuid4().hex[:8]}{ext}"
+        
+        s3 = S3Manager()
+        if s3.mode != 's3':
+             return False, "S3 Not Configured (Local Mode)"
+             
+        try:
+            # S3 Copy
+            s3.s3_client.copy_object(
+                Bucket=s3.bucket_name,
+                CopySource={'Bucket': s3.bucket_name, 'Key': old_key},
+                Key=new_key
+            )
+            # Delete Old
+            s3.s3_client.delete_object(Bucket=s3.bucket_name, Key=old_key)
+            
+            # Update DB
+            db_file.s3_key = new_key
+            db_file.storage_path = f"s3://{s3.bucket_name}/{new_key}"
+            db_file.upload_status = 'confirmed'
+            db_file.processing_stage = 'completed'
+            db.commit()
+            
+            return True, "Successfully migrated draft to final storage"
+        except Exception as e:
+            return False, str(e)

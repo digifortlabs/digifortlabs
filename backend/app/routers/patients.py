@@ -668,6 +668,7 @@ async def upload_patient_file(
 
         # 1. Save to Temp File (Stream to disk to avoid Memory Crash)
         import tempfile
+        from ..utils import validate_magic_bytes
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
                 tmp_path = temp_file.name
@@ -677,9 +678,10 @@ async def upload_patient_file(
                 if not first_chunk:
                     raise HTTPException(status_code=400, detail="Empty file upload")
                     
-                if ext == '.pdf' and not first_chunk.startswith(b'%PDF-'):
-                    raise HTTPException(status_code=400, detail="Invalid file content: Spoofed PDF detected")
-                
+                if not validate_magic_bytes(first_chunk[:100], ext):
+                    raise HTTPException(status_code=400, detail=f"File content does not match extension '{ext}' (Spoofing detected)")
+                    
+                # Continue writing file
                 temp_file.write(first_chunk)
                 while content := await file.read(1024 * 1024): # 1MB chunks
                     temp_file.write(content)
@@ -799,14 +801,16 @@ def trigger_manual_ocr(
     return {"message": "AI/OCR Processing explicitly started in background.", "status": "analyzing"}
 
 @router.get("/search/", response_model=List[dict])
-def search_files(q: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def search_files(q: str, hospital_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Search in Filename OR OCR Text (case insensitive)
-    # If Website role, search across all. If Hospital role, filter by hospital.
+    # If Website role, search across all or filter by provided hospital_id. If Hospital role, filter by hospital.
     is_platform = current_user.role in ["superadmin", "superadmin_staff"]
     
     query_obj = db.query(PDFFile).join(Patient)
     if not is_platform:
         query_obj = query_obj.filter(Patient.hospital_id == current_user.hospital_id)
+    elif hospital_id:
+        query_obj = query_obj.filter(Patient.hospital_id == hospital_id)
         
     results = query_obj.filter(
         or_(
@@ -832,16 +836,46 @@ def search_files(q: str, db: Session = Depends(get_db), current_user: User = Dep
             # MRD can see drafts
             filtered_results.append(f)
             
-    return [
-        {
+    response_data = []
+    for f in filtered_results:
+        match_type = "Filename"
+        ocr_snippet = None
+        
+        if f.ocr_text and q.lower() in f.ocr_text.lower():
+            match_type = "Content"
+            # Find snippet
+            lower_text = f.ocr_text.lower()
+            lower_q = q.lower()
+            idx = lower_text.find(lower_q)
+            
+            if idx != -1:
+                start_idx = max(0, idx - 40)
+                end_idx = min(len(f.ocr_text), idx + len(q) + 40)
+                
+                # Extract original case substring
+                prefix = f.ocr_text[start_idx:idx]
+                match_str = f.ocr_text[idx:idx+len(q)]
+                suffix = f.ocr_text[idx+len(q):end_idx]
+                
+                # Add ellipsis if truncated
+                prefix_el = "..." if start_idx > 0 else ""
+                suffix_el = "..." if end_idx < len(f.ocr_text) else ""
+                
+                ocr_snippet = f"{prefix_el}{prefix}<mark>{match_str}</mark>{suffix}{suffix_el}"
+        elif f.tags and q.lower() in f.tags.lower():
+            match_type = "Tags"
+            
+        response_data.append({
             "file_id": f.file_id,
             "filename": f.filename,
             "patient_name": f.patient.full_name,
-            "match_type": "Content" if f.ocr_text and q.lower() in (f.ocr_text or "").lower() else "Filename",
-            "upload_status": f.upload_status
-        }
-        for f in filtered_results
-    ]
+            "patient_id": f.patient.record_id, # Added so frontend can route to it
+            "match_type": match_type,
+            "upload_status": f.upload_status,
+            "ocr_snippet": ocr_snippet
+        })
+
+    return response_data
 
 @router.get("/next-id")
 def get_next_mrd_id(hospital_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -1744,10 +1778,11 @@ def update_file_tags(
 @router.delete("/{patient_id}")
 def delete_patient(
     patient_id: int,
+    confirm_mlc_delete: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Delete a patient and all associated files"""
+    """Delete a patient and all associated files. MLC files require confirm_mlc_delete=True."""
     # Authorization
     is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
     
@@ -1758,6 +1793,14 @@ def delete_patient(
 
     if not is_platform and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
+
+    # MLC Safeguard: Cannot delete MLC files without explicit confirmation
+    if patient.patient_category == "MLC" and not confirm_mlc_delete:
+        raise HTTPException(
+            status_code=400, 
+            detail="CRITICAL: This is a Medico-Legal Case (MLC) record. Deletion is restricted. "
+                   "If you are certain, please provide the 'confirm_mlc_delete' confirmation."
+        )
 
     try:
         # 1. Clean up S3 Files first
@@ -1779,11 +1822,14 @@ def delete_patient(
         print(f"🗑️ Patient Deletion: Removed {files_deleted_count} associated S3 files.")
 
         # 2. DB Deletion (Cascade will handle rows)
-        # 2. DB Deletion (Cascade will handle rows)
         db.delete(patient)
         
         from ..audit import log_audit
-        log_audit(db, current_user.user_id, "PATIENT_DELETED", f"Deleted patient: {patient.full_name}", hospital_id=current_user.hospital_id)
+        audit_msg = f"Deleted patient: {patient.full_name} (MRD: {patient.patient_u_id})"
+        if patient.patient_category == "MLC":
+            audit_msg = f"CRITICAL ACTION: {audit_msg} [MLC REMOVAL]"
+            
+        log_audit(db, current_user.user_id, "PATIENT_DELETED", audit_msg, hospital_id=current_user.hospital_id)
         
         db.commit()
     except Exception as e:

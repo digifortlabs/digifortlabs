@@ -31,29 +31,64 @@ export default function HospitalsPage() {
     const [showModal, setShowModal] = useState(false);
     const [selectedHospitals, setSelectedHospitals] = useState<number[]>([]);
 
-    // Form State
+    // Wizard State
+    const [step, setStep] = useState(1);
+
+    // Step 1: Basic Info
     const [legalName, setLegalName] = useState('');
+    const [orgType, setOrgType] = useState('Hospital');
+    const [regNumber, setRegNumber] = useState('');
+    const [estYear, setEstYear] = useState('');
+
+    // Step 2: Contact & Location
     const [email, setEmail] = useState('');
+    const [secondaryEmail, setSecondaryEmail] = useState('');
+    const [phone, setPhone] = useState('');
+    const [alternatePhone, setAlternatePhone] = useState('');
+    const [landline, setLandline] = useState('');
+    const [address1, setAddress1] = useState('');
+    const [address2, setAddress2] = useState('');
     const [city, setCity] = useState('');
     const [state, setState] = useState('');
     const [pincode, setPincode] = useState('');
+    const [country, setCountry] = useState('India');
+    const [mapsUrl, setMapsUrl] = useState('');
     const [gstNumber, setGstNumber] = useState('');
-    const [pincodeLoading, setPincodeLoading] = useState(false);
 
-    const [type, setType] = useState('Private');
-    const [plan, setPlan] = useState('Standard');
-    const [pricePerFile, setPricePerFile] = useState(100);
-    const [includedPages, setIncludedPages] = useState(20);
-    const [pricePerExtraPage, setPricePerExtraPage] = useState(1);
-    const [submitting, setSubmitting] = useState(false);
+    // Step 3: Admin User Setup
+    const [adminName, setAdminName] = useState('');
+    const [adminEmail, setAdminEmail] = useState('');
+    const [adminPhone, setAdminPhone] = useState('');
+    const [adminDesignation, setAdminDesignation] = useState('');
+    const [adminPassword, setAdminPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
 
-    // Terminology State
-    const [patientLabel, setPatientLabel] = useState('Patient');
-    const [doctorLabel, setDoctorLabel] = useState('Doctor');
-
-    // Industry & Module State
-    const [industry, setIndustry] = useState('');
+    // Step 4: Module Selection
     const [enabledModules, setEnabledModules] = useState<string[]>(['core']);
+    const [industry, setIndustry] = useState('Healthcare');
+
+    // Step 5: Pricing Configuration
+    const [mrdPricingModel, setMrdPricingModel] = useState('per_file');
+    const [mrdBaseRate, setMrdBaseRate] = useState(100);
+    const [mrdThreshold, setMrdThreshold] = useState(40);
+    const [mrdStandardRate, setMrdStandardRate] = useState(1.0);
+    const [mrdPremiumRate, setMrdPremiumRate] = useState(1.5);
+    const [mrdDiscounts, setMrdDiscounts] = useState<any[]>([]);
+    const [modulePricing, setModulePricing] = useState<any>({});
+    const [retentionYears, setRetentionYears] = useState(5);
+    const [pricingEffectiveDate, setPricingEffectiveDate] = useState(new Date().toISOString().split('T')[0]);
+    const [pricingNotes, setPricingNotes] = useState('');
+
+    // Step 6: Review & Submit
+    const [expectedVolume, setExpectedVolume] = useState('');
+    const [expectedUsers, setExpectedUsers] = useState('');
+    const [storageReqs, setStorageReqs] = useState('Medium');
+    const [specialReqs, setSpecialReqs] = useState('');
+    const [acceptTerms, setAcceptTerms] = useState(false);
+    const [acceptMarketing, setAcceptMarketing] = useState(false);
+
+    const [pincodeLoading, setPincodeLoading] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
 
     const toggleModule = (modId: string) => {
         if (modId === 'core') return; // Core cannot be disabled
@@ -139,28 +174,47 @@ export default function HospitalsPage() {
     const openEditModal = (hospital: any) => {
         setIsEditMode(true);
         setCurrentHospitalId(hospital.hospital_id);
+        setStep(1); // Reset to first step
+
+        // Basic Info
         setLegalName(hospital.legal_name);
+        setOrgType(hospital.organization_type || 'Hospital');
+        setRegNumber(hospital.registration_number || '');
+        setEstYear(hospital.established_year?.toString() || '');
+
+        // Contact
         setEmail(hospital.email);
+        setSecondaryEmail(hospital.secondary_email || '');
+        setPhone(hospital.phone || '');
+        setAlternatePhone(hospital.alternate_phone || '');
+        setLandline(hospital.landline || '');
+        setAddress1(hospital.address || '');
+        setAddress2(hospital.address_line2 || '');
         setCity(hospital.city || '');
         setState(hospital.state || '');
         setPincode(hospital.pincode || '');
-        setType(hospital.hospital_type || 'Private');
-        setPlan(hospital.subscription_tier || 'Standard');
-        setPricePerFile(hospital.price_per_file || 100);
-        setIncludedPages(hospital.included_pages || 20);
-        setPricePerExtraPage(hospital.price_per_extra_page || 1);
+        setCountry(hospital.country || 'India');
+        setMapsUrl(hospital.google_maps_url || '');
         setGstNumber((hospital.gst_number || '').toUpperCase());
 
-        // Terminology
-        const terms = hospital.terminology || {};
-        const pLabel = terms.patient || 'Patient';
-        const dLabel = terms.doctor || 'Doctor';
-        setPatientLabel(pLabel);
-        setDoctorLabel(dLabel);
+        // Admin (usually not editable for security in some systems, but let's map what we have)
+        setAdminName(hospital.admin_full_name || '');
+        setAdminEmail(hospital.admin_email || '');
 
-        // Modules and Industry
+        // Modules & Industry
         setEnabledModules(hospital.enabled_modules || ['core']);
-        setIndustry(hospital.specialty || 'General');
+        setIndustry(hospital.specialty || 'Healthcare');
+
+        // Pricing
+        const pricing = hospital.custom_pricing || {};
+        const mrd = pricing.mrd || {};
+        setMrdPricingModel(mrd.model || 'per_file');
+        setMrdBaseRate(mrd.base_rate || 100);
+        setMrdThreshold(mrd.threshold || 40);
+        setMrdStandardRate(mrd.standard_rate || 1.0);
+        setMrdPremiumRate(mrd.premium_rate || 1.5);
+        setModulePricing(pricing.modules || {});
+        setRetentionYears(hospital.retention_years || 5);
 
         setShowModal(true);
         setActiveActionId(null);
@@ -217,7 +271,6 @@ export default function HospitalsPage() {
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         setSubmitting(true);
-        // Token is handled by HttpOnly cookies
 
         const url = isEditMode
             ? `hospitals/${currentHospitalId}`
@@ -226,48 +279,80 @@ export default function HospitalsPage() {
         const method = isEditMode ? 'PATCH' : 'POST';
 
         try {
-            // Modules are now passed explicitly from state
+            const bodyPayload = {
+                legal_name: legalName,
+                organization_type: orgType,
+                registration_number: regNumber,
+                established_year: estYear ? parseInt(estYear) : null,
+                email,
+                secondary_email: secondaryEmail,
+                phone,
+                alternate_phone: alternatePhone,
+                landline,
+                address: address1,
+                address_line2: address2,
+                city,
+                state,
+                pincode,
+                country,
+                google_maps_url: mapsUrl,
+                gst_number: gstNumber,
+
+                admin_full_name: adminName,
+                admin_email: adminEmail,
+                admin_phone: adminPhone,
+                admin_designation: adminDesignation,
+                admin_password: adminPassword,
+
+                specialty: industry,
+                enabled_modules: enabledModules,
+                custom_pricing: {
+                    mrd: {
+                        model: mrdPricingModel,
+                        base_rate: mrdBaseRate,
+                        threshold: mrdThreshold,
+                        standard_rate: mrdStandardRate,
+                        premium_rate: mrdPremiumRate,
+                        discounts: mrdDiscounts
+                    },
+                    modules: modulePricing,
+                    effective_date: pricingEffectiveDate,
+                    notes: pricingNotes
+                },
+                retention_years: retentionYears,
+
+                expected_volume: expectedVolume ? parseInt(expectedVolume) : null,
+                expected_users: expectedUsers ? parseInt(expectedUsers) : null,
+                storage_requirements: storageReqs,
+                special_requirements: specialReqs
+            };
 
             const data = await apiFetch(url, {
                 method: method,
-                body: JSON.stringify({
-                    legal_name: legalName,
-                    email,
-                    city,
-                    state,
-                    pincode,
-                    hospital_type: type,
-                    specialty: industry,
-                    subscription_tier: plan,
-                    price_per_file: pricePerFile,
-                    included_pages: includedPages,
-                    price_per_extra_page: pricePerExtraPage,
-                    gst_number: gstNumber,
-                    terminology: {
-                        patient: patientLabel,
-                        doctor: doctorLabel
-                    },
-                    enabled_modules: enabledModules
-                })
+                body: JSON.stringify(bodyPayload)
             });
 
             if (data) {
                 setShowModal(false);
-                fetchHospitals(); // Refresh list
+                fetchHospitals();
                 const msg = isEditMode
-                    ? 'Client Updated Successfully!'
-                    : `Client Registered Successfully!\n\nAuto-Generated Logins:\nEmail: ${email}\nPassword: Client@123\n\nPlease share these with the client admin.`;
+                    ? 'Organization Updated Successfully!'
+                    : `Organization Registered Successfully!`;
                 alert(msg);
 
                 // Reset form
-                setLegalName(''); setEmail(''); setCity(''); setState(''); setPincode(''); setGstNumber('');
-                setPatientLabel('Patient'); setDoctorLabel('Doctor');
-                setIsEditMode(false);
-                setCurrentHospitalId(null);
+                setStep(1);
+                setLegalName(''); setOrgType('Hospital'); setRegNumber(''); setEstYear('');
+                setEmail(''); setSecondaryEmail(''); setPhone(''); setAlternatePhone(''); setLandline('');
+                setAddress1(''); setAddress2(''); setCity(''); setState(''); setPincode('');
+                setCountry('India'); setMapsUrl(''); setGstNumber('');
+                setAdminName(''); setAdminEmail(''); setAdminPhone(''); setAdminDesignation('');
+                setAdminPassword(''); setConfirmPassword('');
+                setEnabledModules(['core']); setIndustry('Healthcare');
             }
         } catch (error: any) {
             console.error(error);
-            alert(`Error: ${error.message || 'Failed to save hospital'}`);
+            alert(`Error: ${error.message || 'Failed to save organization'}`);
         } finally {
             setSubmitting(false);
         }
@@ -277,8 +362,11 @@ export default function HospitalsPage() {
     const totalHospitals = hospitals.length;
     const activeHospitals = hospitals.filter(h => h.is_active).length;
     const inactiveHospitals = totalHospitals - activeHospitals;
-    // Dummy revenue calculation: sum of base price * 10 (avg files)
-    const estimatedRevenue = hospitals.reduce((acc, h) => acc + (h.price_per_file || 100) * 10, 0);
+    // Use mrd pricing model if available
+    const estimatedRevenue = hospitals.reduce((acc, h) => {
+        const mrd = h.custom_pricing?.mrd || {};
+        return acc + (mrd.base_rate || 100) * 10;
+    }, 0);
 
     return (
         <div className="min-h-screen bg-slate-50 p-4 lg:p-6 pt-0">
@@ -295,11 +383,14 @@ export default function HospitalsPage() {
                     onClick={() => {
                         setIsEditMode(false);
                         setCurrentHospitalId(null);
-                        setLegalName(''); setEmail(''); setCity(''); setState(''); setPincode(''); setGstNumber('');
-                        setType('Private'); setIndustry('General'); setPlan('Standard');
-                        setPricePerFile(100); setIncludedPages(20); setPricePerExtraPage(1);
-                        setPatientLabel('Client'); setDoctorLabel('Agent');
-                        setEnabledModules(['core']);
+                        setStep(1);
+                        setLegalName(''); setOrgType('Hospital'); setRegNumber(''); setEstYear('');
+                        setEmail(''); setSecondaryEmail(''); setPhone(''); setAlternatePhone(''); setLandline('');
+                        setAddress1(''); setAddress2(''); setCity(''); setState(''); setPincode('');
+                        setCountry('India'); setMapsUrl(''); setGstNumber('');
+                        setAdminName(''); setAdminEmail(''); setAdminPhone(''); setAdminDesignation('');
+                        setAdminPassword(''); setConfirmPassword('');
+                        setEnabledModules(['core']); setIndustry('Healthcare');
                         setShowModal(true);
                     }}
 
@@ -440,9 +531,15 @@ export default function HospitalsPage() {
                                 </td>
                                 <td className="px-4 py-3">
                                     <div className="flex flex-col">
-                                        <span className="text-xs font-bold text-slate-700">₹{h.price_per_file}/file</span>
-                                        <span className="text-[10px] text-slate-400 font-medium">{h.included_pages} pgs inc.</span>
-                                        <span className="text-[10px] text-slate-400 font-medium">₹{h.price_per_extra_page}/extra pg</span>
+                                        <span className="text-xs font-bold text-slate-700">
+                                            ₹{h.custom_pricing?.mrd?.base_rate || h.price_per_file || 100}/file
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-medium">
+                                            {h.custom_pricing?.mrd?.threshold || h.included_pages} pgs inc.
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-medium">
+                                            ₹{h.custom_pricing?.mrd?.standard_rate || h.price_per_extra_page}/extra pg
+                                        </span>
                                     </div>
                                 </td>
                                 <td className="px-4 py-3">
@@ -504,222 +601,234 @@ export default function HospitalsPage() {
             {
                 showModal && (
                     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-                            <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                                <h2 className="text-2xl font-black text-slate-800">{isEditMode ? 'Edit Client' : 'Register New Client'}</h2>
+                        <div className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+                            {/* Header */}
+                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                <div>
+                                    <h2 className="text-xl font-black text-slate-800">{isEditMode ? 'Edit Client' : 'Scale New Industry Client'}</h2>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        {[1, 2, 3, 4, 5, 6].map(s => (
+                                            <div key={s} className={`h-1.5 w-8 rounded-full transition-all ${s <= step ? 'bg-indigo-600' : 'bg-slate-200'}`} />
+                                        ))}
+                                        <span className="text-[10px] font-black text-indigo-600 ml-2 uppercase tracking-widest">Step {step} of 6</span>
+                                    </div>
+                                </div>
                                 <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-xl transition-colors">
                                     <XCircle size={24} />
                                 </button>
                             </div>
 
-                            <form onSubmit={handleRegister} className="p-8 space-y-8">
-
-                                {/* Basic Info */}
-                                <div className="space-y-4">
-                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider">01. Basic Information</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-600">Legal Name</label>
-                                            <input required value={legalName} onChange={e => setLegalName(toTitleCase(e.target.value))} className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="e.g. Apollo Main" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-600">Contact Email</label>
-                                            <input required value={email} onChange={e => setEmail(e.target.value)} type="email" className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="admin@company.com" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-600">Pincode</label>
-                                            <div className="relative">
-                                                <input
-                                                    value={pincode}
-                                                    onChange={e => setPincode(e.target.value)}
-                                                    onBlur={handlePincodeBlur}
-                                                    maxLength={6}
-                                                    className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                                    placeholder="110001"
-                                                />
-                                                {pincodeLoading && <Loader2 className="absolute right-3 top-3 animate-spin text-indigo-600" size={18} />}
+                            <form onSubmit={handleRegister} className="flex-1 overflow-y-auto p-8">
+                                {step === 1 && (
+                                    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600">
+                                                <Building2 />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-black text-slate-800">Basic Information</h3>
+                                                <p className="text-xs text-slate-500 font-medium">Core identity of the organization.</p>
                                             </div>
                                         </div>
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-600">City</label>
-                                            <input value={city} onChange={e => setCity(toTitleCase(e.target.value))} className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20" placeholder="Auto-filled" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-600">State</label>
-                                            <input value={state} readOnly className="w-full p-3 bg-slate-100 text-slate-500 rounded-xl border-none font-medium outline-none cursor-not-allowed" placeholder="Auto-filled" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-600">Enterprise Type</label>
-                                            <input
-                                                value={type}
-                                                onChange={e => setType(toTitleCase(e.target.value))}
-                                                className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                                placeholder="e.g. Private, Government, NGO"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-600">Industry / Domain</label>
-                                            <input
-                                                value={industry}
-                                                onChange={e => setIndustry(toTitleCase(e.target.value))}
-                                                className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                                placeholder="e.g. Healthcare, Finance, Logistics"
-                                            />
-                                        </div>
-
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-600">GST Identification Number (GSTIN)</label>
-                                            <input
-                                                value={gstNumber}
-                                                onChange={e => setGstNumber(e.target.value.toUpperCase())}
-                                                className="w-full p-3 bg-indigo-50/50 rounded-xl border-none font-bold text-indigo-900 outline-none focus:ring-2 focus:ring-indigo-500/20 uppercase"
-                                                placeholder="e.g. 07AAAAA0000A1Z5"
-                                            />
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <FormInput label="Official Legal Name" value={legalName} onChange={setLegalName} required placeholder="e.g. Apollo Hospitals" />
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Organization Type</label>
+                                                <select value={orgType} onChange={e => setOrgType(e.target.value)} className="w-full p-3 bg-slate-50 rounded-xl border-none font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20">
+                                                    <option>Hospital</option>
+                                                    <option>Clinic</option>
+                                                    <option>Dental Clinic</option>
+                                                    <option>Law Firm</option>
+                                                    <option>Corporate Office</option>
+                                                    <option>Pharma Manufacturing</option>
+                                                </select>
+                                            </div>
+                                            <FormInput label="Registration Number" value={regNumber} onChange={setRegNumber} placeholder="License or Govt ID" />
+                                            <FormInput label="Established Year" value={estYear} onChange={setEstYear} type="number" placeholder="e.g. 1995" />
                                         </div>
                                     </div>
-                                </div>
+                                )}
 
-                                {/* Module Configuration */}
-                                <div className="space-y-4">
-                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider">02. Platform Modules</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div onClick={() => toggleModule('core')} className={`p-4 rounded-xl border-2 cursor-pointer transition-all border-indigo-600 bg-indigo-50 opacity-100`}>
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div className="flex items-center gap-2 font-bold text-indigo-900">
-                                                    <Archive size={18} /> Core Storage
+                                {step === 2 && (
+                                    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600">
+                                                <Activity />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-black text-slate-800">Contact & location</h3>
+                                                <p className="text-xs text-slate-500 font-medium">Where is this organization based?</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <FormInput label="Primary Email" value={email} onChange={setEmail} type="email" required placeholder="admin@org.com" />
+                                            <FormInput label="Secondary Email" value={secondaryEmail} onChange={setSecondaryEmail} type="email" placeholder="billing@org.com" />
+                                            <FormInput label="Primary Phone" value={phone} onChange={setPhone} required placeholder="+91..." />
+                                            <FormInput label="Alternate Phone" value={alternatePhone} onChange={setAlternatePhone} placeholder="+91..." />
+                                            <FormInput label="Landline" value={landline} onChange={setLandline} placeholder="022-..." />
+                                            <FormInput label="Pincode" value={pincode} onChange={setPincode} placeholder="110001" onBlur={handlePincodeBlur} />
+                                            <FormInput label="Address Line 1" value={address1} onChange={setAddress1} required placeholder="Street, Building" />
+                                            <FormInput label="Address Line 2" value={address2} onChange={setAddress2} placeholder="Landmark, Area" />
+                                            <FormInput label="City" value={city} onChange={setCity} required placeholder="Auto-filled" />
+                                            <FormInput label="State" value={state} onChange={setState} required placeholder="Auto-filled" />
+                                            <FormInput label="GSTIN" value={gstNumber} onChange={setGstNumber} placeholder="GST Number" />
+                                            <FormInput label="Google Maps URL" value={mapsUrl} onChange={setMapsUrl} placeholder="Link to location" />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {step === 3 && (
+                                    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600">
+                                                <ShieldCheck />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-black text-slate-800">Administrator Setup</h3>
+                                                <p className="text-xs text-slate-500 font-medium">Primary user who will manage the account.</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <FormInput label="Admin Full Name" value={adminName} onChange={setAdminName} required placeholder="e.g. Raj Patel" />
+                                            <FormInput label="Admin Email" value={adminEmail} onChange={setAdminEmail} type="email" required placeholder="raj@org.com" />
+                                            <FormInput label="Admin Phone" value={adminPhone} onChange={setAdminPhone} required placeholder="+91..." />
+                                            <FormInput label="Designation" value={adminDesignation} onChange={setAdminDesignation} placeholder="e.g. Director" />
+                                            <FormInput label="Set Password" value={adminPassword} onChange={setAdminPassword} type="password" required placeholder="••••••••" />
+                                            <FormInput label="Confirm Password" value={confirmPassword} onChange={setConfirmPassword} type="password" required placeholder="••••••••" />
+                                        </div>
+                                        {adminPassword && adminPassword !== confirmPassword && (
+                                            <p className="text-xs text-red-500 font-bold">Passwords do not match</p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {step === 4 && (
+                                    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600">
+                                                <Cpu />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-black text-slate-800">Module Configuration</h3>
+                                                <p className="text-xs text-slate-500 font-medium">Select industry-specific engines.</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <ModuleCard id="core" label="AIO Core Warehouse" icon={<Archive size={18} />} desc="Base data processor & cloud storage (Always Active)." active={true} fixed={true} />
+                                            <ModuleCard id="hms" label="HMS Pro" icon={<Hotel size={18} />} desc="IPD, Wards, OT and billing." active={enabledModules.includes('hms')} onClick={() => toggleModule('hms')} />
+                                            <ModuleCard id="dental" label="Dental Engine" icon={<span>🦷</span>} desc="3D Charting & clinical records." active={enabledModules.includes('dental')} onClick={() => toggleModule('dental')} />
+                                            <ModuleCard id="legal" label="Law Discovery" icon={<ShieldCheck size={18} />} desc="Case tracking and evidence vault." active={enabledModules.includes('legal')} onClick={() => toggleModule('legal')} />
+                                            <ModuleCard id="pharma" label="Pharma Ops" icon={<span>🧪</span>} desc="Manufacturing and batch tracing." active={enabledModules.includes('pharma')} onClick={() => toggleModule('pharma')} />
+                                            <ModuleCard id="accounting" label="Financial Ledger" icon={<IndianRupee size={18} />} desc="GST invoicing and P&L tracking." active={enabledModules.includes('accounting')} onClick={() => toggleModule('accounting')} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {step === 5 && (
+                                    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600">
+                                                <Wallet />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-black text-slate-800">Commercial Pricing</h3>
+                                                <p className="text-xs text-slate-500 font-medium">Configure customized billing rates.</p>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <div className="bg-slate-50 p-4 rounded-xl space-y-4">
+                                                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">MRD Pricing Model</h4>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    {['per_file', 'per_page', 'flat_monthly'].map(m => (
+                                                        <button key={m} type="button" onClick={() => setMrdPricingModel(m)} className={`py-2 px-3 rounded-lg text-[10px] font-black uppercase tracking-widest ${mrdPricingModel === m ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>
+                                                            {m.replace('_', ' ')}
+                                                        </button>
+                                                    ))}
                                                 </div>
-                                                <CheckCircle2 size={16} className="text-indigo-600" />
-                                            </div>
-                                            <p className="text-xs text-indigo-700">Essential AIO Data Processor and Cloud Warehouse. Required for all clients.</p>
-                                        </div>
-
-                                        <div onClick={() => toggleModule('dental')} className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${enabledModules.includes('dental') ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100 hover:border-slate-300'}`}>
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div className={`flex items-center gap-2 font-bold ${enabledModules.includes('dental') ? 'text-emerald-900' : 'text-slate-600'}`}>
-                                                    <span>🦷</span> Dental Engine
+                                                <div className="grid grid-cols-3 gap-4">
+                                                    <FormInput label="Base Price (₹)" value={mrdBaseRate} onChange={setMrdBaseRate} type="number" />
+                                                    <FormInput label="Page Threshold" value={mrdThreshold} onChange={setMrdThreshold} type="number" />
+                                                    <FormInput label="Extra Page (₹)" value={mrdStandardRate} onChange={setMrdStandardRate} type="number" />
                                                 </div>
-                                                {enabledModules.includes('dental') && <CheckCircle2 size={16} className="text-emerald-500" />}
                                             </div>
-                                            <p className={`text-xs ${enabledModules.includes('dental') ? 'text-emerald-700' : 'text-slate-500'}`}>Specialized interface for tooth charting and prescription processing.</p>
-                                        </div>
-
-                                        <div onClick={() => toggleModule('legal')} className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${enabledModules.includes('legal') ? 'border-amber-500 bg-amber-50' : 'border-slate-100 hover:border-slate-300'}`}>
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div className={`flex items-center gap-2 font-bold ${enabledModules.includes('legal') ? 'text-amber-900' : 'text-slate-600'}`}>
-                                                    <span>⚖️</span> Legal Discovery
-                                                </div>
-                                                {enabledModules.includes('legal') && <CheckCircle2 size={16} className="text-amber-500" />}
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <FormInput label="Retention Years" value={retentionYears} onChange={setRetentionYears} type="number" />
+                                                <FormInput label="Effective Date" value={pricingEffectiveDate} onChange={setPricingEffectiveDate} type="date" />
                                             </div>
-                                            <p className={`text-xs ${enabledModules.includes('legal') ? 'text-amber-700' : 'text-slate-500'}`}>Case file organization, witness histories, and contract analysis.</p>
-                                        </div>
-
-                                        <div onClick={() => toggleModule('accounting')} className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${enabledModules.includes('accounting') ? 'border-blue-500 bg-blue-50' : 'border-slate-100 hover:border-slate-300'}`}>
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div className={`flex items-center gap-2 font-bold ${enabledModules.includes('accounting') ? 'text-blue-900' : 'text-slate-600'}`}>
-                                                    <IndianRupee size={18} /> Intelligent Ledger
-                                                </div>
-                                                {enabledModules.includes('accounting') && <CheckCircle2 size={16} className="text-blue-500" />}
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Pricing Notes</label>
+                                                <textarea value={pricingNotes} onChange={e => setPricingNotes(e.target.value)} className="w-full p-3 bg-slate-50 rounded-xl border-none font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20" rows={2} placeholder="Negotiation details..." />
                                             </div>
-                                            <p className={`text-xs ${enabledModules.includes('accounting') ? 'text-blue-700' : 'text-slate-500'}`}>Invoice extraction, balance sheets, and tax compliance OCR.</p>
                                         </div>
                                     </div>
-                                </div>
+                                )}
 
-                                {/* Plan Selection */}
-                                <div className="space-y-4">
-                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider">03. Select Subscription Plan</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <PlanCard
-                                            name="Standard"
-                                            selected={plan === 'Standard'}
-                                            onClick={() => setPlan('Standard')}
-                                        />
-                                        <PlanCard
-                                            name="Premium"
-                                            selected={plan === 'Premium'}
-                                            onClick={() => setPlan('Premium')}
-                                        />
-                                        <PlanCard
-                                            name="Enterprise"
-                                            selected={plan === 'Enterprise'}
-                                            onClick={() => setPlan('Enterprise')}
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Billing Config */}
-                                <div className="space-y-4">
-                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider">04. Billing Configuration (INR)</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-600">Base Price (₹/File)</label>
-                                            <input
-                                                type="number"
-                                                value={pricePerFile}
-                                                onChange={e => setPricePerFile(Number(e.target.value))}
-                                                className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                            />
+                                {step === 6 && (
+                                    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
+                                                <CheckCircle2 />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-black text-slate-800">Review & Submit</h3>
+                                                <p className="text-xs text-slate-500 font-medium">Finalize and agree to terms.</p>
+                                            </div>
                                         </div>
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-600">Included Pages</label>
-                                            <input
-                                                type="number"
-                                                value={includedPages}
-                                                onChange={e => setIncludedPages(Number(e.target.value))}
-                                                className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                            />
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <FormInput label="Exp. Monthly Vol" value={expectedVolume} onChange={setExpectedVolume} type="number" placeholder="Files" />
+                                            <FormInput label="Exp. Users" value={expectedUsers} onChange={setExpectedUsers} type="number" placeholder="Count" />
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Storage Req</label>
+                                                <select value={storageReqs} onChange={e => setStorageReqs(e.target.value)} className="w-full p-3 bg-slate-50 rounded-xl border-none font-bold text-slate-700 outline-none">
+                                                    <option>Small</option>
+                                                    <option>Medium</option>
+                                                    <option>Large</option>
+                                                    <option>Enterprise</option>
+                                                </select>
+                                            </div>
                                         </div>
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-600">Extra Page Fee (₹/Pg)</label>
-                                            <input
-                                                type="number"
-                                                value={pricePerExtraPage}
-                                                onChange={e => setPricePerExtraPage(Number(e.target.value))}
-                                                className="w-full p-3 bg-slate-50 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                            />
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-3 bg-indigo-50 p-4 rounded-xl">
+                                                <input type="checkbox" checked={acceptTerms} onChange={e => setAcceptTerms(e.target.checked)} className="w-5 h-5 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500" />
+                                                <span className="text-sm font-bold text-indigo-900">I accept all Term & Conditions and Data Privacy Agreements.</span>
+                                            </div>
+                                            <div className="flex items-center gap-3 p-4">
+                                                <input type="checkbox" checked={acceptMarketing} onChange={e => setAcceptMarketing(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                                                <span className="text-sm font-bold text-slate-600">I agree to receive product updates and newsletters.</span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-
-                                {/* Terminology Config */}
-                                <div className="space-y-4">
-                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider">05. Entity Terminology Customization</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-600">Primary Entity Label</label>
-                                            <input
-                                                value={patientLabel}
-                                                onChange={e => setPatientLabel(e.target.value)}
-                                                className="w-full p-3 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 bg-slate-50"
-                                                placeholder="e.g. Patient, Client, Resident, Document"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-bold text-slate-600">Secondary Actor Label</label>
-                                            <input
-                                                value={doctorLabel}
-                                                onChange={e => setDoctorLabel(e.target.value)}
-                                                className="w-full p-3 rounded-xl border-none font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 bg-slate-50"
-                                                placeholder="e.g. Doctor, Consultant, Agent, Officer"
-                                            />
-                                        </div>
-                                        <div className="col-span-1 md:col-span-2 text-xs text-indigo-500 bg-indigo-50 p-2 rounded-lg font-bold flex items-center gap-2 border border-indigo-100">
-                                            <ShieldCheck size={14} />
-                                            These terms will be dynamically injected across the entire UI for this specific client to match their domain.
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="pt-4 flex gap-4">
-                                    <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition-colors">
-                                        Cancel
-                                    </button>
-                                    <button disabled={submitting} type="submit" className="flex-1 py-4 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all active:scale-95 disabled:opacity-50 flex justify-center items-center gap-2">
-                                        {submitting ? <Loader2 className="animate-spin" /> : isEditMode ? <><CheckCircle2 size={20} /> Update Hospital</> : <><CheckCircle2 size={20} /> Complete Registration</>}
-                                    </button>
-                                </div>
-
+                                )}
                             </form>
+
+                            {/* Footer */}
+                            <div className="p-6 border-t border-slate-100 flex justify-between gap-4 bg-slate-50/50">
+                                <button
+                                    type="button"
+                                    onClick={() => step > 1 ? setStep(step - 1) : setShowModal(false)}
+                                    className="px-8 py-3 rounded-xl font-black text-slate-500 hover:bg-white transition-all uppercase tracking-widest text-[10px] border border-slate-200"
+                                >
+                                    {step === 1 ? 'Cancel' : 'Back'}
+                                </button>
+
+                                {step < 6 ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => setStep(step + 1)}
+                                        className="px-10 py-3 rounded-xl font-black text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 uppercase tracking-widest text-[10px] transition-all active:scale-95"
+                                    >
+                                        Next Phase
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleRegister}
+                                        disabled={submitting || !acceptTerms}
+                                        className="px-10 py-4 rounded-xl font-black text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100 uppercase tracking-widest text-[10px] transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        {submitting ? <Loader2 className="animate-spin" /> : <><CheckCircle2 size={16} /> Deploy Implementation</>}
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )
@@ -823,4 +932,34 @@ const StatsCard = ({ title, value, icon: Icon, color }: any) => {
         </div>
     );
 };
+
+const FormInput = ({ label, value, onChange, type = "text", required = false, placeholder = "", onBlur }: any) => (
+    <div className="space-y-1">
+        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">{label} {required && '*'}</label>
+        <input
+            type={type}
+            required={required}
+            value={value}
+            onChange={e => onChange(type === "number" ? Number(e.target.value) : e.target.value)}
+            onBlur={onBlur}
+            className="w-full p-3 bg-slate-50 rounded-xl border-none font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20"
+            placeholder={placeholder}
+        />
+    </div>
+);
+
+const ModuleCard = ({ id, label, icon, desc, active, onClick, fixed = false }: any) => (
+    <div
+        onClick={onClick}
+        className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${active ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100 hover:border-slate-300'} ${fixed ? 'opacity-80 active:scale-100' : 'active:scale-98'}`}
+    >
+        <div className="flex justify-between items-start mb-2">
+            <div className={`flex items-center gap-2 font-black ${active ? 'text-indigo-900' : 'text-slate-600'}`}>
+                {icon} {label}
+            </div>
+            {active && <CheckCircle2 size={16} className="text-indigo-600" />}
+        </div>
+        <p className="text-[10px] font-semibold text-slate-500 leading-relaxed">{desc}</p>
+    </div>
+);
 

@@ -239,6 +239,79 @@ class EmailService:
             return False
 
     @staticmethod
+    def send_mfa_otp_email(email: str, otp_code: str, ip_address: str, device_info: str):
+        """
+        Sends an MFA OTP email for new device verification.
+        """
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from datetime import datetime
+        from app.core.config import settings
+
+        # SMTP Configuration
+        SMTP_SERVER = settings.SMTP_SERVER
+        SMTP_PORT = settings.SMTP_PORT
+        SMTP_USERNAME = settings.SMTP_USERNAME
+        SMTP_PASSWORD = settings.SMTP_PASSWORD
+        SENDER_EMAIL = settings.SENDER_EMAIL
+
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = f"Digifort Security <{SENDER_EMAIL}>"
+            msg['To'] = email
+            msg['Subject'] = "Action Required: Verify New Device Link"
+            msg['Date'] = datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
+            msg['X-Mailer'] = "DigifortLabs Mailer 1.0"
+            msg['Message-ID'] = f"<{datetime.now().timestamp()}@{settings.SMTP_SERVER}>"
+
+            body = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: 'Segoe UI', Tahoma, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ max-width: 600px; margin: 40px auto; background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; }}
+                    .otp-box {{ background: #f1f5f9; padding: 15px; text-align: center; margin: 20px 0; font-size: 28px; font-weight: bold; letter-spacing: 5px; color: #2563eb; border-radius: 8px; border: 1px dashed #cbd5e1; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h2 style="margin-top:0; color: #0f172a;">New Device Detected</h2>
+                    <p>Hello,</p>
+                    <p>You are attempting to log in from a new or unrecognized device. To verify your identity, please enter this One-Time Password:</p>
+                    
+                    <div class="otp-box">{otp_code}</div>
+                    
+                    <div style="background: #f8fafc; padding: 10px; border-radius: 6px; font-size: 13px; margin: 20px 0;">
+                        <strong>IP Address:</strong> {ip_address}<br>
+                        <strong>Device Info:</strong> {device_info}<br>
+                        <strong>Time:</strong> {timestamp}
+                    </div>
+                    
+                    <p style="font-size: 13px; color: #64748b;">Code expires in 15 minutes. If this wasn't you, please change your password immediately.</p>
+                </div>
+            </body>
+            </html>
+            """
+            
+            msg.attach(MIMEText(body, 'html'))
+
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.sendmail(SENDER_EMAIL, email, msg.as_string())
+            server.quit()
+            
+            return True
+        except Exception as e:
+            print(f"[EMAIL SERVICE] Failed to send MFA OTP to {email}: {str(e)}")
+            print("\n" + "="*60 + f"\n📧 [FALLBACK MFA OTP] {email} -> {otp_code}\n" + "="*60 + "\n")
+            return False
+
+    @staticmethod
     def send_welcome_email(email: str, name: str, password: str, login_url: str = None):
         """
         Sends a welcome email to new Hospital Admins with their initial credentials.
@@ -1313,4 +1386,51 @@ class EmailService:
             return True
         except Exception as e:
             print(f"❌ [EMAIL SERVICE] Success notification failed: {e}")
+            return False
+
+    @staticmethod
+    def send_demo_credentials_email(email: str, password: str):
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+        from datetime import datetime
+        from app.core.config import settings
+
+        SMTP_SERVER = settings.SMTP_SERVER
+        SMTP_PORT = settings.SMTP_PORT
+        SMTP_USERNAME = settings.SMTP_USERNAME
+        SMTP_PASSWORD = settings.SMTP_PASSWORD
+        SENDER_EMAIL = settings.SENDER_EMAIL
+
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = f"Digifort Labs <{SENDER_EMAIL}>"
+            msg['To'] = email
+            msg['Subject'] = "Demo Account Created - Digifort Labs"
+
+            body = f"""
+            <html>
+            <body style="font-family: sans-serif;">
+                <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+                    <h2>Welcome to Digifort Labs Demo!</h2>
+                    <p>Your demo account has been created with limited storage (100MB).</p>
+                    <div style="background: #f0f9ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                        <p><strong>Email:</strong> {email}</p>
+                        <p><strong>Password:</strong> {password}</p>
+                    </div>
+                    <p><a href="https://digifortlabs.com/login" style="background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Login Now</a></p>
+                </div>
+            </body>
+            </html>
+            """
+            msg.attach(MIMEText(body, 'html'))
+
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.sendmail(SENDER_EMAIL, [email], msg.as_string())
+            server.quit()
+            return True
+        except Exception as e:
+            print(f"[EMAIL] Demo credentials failed: {e}")
             return False

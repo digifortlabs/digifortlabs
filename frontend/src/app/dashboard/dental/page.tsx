@@ -29,7 +29,7 @@ import { cn } from '@/lib/utils';
 import { API_URL, apiFetch } from '@/config/api';
 import { formatDate } from '@/lib/dateFormatter';
 import PatientDetail from './components/PatientDetail';
-import AppointmentModal from './components/AppointmentModal';
+// import AppointmentModal from './components/AppointmentModal'; // Deprecated
 
 // --- Components ---
 // I will create these shortly as separate files if they get complex
@@ -63,39 +63,7 @@ export default function DentalDashboard() {
     const [suggestions, setSuggestions] = useState<any[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
 
-    const handleScheduleAppointment = async (apt: any) => {
-        setIsSaving(true);
-        try {
-            // Transform to backend schema
-            const [year, month, day] = apt.date.split('-').map(Number);
-            const [hours, minutes] = apt.time.split(':').map(Number);
-            const startTime = new Date(year, month - 1, day, hours, minutes);
-            const endTime = new Date(startTime.getTime() + 30 * 60000); // Default 30 min
-
-            const data = await apiFetch(`dental/appointments`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    patient_id: apt.patient_id, // We need to add this to the modal callback
-                    doctor_name: "Dr. Himani Desai", // Default or from modal
-                    start_time: startTime.toISOString(),
-                    end_time: endTime.toISOString(),
-                    purpose: apt.type,
-                    status: "scheduled"
-                })
-            });
-
-            if (data) {
-                setAppointments(prev => [data, ...prev]);
-                setShowAppointmentModal(false);
-                alert("Appointment scheduled successfully!");
-            }
-        } catch (error: any) {
-            console.error("Schedule error:", error);
-            alert(error.message || "Failed to schedule appointment.");
-        } finally {
-            setIsSaving(false);
-        }
-    };
+    // handleScheduleAppointment was removed as scheduling is now centralized.
 
     const fetchNextIds = async () => {
         try {
@@ -297,7 +265,7 @@ export default function DentalDashboard() {
             try {
                 const [patientsData, appointmentsData, statsData] = await Promise.all([
                     apiFetch(`dental/patients`),
-                    apiFetch(`dental/appointments`),
+                    apiFetch(`appointments?date=${new Date().toISOString().split('T')[0]}`),
                     apiFetch(`dental/stats`)
                 ]);
 
@@ -366,7 +334,7 @@ export default function DentalDashboard() {
                         <Plus className="w-4 h-4" /> New Patient
                     </Button>
                     <Button
-                        onClick={() => setShowAppointmentModal(true)}
+                        onClick={() => router.push('/dashboard/appointments')}
                         variant="outline"
                         className="gap-2 bg-white shadow-sm"
                     >
@@ -375,13 +343,7 @@ export default function DentalDashboard() {
                 </div>
             </div>
 
-            {/* Appointment Modal */}
-            <AppointmentModal
-                isOpen={showAppointmentModal}
-                onClose={() => setShowAppointmentModal(false)}
-                patients={patients}
-                onSchedule={handleScheduleAppointment}
-            />
+            {/* Appointment Modal moved to Centralized Dashboard */}
 
             {/* New Patient Modal */}
             {showNewPatientModal && (

@@ -26,7 +26,10 @@ import { Badge } from '@/components/ui/badge';
 import Odontogram from '@/components/dental/Odontogram';
 import ThreeDViewer from '@/components/dental/ThreeDViewer';
 import LiveScanner from '@/components/dental/LiveScanner';
+import PeriodontalChart from '@/components/dental/PeriodontalChart';
 import { API_URL, apiFetch } from '@/config/api';
+import { ShieldAlert, Beaker, Braces, MessageSquare } from 'lucide-react';
+import { toast } from "sonner";
 
 interface PatientDetailProps {
     patient: any;
@@ -72,8 +75,17 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
         type: "",
         tooth: "",
         cost: "",
-        date: new Date().toISOString().split('T')[0] // Default to today
+        date: new Date().toISOString().split('T')[0], // Default to today
+        phase_id: "" // Added for multi-phase support
     });
+
+    // New Treatment Planning State
+    const [treatmentPlans, setTreatmentPlans] = useState<any[]>([]);
+    const [isAddPlanOpen, setIsAddPlanOpen] = useState(false);
+    const [newPlan, setNewPlan] = useState({ name: "", priority: "normal", notes: "" });
+    const [isAddPhaseOpen, setIsAddPhaseOpen] = useState(false);
+    const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
+    const [newPhase, setNewPhase] = useState({ name: "", phase_order: 1 });
 
     // Add Prescription Modal State
     const [isAddPrescriptionOpen, setIsAddPrescriptionOpen] = useState(false);
@@ -89,7 +101,27 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
     const [scans, setScans] = useState<any[]>([]);
     const [selectedScanUrl, setSelectedScanUrl] = useState<string>("");
     const [isUploadingScan, setIsUploadingScan] = useState(false);
+
+    // Periodontal State
+    const [periodontalExams, setPeriodontalExams] = useState<any[]>([]);
     const [uploadProgress, setUploadProgress] = useState(0);
+
+    // Final Feature State
+    const [insuranceClaims, setInsuranceClaims] = useState<any[]>([]);
+    const [isAddClaimOpen, setIsAddClaimOpen] = useState(false);
+    const [newClaim, setNewClaim] = useState({ provider_id: 1, policy_number: "", claim_amount: "", status: "pending", notes: "" });
+
+    const [labOrders, setLabOrders] = useState<any[]>([]);
+    const [isAddLabOrderOpen, setIsAddLabOrderOpen] = useState(false);
+    const [newLabOrder, setNewLabOrder] = useState({ lab_id: 1, appliance_type: "", tooth_number: "", shade: "", instructions: "", status: "sent", due_date: "" });
+
+    const [orthoRecords, setOrthoRecords] = useState<any[]>([]);
+    const [isAddOrthoOpen, setIsAddOrthoOpen] = useState(false);
+    const [newOrtho, setNewOrtho] = useState({ appliance_type: "", upper_wire: "", lower_wire: "", elastics: "", notes: "", next_visit_tasks: "" });
+
+    const [communications, setCommunications] = useState<any[]>([]);
+    const [isAddCommOpen, setIsAddCommOpen] = useState(false);
+    const [newComm, setNewComm] = useState({ comm_type: "Email", category: "Follow-up", message_content: "", status: "sent" });
 
     const fetchScans = React.useCallback(async () => {
         try {
@@ -111,9 +143,63 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
         }
     }, [patient.patient_id]); // Removed selectedScanUrl dependency to break infinite loop
 
+    const fetchTreatmentPlans = React.useCallback(async () => {
+        try {
+            const data = await apiFetch(`dental/patients/${patient.patient_id}/treatment-plans`);
+            if (data) {
+                setTreatmentPlans(data);
+            }
+        } catch (error) {
+            console.error("Error fetching plans:", error);
+        }
+    }, [patient.patient_id]);
+
+    const fetchTreatments = React.useCallback(async () => {
+        try {
+            const data = await apiFetch(`dental/treatments?patient_id=${patient.patient_id}`);
+            if (data) {
+                setTreatments(data);
+            }
+        } catch (error) {
+            console.error("Error fetching treatments:", error);
+        }
+    }, [patient.patient_id]);
+
+    const fetchPeriodontalExams = React.useCallback(async () => {
+        try {
+            const data = await apiFetch(`dental/patients/${patient.patient_id}/periodontal-exams`);
+            if (data) {
+                setPeriodontalExams(data);
+            }
+        } catch (error) {
+            console.error("Error fetching periodontal exams:", error);
+        }
+    }, [patient.patient_id]);
+
+    const fetchFinalFeatures = React.useCallback(async () => {
+        try {
+            const [claimsRes, labsRes, orthoRes, commsRes] = await Promise.all([
+                apiFetch(`dental/patients/${patient.patient_id}/insurance/claims`).catch(() => []),
+                apiFetch(`dental/patients/${patient.patient_id}/lab-orders`).catch(() => []),
+                apiFetch(`dental/patients/${patient.patient_id}/ortho`).catch(() => []),
+                apiFetch(`dental/patients/${patient.patient_id}/communications`).catch(() => [])
+            ]);
+            if (claimsRes) setInsuranceClaims(claimsRes);
+            if (labsRes) setLabOrders(labsRes);
+            if (orthoRes) setOrthoRecords(orthoRes);
+            if (commsRes) setCommunications(commsRes);
+        } catch (error) {
+            console.error("Error fetching feature data:", error);
+        }
+    }, [patient.patient_id]);
+
     useEffect(() => {
         fetchScans();
-    }, [fetchScans]);
+        fetchTreatmentPlans();
+        fetchTreatments();
+        fetchPeriodontalExams();
+        fetchFinalFeatures();
+    }, [fetchScans, fetchTreatmentPlans, fetchTreatments, fetchPeriodontalExams, fetchFinalFeatures]);
 
     const handleDeleteAllScans = async () => {
         if (!confirm("Are you sure you want to delete ALL scans for this patient? This cannot be undone.")) return;
@@ -124,13 +210,13 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
             });
 
             if (res === null) {
-                alert("All scans deleted successfully.");
+                toast.success("All scans deleted successfully.");
                 setScans([]);
                 setSelectedScanUrl("");
             }
         } catch (error: any) {
             console.error("Delete error:", error);
-            alert(error.message || "Error deleting scans.");
+            toast.error(error.message || "Error deleting scans.");
         }
     };
 
@@ -160,10 +246,10 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
             setIsUploadingScan(false);
             setUploadProgress(0);
             if (xhr.status >= 200 && xhr.status < 300) {
-                alert("Scan uploaded successfully!");
+                toast.success("Scan uploaded successfully!");
                 fetchScans();
             } else {
-                alert("Failed to upload scan.");
+                toast.error("Failed to upload scan.");
             }
             e.target.value = '';
         };
@@ -172,7 +258,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
             setIsUploadingScan(false);
             setUploadProgress(0);
             console.error("Upload error");
-            alert("Error uploading scan.");
+            toast.error("Error uploading scan.");
             e.target.value = '';
         };
 
@@ -200,12 +286,12 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
             }
 
             if (successCount > 0) {
-                alert(`Successfully saved ${successCount} images.`);
+                toast.success(`Successfully saved ${successCount} images.`);
                 fetchScans();
             }
         } catch (error) {
             console.error("Live save error:", error);
-            alert("Error saving live scans.");
+            toast.error("Error saving live scans.");
         } finally {
             setIsUploadingScan(false);
         }
@@ -221,7 +307,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
             });
 
             if (data) {
-                alert("Scanner software launched! Please perform the scan and export to 'C:\\DentalScans'.");
+                toast.success("Scanner software launched! Please perform the scan and export to 'C:\\DentalScans'.");
                 // TODO: Start polling for new files
             }
         } catch (error: any) {
@@ -230,10 +316,10 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                 const data = error.data || {};
                 const path = prompt("Scanner software not found. Please enter the full path to your scanner .exe:", data.path || "");
                 if (path) {
-                    alert(`Path '${path}' noted. (Feature to save config pending)`);
+                    toast.success(`Path '${path}' noted. (Feature to save config pending)`);
                 }
             } else {
-                alert("Failed to launch scanner: " + error.message);
+                toast.error(error.message || "Unknown error");
             }
         } finally {
             setTimeout(() => setIsScanning(false), 5000); // Reset state after 5s
@@ -266,11 +352,11 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                 body: JSON.stringify(payload)
             });
             if (data) {
-                alert("Record saved successfully!");
+                toast.success("Record saved successfully!");
             }
         } catch (error: any) {
             console.error("Save error:", error);
-            alert(error.message || "Failed to save record.");
+            toast.error(error.message || "Failed to save record.");
         } finally {
             setIsSaving(false);
         }
@@ -282,7 +368,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
 
     const saveProcedure = async () => {
         if (!newProcedure.type) {
-            alert("Please enter a procedure name");
+            toast.error("Please enter a procedure name");
             return;
         }
 
@@ -298,29 +384,32 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                     cost: cost,
                     status: "planned",
                     description: "Added via UI",
-                    date_performed: newProcedure.date || new Date().toISOString()
+                    date_performed: newProcedure.date || new Date().toISOString(),
+                    phase_id: newProcedure.phase_id ? parseInt(newProcedure.phase_id) : null
                 })
             });
 
             if (data) {
                 setTreatments([...treatments, data]);
+                fetchTreatmentPlans(); // Also refresh plans to show the new treatment in nested view
                 setIsAddProcedureOpen(false);
                 setNewProcedure({
                     type: "",
                     tooth: "",
                     cost: "",
-                    date: new Date().toISOString().split('T')[0]
+                    date: new Date().toISOString().split('T')[0],
+                    phase_id: ""
                 }); // Reset form
             }
         } catch (error: any) {
             console.error("Error adding procedure:", error);
-            alert(error.message || "Error adding procedure.");
+            toast.error(error.message || "Error adding procedure.");
         }
     };
 
     const handleSavePrescription = () => {
         if (!newPrescription.name) {
-            alert("Please enter a medication name");
+            toast.error("Please enter a medication name");
             return;
         }
 
@@ -348,6 +437,145 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
             notes: "After food",
             startDate: new Date().toISOString().split('T')[0]
         });
+    };
+
+    const savePeriodontalExam = async (examData: any) => {
+        try {
+            const data = await apiFetch(`dental/patients/${patient.patient_id}/periodontal-exams`, {
+                method: 'POST',
+                body: JSON.stringify(examData)
+            });
+            if (data) {
+                toast.success("Periodontal exam saved successfully!");
+                setPeriodontalExams([data, ...periodontalExams]);
+                setActiveTab("examination"); // Or stay on tab
+            }
+        } catch (error: any) {
+            console.error("Error saving periodontal exam:", error);
+            toast.error(error.message || "Failed to save periodontal exam.");
+        }
+    };
+
+    const saveTreatmentPlan = async () => {
+        if (!newPlan.name) return;
+        try {
+            const data = await apiFetch(`dental/patients/${patient.patient_id}/treatment-plans`, {
+                method: 'POST',
+                body: JSON.stringify(newPlan)
+            });
+            if (data) {
+                setTreatmentPlans([...treatmentPlans, { ...data, phases: [] }]);
+                setIsAddPlanOpen(false);
+                setNewPlan({ name: "", priority: "normal", notes: "" });
+            }
+        } catch (error) {
+            console.error("Error creating plan:", error);
+        }
+    };
+
+    const savePhase = async () => {
+        if (!newPhase.name || !selectedPlanId) return;
+        try {
+            const data = await apiFetch(`dental/treatment-plans/${selectedPlanId}/phases`, {
+                method: 'POST',
+                body: JSON.stringify(newPhase)
+            });
+            if (data) {
+                fetchTreatmentPlans(); // Refresh the whole tree
+                setIsAddPhaseOpen(false);
+                setNewPhase({ name: "", phase_order: treatmentPlans.find(p => p.plan_id === selectedPlanId)?.phases.length + 1 || 1 });
+            }
+        } catch (error) {
+            console.error("Error creating phase:", error);
+        }
+    };
+
+    const saveClaim = async () => {
+        if (!newClaim.policy_number || !newClaim.claim_amount) {
+            toast.error("Please fill policy number and amount.");
+            return;
+        }
+        try {
+            const data = await apiFetch(`dental/patients/${patient.patient_id}/insurance/claims`, {
+                method: 'POST',
+                body: JSON.stringify({ ...newClaim, claim_amount: parseFloat(newClaim.claim_amount) })
+            });
+            if (data) {
+                toast.success("Insurance claim added successfully!");
+                setInsuranceClaims([data, ...insuranceClaims]);
+                setIsAddClaimOpen(false);
+                setNewClaim({ provider_id: 1, policy_number: "", claim_amount: "", status: "pending", notes: "" });
+            }
+        } catch (error: any) {
+            toast.error(error.message || "Failed to add claim.");
+        }
+    };
+
+    const saveLabOrder = async () => {
+        if (!newLabOrder.appliance_type) {
+            toast.error("Please enter appliance type.");
+            return;
+        }
+        try {
+            const payload = {
+                ...newLabOrder,
+                due_date: newLabOrder.due_date ? new Date(newLabOrder.due_date).toISOString() : null
+            };
+            const data = await apiFetch(`dental/patients/${patient.patient_id}/lab-orders`, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            if (data) {
+                toast.success("Lab order created successfully!");
+                setLabOrders([data, ...labOrders]);
+                setIsAddLabOrderOpen(false);
+                setNewLabOrder({ lab_id: 1, appliance_type: "", tooth_number: "", shade: "", instructions: "", status: "sent", due_date: "" });
+            }
+        } catch (error: any) {
+            toast.error(error.message || "Failed to create lab order.");
+        }
+    };
+
+    const saveOrthoRecord = async () => {
+        if (!newOrtho.appliance_type) {
+            toast.error("Please enter appliance type.");
+            return;
+        }
+        try {
+            const data = await apiFetch(`dental/patients/${patient.patient_id}/ortho`, {
+                method: 'POST',
+                body: JSON.stringify(newOrtho)
+            });
+            if (data) {
+                toast.success("Orthodontic record added successfully!");
+                setOrthoRecords([data, ...orthoRecords]);
+                setIsAddOrthoOpen(false);
+                setNewOrtho({ appliance_type: "", upper_wire: "", lower_wire: "", elastics: "", notes: "", next_visit_tasks: "" });
+            }
+        } catch (error: any) {
+            toast.error(error.message || "Failed to add ortho record.");
+        }
+    };
+
+    const saveCommunication = async () => {
+        if (!newComm.message_content) {
+            toast.error("Please enter message content.");
+            return;
+        }
+        try {
+            const data = await apiFetch(`dental/patients/${patient.patient_id}/communications`, {
+                method: 'POST',
+                body: JSON.stringify(newComm)
+            });
+            if (data) {
+                toast.success("Communication logged successfully!");
+                setCommunications([data, ...communications]);
+                setIsAddCommOpen(false);
+                setNewComm({ comm_type: "Email", category: "Follow-up", message_content: "", status: "sent" });
+            }
+        } catch (error: any) {
+            toast.error(error.message || "Failed to log communication.");
+        }
     };
 
     // Billing Calculations
@@ -437,6 +665,23 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                     </TabsTrigger>
                     <TabsTrigger value="prescriptions" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-900 gap-2 py-2 px-4 rounded-lg transition-all">
                         <Pill className="w-4 h-4" /> Prescriptions
+                    </TabsTrigger>
+                    <TabsTrigger value="periodontal" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-900 gap-2 py-2 px-4 rounded-lg transition-all">
+                        <Activity className="w-4 h-4" /> Periodontal
+                    </TabsTrigger>
+
+                    {/* New Feature Tabs */}
+                    <TabsTrigger value="insurance" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-900 gap-2 py-2 px-4 rounded-lg transition-all">
+                        <ShieldAlert className="w-4 h-4" /> Insurance
+                    </TabsTrigger>
+                    <TabsTrigger value="labs" className="data-[state=active]:bg-slate-100 data-[state=active]:text-slate-900 gap-2 py-2 px-4 rounded-lg transition-all">
+                        <Beaker className="w-4 h-4" /> Lab Orders
+                    </TabsTrigger>
+                    <TabsTrigger value="ortho" className="data-[state=active]:bg-teal-50 data-[state=active]:text-teal-900 gap-2 py-2 px-4 rounded-lg transition-all">
+                        <Braces className="w-4 h-4" /> Orthodontics
+                    </TabsTrigger>
+                    <TabsTrigger value="comms" className="data-[state=active]:bg-amber-50 data-[state=active]:text-amber-900 gap-2 py-2 px-4 rounded-lg transition-all">
+                        <MessageSquare className="w-4 h-4" /> Comms
                     </TabsTrigger>
                 </TabsList>
 
@@ -600,70 +845,184 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                 </TabsContent>
 
                 {/* --- Procedures Tab --- */}
-                <TabsContent value="procedures" className="outline-none">
-                    <Card className="border-none shadow-sm">
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <div>
-                                <CardTitle className="text-xl">Treatment Plan</CardTitle>
-                                <CardDescription>List of planned and ongoing procedures</CardDescription>
-                            </div>
+                <TabsContent value="procedures" className="outline-none space-y-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-900">Treatment Planning</h2>
+                            <p className="text-sm text-slate-500">Manage multi-phase clinical cases and quotes</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button
+                                onClick={() => setIsAddPlanOpen(true)}
+                                className="bg-blue-900 hover:bg-blue-800 text-white gap-2 shadow-md"
+                            >
+                                <Plus className="w-4 h-4" /> New Plan
+                            </Button>
                             <Button
                                 onClick={handleAddProcedure}
-                                className="bg-blue-900 hover:bg-blue-800 text-white gap-2"
+                                variant="outline"
+                                className="gap-2 border-slate-200"
                             >
-                                <Plus className="w-4 h-4" /> Add Procedure
+                                <Zap className="w-4 h-4 text-amber-500" /> Quick Entry
                             </Button>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <div className="border-t">
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-widest border-b">
-                                        <tr>
-                                            <th className="px-6 py-4">Date</th>
-                                            <th className="px-6 py-4">Procedure</th>
-                                            <th className="px-6 py-4">Tooth</th>
-                                            <th className="px-6 py-4">Status</th>
-                                            <th className="px-6 py-4">Estimated (₹)</th>
-                                            <th className="px-6 py-4">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y">
-                                        {treatments.length === 0 ? (
+                        </div>
+                    </div>
+
+                    {/* Active Plans List */}
+                    <div className="space-y-6">
+                        {treatmentPlans.length === 0 ? (
+                            <Card className="border-none shadow-sm bg-slate-50/50">
+                                <CardContent className="p-12 text-center text-slate-500">
+                                    <Activity className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                                    <h3 className="text-lg font-semibold text-slate-900">No active treatment plans</h3>
+                                    <p className="max-w-xs mx-auto text-sm mt-1">Create a plan to group procedures into professional phases and cases.</p>
+                                    <Button onClick={() => setIsAddPlanOpen(true)} variant="link" className="mt-4 text-blue-600 font-bold">Create your first plan &rarr;</Button>
+                                </CardContent>
+                            </Card>
+                        ) : (
+                            treatmentPlans.map(plan => (
+                                <Card key={plan.plan_id} className="border-none shadow-md overflow-hidden bg-white">
+                                    <CardHeader className="bg-slate-900 text-white p-6">
+                                        <div className="flex items-center justify-between">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-3">
+                                                    <CardTitle className="text-xl">{plan.name}</CardTitle>
+                                                    <Badge className={cn(
+                                                        "uppercase text-[10px] tracking-widest px-2 py-0.5 border-none",
+                                                        plan.status === 'accepted' ? "bg-emerald-500 text-white" : "bg-blue-500 text-white"
+                                                    )}>
+                                                        {plan.status}
+                                                    </Badge>
+                                                </div>
+                                                <p className="text-slate-400 text-xs font-medium">Estimate: ₹ {plan.estimated_cost?.toLocaleString()} • Priority: {plan.priority}</p>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <Button size="sm" variant="secondary" className="bg-white/10 hover:bg-white/20 border-none text-white text-xs h-8" onClick={() => { setSelectedPlanId(plan.plan_id); setIsAddPhaseOpen(true); }}>
+                                                    <Plus className="w-3.5 h-3.5 mr-1" /> Add Phase
+                                                </Button>
+                                                <Button size="sm" variant="secondary" className="bg-white/10 hover:bg-white/20 border-none text-white text-xs h-8">
+                                                    <FileText className="w-3.5 h-3.5 mr-1" /> Print Quote
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="p-0">
+                                        <div className="divide-y border-t border-slate-100">
+                                            {plan.phases?.length === 0 ? (
+                                                <div className="p-8 text-center text-slate-400 bg-slate-50/30">
+                                                    <p className="text-sm italic">Add phases to organize the treatment flow</p>
+                                                </div>
+                                            ) : (
+                                                plan.phases.map((phase: any) => (
+                                                    <div key={phase.phase_id} className="bg-white">
+                                                        <div className="flex items-center justify-between px-6 py-3 bg-slate-50 border-b border-t border-slate-100">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[10px] font-bold">
+                                                                    {phase.phase_order}
+                                                                </div>
+                                                                <h4 className="font-bold text-slate-700 text-sm uppercase tracking-wide">{phase.name}</h4>
+                                                                <Badge variant="outline" className="text-[9px] uppercase font-bold py-0">{phase.status}</Badge>
+                                                            </div>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-7 text-[10px] font-bold uppercase text-blue-600 hover:text-blue-800"
+                                                                onClick={() => {
+                                                                    setNewProcedure(prev => ({ ...prev, phase_id: phase.phase_id.toString() }));
+                                                                    setIsAddProcedureOpen(true);
+                                                                }}
+                                                            >
+                                                                + Add Procedure
+                                                            </Button>
+                                                        </div>
+                                                        <div className="p-0">
+                                                            <table className="w-full text-left text-sm">
+                                                                <tbody className="divide-y">
+                                                                    {phase.treatments?.length === 0 ? (
+                                                                        <tr>
+                                                                            <td className="px-14 py-4 text-xs text-slate-400 italic">No procedures in this phase</td>
+                                                                        </tr>
+                                                                    ) : (
+                                                                        phase.treatments.map((t: any) => (
+                                                                            <tr key={t.treatment_id} className="hover:bg-slate-50/30 transition-colors">
+                                                                                <td className="px-14 py-3 font-semibold text-slate-800">{t.treatment_type}</td>
+                                                                                <td className="px-6 py-3">{t.tooth_number ? <Badge variant="secondary" className="font-bold flex-shrink-0">#{t.tooth_number}</Badge> : '-'}</td>
+                                                                                <td className="px-6 py-3">
+                                                                                    <Badge className={cn(
+                                                                                        "border-none text-[10px] tracking-wide py-0",
+                                                                                        t.status === 'completed' ? "bg-emerald-50 text-emerald-700" :
+                                                                                            t.status === 'in-progress' ? "bg-blue-50 text-blue-700" :
+                                                                                                "bg-slate-100 text-slate-500"
+                                                                                    )}>
+                                                                                        {t.status}
+                                                                                    </Badge>
+                                                                                </td>
+                                                                                <td className="px-6 py-3 font-medium text-slate-600">₹ {t.cost?.toLocaleString()}</td>
+                                                                                <td className="px-6 py-3 text-right">
+                                                                                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0"><ChevronRight className="w-4 h-4 text-slate-400" /></Button>
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))
+                                                                    )}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))
+                        )}
+
+                        {/* Unassigned Procedures */}
+                        {treatments.filter(t => !t.phase_id).length > 0 && (
+                            <Card className="border-none shadow-sm border-l-4 border-l-amber-400 overflow-hidden">
+                                <CardHeader className="bg-slate-50 border-b border-slate-100">
+                                    <div className="flex items-center gap-2">
+                                        <LayoutGrid className="w-4 h-4 text-amber-500" />
+                                        <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-700">Quick Procedures (Unassigned)</CardTitle>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="p-0">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-widest border-b">
                                             <tr>
-                                                <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                                                    No procedures planned yet. Click "Add Procedure" to start.
-                                                </td>
+                                                <th className="px-6 py-4">Procedure</th>
+                                                <th className="px-6 py-4">Tooth</th>
+                                                <th className="px-6 py-4">Status</th>
+                                                <th className="px-6 py-4">Cost (₹)</th>
+                                                <th className="px-6 py-4 text-right">Action</th>
                                             </tr>
-                                        ) : (
-                                            treatments.map((t) => (
+                                        </thead>
+                                        <tbody className="divide-y">
+                                            {treatments.filter(t => !t.phase_id).map((t) => (
                                                 <tr key={t.treatment_id} className="hover:bg-slate-50/50 transition-colors">
-                                                    <td className="px-6 py-4 text-xs text-slate-500">
-                                                        {t.date_performed ? new Date(t.date_performed).toLocaleDateString() : '-'}
-                                                    </td>
-                                                    <td className="px-6 py-4 font-semibold">{t.treatment_type}</td>
+                                                    <td className="px-6 py-4 font-semibold text-slate-800">{t.treatment_type}</td>
                                                     <td className="px-6 py-4">{t.tooth_number ? `#${t.tooth_number}` : '-'}</td>
                                                     <td className="px-6 py-4">
-                                                        <Badge variant="outline" className={cn(
-                                                            "border-none",
-                                                            t.status === 'completed' ? "bg-emerald-100 text-emerald-700" :
-                                                                t.status === 'in-progress' ? "bg-blue-100 text-blue-700" :
+                                                        <Badge className={cn(
+                                                            "border-none text-[10px] tracking-wide py-0",
+                                                            t.status === 'completed' ? "bg-emerald-50 text-emerald-700" :
+                                                                t.status === 'in-progress' ? "bg-blue-50 text-blue-700" :
                                                                     "bg-slate-100 text-slate-500"
                                                         )}>
                                                             {t.status}
                                                         </Badge>
                                                     </td>
-                                                    <td className="px-6 py-4">₹ {t.cost?.toLocaleString()}</td>
-                                                    <td className="px-6 py-4">
-                                                        <Button variant="ghost" size="sm" className="text-xs">Edit</Button>
+                                                    <td className="px-6 py-4 text-slate-600">₹ {t.cost?.toLocaleString()}</td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <Button variant="ghost" size="sm" className="text-blue-600 text-xs font-bold uppercase">Assign to Plan</Button>
                                                     </td>
                                                 </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </CardContent>
-                    </Card>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </CardContent>
+                            </Card>
+                        )}
+                    </div>
                 </TabsContent>
 
                 {/* --- Billing Tab --- */}
@@ -889,7 +1248,170 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                         </div>
                     </div>
                 </TabsContent>
+
+                {/* --- Periodontal Tab --- */}
+                <TabsContent value="periodontal" className="outline-none space-y-4">
+                    <PeriodontalChart
+                        patientId={patient.patient_id}
+                        onSave={savePeriodontalExam}
+                    />
+                </TabsContent>
+
+                {/* --- Final Features --- */}
+                <TabsContent value="insurance" className="outline-none space-y-4">
+                    <Card><CardHeader className="flex flex-row items-center justify-between">
+                        <div><CardTitle>Insurance Claims</CardTitle><CardDescription>Manage active policies and claim statuses.</CardDescription></div>
+                        <Button onClick={() => setIsAddClaimOpen(true)} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"><Plus className="w-4 h-4" /> Add Claim</Button>
+                    </CardHeader>
+                        <CardContent>
+                            {insuranceClaims.length === 0 ? <p className="text-slate-500 text-center py-4">No insurance claims on file.</p> :
+                                <div className="space-y-3">
+                                    {insuranceClaims.map(c => (
+                                        <div key={c.claim_id} className="p-3 border rounded-xl flex items-center justify-between bg-white text-sm">
+                                            <div>
+                                                <p className="font-semibold text-indigo-900">Policy: {c.policy_number}</p>
+                                                <p className="text-slate-500 text-xs">Claim: ₹{c.claim_amount} | Approved: ₹{c.approved_amount || 0}</p>
+                                            </div>
+                                            <Badge variant={c.status === 'resolved' ? 'default' : 'secondary'} className={c.status === 'resolved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}>
+                                                {c.status}
+                                            </Badge>
+                                        </div>
+                                    ))}
+                                </div>}
+                        </CardContent></Card>
+                </TabsContent>
+
+                <TabsContent value="labs" className="outline-none space-y-4">
+                    <Card><CardHeader className="flex flex-row items-center justify-between">
+                        <div><CardTitle>Dental Lab Orders</CardTitle><CardDescription>Track external prosthodontic manufacturing.</CardDescription></div>
+                        <Button onClick={() => setIsAddLabOrderOpen(true)} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white gap-2"><Plus className="w-4 h-4" /> New Order</Button>
+                    </CardHeader>
+                        <CardContent>
+                            {labOrders.length === 0 ? <p className="text-slate-500 text-center py-4">No pending lab orders.</p> :
+                                <div className="space-y-3">
+                                    {labOrders.map(lo => (
+                                        <div key={lo.order_id} className="p-3 border rounded-xl flex items-center justify-between bg-white text-sm">
+                                            <div>
+                                                <p className="font-semibold text-blue-900">{lo.appliance_type} <span className="text-slate-500 font-normal">({lo.tooth_number})</span></p>
+                                                <p className="text-slate-500 text-xs">Shade: {lo.shade} | Due: {lo.due_date ? new Date(lo.due_date).toLocaleDateString() : 'N/A'}</p>
+                                            </div>
+                                            <Badge variant="outline" className="text-blue-700 bg-blue-50 border-blue-200">{lo.status}</Badge>
+                                        </div>
+                                    ))}
+                                </div>}
+                        </CardContent></Card>
+                </TabsContent>
+
+                <TabsContent value="ortho" className="outline-none space-y-4">
+                    <Card><CardHeader className="flex flex-row items-center justify-between">
+                        <div><CardTitle>Orthodontic Tracking</CardTitle><CardDescription>Longitudinal appliance and wire tracking.</CardDescription></div>
+                        <Button onClick={() => setIsAddOrthoOpen(true)} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"><Plus className="w-4 h-4" /> Add Record</Button>
+                    </CardHeader>
+                        <CardContent>
+                            {orthoRecords.length === 0 ? <p className="text-slate-500 text-center py-4">No ortho records.</p> :
+                                <div className="space-y-3">
+                                    {orthoRecords.map(o => (
+                                        <div key={o.record_id} className="p-4 border rounded-xl bg-white space-y-2 text-sm">
+                                            <div className="flex justify-between items-start">
+                                                <p className="font-bold text-slate-800 flex flex-col gap-1"><span>{o.appliance_type}</span> <span className="font-normal text-xs text-slate-500">{new Date(o.visit_date).toLocaleDateString()}</span></p>
+                                                <Badge variant="secondary" className="bg-indigo-50 text-indigo-700">{o.elastics}</Badge>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg">
+                                                <p><span className="font-semibold">Upper Wire:</span> {o.upper_wire}</p>
+                                                <p><span className="font-semibold">Lower Wire:</span> {o.lower_wire}</p>
+                                            </div>
+                                            {o.notes && <p className="text-xs text-slate-500">{o.notes}</p>}
+                                        </div>
+                                    ))}
+                                </div>}
+                        </CardContent></Card>
+                </TabsContent>
+
+                <TabsContent value="comms" className="outline-none space-y-4">
+                    <Card><CardHeader className="flex flex-row items-center justify-between">
+                        <div><CardTitle>Patient Communications</CardTitle><CardDescription>History of SMS/Email outreach.</CardDescription></div>
+                        <Button onClick={() => setIsAddCommOpen(true)} size="sm" className="bg-slate-800 hover:bg-slate-900 text-white gap-2"><MessageSquare className="w-4 h-4" /> Log Message</Button>
+                    </CardHeader>
+                        <CardContent>
+                            {communications.length === 0 ? <p className="text-slate-500 text-center py-4">No communication logs.</p> :
+                                <div className="space-y-3">
+                                    {communications.map(c => (
+                                        <div key={c.log_id} className="p-3 border rounded-xl bg-white text-sm">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="font-semibold text-slate-800 flex items-center gap-2"><Badge variant="outline">{c.comm_type}</Badge> {c.category}</span>
+                                                <span className="text-xs text-slate-400">{new Date(c.sent_at).toLocaleString()}</span>
+                                            </div>
+                                            <p className="text-slate-600 mt-2 text-xs p-2 bg-slate-50 rounded-lg border">{c.message_content}</p>
+                                        </div>
+                                    ))}
+                                </div>}
+                        </CardContent></Card>
+                </TabsContent>
             </Tabs>
+
+            {/* --- Modals for Final Features --- */}
+            <Dialog open={isAddClaimOpen} onOpenChange={setIsAddClaimOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader><DialogTitle>Add Insurance Claim</DialogTitle><DialogDescription>Submit a new claim to the provider.</DialogDescription></DialogHeader>
+                    <div className="space-y-4">
+                        <div><Label>Policy Number</Label><Input value={newClaim.policy_number} onChange={e => setNewClaim({ ...newClaim, policy_number: e.target.value })} /></div>
+                        <div><Label>Claim Amount (₹)</Label><Input type="number" value={newClaim.claim_amount} onChange={e => setNewClaim({ ...newClaim, claim_amount: e.target.value })} /></div>
+                        <div><Label>Status</Label><select className="w-full border rounded-md p-2 h-10 text-sm outline-none" value={newClaim.status} onChange={e => setNewClaim({ ...newClaim, status: e.target.value })}><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select></div>
+                        <div><Label>Notes</Label><Textarea value={newClaim.notes} onChange={e => setNewClaim({ ...newClaim, notes: e.target.value })} /></div>
+                    </div>
+                    <DialogFooter><Button variant="outline" onClick={() => setIsAddClaimOpen(false)}>Cancel</Button><Button onClick={saveClaim} className="bg-indigo-600 hover:bg-indigo-700 text-white">Save Claim</Button></DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isAddLabOrderOpen} onOpenChange={setIsAddLabOrderOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader><DialogTitle>New Lab Order</DialogTitle><DialogDescription>Send impressions/scans to the external lab.</DialogDescription></DialogHeader>
+                    <div className="space-y-4">
+                        <div><Label>Appliance Type</Label><Input placeholder="e.g. Zirconia Crown, PFM Bridge" value={newLabOrder.appliance_type} onChange={e => setNewLabOrder({ ...newLabOrder, appliance_type: e.target.value })} /></div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div><Label>Tooth Number</Label><Input placeholder="e.g. 16, 21" value={newLabOrder.tooth_number} onChange={e => setNewLabOrder({ ...newLabOrder, tooth_number: e.target.value })} /></div>
+                            <div><Label>Shade (Optional)</Label><Input placeholder="e.g. A2, B1" value={newLabOrder.shade} onChange={e => setNewLabOrder({ ...newLabOrder, shade: e.target.value })} /></div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div><Label>Status</Label><select className="w-full border rounded-md p-2 h-10 text-sm outline-none" value={newLabOrder.status} onChange={e => setNewLabOrder({ ...newLabOrder, status: e.target.value })}><option value="sent">Sent to Lab</option><option value="received">Received</option><option value="delivered">Delivered to Patient</option></select></div>
+                            <div><Label>Due Date</Label><Input type="date" value={newLabOrder.due_date} onChange={e => setNewLabOrder({ ...newLabOrder, due_date: e.target.value })} /></div>
+                        </div>
+                        <div><Label>Instructions</Label><Textarea placeholder="Special instructions for the technician" value={newLabOrder.instructions} onChange={e => setNewLabOrder({ ...newLabOrder, instructions: e.target.value })} /></div>
+                    </div>
+                    <DialogFooter><Button variant="outline" onClick={() => setIsAddLabOrderOpen(false)}>Cancel</Button><Button onClick={saveLabOrder} className="bg-blue-600 hover:bg-blue-700 text-white">Save Order</Button></DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isAddOrthoOpen} onOpenChange={setIsAddOrthoOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader><DialogTitle>Log Orthodontic Visit</DialogTitle><DialogDescription>Track wire changes and elastics.</DialogDescription></DialogHeader>
+                    <div className="space-y-4">
+                        <div><Label>Appliance/System</Label><Input placeholder="e.g. MBT 0.22, Invisalign Aligners" value={newOrtho.appliance_type} onChange={e => setNewOrtho({ ...newOrtho, appliance_type: e.target.value })} /></div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div><Label>Upper Wire</Label><Input placeholder="e.g. 014 NiTi" value={newOrtho.upper_wire} onChange={e => setNewOrtho({ ...newOrtho, upper_wire: e.target.value })} /></div>
+                            <div><Label>Lower Wire</Label><Input placeholder="e.g. 018 SS" value={newOrtho.lower_wire} onChange={e => setNewOrtho({ ...newOrtho, lower_wire: e.target.value })} /></div>
+                        </div>
+                        <div><Label>Elastics/Accessories</Label><Input placeholder='e.g. Class II Elastics 1/4"' value={newOrtho.elastics} onChange={e => setNewOrtho({ ...newOrtho, elastics: e.target.value })} /></div>
+                        <div><Label>Notes & Adjustments</Label><Textarea placeholder="Power chain 13-23, open coil spring 34-35..." value={newOrtho.notes} onChange={e => setNewOrtho({ ...newOrtho, notes: e.target.value })} /></div>
+                        <div><Label>Next Visit Tasks</Label><Input placeholder="e.g. Change to 19x25 SS" value={newOrtho.next_visit_tasks} onChange={e => setNewOrtho({ ...newOrtho, next_visit_tasks: e.target.value })} /></div>
+                    </div>
+                    <DialogFooter><Button variant="outline" onClick={() => setIsAddOrthoOpen(false)}>Cancel</Button><Button onClick={saveOrthoRecord} className="bg-indigo-600 hover:bg-indigo-700 text-white">Save Record</Button></DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isAddCommOpen} onOpenChange={setIsAddCommOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader><DialogTitle>Log Communication</DialogTitle><DialogDescription>Draft an SMS or Email log.</DialogDescription></DialogHeader>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div><Label>Type</Label><select className="w-full border rounded-md p-2 h-10 text-sm outline-none" value={newComm.comm_type} onChange={e => setNewComm({ ...newComm, comm_type: e.target.value })}><option value="Email">Email</option><option value="SMS">SMS</option><option value="WhatsApp">WhatsApp</option><option value="Phone Call">Phone Call</option></select></div>
+                            <div><Label>Category</Label><select className="w-full border rounded-md p-2 h-10 text-sm outline-none" value={newComm.category} onChange={e => setNewComm({ ...newComm, category: e.target.value })}><option value="Follow-up">Follow-up</option><option value="Appointment Reminder">Appointment Reminder</option><option value="Treatment Info">Treatment Info</option><option value="Billing">Billing</option></select></div>
+                        </div>
+                        <div><Label>Message Content</Label><Textarea placeholder="Hi, this is a reminder for your upcoming..." value={newComm.message_content} onChange={e => setNewComm({ ...newComm, message_content: e.target.value })} className="min-h-[100px]" /></div>
+                    </div>
+                    <DialogFooter><Button variant="outline" onClick={() => setIsAddCommOpen(false)}>Cancel</Button><Button onClick={saveCommunication} className="bg-slate-800 hover:bg-slate-900 text-white">Save Log</Button></DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Add Procedure Modal */}
             <Dialog open={isAddProcedureOpen} onOpenChange={setIsAddProcedureOpen}>
@@ -897,7 +1419,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                     <DialogHeader>
                         <DialogTitle className="text-slate-900">Add New Procedure</DialogTitle>
                         <DialogDescription className="text-slate-500">
-                            Schedule a new treatment or procedure for this patient.
+                            Schedule a new treatment or procedure.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -913,6 +1435,33 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                                 placeholder="e.g. Root Canal, Extraction"
                             />
                         </div>
+
+                        {/* Phase Selector - only show if there are plans with phases */}
+                        {treatmentPlans.filter(p => p.phases?.length > 0).length > 0 && (
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="phase-select" className="text-right">
+                                    Assign Phase
+                                </Label>
+                                <select
+                                    id="phase-select"
+                                    className="col-span-3 bg-white border border-slate-300 rounded-md p-2 text-sm"
+                                    value={newProcedure.phase_id}
+                                    onChange={(e) => setNewProcedure({ ...newProcedure, phase_id: e.target.value })}
+                                >
+                                    <option value="">Quick Entry (Unassigned)</option>
+                                    {treatmentPlans.map(plan => (
+                                        <optgroup key={plan.plan_id} label={plan.name}>
+                                            {plan.phases.map((ph: any) => (
+                                                <option key={ph.phase_id} value={ph.phase_id}>
+                                                    Phase {ph.phase_order}: {ph.name}
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="proc-date" className="text-right">
                                 Date
@@ -954,6 +1503,67 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsAddProcedureOpen(false)}>Cancel</Button>
                         <Button className="bg-blue-900 text-white hover:bg-blue-800" onClick={saveProcedure}>Save Procedure</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Add Treatment Plan Modal */}
+            <Dialog open={isAddPlanOpen} onOpenChange={setIsAddPlanOpen}>
+                <DialogContent className="bg-white text-slate-900 border-slate-200 max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Create Treatment Plan</DialogTitle>
+                        <DialogDescription>Create a master plan/case for this patient.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="space-y-2">
+                            <Label>Plan Name</Label>
+                            <Input
+                                placeholder="e.g. Full Mouth Rehabilitation, Ortho Case"
+                                value={newPlan.name}
+                                onChange={e => setNewPlan({ ...newPlan, name: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Priority</Label>
+                            <select
+                                className="w-full bg-white border border-slate-300 rounded-md p-2 text-sm"
+                                value={newPlan.priority}
+                                onChange={e => setNewPlan({ ...newPlan, priority: e.target.value })}
+                            >
+                                <option value="low">Low</option>
+                                <option value="normal">Normal</option>
+                                <option value="high">High</option>
+                                <option value="emergency">Emergency</option>
+                            </select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAddPlanOpen(false)}>Cancel</Button>
+                        <Button className="bg-blue-900 text-white" onClick={saveTreatmentPlan}>Create Plan</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Add Phase Modal */}
+            <Dialog open={isAddPhaseOpen} onOpenChange={setIsAddPhaseOpen}>
+                <DialogContent className="bg-white text-slate-900 border-slate-200 max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Add Treatment Phase</DialogTitle>
+                        <DialogDescription>Define a stage within the selected plan.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="space-y-2">
+                            <Label>Phase Name</Label>
+                            <Input
+                                placeholder="e.g. Phase 1: Stabilization, Phase 2: Restorative"
+                                value={newPhase.name}
+                                onChange={e => setNewPhase({ ...newPhase, name: e.target.value })}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAddPhaseOpen(false)}>Cancel</Button>
+                        <Button className="bg-blue-900 text-white" onClick={savePhase}>Add Phase</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

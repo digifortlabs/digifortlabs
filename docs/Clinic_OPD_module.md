@@ -1,5 +1,5 @@
 # Clinic OPD Module - General Outpatient Department
-## Status: 15% Complete 🔴
+## Status: 25% Complete 🟡
 
 **Last Updated**: January 2025  
 **Target Completion**: 35 days remaining  
@@ -10,15 +10,33 @@
 
 | Component | Status | Progress |
 |-----------|--------|----------|
-| Core Features | 🟡 15% Complete | 15% |
+| Backend API | ✅ Complete | 100% |
+| Database Models | ✅ Complete | 100% |
+| Frontend Pages | 🔴 Not Started | 0% |
+| Core Features | 🟡 25% Complete | 25% |
 | General Practice Tools | 🔴 Not Started | 0% |
 | Multi-Specialty Support | 🔴 Not Started | 0% |
 | Clinic Management | 🔴 Not Started | 0% |
-| Production Ready | 🔴 Pending | 15% |
+| Production Ready | 🔴 Pending | 25% |
 
 ---
 
 ## ✅ COMPLETED FEATURES
+
+### Backend Infrastructure (100%) ✅ NEW
+- ✅ Clinic router implemented (`backend/app/routers/clinic.py`)
+- ✅ Database models complete (OPDPatient, OPDVisit, Prescription)
+- ✅ API endpoints functional
+- ✅ Authentication integrated
+- ✅ Multi-tenant isolation
+
+### API Endpoints Implemented ✅ NEW
+- ✅ `POST /clinic/patients` - Register OPD patient
+- ✅ `GET /clinic/patients` - List OPD patients
+- ✅ `POST /clinic/visits` - Record visit
+- ✅ `GET /clinic/visits/{patient_id}` - Get patient visits
+- ✅ `POST /clinic/prescriptions` - Add prescription
+- ✅ `GET /clinic/stats` - Clinic statistics
 
 ### Basic Infrastructure (15%)
 - ✅ Basic patient registration (inherited from MRD)

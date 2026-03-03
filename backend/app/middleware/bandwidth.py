@@ -16,21 +16,16 @@ class BandwidthMiddleware(BaseHTTPMiddleware):
         if request.method not in ["POST", "GET"] or "patients" not in request.url.path:
              return await call_next(request)
 
-        # Instead of trusting X-Hospital-ID header exclusively, we extract it from the authenticated user
-        # However, this middleware runs before the auth router in some cases.
-        # So we pull it from request.state if available, otherwise fallback to parsing JWT.
-        hospital_id = getattr(request.state, "hospital_id", None)
-        
-        if not hospital_id:
-            # Fallback: Extract from JWT token directly in middleware
-            token = request.cookies.get("access_token") or request.headers.get("Authorization")
-            if token:
-                token = token.replace("Bearer ", "")
-                try:
-                    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-                    hospital_id = payload.get("hospital_id")
-                except JWTError:
-                    pass
+        # Extract hospital_id strictly from the authenticated JWT token to prevent spoofing.
+        hospital_id = None
+        token = request.cookies.get("access_token") or request.headers.get("Authorization")
+        if token:
+            token = token.replace("Bearer ", "")
+            try:
+                payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+                hospital_id = payload.get("hospital_id")
+            except JWTError:
+                pass
 
         if not hospital_id:
             # Skip tracking if no authenticated hospital context

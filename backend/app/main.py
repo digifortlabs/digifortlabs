@@ -100,6 +100,18 @@ def run_migrations():
                 )
             """))
 
+            # 9. MFA Login OTPs
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS login_otps (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(user_id) NOT NULL,
+                    device_id VARCHAR NOT NULL,
+                    otp_code VARCHAR NOT NULL,
+                    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+
             conn.commit()
             print("✅ Auto-migrations completed successfully.")
     except Exception as e:
@@ -321,6 +333,27 @@ app.include_router(inventory.router, prefix="/inventory", tags=["inventory"])
 from .routers import dental
 app.include_router(dental.router, prefix="/dental", tags=["dental"])
 
+from .routers import appointments
+app.include_router(appointments.router)
+
+from .routers import ent
+app.include_router(ent.router)
+
+from .routers import clinic
+app.include_router(clinic.router)
+
+from .routers import pharma
+app.include_router(pharma.router)
+
+from .routers import legal
+app.include_router(legal.router)
+
+from .routers import corporate
+app.include_router(corporate.router)
+
+from .routers import hms
+app.include_router(hms.router)
+
 try:
     from .routers import scanner
     app.include_router(scanner.router) # Scanner Service
@@ -348,33 +381,28 @@ async def startup_event():
     from .services.storage_service import StorageService
     from .database import SessionLocal
 
-    async def auto_confirm_loop():
+    async def retention_cleanup_loop():
         loop = asyncio.get_event_loop()
-        
-        def run_confirm_task():
+        def run_cleanup_task():
             try:
-                # Create a new session for this thread
                 db = SessionLocal()
-                # print("Running Scheduled Task: Auto-Confirming Drafts...")
-                # Only log specifically if items found, to avoid spam
-                results = StorageService.process_auto_confirmations(db)
-                if results["total"] > 0:
-                     print(f"Auto-confirmed {results['success']} files ({results['failed']} failed)")
+                from .services.cleanup_service import CleanupService
+                CleanupService.run_retention_policy(db)
                 db.close()
             except Exception as e:
-                print(f"Auto-confirm Task Error: {e}")
+                print(f"Retention Cleanup Error: {e}")
 
         while True:
             try:
-                # Run synchronous task in thread pool to avoid blocking async loop
-                await loop.run_in_executor(None, run_confirm_task)
+                # Run every 24 hours
+                await loop.run_in_executor(None, run_cleanup_task)
             except Exception as e:
-                print(f"Auto-confirm Loop Error: {e}")
+                print(f"Retention Cleanup Loop Error: {e}")
             
-            # Run every 1 hour
-            await asyncio.sleep(3600)
+            await asyncio.sleep(86400) # 24 hours
 
-    # asyncio.create_task(auto_confirm_loop())
+    asyncio.create_task(auto_confirm_loop())
+    asyncio.create_task(retention_cleanup_loop())
 
 @app.get("/")
 def read_root():

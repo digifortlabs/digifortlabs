@@ -10,15 +10,37 @@
 
 | Component | Status | Progress |
 |-----------|--------|----------|
+| Backend API | ✅ Complete | 100% |
+| Database Models | ✅ Complete | 100% |
+| Frontend Pages | 🔴 Not Started | 0% |
 | Core Features | 🟡 25% Complete | 25% |
 | Patient Management | ✅ 80% Complete | 80% |
 | Staff Management | 🟡 30% Complete | 30% |
 | Clinical Operations | 🔴 Not Started | 0% |
-| Production Ready | 🟡 Pending | 25% |
+| Production Ready | 🔴 Pending | 25% |
 
 ---
 
 ## ✅ COMPLETED FEATURES
+
+### Backend Infrastructure (100%) ✅ NEW
+- ✅ HMS router implemented (`backend/app/routers/hms.py`)
+- ✅ Database models complete (Ward, Bed, IPDAdmission)
+- ✅ API endpoints functional
+- ✅ Authentication integrated
+- ✅ Multi-tenant isolation
+
+### API Endpoints Implemented ✅ NEW
+- ✅ `POST /hms/wards` - Create ward
+- ✅ `GET /hms/wards` - List wards
+- ✅ `GET /hms/wards/{id}` - Ward details
+- ✅ `POST /hms/beds` - Add bed
+- ✅ `GET /hms/beds/available` - Available beds
+- ✅ `POST /hms/admissions` - Admit patient
+- ✅ `GET /hms/admissions` - List admissions
+- ✅ `GET /hms/admissions/{id}` - Admission details
+- ✅ `PATCH /hms/admissions/{id}/discharge` - Discharge patient
+- ✅ `GET /hms/stats` - HMS statistics
 
 ### Patient Management (80%)
 - ✅ Patient registration and demographics

@@ -1,4 +1,5 @@
 from typing import List, Optional
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
@@ -34,23 +35,47 @@ class HospitalCreate(BaseModel):
     legal_name: str
     subscription_tier: str = "Standard"
     hospital_type: str = "Private"
+    organization_type: str = "Hospital"
     specialty: str = "General"
     terminology: dict = {}
     enabled_modules: list = ["core"]
     email: EmailStr
     director_name: Optional[str] = None
     registration_number: Optional[str] = None
+    established_year: Optional[int] = None
     address: Optional[str] = None
+    address_line2: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
     pincode: Optional[str] = None
+    country: str = "India"
     phone: Optional[str] = None
-    gst_number: Optional[str] = None
+    alternate_phone: Optional[str] = None
+    secondary_email: Optional[EmailStr] = None
+    landline: Optional[str] = None
+    google_maps_url: Optional[str] = None
     
-    # Billing Config (INR)
+    # Admin User Details (Step 3)
+    admin_full_name: str
+    admin_email: EmailStr
+    admin_phone: str
+    admin_designation: Optional[str] = None
+    password: str
+    
+    # Billing & Pricing (Steps 5 & 6)
     price_per_file: float = 100.0
     included_pages: int = 20
     price_per_extra_page: float = 1.0
+    custom_pricing: dict = {}
+    pricing_effective_date: Optional[datetime] = None
+    pricing_notes: Optional[str] = None
+    
+    expected_monthly_volume: Optional[int] = None
+    expected_users: Optional[int] = None
+    storage_requirements: Optional[str] = None
+    special_requirements: Optional[str] = None
+    gst_number: Optional[str] = None
+    accept_marketing: bool = False
 
 class HospitalResponse(BaseModel):
     hospital_id: int
@@ -73,6 +98,12 @@ class HospitalResponse(BaseModel):
     price_per_file: float
     included_pages: int
     price_per_extra_page: float
+    
+    custom_pricing: Optional[dict] = {}
+    expected_monthly_volume: Optional[int] = None
+    expected_users: Optional[int] = None
+    storage_requirements: Optional[str] = None
+    
     is_active: bool = True
     pending_updates: Optional[str] = None # JSON String
 
@@ -178,46 +209,61 @@ def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), cur
         legal_name=hospital.legal_name, 
         subscription_tier=hospital.subscription_tier,
         hospital_type=hospital.hospital_type.upper() if hospital.hospital_type else "PRIVATE",
+        organization_type=hospital.organization_type,
         specialty=hospital.specialty,
         terminology=hospital.terminology,
         enabled_modules=hospital.enabled_modules,
         email=hospital.email,
-        director_name=hospital.director_name,
+        director_name=hospital.director_name or hospital.admin_full_name,
         registration_number=hospital.registration_number,
+        established_year=hospital.established_year,
         address=hospital.address,
+        address_line2=hospital.address_line2,
         city=hospital.city,
         state=hospital.state,
         pincode=hospital.pincode,
+        country=hospital.country,
         phone=hospital.phone,
+        alternate_phone=hospital.alternate_phone,
+        secondary_email=hospital.secondary_email,
+        landline=hospital.landline,
+        google_maps_url=hospital.google_maps_url,
         price_per_file=hospital.price_per_file,
         included_pages=hospital.included_pages,
         price_per_extra_page=hospital.price_per_extra_page,
+        custom_pricing=hospital.custom_pricing,
+        pricing_effective_date=hospital.pricing_effective_date,
+        pricing_notes=hospital.pricing_notes,
+        expected_monthly_volume=hospital.expected_monthly_volume,
+        expected_users=hospital.expected_users,
+        storage_requirements=hospital.storage_requirements,
+        special_requirements=hospital.special_requirements,
+        accept_marketing=hospital.accept_marketing,
         gst_number=hospital.gst_number.upper() if hospital.gst_number else None
     )
     db.add(db_hospital)
-    db.flush() # Generate ID without committing transaction
+    db.flush() 
 
-    # Auto-Create Hospital Admin User
-    # Atomic Transaction: If this fails, the hospital is not created either.
-    if not db.query(User).filter(User.email == hospital.email).first():
+    # Create Hospital Admin User (Step 3)
+    if not db.query(User).filter(User.email == hospital.admin_email).first():
         new_admin = User(
-            email=hospital.email,
-            full_name=hospital.director_name or hospital.legal_name, # Fix: Populate full_name
-            hashed_password=get_password_hash("Hospital@123"),
-            plain_password="Hospital@123",
+            email=hospital.admin_email,
+            full_name=hospital.admin_full_name,
+            hashed_password=get_password_hash(hospital.password),
             role=UserRole.HOSPITAL_ADMIN,
-            hospital_id=db_hospital.hospital_id, # ID is available after flush
+            hospital_id=db_hospital.hospital_id, 
+            phone=hospital.admin_phone,
             is_active=True,
-            force_password_change=True
+            force_password_change=False # User set their own password
         )
         db.add(new_admin)
-        log_audit(db, current_user.user_id, "ADMIN_CREATED", f"Auto-created admin for {hospital.legal_name}")
+        log_audit(db, current_user.user_id, "ADMIN_CREATED", f"Created admin {hospital.admin_full_name} for {hospital.legal_name}")
         
         # Send Welcome Email
         EmailService.send_welcome_email(
-            email=hospital.email,
-            name=hospital.director_name or "Hospital Admin",
-            password="Hospital@123" # One-Time Password
+            email=hospital.admin_email,
+            name=hospital.admin_full_name,
+            password="[As specified by you]" 
         )
 
     log_audit(db, current_user.user_id, "HOSPITAL_ONBOARDED", f"Hospital {hospital.legal_name} added to platform.")

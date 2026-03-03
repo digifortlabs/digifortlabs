@@ -1,4 +1,7 @@
 "use client";
+import {
+    Users, LayoutDashboard, Settings, UserCircle, LogOut, FileText, ChevronDown, Activity, Calendar as CalendarIcon, Package, ShoppingBag, BrainCircuit, Ear, Factory
+} from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -95,19 +98,90 @@ export default function Sidebar({ userRole }: SidebarProps) {
                         </div>
                     </Link>
 
+                    <Link
+                        href="/dashboard/appointments"
+                        className={`block px-4 py-3 rounded-xl transition-all duration-200 ${isActive('/dashboard/appointments')
+                            ? 'active bg-slate-800 text-white font-medium border border-slate-700'
+                            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                            }`}
+                    >
+                        <div className="flex items-center gap-3">
+                            <span>📅</span> Appointments
+                        </div>
+                    </Link>
+
                     {/* Dental Specific Dashboard */}
                     {enabledModules.includes('dental') && (
-                        <Link
-                            href="/dashboard/dental"
-                            className={`block px-4 py-3 rounded-xl transition-all duration-200 border ${isActive('/dashboard/dental')
-                                ? 'active bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-900/50'
-                                : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
-                                }`}
-                        >
-                            <div className="flex items-center gap-3 font-medium">
-                                <span>🦷</span> Dental Clinic
-                            </div>
-                        </Link>
+                        <div className="space-y-1">
+                            <Link
+                                href="/dashboard/dental"
+                                className={`block px-4 py-3 rounded-xl transition-all duration-200 border ${isActive('/dashboard/dental') && !isActive('/dashboard/dental/analytics')
+                                    ? 'active bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-900/50'
+                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    }`}
+                            >
+                                <div className="flex items-center gap-3 font-medium">
+                                    <span>🦷</span> Dental Clinic
+                                </div>
+                            </Link>
+
+                            <Link
+                                href="/dashboard/dental/analytics"
+                                className={`block px-4 py-2 ml-4 rounded-xl transition-all duration-200 border ${isActive('/dashboard/dental/analytics')
+                                    ? 'active bg-emerald-900/40 text-emerald-400 border-emerald-800/50'
+                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    }`}
+                            >
+                                <div className="flex items-center gap-3 text-sm font-medium">
+                                    <span>📊</span> Revenue Analytics
+                                </div>
+                            </Link>
+
+                            <Link
+                                href="/dashboard/dental/inventory"
+                                className={`block px-4 py-2 ml-4 mt-1 rounded-xl transition-all duration-200 border ${isActive('/dashboard/dental/inventory')
+                                    ? 'active bg-emerald-900/40 text-emerald-400 border-emerald-800/50'
+                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    }`}
+                            >
+                                <div className="flex items-center gap-3 text-sm font-medium">
+                                    <span>📦</span> Dental Inventory
+                                </div>
+                            </Link>
+                        </div>
+                    )}
+
+                    {enabledModules.includes('pharma') && (
+                        <div className="space-y-1">
+                            <Link
+                                href="/dashboard/pharma"
+                                className={`block px-4 py-3 rounded-xl transition-all duration-200 border ${isActive('/dashboard/pharma')
+                                    ? 'bg-gradient-to-r from-blue-50 to-blue-100/50 border-blue-200 text-blue-800 shadow-sm'
+                                    : 'border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                                    }`}
+                            >
+                                <div className="flex items-center gap-3 font-semibold">
+                                    <Factory className="w-5 h-5" /> 🏭 Pharma Manufacturing
+                                </div>
+                            </Link>
+                        </div>
+                    )}
+
+                    {/* ENT Specific Dashboard */}
+                    {enabledModules.includes('ent') && (
+                        <div className="space-y-1">
+                            <Link
+                                href="/dashboard/ent"
+                                className={`block px-4 py-3 rounded-xl transition-all duration-200 border ${isActive('/dashboard/ent')
+                                    ? 'active bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/50'
+                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    }`}
+                            >
+                                <div className="flex items-center gap-3 font-medium">
+                                    <span>👂</span> ENT Clinic
+                                </div>
+                            </Link>
+                        </div>
                     )}
 
                     {/* Warehouse (Moved to Main Menu) */}

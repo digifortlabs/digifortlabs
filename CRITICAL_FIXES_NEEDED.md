@@ -1,6 +1,6 @@
 # CRITICAL FIXES STILL NEEDED - MRD Module
 
-## 🔴 IMMEDIATE ACTION REQUIRED (4 issues)
+## 🔴 IMMEDIATE ACTION REQUIRED (2 issues)
 
 ### 1. Fix Hardcoded Secret Key
 ```python
@@ -11,27 +11,7 @@ class Settings:
             raise ValueError("SECRET_KEY must be set in production!")
 ```
 
-### 2. Fix Hospital ID Spoofing  
-```python
-# File: backend/app/middleware/bandwidth.py
-def get_hospital_from_jwt(request: Request) -> Optional[int]:
-    auth_header = request.headers.get("Authorization") or request.cookies.get("access_token")
-    if not auth_header:
-        return None
-    token = auth_header.replace("Bearer ", "")
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        return payload.get("hospital_id")
-    except:
-        return None
-```
-
-### 3. Implement CSRF Protection
-```bash
-pip install fastapi-csrf-protect
-```
-
-### 4. Complete RBAC System
+### 2. Complete RBAC System
 ```python
 # File: backend/app/core/permissions.py
 class Permission(str, Enum):
@@ -51,12 +31,14 @@ def require_permission(permission: Permission):
 
 - ✅ Plaintext password storage removed
 - ✅ HttpOnly cookies implemented  
-- ✅ Docker network security fixed
+- ✅ CSRF protection implemented
+- ✅ Hospital ID spoofing fixed
 - ✅ OTP security improvements
 - ✅ Database backups automated
+- ✅ Docker network security (Partial)
 
 ## 📈 COMPLETION STATUS
 
-**MRD Module: 85% Complete** (15% remaining)
+**MRD Module: 92% Complete** (8% remaining)
 
-**Estimated Time to 100%: 18 days**
+**Estimated Time to 100%: 7 days**

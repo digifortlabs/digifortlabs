@@ -1,6 +1,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel
@@ -9,7 +10,10 @@ import os
 import re
 
 from ..database import get_db
-from ..models import DentalPatient, DentalAppointment, DentalTreatment, Dental3DScan, User, Patient
+from ..models import (
+    DentalPatient, Appointment, Department, DentalTreatment, Dental3DScan, User, Patient, TreatmentPlan, TreatmentPhase,
+    InsuranceProvider, InsuranceClaim, DentalLab, DentalLabOrder, OrthoRecord, CommunicationLog, DentalInventoryItem
+)
 from .auth import get_current_user
 from ..services.s3_handler import S3Manager
 from ..models import Hospital
@@ -88,10 +92,64 @@ class TreatmentBase(BaseModel):
 
 class TreatmentCreate(TreatmentBase):
     patient_id: int
+    phase_id: Optional[int] = None
 
 class TreatmentResponse(TreatmentBase):
     treatment_id: int
     patient_id: int
+    phase_id: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+# --- New Treatment Planning Schemas ---
+
+class TreatmentPhaseBase(BaseModel):
+    name: str
+    phase_order: Optional[int] = 1
+    status: Optional[str] = "pending"
+    estimated_duration_days: Optional[int] = None
+
+class TreatmentPhaseCreate(TreatmentPhaseBase):
+    pass
+
+class TreatmentPhaseUpdate(BaseModel):
+    name: Optional[str] = None
+    phase_order: Optional[int] = None
+    status: Optional[str] = None
+    estimated_duration_days: Optional[int] = None
+
+class TreatmentPhaseResponse(TreatmentPhaseBase):
+    phase_id: int
+    plan_id: int
+    treatments: List[TreatmentResponse] = []
+
+    class Config:
+        from_attributes = True
+
+class TreatmentPlanBase(BaseModel):
+    name: str
+    status: Optional[str] = "proposed"
+    priority: Optional[str] = "normal"
+    estimated_cost: Optional[float] = 0.0
+    notes: Optional[str] = None
+
+class TreatmentPlanCreate(TreatmentPlanBase):
+    pass
+
+class TreatmentPlanUpdate(BaseModel):
+    name: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    estimated_cost: Optional[float] = None
+    notes: Optional[str] = None
+
+class TreatmentPlanResponse(TreatmentPlanBase):
+    plan_id: int
+    patient_id: int
+    phases: List[TreatmentPhaseResponse] = []
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         from_attributes = True
@@ -106,6 +164,183 @@ class ScanResponse(BaseModel):
     notes: Optional[str] = None
     presigned_url: Optional[str] = None
 
+    class Config:
+        from_attributes = True
+
+# --- Periodontal Charting Schemas ---
+
+class PeriodontalMeasurementBase(BaseModel):
+    tooth_number: int
+    pd_db: int = 0
+    pd_b: int = 0
+    pd_mb: int = 0
+    pd_dl: int = 0
+    pd_l: int = 0
+    pd_ml: int = 0
+    gm_db: int = 0
+    gm_b: int = 0
+    gm_mb: int = 0
+    gm_dl: int = 0
+    gm_l: int = 0
+    gm_ml: int = 0
+    bop_db: bool = False
+    bop_b: bool = False
+    bop_mb: bool = False
+    bop_dl: bool = False
+    bop_l: bool = False
+    bop_ml: bool = False
+
+class PeriodontalMeasurementCreate(PeriodontalMeasurementBase):
+    pass
+
+class PeriodontalMeasurementResponse(PeriodontalMeasurementBase):
+    measurement_id: int
+    exam_id: int
+
+    class Config:
+        from_attributes = True
+
+class PeriodontalExamBase(BaseModel):
+    notes: Optional[str] = None
+    overall_plaque_score: Optional[float] = None
+    overall_bleeding_score: Optional[float] = None
+
+class PeriodontalExamCreate(PeriodontalExamBase):
+    measurements: List[PeriodontalMeasurementCreate] = []
+
+class PeriodontalExamResponse(PeriodontalExamBase):
+    exam_id: int
+    patient_id: int
+    exam_date: datetime
+    measurements: List[PeriodontalMeasurementResponse] = []
+
+    class Config:
+        from_attributes = True
+
+# --- Additional Dental Feature Schemas ---
+
+class InsuranceProviderBase(BaseModel):
+    name: str
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    portal_url: Optional[str] = None
+
+class InsuranceProviderCreate(InsuranceProviderBase):
+    pass
+
+class InsuranceProviderResponse(InsuranceProviderBase):
+    provider_id: int
+    hospital_id: int
+    class Config:
+        from_attributes = True
+
+class InsuranceClaimBase(BaseModel):
+    policy_number: str
+    claim_amount: float
+    approved_amount: Optional[float] = None
+    status: Optional[str] = "pending"
+    notes: Optional[str] = None
+
+class InsuranceClaimCreate(InsuranceClaimBase):
+    provider_id: int
+
+class InsuranceClaimResponse(InsuranceClaimBase):
+    claim_id: int
+    patient_id: int
+    provider_id: int
+    submitted_date: datetime
+    resolved_date: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
+class DentalLabBase(BaseModel):
+    name: str
+    contact_person: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+
+class DentalLabCreate(DentalLabBase):
+    pass
+
+class DentalLabResponse(DentalLabBase):
+    lab_id: int
+    hospital_id: int
+    class Config:
+        from_attributes = True
+
+class DentalLabOrderBase(BaseModel):
+    appliance_type: str
+    tooth_number: Optional[str] = None
+    shade: Optional[str] = None
+    instructions: Optional[str] = None
+    status: Optional[str] = "sent"
+    due_date: Optional[datetime] = None
+
+class DentalLabOrderCreate(DentalLabOrderBase):
+    lab_id: int
+
+class DentalLabOrderResponse(DentalLabOrderBase):
+    order_id: int
+    patient_id: int
+    lab_id: int
+    dentist_id: int
+    sent_date: datetime
+    received_date: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
+class OrthoRecordBase(BaseModel):
+    appliance_type: str
+    upper_wire: Optional[str] = None
+    lower_wire: Optional[str] = None
+    elastics: Optional[str] = None
+    notes: Optional[str] = None
+    next_visit_tasks: Optional[str] = None
+
+class OrthoRecordCreate(OrthoRecordBase):
+    pass
+
+class OrthoRecordResponse(OrthoRecordBase):
+    record_id: int
+    patient_id: int
+    dentist_id: int
+    visit_date: datetime
+    class Config:
+        from_attributes = True
+
+class CommunicationLogBase(BaseModel):
+    comm_type: str
+    category: str
+    message_content: str
+    status: Optional[str] = "sent"
+
+class CommunicationLogCreate(CommunicationLogBase):
+    pass
+
+class CommunicationLogResponse(CommunicationLogBase):
+    log_id: int
+    patient_id: int
+    sent_at: datetime
+    class Config:
+        from_attributes = True
+
+class DentalInventoryItemBase(BaseModel):
+    name: str
+    category: Optional[str] = "Consumables"
+    sku_code: Optional[str] = None
+    current_stock: Optional[int] = 0
+    reorder_point: Optional[int] = 5
+    unit_of_measure: Optional[str] = "boxes"
+    expiry_date: Optional[datetime] = None
+
+class DentalInventoryItemCreate(DentalInventoryItemBase):
+    pass
+
+class DentalInventoryItemResponse(DentalInventoryItemBase):
+    item_id: int
+    hospital_id: int
+    last_restocked: Optional[datetime] = None
     class Config:
         from_attributes = True
 
@@ -125,19 +360,30 @@ def get_dental_stats(
         total_patients_query = total_patients_query.filter(DentalPatient.hospital_id == hospital_id)
     total_patients = total_patients_query.count()
     
-    # 2. Today's Appointments
+    # 2. Today's Appointments (using Global Appointments filtered by Dental Dept)
     today = datetime.now().date()
     today_start = datetime.combine(today, datetime.min.time())
     today_end = datetime.combine(today, datetime.max.time())
     
-    appointments_query = db.query(DentalAppointment).join(DentalPatient)
-    if hospital_id:
-        appointments_query = appointments_query.filter(DentalPatient.hospital_id == hospital_id)
+    # Try to find the dental department ID dynamically
+    dental_dept = db.query(Department).filter(
+        Department.hospital_id == hospital_id,
+        Department.name.ilike('%Dental%')
+    ).first()
     
-    today_appointments = appointments_query.filter(
-        DentalAppointment.start_time >= today_start,
-        DentalAppointment.start_time <= today_end
-    ).count()
+    # Fallback to older queries temporarily during refactoring 
+    if dental_dept:
+        appointments_query = db.query(Appointment).filter(
+            Appointment.hospital_id == hospital_id,
+            Appointment.department_id == dental_dept.department_id
+        )
+        today_appointments = appointments_query.filter(
+            Appointment.start_time >= today_start,
+            Appointment.start_time <= today_end
+        ).count()
+    else:
+        today_appointments = 0
+
     
     # 3. New Cases (Last 7 Days)
     week_ago = datetime.now() - timedelta(days=7)
@@ -453,6 +699,180 @@ def create_treatment(
     db.refresh(db_treatment)
     return db_treatment
 
+# --- Treatment Plan Endpoints ---
+
+@router.post("/patients/{patient_id}/treatment-plans", response_model=TreatmentPlanResponse)
+def create_treatment_plan(
+    patient_id: int, 
+    plan: TreatmentPlanCreate, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+        
+    if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    db_plan = TreatmentPlan(**plan.dict(), patient_id=patient_id)
+    db.add(db_plan)
+    db.commit()
+    db.refresh(db_plan)
+    return db_plan
+
+@router.get("/patients/{patient_id}/treatment-plans", response_model=List[TreatmentPlanResponse])
+def get_treatment_plans(
+    patient_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+        
+    if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    return db.query(TreatmentPlan).filter(TreatmentPlan.patient_id == patient_id).all()
+
+@router.patch("/treatment-plans/{plan_id}", response_model=TreatmentPlanResponse)
+def update_treatment_plan(
+    plan_id: int, 
+    plan_update: TreatmentPlanUpdate, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    db_plan = db.query(TreatmentPlan).filter(TreatmentPlan.plan_id == plan_id).first()
+    if not db_plan:
+        raise HTTPException(status_code=404, detail="Treatment plan not found")
+        
+    # Check access via patient
+    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == db_plan.patient_id).first()
+    if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    update_data = plan_update.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_plan, key, value)
+        
+    db.commit()
+    db.refresh(db_plan)
+    return db_plan
+
+@router.post("/treatment-plans/{plan_id}/phases", response_model=TreatmentPhaseResponse)
+def create_treatment_phase(
+    plan_id: int, 
+    phase: TreatmentPhaseCreate, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    db_plan = db.query(TreatmentPlan).filter(TreatmentPlan.plan_id == plan_id).first()
+    if not db_plan:
+        raise HTTPException(status_code=404, detail="Treatment plan not found")
+        
+    # Check access via patient
+    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == db_plan.patient_id).first()
+    if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    db_phase = TreatmentPhase(**phase.dict(), plan_id=plan_id)
+    db.add(db_phase)
+    db.commit()
+    db.refresh(db_phase)
+    return db_phase
+
+@router.patch("/treatment-phases/{phase_id}", response_model=TreatmentPhaseResponse)
+def update_treatment_phase(
+    phase_id: int, 
+    phase_update: TreatmentPhaseUpdate, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    db_phase = db.query(TreatmentPhase).filter(TreatmentPhase.phase_id == phase_id).first()
+    if not db_phase:
+        raise HTTPException(status_code=404, detail="Treatment phase not found")
+        
+    # Check access via plan -> patient
+    db_plan = db.query(TreatmentPlan).filter(TreatmentPlan.plan_id == db_phase.plan_id).first()
+    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == db_plan.patient_id).first()
+    if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    update_data = phase_update.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_phase, key, value)
+        
+    db.commit()
+    db.refresh(db_phase)
+    return db_phase
+
+# --- Periodontal Charting Endpoints ---
+
+@router.post("/patients/{patient_id}/periodontal-exams", response_model=PeriodontalExamResponse)
+def create_periodontal_exam(
+    patient_id: int, 
+    exam: PeriodontalExamCreate, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+        
+    if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    db_exam = PeriodontalExam(
+        patient_id=patient_id,
+        dentist_id=current_user.user_id,
+        notes=exam.notes,
+        overall_plaque_score=exam.overall_plaque_score,
+        overall_bleeding_score=exam.overall_bleeding_score
+    )
+    db.add(db_exam)
+    db.flush() # Get exam_id
+    
+    for m in exam.measurements:
+        db_m = PeriodontalMeasurement(**m.dict(), exam_id=db_exam.exam_id)
+        db.add(db_m)
+        
+    db.commit()
+    db.refresh(db_exam)
+    return db_exam
+
+@router.get("/patients/{patient_id}/periodontal-exams", response_model=List[PeriodontalExamResponse])
+def get_periodontal_exams(
+    patient_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+        
+    if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    return db.query(PeriodontalExam).filter(PeriodontalExam.patient_id == patient_id).order_by(PeriodontalExam.exam_date.desc()).all()
+
+@router.get("/periodontal-exams/{exam_id}", response_model=PeriodontalExamResponse)
+def get_periodontal_exam(
+    exam_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    db_exam = db.query(PeriodontalExam).filter(PeriodontalExam.exam_id == exam_id).first()
+    if not db_exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+        
+    # Check access via patient
+    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == db_exam.patient_id).first()
+    if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    return db_exam
+
 # 3D Scans
 @router.post("/scans/{patient_id}", response_model=ScanResponse)
 async def upload_scan(
@@ -486,7 +906,11 @@ async def upload_scan(
     s3_key = f"{hospital_name}/DentalScans/{year}/{month}/{patient_identifier}_{unique_id}{ext}"
     
     # Read file content
+    from ..utils import validate_magic_bytes
     contents = await file.read()
+    
+    if not validate_magic_bytes(contents[:100], ext):
+        raise HTTPException(status_code=400, detail=f"File content does not match extension '{ext}' (Spoofing detected)")
     
     import io
     # Upload to S3 (Use io.BytesIO to provide a file-like object)
@@ -560,3 +984,193 @@ def delete_all_patient_scans(
         
     db.commit()
     return {"message": f"Successfully deleted {delete_count} scans", "count": delete_count}
+
+# --- Revenue Analytics ---
+
+class RevenueAnalyticsResponse(BaseModel):
+    total_realized: float
+    pipeline_revenue: float
+    total_planned: float
+    completion_rate: float
+    revenue_by_type: list[dict]
+    monthly_trend: list[dict]
+
+@router.get("/analytics/revenue", response_model=RevenueAnalyticsResponse)
+def get_revenue_analytics(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Base query filters by hospital if user is not superadmin
+    treatment_query = db.query(DentalTreatment).join(DentalPatient)
+    plan_query = db.query(TreatmentPlan).join(DentalPatient)
+    
+    if current_user.hospital_id:
+        treatment_query = treatment_query.filter(DentalPatient.hospital_id == current_user.hospital_id)
+        plan_query = plan_query.filter(DentalPatient.hospital_id == current_user.hospital_id)
+
+    # 1. Total Realized (Completed Treatments)
+    realized_result = treatment_query.filter(DentalTreatment.status == "completed").with_entities(func.sum(DentalTreatment.cost)).scalar()
+    total_realized = float(realized_result or 0.0)
+
+    # 2. Pipeline Revenue (In-progress phases/treatments)
+    # Since cost is at the treatment level, pipeline = non-completed but planned/in-progress
+    pipeline_result = treatment_query.filter(DentalTreatment.status.in_(["planned", "in-progress"])).with_entities(func.sum(DentalTreatment.cost)).scalar()
+    pipeline_revenue = float(pipeline_result or 0.0)
+
+    # 3. Total Planned (From Treatment Plans)
+    planned_result = plan_query.filter(TreatmentPlan.status.in_(["proposed", "accepted"])).with_entities(func.sum(TreatmentPlan.estimated_cost)).scalar()
+    total_planned = float(planned_result or 0.0)
+    
+    # 4. Completion Rate (Completed Treatments / Total Treatments)
+    total_treatments = treatment_query.count()
+    completed_treatments = treatment_query.filter(DentalTreatment.status == "completed").count()
+    completion_rate = round((completed_treatments / total_treatments * 100), 1) if total_treatments > 0 else 0.0
+
+    # 5. Revenue by Type (Completed)
+    by_type = treatment_query.filter(DentalTreatment.status == "completed") \
+        .with_entities(DentalTreatment.treatment_type, func.sum(DentalTreatment.cost).label('total_cost')) \
+        .group_by(DentalTreatment.treatment_type) \
+        .order_by(func.sum(DentalTreatment.cost).desc()) \
+        .limit(5).all()
+        
+    revenue_by_type = [{"name": row[0], "value": float(row[1] or 0.0)} for row in by_type]
+
+    # 6. Monthly Trend (Last 6 months placeholder - SQLite compatible extraction)
+    # Note: SQLite date manipulation is tricky in SQLAlchemy, using Python for simplicity if db is small
+    # For production PostgreSQL: .group_by(func.date_trunc('month', date))
+    
+    # Simple Python-side grouping for SQLite compatibility in this demo
+    completed_all = treatment_query.filter(DentalTreatment.status == "completed", DentalTreatment.date_performed != None).all()
+    
+    trend_dict = {}
+    for t in completed_all:
+        month_label = t.date_performed.strftime("%b %Y")
+        if month_label not in trend_dict:
+            trend_dict[month_label] = 0
+        trend_dict[month_label] += float(t.cost or 0)
+        
+    monthly_trend = [{"month": k, "revenue": v} for k, v in list(trend_dict.items())[-6:]] # Get last 6 active months
+    
+    # Fill with empty if no data
+    if not monthly_trend:
+        now = datetime.now()
+        monthly_trend = [{"month": now.strftime("%b %Y"), "revenue": 0.0}]
+
+    return RevenueAnalyticsResponse(
+        total_realized=total_realized,
+        pipeline_revenue=pipeline_revenue,
+        total_planned=total_planned,
+        completion_rate=completion_rate,
+        revenue_by_type=revenue_by_type,
+        monthly_trend=monthly_trend
+    )
+
+# --- Insurance ---
+
+@router.get("/insurance/providers", response_model=List[InsuranceProviderResponse])
+def get_insurance_providers(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.hospital_id:
+        return []
+    return db.query(InsuranceProvider).filter(InsuranceProvider.hospital_id == current_user.hospital_id).all()
+
+@router.post("/insurance/providers", response_model=InsuranceProviderResponse)
+def create_insurance_provider(
+    provider: InsuranceProviderCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Hospital ID required")
+    db_prov = InsuranceProvider(**provider.dict(), hospital_id=current_user.hospital_id)
+    db.add(db_prov)
+    db.commit()
+    db.refresh(db_prov)
+    return db_prov
+
+@router.get("/patients/{patient_id}/insurance/claims", response_model=List[InsuranceClaimResponse])
+def get_patient_claims(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.query(InsuranceClaim).filter(InsuranceClaim.patient_id == patient_id).all()
+
+@router.post("/patients/{patient_id}/insurance/claims", response_model=InsuranceClaimResponse)
+def create_patient_claim(patient_id: int, claim: InsuranceClaimCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    db_claim = InsuranceClaim(**claim.dict(), patient_id=patient_id)
+    db.add(db_claim)
+    db.commit()
+    db.refresh(db_claim)
+    return db_claim
+
+# --- Dental Labs ---
+
+@router.get("/labs", response_model=List[DentalLabResponse])
+def get_dental_labs(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not current_user.hospital_id: return []
+    return db.query(DentalLab).filter(DentalLab.hospital_id == current_user.hospital_id).all()
+
+@router.post("/labs", response_model=DentalLabResponse)
+def create_dental_lab(lab: DentalLabCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not current_user.hospital_id: raise HTTPException(status_code=403, detail="Hospital ID required")
+    db_lab = DentalLab(**lab.dict(), hospital_id=current_user.hospital_id)
+    db.add(db_lab)
+    db.commit()
+    db.refresh(db_lab)
+    return db_lab
+
+@router.get("/patients/{patient_id}/lab-orders", response_model=List[DentalLabOrderResponse])
+def get_patient_lab_orders(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.query(DentalLabOrder).filter(DentalLabOrder.patient_id == patient_id).all()
+
+@router.post("/patients/{patient_id}/lab-orders", response_model=DentalLabOrderResponse)
+def create_patient_lab_order(patient_id: int, order: DentalLabOrderCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    db_order = DentalLabOrder(**order.dict(), patient_id=patient_id, dentist_id=current_user.user_id)
+    db.add(db_order)
+    db.commit()
+    db.refresh(db_order)
+    return db_order
+
+# --- Ortho Records ---
+
+@router.get("/patients/{patient_id}/ortho", response_model=List[OrthoRecordResponse])
+def get_patient_ortho_records(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.query(OrthoRecord).filter(OrthoRecord.patient_id == patient_id).order_by(OrthoRecord.visit_date.desc()).all()
+
+@router.post("/patients/{patient_id}/ortho", response_model=OrthoRecordResponse)
+def create_patient_ortho_record(patient_id: int, rec: OrthoRecordCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    db_rec = OrthoRecord(**rec.dict(), patient_id=patient_id, dentist_id=current_user.user_id)
+    db.add(db_rec)
+    db.commit()
+    db.refresh(db_rec)
+    return db_rec
+
+# --- Communications ---
+
+@router.get("/patients/{patient_id}/communications", response_model=List[CommunicationLogResponse])
+def get_patient_communications(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.query(CommunicationLog).filter(CommunicationLog.patient_id == patient_id).order_by(CommunicationLog.sent_at.desc()).all()
+
+@router.post("/patients/{patient_id}/communications", response_model=CommunicationLogResponse)
+def create_patient_communication(patient_id: int, comm: CommunicationLogCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    db_comm = CommunicationLog(**comm.dict(), patient_id=patient_id)
+    db.add(db_comm)
+    db.commit()
+    db.refresh(db_comm)
+    return db_comm
+
+# --- Inventory ---
+
+@router.get("/inventory", response_model=List[DentalInventoryItemResponse])
+def get_dental_inventory(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not current_user.hospital_id:
+        return []
+    return db.query(DentalInventoryItem).filter(DentalInventoryItem.hospital_id == current_user.hospital_id).all()
+
+@router.post("/inventory", response_model=DentalInventoryItemResponse)
+def create_dental_inventory_item(item: DentalInventoryItemCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not current_user.hospital_id: raise HTTPException(status_code=403, detail="Hospital ID required")
+    db_item = DentalInventoryItem(**item.dict(), hospital_id=current_user.hospital_id)
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item

@@ -84,20 +84,39 @@ class Hospital(Base):
     # Profile Details (Post-Registration, Optional)
     director_name = Column(String, nullable=True)
     registration_number = Column(String, nullable=True)
+    established_year = Column(Integer, nullable=True)
     address = Column(String, nullable=True)
+    address_line2 = Column(String, nullable=True)
     city = Column(String, nullable=True)
     state = Column(String, nullable=True)
     pincode = Column(String, nullable=True)
+    country = Column(String, default="India")
     phone = Column(String, nullable=True)
+    alternate_phone = Column(String, nullable=True)
+    secondary_email = Column(String, nullable=True)
+    landline = Column(String, nullable=True)
+    google_maps_url = Column(Text, nullable=True)
     
-    # Billing Configuration (INR)
-    price_per_file = Column(Float, default=100.0) # Base price per file
-    included_pages = Column(Integer, default=20) # Pages included in base price
-    price_per_extra_page = Column(Float, default=1.0) # Charge per page above limit
+    # Billing Configuration (Legacy/Simple)
+    price_per_file = Column(Float, default=100.0) 
+    included_pages = Column(Integer, default=20) 
+    price_per_extra_page = Column(Float, default=1.0) 
+    
+    # Custom Pricing & Usage (New System)
+    custom_pricing = Column(JSON, default=dict) # Complex pricing structure
+    pricing_effective_date = Column(DateTime, nullable=True)
+    pricing_notes = Column(Text, nullable=True)
+    
+    # Operational Metrics
+    expected_monthly_volume = Column(Integer, nullable=True)
+    expected_users = Column(Integer, nullable=True)
+    storage_requirements = Column(String, nullable=True) # Small, Medium, Large, Enterprise
+    special_requirements = Column(Text, nullable=True)
+    accept_marketing = Column(Boolean, default=False)
     
     # Custom User Limits
-    max_users = Column(Integer, default=2) # Default 2 free users
-    per_user_price = Column(Float, default=0.0) # Price for additional users
+    max_users = Column(Integer, default=2) 
+    per_user_price = Column(Float, default=0.0) 
     
     # Advanced Billing
     registration_fee = Column(Float, default=1000.0)
@@ -109,7 +128,7 @@ class Hospital(Base):
     bank_account_no = Column(String, nullable=True)
     bank_ifsc = Column(String, nullable=True)
     
-    pan_number = Column(String, nullable=True) # Required for GST
+    pan_number = Column(String, nullable=True) 
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
@@ -670,27 +689,106 @@ class DentalPatient(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
     hospital = relationship("Hospital")
-    appointments = relationship("DentalAppointment", back_populates="patient", cascade="all, delete-orphan")
+    # removed appointments = relationship("DentalAppointment", ...)
     treatments = relationship("DentalTreatment", back_populates="patient", cascade="all, delete-orphan")
+    treatment_plans = relationship("TreatmentPlan", back_populates="patient", cascade="all, delete-orphan")
     scans = relationship("Dental3DScan", back_populates="patient", cascade="all, delete-orphan")
+    periodontal_exams = relationship("PeriodontalExam", back_populates="patient", cascade="all, delete-orphan")
+    insurance_claims = relationship("InsuranceClaim", back_populates="patient", cascade="all, delete-orphan")
+    lab_orders = relationship("DentalLabOrder", back_populates="patient", cascade="all, delete-orphan")
+    ortho_records = relationship("OrthoRecord", back_populates="patient", cascade="all, delete-orphan")
+    communications = relationship("CommunicationLog", back_populates="patient", cascade="all, delete-orphan")
 
+# --- Centralized Appointments ---
 
-class DentalAppointment(Base):
-    __tablename__ = "dental_appointments"
+class Department(Base):
+    __tablename__ = "departments"
+    department_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    name = Column(String, nullable=False) # e.g., "Dental", "General", "Ortho"
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
 
-    appointment_id = Column(Integer, primary_key=True, index=True)
-    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
-    doctor_name = Column(String, nullable=True)
+class DoctorProfile(Base):
+    __tablename__ = "doctor_profiles"
+    profile_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, unique=True)
+    department_id = Column(Integer, ForeignKey("departments.department_id"), nullable=False)
+    specialization = Column(String, nullable=True) # e.g., "Endodontist"
+    consultation_fee = Column(Float, default=0.0)
     
+    user = relationship("User", backref="doctor_profile")
+    department = relationship("Department")
+
+class DoctorSchedule(Base):
+    __tablename__ = "doctor_schedules"
+    schedule_id = Column(Integer, primary_key=True, index=True)
+    doctor_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    day_of_week = Column(Integer, nullable=False) # 0=Monday, 6=Sunday
+    start_time = Column(String, nullable=False) # e.g., "09:00"
+    end_time = Column(String, nullable=False) # e.g., "17:00"
+    slot_duration_minutes = Column(Integer, default=30)
+    is_active = Column(Boolean, default=True)
+
+class Appointment(Base):
+    __tablename__ = "appointments"
+    appointment_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    doctor_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    department_id = Column(Integer, ForeignKey("departments.department_id"), nullable=False)
+    
+    appointment_date = Column(DateTime(timezone=True), nullable=False)
     start_time = Column(DateTime(timezone=True), nullable=False)
     end_time = Column(DateTime(timezone=True), nullable=False)
     
-    status = Column(String, default="scheduled") # scheduled, completed, cancelled, no-show
-    purpose = Column(String, nullable=True) # e.g., "Root Canal", "General Checkup"
+    status = Column(String, default="Scheduled") # Scheduled, Arrived, In-Consultation, Completed, Cancelled, No-Show
+    reason_for_visit = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+    
+    hospital = relationship("Hospital")
+    patient = relationship("Patient")
+    doctor = relationship("User")
+    department = relationship("Department")
 
-    patient = relationship("DentalPatient", back_populates="appointments")
 
+
+
+class TreatmentPlan(Base):
+    __tablename__ = "dental_treatment_plans"
+
+    plan_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
+    
+    name = Column(String, nullable=False) # e.g. "Full Mouth Rehabilitation"
+    status = Column(String, default="proposed") # proposed, accepted, completed, rejected
+    priority = Column(String, default="normal") # low, normal, high, urgent
+    
+    estimated_cost = Column(Float, default=0.0)
+    notes = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    patient = relationship("DentalPatient", back_populates="treatment_plans")
+    phases = relationship("TreatmentPhase", back_populates="plan", cascade="all, delete-orphan")
+
+class TreatmentPhase(Base):
+    __tablename__ = "dental_treatment_phases"
+
+    phase_id = Column(Integer, primary_key=True, index=True)
+    plan_id = Column(Integer, ForeignKey("dental_treatment_plans.plan_id"), nullable=False)
+    
+    name = Column(String, nullable=False) # e.g. "Phase 1: Infection Control"
+    phase_order = Column(Integer, default=1)
+    status = Column(String, default="pending") # pending, in-progress, completed
+    estimated_duration_days = Column(Integer, nullable=True) 
+    
+    plan = relationship("TreatmentPlan", back_populates="phases")
+    treatments = relationship("DentalTreatment", back_populates="phase", cascade="all")
 
 class DentalTreatment(Base):
     __tablename__ = "dental_treatments"
@@ -706,7 +804,10 @@ class DentalTreatment(Base):
     status = Column(String, default="planned") # planned, in-progress, completed
     date_performed = Column(DateTime(timezone=True), nullable=True)
 
+    phase_id = Column(Integer, ForeignKey("dental_treatment_phases.phase_id"), nullable=True)
+
     patient = relationship("DentalPatient", back_populates="treatments")
+    phase = relationship("TreatmentPhase", back_populates="treatments")
 
 
 class Dental3DScan(Base):
@@ -723,3 +824,699 @@ class Dental3DScan(Base):
     notes = Column(Text, nullable=True)
 
     patient = relationship("DentalPatient", back_populates="scans")
+
+class LoginOTP(Base):
+    __tablename__ = "login_otps"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    device_id = Column(String, nullable=False, index=True)
+    otp_code = Column(String, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    user = relationship("User")
+
+class PeriodontalExam(Base):
+    __tablename__ = "periodontal_exams"
+
+    exam_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
+    dentist_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    
+    exam_date = Column(DateTime(timezone=True), server_default=func.now())
+    notes = Column(Text, nullable=True)
+    
+    # Summary stats
+    overall_plaque_score = Column(Float, nullable=True)
+    overall_bleeding_score = Column(Float, nullable=True)
+
+    patient = relationship("DentalPatient", back_populates="periodontal_exams")
+    measurements = relationship("PeriodontalMeasurement", back_populates="exam", cascade="all, delete-orphan")
+
+class PeriodontalMeasurement(Base):
+    __tablename__ = "periodontal_measurements"
+
+    measurement_id = Column(Integer, primary_key=True, index=True)
+    exam_id = Column(Integer, ForeignKey("periodontal_exams.exam_id"), nullable=False)
+    
+    tooth_number = Column(Integer, nullable=False) # 1-32
+    
+    # 6-point measurements for Pocket Depth (PD)
+    # Bucal/Labial: Disto-buccal, Mid-buccal, Mesio-buccal
+    # Lingual/Palatal: Disto-lingual, Mid-lingual, Mesio-lingual
+    pd_db = Column(Integer, default=0)
+    pd_b = Column(Integer, default=0)
+    pd_mb = Column(Integer, default=0)
+    pd_dl = Column(Integer, default=0)
+    pd_l = Column(Integer, default=0)
+    pd_ml = Column(Integer, default=0)
+    
+    # 6-point measurements for Gingival Margin (GM)
+    gm_db = Column(Integer, default=0)
+    gm_b = Column(Integer, default=0)
+    gm_mb = Column(Integer, default=0)
+    gm_dl = Column(Integer, default=0)
+    gm_l = Column(Integer, default=0)
+    gm_ml = Column(Integer, default=0)
+    
+    # Bleeding on Probing (BOP) - stored as bitmask or boolean flags
+    bop_db = Column(Boolean, default=False)
+    bop_b = Column(Boolean, default=False)
+    bop_mb = Column(Boolean, default=False)
+    bop_dl = Column(Boolean, default=False)
+    bop_l = Column(Boolean, default=False)
+    bop_ml = Column(Boolean, default=False)
+
+    exam = relationship("PeriodontalExam", back_populates="measurements")
+
+# --- Final Phase 2 Dental Features ---
+
+class InsuranceProvider(Base):
+    __tablename__ = "insurance_providers"
+    provider_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    name = Column(String, nullable=False) # e.g., Star Health
+    contact_email = Column(String, nullable=True)
+    contact_phone = Column(String, nullable=True)
+    portal_url = Column(String, nullable=True)
+    
+    claims = relationship("InsuranceClaim", back_populates="provider")
+
+class InsuranceClaim(Base):
+    __tablename__ = "insurance_claims"
+    claim_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
+    provider_id = Column(Integer, ForeignKey("insurance_providers.provider_id"), nullable=False)
+    
+    policy_number = Column(String, nullable=False)
+    claim_amount = Column(Float, nullable=False)
+    approved_amount = Column(Float, nullable=True)
+    status = Column(String, default="pending") # pending, approved, rejected, paid
+    submitted_date = Column(DateTime(timezone=True), server_default=func.now())
+    resolved_date = Column(DateTime, nullable=True)
+    notes = Column(Text, nullable=True)
+    
+    patient = relationship("DentalPatient", back_populates="insurance_claims")
+    provider = relationship("InsuranceProvider", back_populates="claims")
+
+class DentalLab(Base):
+    __tablename__ = "dental_labs"
+    lab_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    name = Column(String, nullable=False)
+    contact_person = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    address = Column(Text, nullable=True)
+    
+    orders = relationship("DentalLabOrder", back_populates="lab")
+
+class DentalLabOrder(Base):
+    __tablename__ = "dental_lab_orders"
+    order_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
+    lab_id = Column(Integer, ForeignKey("dental_labs.lab_id"), nullable=False)
+    dentist_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    
+    appliance_type = Column(String, nullable=False) # e.g., Crown, Bridge, Denture
+    tooth_number = Column(String, nullable=True) # e.g., "14, 15", or "Upper Arch"
+    shade = Column(String, nullable=True) # e.g., A2, B1
+    instructions = Column(Text, nullable=True)
+    
+    sent_date = Column(DateTime(timezone=True), server_default=func.now())
+    due_date = Column(DateTime(timezone=True), nullable=True)
+    received_date = Column(DateTime(timezone=True), nullable=True)
+    status = Column(String, default="sent") # sent, received, fitted, returned
+    
+    patient = relationship("DentalPatient", back_populates="lab_orders")
+    lab = relationship("DentalLab", back_populates="orders")
+    dentist = relationship("User")
+
+class OrthoRecord(Base):
+    __tablename__ = "ortho_records"
+    record_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
+    dentist_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    
+    visit_date = Column(DateTime(timezone=True), server_default=func.now())
+    appliance_type = Column(String, nullable=False) # Braces, Aligners, Retainers
+    upper_wire = Column(String, nullable=True) # e.g., 014 NiTi
+    lower_wire = Column(String, nullable=True)
+    elastics = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)
+    next_visit_tasks = Column(Text, nullable=True)
+    
+    patient = relationship("DentalPatient", back_populates="ortho_records")
+    dentist = relationship("User")
+
+class CommunicationLog(Base):
+    __tablename__ = "communication_logs"
+    log_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
+    
+    comm_type = Column(String, nullable=False) # SMS, Email, WhatsApp
+    category = Column(String, nullable=False) # Reminder, Post-Op, Marketing
+    message_content = Column(Text, nullable=False)
+    sent_at = Column(DateTime(timezone=True), server_default=func.now())
+    status = Column(String, default="sent") # sent, failed, delivered
+    
+    patient = relationship("DentalPatient", back_populates="communications")
+
+class DentalInventoryItem(Base):
+    """Specific inventory tracking tailored for dental supplies"""
+    __tablename__ = "dental_inventory_items"
+    item_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    
+    name = Column(String, index=True, nullable=False) # e.g., Composite A2, Lidocaine 2%
+    category = Column(String, default="Consumables") # Consumables, Instruments, Materials
+    sku_code = Column(String, nullable=True)
+    
+    current_stock = Column(Integer, default=0)
+    reorder_point = Column(Integer, default=5)
+    unit_of_measure = Column(String, default="boxes") # boxes, pieces, packs
+    expiry_date = Column(DateTime, nullable=True)
+    
+    last_restocked = Column(DateTime(timezone=True), nullable=True)
+    
+    transactions = relationship("DentalInventoryTransaction", back_populates="item", cascade="all, delete-orphan")
+
+class DentalInventoryTransaction(Base):
+    __tablename__ = "dental_inventory_transactions"
+    txn_id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(Integer, ForeignKey("dental_inventory_items.item_id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    
+    change_type = Column(String, nullable=False) # IN (Restock), OUT (Consumed)
+    quantity = Column(Integer, nullable=False)
+    notes = Column(Text, nullable=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    
+    item = relationship("DentalInventoryItem", back_populates="transactions")
+    user = relationship("User")
+
+# ---------------------------------------------------------------------------------------------------------
+# Phase 3: ENT OPD Module Models
+# ---------------------------------------------------------------------------------------------------------
+
+class ENTPatient(Base):
+    __tablename__ = "ent_patients"
+    ent_patient_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    
+    chief_complaint = Column(Text, nullable=True)
+    ent_history = Column(JSON, default={})
+    allergies = Column(JSON, default=[])
+    family_ent_history = Column(JSON, default={})
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    patient = relationship("Patient")
+    hospital = relationship("Hospital")
+
+
+class AudiometryTest(Base):
+    __tablename__ = "audiometry_tests"
+    test_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    audiologist_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    
+    test_type = Column(String, nullable=False) # Pure Tone, Speech, Impedance
+    results = Column(JSON, default={})
+    hearing_loss_degree = Column(String, nullable=True)
+    recommendations = Column(Text, nullable=True)
+    
+    test_date = Column(DateTime(timezone=True), server_default=func.now())
+
+    patient = relationship("Patient")
+    audiologist = relationship("User")
+
+
+class ENTExamination(Base):
+    __tablename__ = "ent_examinations"
+    exam_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    examiner_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    
+    examination_data = Column(JSON, default={"otoscopy": {}, "rhinoscopy": {}, "laryngoscopy": {}})
+    findings = Column(Text, nullable=True)
+    
+    exam_date = Column(DateTime(timezone=True), server_default=func.now())
+
+    patient = relationship("Patient")
+    examiner = relationship("User")
+
+
+class ENTSurgery(Base):
+    __tablename__ = "ent_surgeries"
+    surgery_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    surgeon_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    
+    procedure_code = Column(String, nullable=True)
+    surgery_type = Column(String, nullable=False)
+    scheduled_date = Column(DateTime(timezone=True), nullable=True)
+    duration_minutes = Column(Integer, nullable=True)
+    anesthesia_type = Column(String, nullable=True)
+    
+    pre_op_notes = Column(Text, nullable=True)
+    post_op_notes = Column(Text, nullable=True)
+    status = Column(String, default="scheduled") # scheduled, completed, cancelled
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    patient = relationship("Patient")
+    surgeon = relationship("User")
+
+
+# ---------------------------------------------------------------------------------------------------------
+# Phase 4: Clinic OPD Module Models
+# ---------------------------------------------------------------------------------------------------------
+
+class OPDPatient(Base):
+    __tablename__ = "opd_patients"
+    opd_patient_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    
+    blood_group = Column(String, nullable=True)
+    allergies = Column(Text, nullable=True)
+    chronic_conditions = Column(JSON, default={})
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    patient = relationship("Patient")
+    hospital = relationship("Hospital")
+    visits = relationship("OPDVisit", back_populates="opd_patient")
+
+class OPDVisit(Base):
+    __tablename__ = "opd_visits"
+    visit_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    doctor_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    
+    visit_date = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Vitals
+    temperature = Column(Float, nullable=True)
+    blood_pressure = Column(String, nullable=True)
+    pulse_rate = Column(Integer, nullable=True)
+    weight = Column(Float, nullable=True)
+    
+    # Clinical
+    chief_complaint = Column(Text, nullable=True)
+    diagnosis = Column(Text, nullable=True)
+    treatment = Column(Text, nullable=True)
+    
+    # Billing
+    consultation_fee = Column(Float, default=0.0)
+    is_paid = Column(Boolean, default=False)
+    
+    patient = relationship("Patient")
+    doctor = relationship("User")
+    opd_patient = relationship("OPDPatient", back_populates="visits")
+    prescriptions = relationship("Prescription", back_populates="visit")
+
+class Prescription(Base):
+    __tablename__ = "prescriptions"
+    prescription_id = Column(Integer, primary_key=True, index=True)
+    visit_id = Column(Integer, ForeignKey("opd_visits.visit_id"), nullable=False)
+    
+    medicine_name = Column(String, nullable=False)
+    dosage = Column(String, nullable=False)
+    frequency = Column(String, nullable=False)
+    duration = Column(String, nullable=False)
+    instructions = Column(Text, nullable=True)
+    
+    visit = relationship("OPDVisit", back_populates="prescriptions")
+
+# ---------------------------------------------------------------------------------------------------------
+# Phase 5: Pharma Medical Module Models
+# ---------------------------------------------------------------------------------------------------------
+
+class PharmaMedicine(Base):
+    __tablename__ = "pharma_medicines"
+    medicine_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    
+    medicine_name = Column(String, nullable=False, index=True)
+    generic_name = Column(String, nullable=True)
+    brand_name = Column(String, nullable=True)
+    manufacturer = Column(String, nullable=True)
+    
+    category = Column(String, nullable=True)
+    drug_class = Column(String, nullable=True)
+    schedule = Column(String, nullable=True)
+    
+    form = Column(String, nullable=True)
+    strength = Column(String, nullable=True)
+    pack_size = Column(Integer, default=1)
+    
+    mrp = Column(Float, nullable=False)
+    purchase_price = Column(Float, nullable=False)
+    selling_price = Column(Float, nullable=False)
+    gst_rate = Column(Float, default=12.0)
+    
+    current_stock = Column(Integer, default=0)
+    reorder_level = Column(Integer, default=10)
+    
+    requires_prescription = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class PharmaStock(Base):
+    __tablename__ = "pharma_stock"
+    stock_id = Column(Integer, primary_key=True, index=True)
+    medicine_id = Column(Integer, ForeignKey("pharma_medicines.medicine_id"), nullable=False)
+    
+    batch_number = Column(String, nullable=False)
+    manufacturing_date = Column(DateTime, nullable=True)
+    expiry_date = Column(DateTime, nullable=False)
+    
+    quantity_received = Column(Integer, nullable=False)
+    quantity_remaining = Column(Integer, nullable=False)
+    
+    supplier_name = Column(String, nullable=True)
+    supplier_invoice = Column(String, nullable=True)
+    purchase_date = Column(DateTime, nullable=True)
+    
+    purchase_price_per_unit = Column(Float, nullable=False)
+    selling_price_per_unit = Column(Float, nullable=False)
+    
+    medicine = relationship("PharmaMedicine")
+
+class PharmaSale(Base):
+    __tablename__ = "pharma_sales"
+    sale_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    sale_date = Column(DateTime(timezone=True), server_default=func.now())
+    
+    customer_name = Column(String, nullable=True)
+    customer_phone = Column(String, nullable=True)
+    prescription_number = Column(String, nullable=True)
+    doctor_name = Column(String, nullable=True)
+    
+    subtotal = Column(Float, nullable=False)
+    discount = Column(Float, default=0.0)
+    gst_amount = Column(Float, nullable=False)
+    total_amount = Column(Float, nullable=False)
+    
+    payment_method = Column(String, default="cash")
+    payment_status = Column(String, default="paid")
+    
+    items = relationship("PharmaSaleItem", back_populates="sale")
+
+class PharmaSaleItem(Base):
+    __tablename__ = "pharma_sale_items"
+    item_id = Column(Integer, primary_key=True, index=True)
+    sale_id = Column(Integer, ForeignKey("pharma_sales.sale_id"), nullable=False)
+    medicine_id = Column(Integer, ForeignKey("pharma_medicines.medicine_id"), nullable=False)
+    stock_id = Column(Integer, ForeignKey("pharma_stock.stock_id"), nullable=False)
+    
+    quantity = Column(Integer, nullable=False)
+    unit_price = Column(Float, nullable=False)
+    discount = Column(Float, default=0.0)
+    gst_rate = Column(Float, nullable=False)
+    total_price = Column(Float, nullable=False)
+    
+    sale = relationship("PharmaSale", back_populates="items")
+
+class PharmaExpiry(Base):
+    __tablename__ = "pharma_expiry_alerts"
+    alert_id = Column(Integer, primary_key=True, index=True)
+    stock_id = Column(Integer, ForeignKey("pharma_stock.stock_id"), nullable=False)
+    medicine_id = Column(Integer, ForeignKey("pharma_medicines.medicine_id"), nullable=False)
+    
+    expiry_date = Column(DateTime, nullable=False)
+    days_to_expiry = Column(Integer, nullable=False)
+    quantity = Column(Integer, nullable=False)
+    alert_status = Column(String, default="pending")
+
+# ---------------------------------------------------------------------------------------------------------
+# Phase 6: Law Firm Module Models
+# ---------------------------------------------------------------------------------------------------------
+
+class LegalClient(Base):
+    __tablename__ = "legal_clients"
+    client_id = Column(Integer, primary_key=True, index=True)
+    firm_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    client_number = Column(String, unique=True, index=True, nullable=False)
+    
+    client_type = Column(String, nullable=False)
+    full_name = Column(String, nullable=False)
+    company_name = Column(String, nullable=True)
+    
+    phone = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    address = Column(Text, nullable=True)
+    
+    pan_number = Column(String, nullable=True)
+    gst_number = Column(String, nullable=True)
+    
+    registration_date = Column(DateTime(timezone=True), server_default=func.now())
+    is_active = Column(Boolean, default=True)
+    
+    cases = relationship("LegalCase", back_populates="client")
+
+class LegalCase(Base):
+    __tablename__ = "legal_cases"
+    case_id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("legal_clients.client_id"), nullable=False)
+    firm_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    
+    case_number = Column(String, unique=True, index=True, nullable=False)
+    case_title = Column(String, nullable=False)
+    case_type = Column(String, nullable=False)
+    
+    court_name = Column(String, nullable=True)
+    court_location = Column(String, nullable=True)
+    judge_name = Column(String, nullable=True)
+    
+    petitioner = Column(String, nullable=True)
+    respondent = Column(String, nullable=True)
+    
+    filing_date = Column(DateTime, nullable=True)
+    status = Column(String, default="Filed")
+    priority = Column(String, default="medium")
+    
+    primary_lawyer_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    team_members = Column(JSON, default=[])
+    
+    case_summary = Column(Text, nullable=True)
+    legal_issues = Column(Text, nullable=True)
+    
+    client = relationship("LegalClient", back_populates="cases")
+    hearings = relationship("CaseHearing", back_populates="case")
+    documents = relationship("CaseDocument", back_populates="case")
+
+class CaseHearing(Base):
+    __tablename__ = "case_hearings"
+    hearing_id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("legal_cases.case_id"), nullable=False)
+    
+    hearing_date = Column(DateTime, nullable=False)
+    hearing_type = Column(String, nullable=False)
+    
+    court_room = Column(String, nullable=True)
+    judge_name = Column(String, nullable=True)
+    outcome = Column(Text, nullable=True)
+    next_hearing_date = Column(DateTime, nullable=True)
+    
+    lawyer_attended = Column(Boolean, default=False)
+    client_attended = Column(Boolean, default=False)
+    
+    notes = Column(Text, nullable=True)
+    
+    case = relationship("LegalCase", back_populates="hearings")
+
+class CaseDocument(Base):
+    __tablename__ = "case_documents"
+    document_id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("legal_cases.case_id"), nullable=False)
+    
+    document_type = Column(String, nullable=False)
+    document_name = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    
+    uploaded_date = Column(DateTime(timezone=True), server_default=func.now())
+    uploaded_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    
+    is_confidential = Column(Boolean, default=False)
+    
+    case = relationship("LegalCase", back_populates="documents")
+
+class LegalBilling(Base):
+    __tablename__ = "legal_billing"
+    bill_id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("legal_cases.case_id"), nullable=False)
+    client_id = Column(Integer, ForeignKey("legal_clients.client_id"), nullable=False)
+    
+    bill_date = Column(DateTime, nullable=False)
+    
+    consultation_fee = Column(Float, default=0.0)
+    court_fee = Column(Float, default=0.0)
+    documentation_fee = Column(Float, default=0.0)
+    other_charges = Column(Float, default=0.0)
+    
+    subtotal = Column(Float, nullable=False)
+    gst_amount = Column(Float, nullable=False)
+    total_amount = Column(Float, nullable=False)
+    
+    paid_amount = Column(Float, default=0.0)
+    balance = Column(Float, nullable=False)
+    payment_status = Column(String, default="pending")
+
+# ---------------------------------------------------------------------------------------------------------
+# Phase 7: Corporate Module Models
+# ---------------------------------------------------------------------------------------------------------
+
+class CorporateEmployee(Base):
+    __tablename__ = "corporate_employees"
+    employee_id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    employee_code = Column(String, unique=True, index=True, nullable=False)
+    
+    full_name = Column(String, nullable=False)
+    dob = Column(DateTime, nullable=True)
+    gender = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    address = Column(Text, nullable=True)
+    
+    designation = Column(String, nullable=True)
+    department = Column(String, nullable=True)
+    joining_date = Column(DateTime, nullable=True)
+    employment_type = Column(String, default="Permanent")
+    
+    basic_salary = Column(Float, nullable=True)
+    allowances = Column(JSON, default={})
+    
+    is_active = Column(Boolean, default=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    documents = relationship("EmployeeDocument", back_populates="employee")
+    attendance = relationship("Attendance", back_populates="employee")
+
+class EmployeeDocument(Base):
+    __tablename__ = "employee_documents"
+    document_id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("corporate_employees.employee_id"), nullable=False)
+    
+    document_type = Column(String, nullable=False)
+    document_name = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    upload_date = Column(DateTime(timezone=True), server_default=func.now())
+    
+    employee = relationship("CorporateEmployee", back_populates="documents")
+
+class Attendance(Base):
+    __tablename__ = "attendance"
+    attendance_id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("corporate_employees.employee_id"), nullable=False)
+    
+    date = Column(DateTime, nullable=False)
+    check_in = Column(DateTime, nullable=True)
+    check_out = Column(DateTime, nullable=True)
+    
+    status = Column(String, default="Present")
+    work_hours = Column(Float, default=0.0)
+    
+    employee = relationship("CorporateEmployee", back_populates="attendance")
+
+class CorporateProject(Base):
+    __tablename__ = "corporate_projects"
+    project_id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    
+    project_name = Column(String, nullable=False)
+    project_code = Column(String, unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    
+    start_date = Column(DateTime, nullable=True)
+    end_date = Column(DateTime, nullable=True)
+    status = Column(String, default="Planning")
+    
+    budget = Column(Float, nullable=True)
+    spent = Column(Float, default=0.0)
+    
+    team_members = Column(JSON, default=[])
+    
+    tasks = relationship("ProjectTask", back_populates="project")
+
+class ProjectTask(Base):
+    __tablename__ = "project_tasks"
+    task_id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("corporate_projects.project_id"), nullable=False)
+    
+    task_name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    
+    assigned_to = Column(Integer, ForeignKey("corporate_employees.employee_id"), nullable=True)
+    priority = Column(String, default="medium")
+    status = Column(String, default="todo")
+    
+    due_date = Column(DateTime, nullable=True)
+    completed_date = Column(DateTime, nullable=True)
+    
+    project = relationship("CorporateProject", back_populates="tasks")
+
+# ---------------------------------------------------------------------------------------------------------
+# Phase 8: HMS (Hospital Management System) Module Models
+# ---------------------------------------------------------------------------------------------------------
+
+class Ward(Base):
+    __tablename__ = "wards"
+    ward_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    
+    ward_name = Column(String, nullable=False)
+    ward_type = Column(String, nullable=False)
+    total_beds = Column(Integer, nullable=False)
+    occupied_beds = Column(Integer, default=0)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    beds = relationship("Bed", back_populates="ward")
+
+class Bed(Base):
+    __tablename__ = "beds"
+    bed_id = Column(Integer, primary_key=True, index=True)
+    ward_id = Column(Integer, ForeignKey("wards.ward_id"), nullable=False)
+    
+    bed_number = Column(String, nullable=False)
+    is_occupied = Column(Boolean, default=False)
+    
+    ward = relationship("Ward", back_populates="beds")
+
+class IPDAdmission(Base):
+    __tablename__ = "ipd_admissions"
+    admission_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    
+    admission_date = Column(DateTime(timezone=True), nullable=False)
+    discharge_date = Column(DateTime(timezone=True), nullable=True)
+    
+    ward_id = Column(Integer, ForeignKey("wards.ward_id"), nullable=False)
+    bed_id = Column(Integer, ForeignKey("beds.bed_id"), nullable=False)
+    
+    admitting_doctor_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    diagnosis = Column(Text, nullable=True)
+    treatment_plan = Column(Text, nullable=True)
+    
+    status = Column(String, default="admitted")
+    
+    patient = relationship("Patient")
+    ward = relationship("Ward")
+    bed = relationship("Bed")
+    doctor = relationship("User")

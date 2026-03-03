@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 otp_request_tracker = defaultdict(list)
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -150,13 +150,14 @@ async def login_for_access_token(
     # Audit Log (Non-blocking add)
     log_audit(db, user.user_id, "LOGIN_SUCCESS", "User logged in successfully")
     
-    # Device Tracking
+    # Device Tracking & MFA
     try:
         import json
         if request:
             client_ip = request.client.host
             user_agent = request.headers.get("User-Agent", "Unknown")
-            device_signature = f"{client_ip}|{user_agent}"
+            # Extract device_id sent by frontend or fallback to IP+Agent
+            device_signature = request.headers.get("X-Device-Id") or f"{client_ip}|{user_agent}"
             
             # Parse existing known devices
             known_devices = []
@@ -166,35 +167,60 @@ async def login_for_access_token(
                 except:
                     known_devices = []
             
+            is_admin = user.role in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN]
+            
             # Check if this device is new
             if device_signature not in known_devices:
-                # NEW DEVICE: Send Alert
-                print(f"🔐 [AUTH] New Device Detected for {user.email}")
-                try:
-                    EmailService.send_login_alert(user.email, client_ip, user_agent)
-                except Exception as e:
-                    print(f"Failed to send login alert: {e}")
-                
-                # Add to known devices
-                known_devices.append(device_signature)
-                # Keep only last 10 devices to save space
-                if len(known_devices) > 10:
-                    known_devices.pop(0)
+                if is_admin:
+                    # NEW DEVICE FOR ADMIN: Trigger MFA
+                    print(f"🔐 [AUTH] New Device MFA Triggered for {user.email}")
                     
-                user.known_devices = json.dumps(known_devices)
-                db.commit()
+                    otp_code = f"{random.randint(100000, 999999)}"
+                    
+                    from ..models import LoginOTP
+                    db.query(LoginOTP).filter(LoginOTP.user_id == user.user_id, LoginOTP.device_id == device_signature).delete()
+                    
+                    new_otp = LoginOTP(
+                        user_id=user.user_id,
+                        device_id=device_signature,
+                        otp_code=otp_code,
+                        expires_at=datetime.now(IST) + timedelta(minutes=15)
+                    )
+                    db.add(new_otp)
+                    db.commit()
+                    
+                    background_tasks.add_task(
+                        EmailService.send_mfa_otp_email,
+                        user.email,
+                        otp_code,
+                        client_ip,
+                        user_agent
+                    )
+                    
+                    return JSONResponse(status_code=202, content={
+                        "mfa_required": True,
+                        "device_id": device_signature,
+                        "message": "Unrecognized device. Please check your email for an OTP verification code."
+                    })
+                else:
+                    # NEW DEVICE FOR STANDARD USER: Send Alert
+                    print(f"🔐 [AUTH] New Device Detected for {user.email}")
+                    background_tasks.add_task(EmailService.send_login_alert, user.email, client_ip, user_agent)
+                    
+                    # Add to known devices automatically for non-admins
+                    known_devices.append(device_signature)
+                    if len(known_devices) > 10:
+                        known_devices.pop(0)
+                        
+                    user.known_devices = json.dumps(known_devices)
+                    db.commit()
             else:
-                # KNOWN DEVICE: Skip Alert
+                # KNOWN DEVICE: Skip Alert & MFA
                 print(f"🔐 [AUTH] Known Device Login for {user.email}. Alert Skipped.")
                 
     except Exception as e:
         print(f"Device Tracking Error: {e}")
-        # Fallback: Send alert just in case
-        try:
-            if request:
-                EmailService.send_login_alert(user.email, request.client.host, request.headers.get("User-Agent"))
-        except:
-            pass
+        # Not blocking login unless we intentionally return earlier
 
     # Update Login Timestamps
     user.previous_login_at = user.last_login_at
@@ -253,6 +279,112 @@ async def login_for_access_token(
     
     return response
 
+
+class VerifyDeviceRequest(BaseModel):
+    email: str
+    password: str
+    otp_code: str
+    device_id: str
+
+@router.post("/mfa/verify-device", response_model=Token)
+async def verify_device_otp(req: VerifyDeviceRequest, db: Session = Depends(get_db)):
+    """
+    Verifies the email OTP for a new device and, if successful, registers the device
+    and issues the final access token.
+    """
+    # 1. Verify credentials again (acts as a secure bound session)
+    user = db.query(User).filter(func.lower(User.email) == func.lower(req.email)).first()
+    if not user or not verify_password(req.password, user.hashed_password):
+        log_audit(db, None, "LOGIN_FAILED", f"MFA failed for {req.email}: Invalid credentials")
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+        
+    # 2. Check Lockout Status
+    if user.locked_until:
+        current_time = datetime.now(IST)
+        lock_time = user.locked_until
+        if lock_time.tzinfo is None: lock_time = lock_time.replace(tzinfo=IST)
+        else: lock_time = lock_time.astimezone(IST)
+            
+        if lock_time > current_time:
+            remaining_mins = int((lock_time - current_time).total_seconds() / 60)
+            raise HTTPException(status_code=403, detail=f"Account locked. Try again in {remaining_mins + 1} minutes.")
+            
+    # 3. Verify OTP
+    from ..models import LoginOTP
+    otp_record = db.query(LoginOTP).filter(
+        LoginOTP.user_id == user.user_id,
+        LoginOTP.device_id == req.device_id,
+        LoginOTP.otp_code == req.otp_code
+    ).first()
+    
+    if not otp_record:
+        # Increment failed attempts on MFA failure
+        user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+        if user.failed_login_attempts >= 6:
+            user.locked_until = datetime.now(IST) + timedelta(minutes=30)
+            try: EmailService.send_account_locked_email(user.email, "Multiple failed MFA attempts")
+            except: pass
+        db.commit()
+        raise HTTPException(status_code=400, detail="Invalid or expired verification code.")
+        
+    if otp_record.expires_at < datetime.now(IST):
+        raise HTTPException(status_code=400, detail="Verification code has expired.")
+        
+    # 4. OTP Valid -> Add device to known devices
+    import json
+    known_devices = []
+    if user.known_devices:
+        try: known_devices = json.loads(user.known_devices)
+        except: pass
+            
+    if req.device_id not in known_devices:
+        known_devices.append(req.device_id)
+        if len(known_devices) > 10: known_devices.pop(0)
+        user.known_devices = json.dumps(known_devices)
+    
+    # 5. Clean up OTPs and reset locks
+    db.query(LoginOTP).filter(LoginOTP.user_id == user.user_id, LoginOTP.device_id == req.device_id).delete()
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    
+    # 6. Generate Session Token (same logic as /token)
+    new_session_id = str(uuid.uuid4())
+    user.current_session_id = new_session_id
+    user.previous_login_at = user.last_login_at
+    user.last_login_at = datetime.now(IST)
+    
+    log_audit(db, user.user_id, "LOGIN_SUCCESS", "MFA User logged in successfully")
+    
+    token_data = {
+        "sub": user.email, "role": user.role, "hospital_id": user.hospital_id,
+        "hospital_name": user.hospital.legal_name if user.hospital else None,
+        "specialty": user.hospital.specialty if user.hospital else "General",
+        "terminology": user.hospital.terminology if user.hospital else {},
+        "enabled_modules": user.hospital.enabled_modules if user.hospital else ["core"],
+        "session_id": new_session_id,
+        "force_password_change": user.force_password_change or False,
+        "previous_login": user.previous_login_at.isoformat() if user.previous_login_at else None
+    }
+
+    expires_delta = timedelta(days=30) if user.role == UserRole.SUPER_ADMIN else None
+    access_token = create_access_token(data=token_data, expires_delta=expires_delta)
+    db.commit()
+    
+    response = JSONResponse(content={
+        "message": "Login successful",
+        "access_token": access_token,
+        "role": user.role, "email": user.email,
+        "specialty": user.hospital.specialty if user.hospital else "General",
+        "enabled_modules": user.hospital.enabled_modules if user.hospital else ["core"],
+        "terminology": user.hospital.terminology if user.hospital else {}
+    })
+    
+    max_age = int(expires_delta.total_seconds()) if expires_delta else settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    response.set_cookie(
+        key="access_token", value=f"Bearer {access_token}", httponly=True,
+        secure=settings.ENVIRONMENT == "production", samesite="lax", max_age=max_age, path="/"
+    )
+    return response
 
 @router.post("/request-password-reset")
 async def request_password_reset(request: PasswordResetRequest, db: Session = Depends(get_db)):
@@ -479,3 +611,110 @@ async def logout(current_user: User = Depends(get_current_user), db: Session = D
     )
     
     return response
+
+@router.post("/register-demo")
+async def register_demo(data: dict, db: Session = Depends(get_db)):
+    from ..services.demo_service import register_demo_account, DemoRegistrationRequest
+    return register_demo_account(DemoRegistrationRequest(**data), db)
+
+class HospitalRegistrationRequest(BaseModel):
+    # Step 1: Organization
+    legal_name: str
+    organization_type: str = "Hospital" 
+    specialty: str = "General"
+    phone: str
+    
+    # Step 2: Admin
+    admin_first_name: str
+    admin_last_name: str
+    email: EmailStr
+    password: str
+
+@router.post("/register")
+async def register_hospital(data: HospitalRegistrationRequest, db: Session = Depends(get_db)):
+    from ..models import Hospital, User, UserRole
+    from ..utils import get_password_hash
+    from ..audit import log_audit
+    from ..services.email_service import EmailService
+
+    email_lower = data.email.lower()
+
+    # 1. Check if email exists
+    if db.query(User).filter(func.lower(User.email) == email_lower).first():
+        raise HTTPException(status_code=400, detail="Email is already registered.")
+
+    # 2. Determine initial enabled modules based on industry logic
+    enabled_modules = ["core"]
+    specialty_lower = data.specialty.lower()
+    
+    if "dental" in specialty_lower:
+        enabled_modules.append("dental")
+    elif "ent" in specialty_lower:
+        enabled_modules.append("ent")
+    elif "pharma" in specialty_lower:
+        enabled_modules.append("pharma")
+    elif "legal" in specialty_lower or "law" in specialty_lower:
+        enabled_modules.append("legal")
+    elif "corporate" in specialty_lower or "business" in specialty_lower:
+        enabled_modules.append("corporate")
+    elif "hospital" in specialty_lower or "hms" in specialty_lower:
+        enabled_modules.append("hms")
+    elif "clinic" in specialty_lower:
+        enabled_modules.append("clinic")
+    else:
+        # Default for General Medical
+        enabled_modules.append("mrd")
+
+    # 3. Create Hospital
+    new_hospital = Hospital(
+        legal_name=data.legal_name,
+        email=email_lower,
+        phone=data.phone,
+        organization_type=data.organization_type,
+        specialty=data.specialty,
+        enabled_modules=enabled_modules,
+        subscription_tier="Standard", # Default Free/Standard Tier
+        is_active=True
+    )
+    db.add(new_hospital)
+    db.flush()
+
+    # 4. Create Admin User
+    full_name = f"{data.admin_first_name} {data.admin_last_name}".strip()
+    new_admin = User(
+        email=email_lower,
+        full_name=full_name,
+        phone=data.phone,
+        role=UserRole.HOSPITAL_ADMIN,
+        hashed_password=get_password_hash(data.password),
+        hospital_id=new_hospital.hospital_id,
+        is_active=True,
+        is_verified=False,
+        force_password_change=False
+    )
+    db.add(new_admin)
+    
+    # 5. Log Audit and Commit
+    try:
+        log_audit(db, None, "HOSPITAL_REGISTERED", f"New registration: {data.legal_name}")
+    except:
+        pass
+        
+    db.commit()
+
+    # 6. Welcome Email
+    try:
+        EmailService.send_welcome_email(
+            email=email_lower,
+            name=full_name,
+            password="[As defined during registration]"
+        )
+    except Exception as e:
+        print(f"Failed to send welcome email: {e}")
+
+    return {
+        "message": "Registration successful",
+        "hospital_id": new_hospital.hospital_id,
+        "email": new_admin.email
+    }
+
