@@ -494,6 +494,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
             token = auth_header
             
     if not token:
+        print("[AUTH_DEBUG] No token found in cookies or Authorization header.")
         raise credentials_exception
 
     # Strip 'Bearer ' prefix if present
@@ -505,22 +506,26 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
         email: str = payload.get("sub")
         session_id: str = payload.get("session_id")
         if email is None:
+            print("[AUTH_DEBUG] Token decoded but email (sub) is missing.")
             raise credentials_exception
-    except JWTError:
+    except JWTError as e:
+        print(f"[AUTH_DEBUG] JWT decoding failed: {e}")
         raise credentials_exception
     
     
     from sqlalchemy import func
     user = db.query(User).filter(func.lower(User.email) == func.lower(email)).first()
     if user is None:
+        print(f"[AUTH_DEBUG] User with email {email} not found in database.")
         raise credentials_exception
     
     # Single Session Verification
     if user.role != UserRole.SUPER_ADMIN:
         if user.current_session_id and session_id != user.current_session_id:
+            print(f"[AUTH_DEBUG] Session Expired. Expected: {user.current_session_id}, Got: {session_id}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Session Expired: You have logged in from another device.",
+                detail="Session Expired: You have logged in fromanother device.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
     
