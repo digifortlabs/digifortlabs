@@ -16,6 +16,7 @@ class DemoRegistrationRequest(BaseModel):
     email: str
     phone: str
     organization_name: str
+    target_module: str = "mrd"
 
 def register_demo_account(data: DemoRegistrationRequest, db: Session):
     # Check if email exists
@@ -26,13 +27,28 @@ def register_demo_account(data: DemoRegistrationRequest, db: Session):
     # Generate random password
     password = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
     
+    # Determine enabled modules and specialty based on selection
+    enabled = ["core"]
+    specialty = "General"
+    
+    mod = data.target_module.lower() if data.target_module else "mrd"
+    if mod and mod not in ["mrd", "core"]:
+        enabled.append(mod)
+        if mod == "dental": specialty = "Dental"
+        elif mod == "ent": specialty = "ENT"
+        elif mod == "pharma": specialty = "Pharmacy"
+        elif mod == "legal": specialty = "Law Firm"
+        elif mod == "corporate": specialty = "Corporate"
+        elif mod == "clinic": specialty = "Clinic"
+        elif mod == "hms": specialty = "Hospital"
+        
     # Create demo hospital with limits
     hospital = Hospital(
         legal_name=data.organization_name,
         email=data.email.lower(),
         subscription_tier="Demo",
-        specialty="General",
-        enabled_modules=["core", "mrd"],
+        specialty=specialty,
+        enabled_modules=enabled,
         max_users=2,
         is_active=True
     )

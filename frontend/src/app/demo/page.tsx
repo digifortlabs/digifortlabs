@@ -10,7 +10,8 @@ export default function DemoRegistration() {
         full_name: '',
         email: '',
         phone: '',
-        organization_name: ''
+        organization_name: '',
+        target_module: 'mrd'
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -26,7 +27,7 @@ export default function DemoRegistration() {
                 method: 'POST',
                 body: JSON.stringify(formData)
             });
-            
+
             alert('Demo account created! Check your email for login credentials.');
             router.push('/login');
         } catch (err: any) {
@@ -40,7 +41,7 @@ export default function DemoRegistration() {
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
             <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
                 <h1 className="text-3xl font-bold text-slate-900 mb-2">Try Demo Account</h1>
-                <p className="text-slate-600 mb-6">Get instant access with limited storage (100MB)</p>
+                <p className="text-slate-600 mb-6">Experience DIGIFORT LABS instantly with a fully-featured, limited-time trial (100MB storage, 2 users).</p>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <input
@@ -48,7 +49,7 @@ export default function DemoRegistration() {
                         placeholder="Full Name"
                         required
                         value={formData.full_name}
-                        onChange={(e) => setFormData({...formData, full_name: e.target.value})}
+                        onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                         className="w-full px-4 py-3 border rounded-lg"
                     />
                     <input
@@ -56,7 +57,7 @@ export default function DemoRegistration() {
                         placeholder="Email"
                         required
                         value={formData.email}
-                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         className="w-full px-4 py-3 border rounded-lg"
                     />
                     <input
@@ -64,7 +65,7 @@ export default function DemoRegistration() {
                         placeholder="Phone"
                         required
                         value={formData.phone}
-                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                         className="w-full px-4 py-3 border rounded-lg"
                     />
                     <input
@@ -72,9 +73,25 @@ export default function DemoRegistration() {
                         placeholder="Organization Name"
                         required
                         value={formData.organization_name}
-                        onChange={(e) => setFormData({...formData, organization_name: e.target.value})}
+                        onChange={(e) => setFormData({ ...formData, organization_name: e.target.value })}
                         className="w-full px-4 py-3 border rounded-lg"
                     />
+
+                    <select
+                        value={formData.target_module}
+                        onChange={(e) => setFormData({ ...formData, target_module: e.target.value })}
+                        className="w-full px-4 py-3 border rounded-lg bg-white text-slate-700"
+                        required
+                    >
+                        <option value="mrd">Medical Record Digitization (MRD)</option>
+                        <option value="hms">Hospital Management System (HMS)</option>
+                        <option value="clinic">Clinic OPD Management</option>
+                        <option value="dental">Dental OPD Module</option>
+                        <option value="ent">ENT OPD Module</option>
+                        <option value="pharma">Pharma & Medical Store</option>
+                        <option value="legal">Law Firm Management</option>
+                        <option value="corporate">Corporate Management</option>
+                    </select>
 
                     {error && <p className="text-red-600 text-sm">{error}</p>}
 

@@ -1,8 +1,8 @@
 import datetime
-from sqlalchemy.orm import Session
-from sqlalchemy import joinedload, and_
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_
 from ..models import Hospital, Patient, PDFFile
-from ..routers.storage import S3Manager
+from .s3_handler import S3Manager
 import os
 
 class CleanupService:
@@ -19,7 +19,7 @@ class CleanupService:
         total_patients_deleted = 0
         
         for hospital in hospitals:
-            retention_years = hospital.retention_years or 5 # Default to 5 if not set
+            retention_years = getattr(hospital, 'retention_years', 5) # Default to 5 if not set
             cutoff_date = datetime.datetime.now() - datetime.timedelta(days=retention_years * 365)
             
             # Find patients past retention date, excluding MLC, BIRTH, DEATH

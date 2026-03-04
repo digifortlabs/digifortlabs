@@ -1120,6 +1120,7 @@ class OPDVisit(Base):
     __tablename__ = "opd_visits"
     visit_id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    opd_patient_id = Column(Integer, ForeignKey("opd_patients.opd_patient_id"), nullable=True) # Added foreign key
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
     doctor_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
     

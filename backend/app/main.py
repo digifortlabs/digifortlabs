@@ -62,6 +62,44 @@ def run_migrations():
             conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS terminology JSON DEFAULT '{}'"))
             conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS enabled_modules JSON DEFAULT '[\"core\"]'"))
             conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS ai_settings JSON DEFAULT '{\"enabled\": false, \"api_key\": \"\"}'"))
+            
+            # Additional hospital columns
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS director_name VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS registration_number VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS established_year INTEGER"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS address VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS address_line2 VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS city VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS state VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS pincode VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS country VARCHAR DEFAULT 'India'"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS phone VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS alternate_phone VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS secondary_email VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS landline VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS google_maps_url TEXT"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS price_per_file FLOAT DEFAULT 100.0"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS included_pages INTEGER DEFAULT 20"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS price_per_extra_page FLOAT DEFAULT 1.0"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS custom_pricing JSON DEFAULT '{}'"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS pricing_effective_date TIMESTAMP"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS pricing_notes TEXT"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS expected_monthly_volume INTEGER"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS expected_users INTEGER"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS storage_requirements VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS special_requirements TEXT"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS accept_marketing BOOLEAN DEFAULT false"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS max_users INTEGER DEFAULT 10"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS per_user_price FLOAT DEFAULT 500.0"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS registration_fee FLOAT DEFAULT 0.0"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS is_reg_fee_paid BOOLEAN DEFAULT true"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS gst_number VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS bank_name VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS bank_account_no VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS bank_ifsc VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS pan_number VARCHAR"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
+            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
             conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS specialty_data JSON DEFAULT '{}'"))
             
             # 5b. Dental Patient Enhanced Fields
@@ -401,7 +439,7 @@ async def startup_event():
             
             await asyncio.sleep(86400) # 24 hours
 
-    asyncio.create_task(auto_confirm_loop())
+
     asyncio.create_task(retention_cleanup_loop())
 
 @app.get("/")
