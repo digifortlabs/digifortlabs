@@ -54,16 +54,21 @@ function LoginForm() {
                 // Submit OTP Verification
                 const res = await apiFetch(`/auth/mfa/verify-device`, {
                     method: 'POST',
-                    body: JSON.stringify({
+                    body: {
                         email,
                         password,
                         otp_code: otpCode,
                         device_id: deviceId
-                    }),
+                    } as any,
                 });
 
-                // If it succeeds, it returns the standard token payload
-                completeLogin(res);
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(errorData.detail || 'Verification failed');
+                }
+
+                const data = await res.json();
+                completeLogin(data);
                 return;
             }
 
@@ -75,20 +80,27 @@ function LoginForm() {
             const res = await apiFetch(`/auth/token`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
                     'X-Device-Id': deviceId
                 },
                 body: formData,
             });
 
-            if (res && (res as any).mfa_required) {
-                setMfaRequired(true);
-                setLoading(false);
-                return;
+            if (res.status === 202) {
+                const data = await res.json();
+                if (data.mfa_required) {
+                    setMfaRequired(true);
+                    setLoading(false);
+                    return;
+                }
             }
 
-            // Normal successful login
-            completeLogin(res);
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.detail || 'Login failed');
+            }
+
+            const data = await res.json();
+            completeLogin(data);
 
         } catch (err: any) {
             console.error('[Login] Error:', err);
