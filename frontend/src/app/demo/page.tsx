@@ -23,10 +23,15 @@ export default function DemoRegistration() {
         setError('');
 
         try {
-            await apiFetch('/auth/register-demo', {
+            const res = await apiFetch('/auth/register-demo', {
                 method: 'POST',
-                body: JSON.stringify(formData)
+                body: formData as any
             });
+
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.detail || 'Registration failed');
+            }
 
             alert('Demo account created! Check your email for login credentials.');
             router.push('/login');

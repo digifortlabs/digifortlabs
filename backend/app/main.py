@@ -150,6 +150,49 @@ def run_migrations():
                 )
             """))
 
+            # 10. User Trusted Devices (Skip MFA)
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS user_trusted_devices (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(user_id) NOT NULL,
+                    device_token_hash VARCHAR NOT NULL,
+                    device_name VARCHAR,
+                    last_used_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            
+            # Index for performance
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_trusted_device_token ON user_trusted_devices(device_token_hash)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_trusted_device_user ON user_trusted_devices(user_id)"))
+
+            # 11. Dental Treatment Plans & Phases (fixes UndefinedColumn: phase_id)
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS dental_treatment_plans (
+                    plan_id SERIAL PRIMARY KEY,
+                    patient_id INTEGER REFERENCES dental_patients(patient_id) NOT NULL,
+                    name VARCHAR NOT NULL,
+                    status VARCHAR DEFAULT 'proposed',
+                    priority VARCHAR DEFAULT 'normal',
+                    estimated_cost FLOAT DEFAULT 0.0,
+                    notes TEXT,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS dental_treatment_phases (
+                    phase_id SERIAL PRIMARY KEY,
+                    plan_id INTEGER REFERENCES dental_treatment_plans(plan_id) NOT NULL,
+                    name VARCHAR NOT NULL,
+                    phase_order INTEGER DEFAULT 1,
+                    status VARCHAR DEFAULT 'pending',
+                    estimated_duration_days INTEGER
+                )
+            """))
+            # Add phase_id to dental_treatments if not present
+            conn.execute(text("ALTER TABLE dental_treatments ADD COLUMN IF NOT EXISTS phase_id INTEGER REFERENCES dental_treatment_phases(phase_id)"))
+
             conn.commit()
             print("✅ Auto-migrations completed successfully.")
     except Exception as e:

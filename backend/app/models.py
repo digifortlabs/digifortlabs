@@ -1521,3 +1521,14 @@ class IPDAdmission(Base):
     ward = relationship("Ward")
     bed = relationship("Bed")
     doctor = relationship("User")
+
+class UserTrustedDevice(Base):
+    __tablename__ = "user_trusted_devices"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    device_token_hash = Column(String, nullable=False, index=True)
+    device_name = Column(String, nullable=True) # Browser/OS info
+    last_used_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")

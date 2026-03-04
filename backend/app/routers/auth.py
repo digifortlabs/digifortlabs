@@ -15,8 +15,8 @@ from sqlalchemy.orm import Session
 
 from ..core.config import settings
 from ..database import get_db
-from ..models import SystemSetting, User, UserRole, PasswordResetOTP, Permission, ROLE_PERMISSIONS
-from ..utils import create_access_token, verify_password
+from ..models import SystemSetting, User, UserRole, PasswordResetOTP, Permission, ROLE_PERMISSIONS, UserTrustedDevice
+from ..utils import create_access_token, verify_password, get_password_hash
 from ..audit import log_audit
 from ..services.email_service import EmailService
 
@@ -167,10 +167,25 @@ async def login_for_access_token(
                 except:
                     known_devices = []
             
+            # --- TRUSTED DEVICE CHECK ---
             is_admin = user.role in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN]
+            trusted_token = request.cookies.get("trusted_device")
+            is_trusted = False
+            
+            if trusted_token:
+                import hashlib
+                token_hash = hashlib.sha256(trusted_token.encode()).hexdigest()
+                trusted_device = db.query(UserTrustedDevice).filter(
+                    UserTrustedDevice.user_id == user.user_id,
+                    UserTrustedDevice.device_token_hash == token_hash
+                ).first()
+                if trusted_device:
+                    print(f"✅ [AUTH] Trusted Device recognized for {user.email}. Skipping MFA.")
+                    is_trusted = True
+                    trusted_device.last_used_at = datetime.now(IST)
             
             # Check if this device is new
-            if device_signature not in known_devices:
+            if not is_trusted and device_signature not in known_devices:
                 if is_admin:
                     # NEW DEVICE FOR ADMIN: Trigger MFA
                     print(f"🔐 [AUTH] New Device MFA Triggered for {user.email}")
@@ -214,6 +229,13 @@ async def login_for_access_token(
                         
                     user.known_devices = json.dumps(known_devices)
                     db.commit()
+            elif is_trusted:
+                 # Ensure it's in known_devices if it's trusted but signature changed (e.g. IP changed)
+                 if device_signature not in known_devices:
+                    known_devices.append(device_signature)
+                    if len(known_devices) > 10: known_devices.pop(0)
+                    user.known_devices = json.dumps(known_devices)
+                 print(f"🔐 [AUTH] Trusted Device Login for {user.email}. Alert/MFA Skipped.")
             else:
                 # KNOWN DEVICE: Skip Alert & MFA
                 print(f"🔐 [AUTH] Known Device Login for {user.email}. Alert Skipped.")
@@ -370,6 +392,20 @@ async def verify_device_otp(req: VerifyDeviceRequest, db: Session = Depends(get_
     access_token = create_access_token(data=token_data, expires_delta=expires_delta)
     db.commit()
     
+    # 7. Generate Trusted Device Token
+    import secrets
+    import hashlib
+    raw_token = secrets.token_urlsafe(64)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    
+    new_trusted_device = UserTrustedDevice(
+        user_id=user.user_id,
+        device_token_hash=token_hash,
+        device_name=f"Verified Device ({datetime.now(IST).strftime('%Y-%m-%d %H:%M')})"
+    )
+    db.add(new_trusted_device)
+    db.commit()
+
     response = JSONResponse(content={
         "message": "Login successful",
         "access_token": access_token,
@@ -383,6 +419,17 @@ async def verify_device_otp(req: VerifyDeviceRequest, db: Session = Depends(get_
     response.set_cookie(
         key="access_token", value=f"Bearer {access_token}", httponly=True,
         secure=settings.ENVIRONMENT == "production", samesite="lax", max_age=max_age, path="/"
+    )
+    
+    # Set Trusted Device Cookie (Long lived: 1 year)
+    response.set_cookie(
+        key="trusted_device",
+        value=raw_token,
+        httponly=True,
+        secure=settings.ENVIRONMENT == "production",
+        samesite="lax",
+        max_age=31536000, # 1 year
+        path="/"
     )
     return response
 

@@ -48,33 +48,6 @@ services:
     restart: always
     environment:
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
-    networks:
-      - digifort-net
-
-  # PostgreSQL Database (Keeping as backup/unused)
-  db:
-    image: postgres:13-alpine
-    restart: "no"
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB:-digifortlabs}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - digifort-net
-
-  # Redis for Celery (Keeping as backup/unused)
-  redis:
-    image: redis:6-alpine
-    restart: "no"
-    networks:
-      - digifort-net
-
-networks:
-  digifort-net:
-    driver: bridge
 
 volumes:
-  postgres_data:
   local_storage:

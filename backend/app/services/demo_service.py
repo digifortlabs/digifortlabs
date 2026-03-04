@@ -42,43 +42,49 @@ def register_demo_account(data: DemoRegistrationRequest, db: Session):
         elif mod == "clinic": specialty = "Clinic"
         elif mod == "hms": specialty = "Hospital"
         
-    # Create demo hospital with limits
-    hospital = Hospital(
-        legal_name=data.organization_name,
-        email=data.email.lower(),
-        subscription_tier="Demo",
-        specialty=specialty,
-        enabled_modules=enabled,
-        max_users=2,
-        is_active=True
-    )
-    db.add(hospital)
-    db.flush()
-    
-    # Set bandwidth limit (100MB)
-    bandwidth = BandwidthUsage(
-        hospital_id=hospital.hospital_id,
-        month_year=datetime.now(IST).strftime("%Y-%m"),
-        used_mb=0.0,
-        quota_limit_mb=100.0
-    )
-    db.add(bandwidth)
-    
-    # Create admin user
-    user = User(
-        email=data.email.lower(),
-        full_name=data.full_name,
-        phone=data.phone,
-        role=UserRole.HOSPITAL_ADMIN,
-        hashed_password=get_password_hash(password),
-        hospital_id=hospital.hospital_id,
-        is_active=True,
-        is_verified=True
-    )
-    db.add(user)
-    db.commit()
-    
-    # Send credentials email
-    EmailService.send_demo_credentials_email(data.email, password)
+    try:
+        # Create demo hospital with limits
+        hospital = Hospital(
+            legal_name=data.organization_name,
+            email=data.email.lower(),
+            subscription_tier="Demo",
+            specialty=specialty,
+            enabled_modules=enabled,
+            max_users=2,
+            is_active=True
+        )
+        db.add(hospital)
+        db.flush()
+        
+        # Set bandwidth limit (100MB)
+        bandwidth = BandwidthUsage(
+            hospital_id=hospital.hospital_id,
+            month_year=datetime.now(IST).strftime("%Y-%m"),
+            used_mb=0.0,
+            quota_limit_mb=100.0
+        )
+        db.add(bandwidth)
+        
+        # Create admin user
+        user = User(
+            email=data.email.lower(),
+            full_name=data.full_name,
+            phone=data.phone,
+            role=UserRole.HOSPITAL_ADMIN,
+            hashed_password=get_password_hash(password),
+            hospital_id=hospital.hospital_id,
+            is_active=True,
+            is_verified=True
+        )
+        db.add(user)
+        db.commit()
+        
+        # Send credentials email
+        EmailService.send_demo_credentials_email(data.email, password)
+    except Exception as e:
+        db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to create demo account: {str(e)}")
     
     return {"message": "Demo account created successfully"}

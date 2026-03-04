@@ -19,7 +19,8 @@ import { Textarea } from '@/components/ui/textarea';
 import {
     ChevronLeft, Save, Plus, Clock, FileText,
     Zap, Activity, LayoutGrid, DollarSign,
-    Box, Stethoscope, History, Pill, ChevronRight
+    Box, Stethoscope, History, Pill, ChevronRight,
+    Trash2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import Odontogram from '@/components/dental/Odontogram';
@@ -141,6 +142,24 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
         }
     }, [patient.patient_id]); // Removed selectedScanUrl dependency to break infinite loop
 
+    const handleDeletePatient = async () => {
+        if (!confirm("Are you sure you want to delete this patient record and all associated data? This cannot be undone.")) return;
+
+        try {
+            const res = await apiFetch(`dental/patients/${patient.patient_id}`, {
+                method: 'DELETE'
+            });
+
+            if (res === null) {
+                toast.success("Patient deleted successfully.");
+                onBack(); // Go back to the dashboard
+            }
+        } catch (error: any) {
+            console.error("Delete error:", error);
+            toast.error(error.message || "Error deleting patient.");
+        }
+    };
+
     const fetchTreatmentPlans = React.useCallback(async () => {
         try {
             const data = await apiFetch(`dental/patients/${patient.patient_id}/treatment-plans`);
@@ -154,7 +173,7 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
 
     const fetchTreatments = React.useCallback(async () => {
         try {
-            const data = await apiFetch(`dental/treatments?patient_id=${patient.patient_id}`);
+            const data = await apiFetch(`dental/treatments/${patient.patient_id}`);
             if (data) {
                 setTreatments(data);
             }
@@ -575,6 +594,13 @@ export default function PatientDetail({ patient, onBack }: PatientDetailProps) {
                 <div className="flex gap-2">
                     <Button variant="outline" className="gap-2 shadow-sm">
                         <History className="w-4 h-4" /> History
+                    </Button>
+                    <Button
+                        variant="outline"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 gap-2 border-red-100 shadow-sm"
+                        onClick={handleDeletePatient}
+                    >
+                        <Trash2 className="w-4 h-4" /> Delete
                     </Button>
                     <Button
                         className="bg-blue-900 hover:bg-blue-800 text-white gap-2 shadow-md"

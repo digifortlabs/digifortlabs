@@ -12,7 +12,8 @@ import re
 from ..database import get_db
 from ..models import (
     DentalPatient, Appointment, Department, DentalTreatment, Dental3DScan, User, Patient, TreatmentPlan, TreatmentPhase,
-    InsuranceProvider, InsuranceClaim, DentalLab, DentalLabOrder, OrthoRecord, CommunicationLog, DentalInventoryItem
+    InsuranceProvider, InsuranceClaim, DentalLab, DentalLabOrder, OrthoRecord, CommunicationLog, DentalInventoryItem,
+    PeriodontalExam, PeriodontalMeasurement
 )
 from .auth import get_current_user
 from ..services.s3_handler import S3Manager
@@ -618,6 +619,13 @@ def delete_patient(
     if current_user.hospital_id and db_patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
+    # Delete S3 files for scans before DB deletion
+    from ..services.s3_handler import S3Manager
+    s3_manager = S3Manager()
+    for scan in db_patient.scans:
+        if scan.file_path:
+            s3_manager.delete_file(scan.file_path)
+
     db.delete(db_patient)
     db.commit()
     return {"detail": "Patient deleted successfully"}
@@ -630,15 +638,15 @@ def get_appointments(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = db.query(DentalAppointment).join(DentalPatient)
+    query = db.query(Appointment).join(DentalPatient)
     
     if current_user.hospital_id:
         query = query.filter(DentalPatient.hospital_id == current_user.hospital_id)
         
     if start_date:
-        query = query.filter(DentalAppointment.start_time >= start_date)
+        query = query.filter(Appointment.start_time >= start_date)
     if end_date:
-        query = query.filter(DentalAppointment.end_time <= end_date)
+        query = query.filter(Appointment.end_time <= end_date)
         
     appointments = query.all()
     return appointments
@@ -657,7 +665,7 @@ def create_appointment(
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    db_appointment = DentalAppointment(**appointment.dict())
+    db_appointment = Appointment(**appointment.dict())
     db.add(db_appointment)
     db.commit()
     db.refresh(db_appointment)

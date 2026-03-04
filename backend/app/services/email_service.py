@@ -1425,11 +1425,13 @@ class EmailService:
             """
             msg.attach(MIMEText(body, 'html'))
 
-            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=5)
             server.starttls()
             server.login(SMTP_USERNAME, SMTP_PASSWORD)
             server.sendmail(SENDER_EMAIL, [email], msg.as_string())
             server.quit()
+            
+            print(f"[EMAIL] Successfully sent demo credentials to {email}")
             return True
         except Exception as e:
             print(f"[EMAIL] Demo credentials failed: {e}")
