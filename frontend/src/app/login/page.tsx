@@ -6,7 +6,7 @@ import { API_URL } from '../../config/api';
 import { apiFetch } from '@/lib/api';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { Mail, Lock, ArrowRight, ShieldCheck, Activity, Globe } from 'lucide-react';
+import { Mail, Lock, ArrowRight, ShieldCheck, Activity, Globe, Home } from 'lucide-react';
 import Link from 'next/link';
 
 function LoginForm() {
@@ -149,7 +149,7 @@ function LoginForm() {
                                 required
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
+                                className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 font-medium transition-all shadow-sm"
                                 placeholder="name@company.com"
                             />
                         </div>
@@ -164,7 +164,7 @@ function LoginForm() {
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium transition-all"
+                                className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 font-medium transition-all shadow-sm"
                                 placeholder="••••••••"
                             />
                         </div>
@@ -210,7 +210,7 @@ function LoginForm() {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full relative flex items-center justify-center gap-2 py-4 px-4 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-xl shadow-slate-900/20 active:scale-[0.98]"
+                    className="w-full relative flex items-center justify-center gap-2 py-4 px-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-xl font-bold text-sm hover:from-indigo-600 hover:to-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgba(79,70,229,0.3)] active:scale-[0.98]"
                 >
                     {loading ? (
                         <>Processing...</>
@@ -241,10 +241,10 @@ function LoginForm() {
                 </div>
 
                 <div className="flex gap-3">
-                    <Link href="/demo" className="flex-1 py-3 px-4 bg-indigo-50 text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-100 transition-all text-center border border-indigo-200">
+                    <Link href="/demo" className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all border border-indigo-200 shadow-sm hover:shadow-md hover:border-indigo-300">
                         Try Demo
                     </Link>
-                    <Link href="/contact" className="flex-1 py-3 px-4 bg-slate-50 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-100 transition-all text-center border border-slate-200">
+                    <Link href="/contact" className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-white text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all border border-slate-200 shadow-sm hover:shadow-md">
                         Contact Sales
                     </Link>
                 </div>
@@ -302,12 +302,18 @@ export default function LoginPage() {
             </div>
 
             {/* Right Side - Form */}
-            <div className="flex-1 flex flex-col justify-center p-4 sm:p-12 lg:p-24 relative">
+            <div className="flex-1 flex flex-col justify-center p-4 sm:p-12 lg:p-24 relative bg-slate-50/50 lg:bg-white inset-0">
                 <div className="absolute top-8 left-8 lg:hidden">
                     <img src="/logo/longlogo.png" alt="Digifort" className="h-8" />
                 </div>
 
-                <Suspense fallback={<div className="flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900"></div></div>}>
+                <div className="absolute top-8 right-8 z-10">
+                    <Link href="/" className="flex items-center py-2.5 px-5 gap-2 text-sm font-bold text-slate-600 hover:text-indigo-600 bg-white border border-slate-200 rounded-xl hover:border-indigo-200 hover:bg-indigo-50/50 shadow-sm hover:shadow-md transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 group">
+                        <Home size={18} className="text-slate-400 group-hover:text-indigo-600 transition-colors" /> Home
+                    </Link>
+                </div>
+
+                <Suspense fallback={<div className="flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>}>
                     <LoginForm />
                 </Suspense>
 
