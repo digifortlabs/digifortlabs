@@ -11,7 +11,7 @@ export default function ServerFileManager() {
     const [files, setFiles] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [bucket, setBucket] = useState('digifort-production-bucket'); // Default bucket
+    const [bucket, setBucket] = useState('digifort-labs-files'); // Must match AWS_BUCKET_NAME in .env
 
     const [ocrLoading, setOcrLoading] = useState(false);
     const [isAuthorized, setIsAuthorized] = useState(false);
