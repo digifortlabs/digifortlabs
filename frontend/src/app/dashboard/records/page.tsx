@@ -747,18 +747,20 @@ export default function RecordsList() {
                     {/* Category Filter Pills - Hide for Dental */}
                     {specialty !== 'Dental' && (
                         <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto no-scrollbar">
-                            {['', 'IPD', 'OPD', 'MLC', 'BRT', 'DHT'].map(cat => (
-                                <button
-                                    key={cat}
-                                    onClick={() => setCategoryFilter(cat)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${categoryFilter === cat
-                                        ? 'bg-white text-indigo-600 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700'
-                                        }`}
-                                >
-                                    {cat || 'All'}
-                                </button>
-                            ))}
+                            {(specialty === 'Corporate'
+                                ? ['', 'GENERAL', 'FINANCE', 'HR', 'LEGAL', 'IT', 'OPS']
+                                : ['', 'IPD', 'OPD', 'MLC', 'BRT', 'DHT']).map(cat => (
+                                    <button
+                                        key={cat}
+                                        onClick={() => setCategoryFilter(cat)}
+                                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${categoryFilter === cat
+                                            ? 'bg-white text-indigo-600 shadow-sm'
+                                            : 'text-slate-500 hover:text-slate-700'
+                                            }`}
+                                    >
+                                        {cat || 'All'}
+                                    </button>
+                                ))}
                         </div>
                     )}
 
@@ -766,7 +768,7 @@ export default function RecordsList() {
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input
                             type="text"
-                            placeholder={`Deep Search (names, UHID, documents)...`}
+                            placeholder={specialty === 'Corporate' ? `Deep Search (names, documents, refs)...` : `Deep Search (names, UHID, documents)...`}
                             className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-medium transition"
                             value={globalSearchTerm}
                             onChange={e => {
@@ -925,7 +927,7 @@ export default function RecordsList() {
                                 {filteredPatients.length === 0 && !loading && (
                                     <div className="col-span-full text-center py-20 text-slate-400">
                                         <FileText size={48} className="mx-auto mb-2 opacity-20" />
-                                        <p>No patients found.</p>
+                                        <p>No {terms.patient.toLowerCase()}s found.</p>
                                     </div>
                                 )}
                             </div>
@@ -1000,7 +1002,7 @@ export default function RecordsList() {
                                                     </tr>
                                                 ))
                                             ) : filteredPatients.length === 0 ? (
-                                                <tr><td colSpan={specialty === 'Dental' ? 7 : 9} className="p-12 text-center text-slate-400 italic">No patients found.</td></tr>
+                                                <tr><td colSpan={specialty === 'Dental' ? 7 : 9} className="p-12 text-center text-slate-400 italic">No {terms.patient.toLowerCase()}s found.</td></tr>
                                             ) : (
                                                 filteredPatients.map((p, i) => (
                                                     <tr
@@ -1328,30 +1330,32 @@ export default function RecordsList() {
                                         {activeTab === 'identity' && (
                                             <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                                                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                                                    <div className="md:col-span-4">
-                                                        <label className="block text-xs font-bold text-slate-700 mb-1">UHID</label>
-                                                        <div className="relative">
-                                                            <input type="text" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-mono text-indigo-700 font-bold text-sm"
-                                                                value={newPatient.uhid}
-                                                                onChange={e => {
-                                                                    const val = toUpperCaseMRD(e.target.value);
-                                                                    setNewPatient({ ...newPatient, uhid: val });
-                                                                }}
-                                                                onBlur={(e) => checkExistingUHID(e.target.value)}
-                                                                placeholder="Auto-fill..." />
-                                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-indigo-400 font-bold pointer-events-none">
-                                                                {isExistingPatient ? "FOUND" : "NEW"}
+                                                    {specialty !== 'Corporate' && (
+                                                        <div className="md:col-span-4">
+                                                            <label className="block text-xs font-bold text-slate-700 mb-1">UHID</label>
+                                                            <div className="relative">
+                                                                <input type="text" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-mono text-indigo-700 font-bold text-sm"
+                                                                    value={newPatient.uhid}
+                                                                    onChange={e => {
+                                                                        const val = toUpperCaseMRD(e.target.value);
+                                                                        setNewPatient({ ...newPatient, uhid: val });
+                                                                    }}
+                                                                    onBlur={(e) => checkExistingUHID(e.target.value)}
+                                                                    placeholder="Auto-fill..." />
+                                                                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-indigo-400 font-bold pointer-events-none">
+                                                                    {isExistingPatient ? "FOUND" : "NEW"}
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
+                                                    )}
 
                                                     <div className="md:col-span-8 relative">
-                                                        <label className="block text-xs font-bold text-slate-700 mb-1">Full Name <span className="text-red-500">*</span></label>
+                                                        <label className="block text-xs font-bold text-slate-700 mb-1">{specialty === 'Corporate' ? 'Document/Folder Name' : 'Full Name'} <span className="text-red-500">*</span></label>
                                                         <input
                                                             type="text"
                                                             required
                                                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-900 text-sm"
-                                                            placeholder={`${terms.patient} Name`}
+                                                            placeholder={specialty === 'Corporate' ? 'e.g., FY 2023-24 ITR' : `${terms.patient} Name`}
                                                             value={newPatient.full_name}
                                                             onChange={e => handleNameSearch(e.target.value)}
                                                             onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
@@ -1377,49 +1381,53 @@ export default function RecordsList() {
                                                         )}
                                                     </div>
 
-                                                    <div className="md:col-span-3">
-                                                        <label className="block text-xs font-bold text-slate-700 mb-1">Age <span className="text-red-500">*</span></label>
-                                                        <div className="flex gap-1">
-                                                            <input
-                                                                required
-                                                                type="number"
-                                                                className="w-full px-2 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm"
-                                                                value={newPatient.age}
-                                                                onChange={e => setNewPatient({ ...newPatient, age: e.target.value })}
-                                                                placeholder="00"
-                                                            />
-                                                            <select
-                                                                className="px-1 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-xs font-bold text-slate-700"
-                                                                value={ageUnit}
-                                                                onChange={e => setAgeUnit(e.target.value as any)}
-                                                            >
-                                                                <option value="Years">Yr</option>
-                                                                <option value="Months">Mo</option>
-                                                                <option value="Days">Dy</option>
-                                                            </select>
-                                                        </div>
-                                                    </div>
+                                                    {specialty !== 'Corporate' && (
+                                                        <>
+                                                            <div className="md:col-span-3">
+                                                                <label className="block text-xs font-bold text-slate-700 mb-1">Age <span className="text-red-500">*</span></label>
+                                                                <div className="flex gap-1">
+                                                                    <input
+                                                                        required={specialty !== 'Corporate'}
+                                                                        type="number"
+                                                                        className="w-full px-2 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm"
+                                                                        value={newPatient.age}
+                                                                        onChange={e => setNewPatient({ ...newPatient, age: e.target.value })}
+                                                                        placeholder="00"
+                                                                    />
+                                                                    <select
+                                                                        className="px-1 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-xs font-bold text-slate-700"
+                                                                        value={ageUnit}
+                                                                        onChange={e => setAgeUnit(e.target.value as any)}
+                                                                    >
+                                                                        <option value="Years">Yr</option>
+                                                                        <option value="Months">Mo</option>
+                                                                        <option value="Days">Dy</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
 
-                                                    <div className="md:col-span-4">
-                                                        <label className="block text-xs font-bold text-slate-700 mb-1">Gender <span className="text-red-500">*</span></label>
-                                                        <select required className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm"
-                                                            value={newPatient.gender} onChange={e => setNewPatient({ ...newPatient, gender: e.target.value })}>
-                                                            <option value="">Select</option>
-                                                            <option value="Male">Male</option>
-                                                            <option value="Female">Female</option>
-                                                            <option value="Other">Other</option>
-                                                        </select>
-                                                    </div>
+                                                            <div className="md:col-span-4">
+                                                                <label className="block text-xs font-bold text-slate-700 mb-1">Gender <span className="text-red-500">*</span></label>
+                                                                <select required={specialty !== 'Corporate'} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm"
+                                                                    value={newPatient.gender} onChange={e => setNewPatient({ ...newPatient, gender: e.target.value })}>
+                                                                    <option value="">Select</option>
+                                                                    <option value="Male">Male</option>
+                                                                    <option value="Female">Female</option>
+                                                                    <option value="Other">Other</option>
+                                                                </select>
+                                                            </div>
 
-                                                    <div className="md:col-span-5">
-                                                        <label className="block text-xs font-bold text-slate-700 mb-1">DOB</label>
-                                                        <input type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm"
-                                                            value={newPatient.dob} onChange={e => calculateAge(e.target.value)} />
-                                                    </div>
+                                                            <div className="md:col-span-5">
+                                                                <label className="block text-xs font-bold text-slate-700 mb-1">DOB</label>
+                                                                <input type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm"
+                                                                    value={newPatient.dob} onChange={e => calculateAge(e.target.value)} />
+                                                            </div>
+                                                        </>
+                                                    )}
 
                                                     <div className="md:col-span-6">
-                                                        <label className="block text-xs font-bold text-slate-700 mb-1">Mobile <span className="text-red-500">*</span></label>
-                                                        <input required type="tel" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm font-mono"
+                                                        <label className="block text-xs font-bold text-slate-700 mb-1">Mobile {specialty !== 'Corporate' && <span className="text-red-500">*</span>}</label>
+                                                        <input required={specialty !== 'Corporate'} type="tel" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm font-mono"
                                                             value={newPatient.contact_number} onChange={e => setNewPatient({ ...newPatient, contact_number: e.target.value })} placeholder="Mobile Number" />
                                                     </div>
 
@@ -1461,34 +1469,47 @@ export default function RecordsList() {
                                                             onChange={e => setNewPatient({ ...newPatient, patient_category: e.target.value })}
                                                             disabled={specialty === 'Dental'}
                                                         >
-                                                            <option value="STANDARD">STANDARD</option>
-                                                            <option value="IPD">IPD</option>
-                                                            <option value="OPD">OPD</option>
-                                                            <option value="MCL">MCL (Medico-Legal)</option>
-                                                            <option value="BRT">Birth</option>
-                                                            <option value="DHT">Death</option>
+                                                            {specialty === 'Corporate' ? (
+                                                                <>
+                                                                    <option value="GENERAL">General</option>
+                                                                    <option value="FINANCE">Finance & Acc</option>
+                                                                    <option value="HR">Human Resources</option>
+                                                                    <option value="LEGAL">Legal & Compliance</option>
+                                                                    <option value="IT">IT & Tech</option>
+                                                                    <option value="OPS">Operations</option>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <option value="STANDARD">STANDARD</option>
+                                                                    <option value="IPD">IPD</option>
+                                                                    <option value="OPD">OPD</option>
+                                                                    <option value="MCL">MCL (Medico-Legal)</option>
+                                                                    <option value="BRT">Birth</option>
+                                                                    <option value="DHT">Death</option>
+                                                                </>
+                                                            )}
                                                         </select>
                                                     </div>
 
                                                     <div className="md:col-span-6">
-                                                        <label className="block text-xs font-bold text-slate-700 mb-1">Admission Date</label>
+                                                        <label className="block text-xs font-bold text-slate-700 mb-1">{specialty === 'Corporate' ? 'Issue Date / Start Date' : 'Admission Date'}</label>
                                                         <input type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
                                                             value={newPatient.admission_date} onChange={e => setNewPatient(prev => ({ ...prev, admission_date: e.target.value }))} />
                                                     </div>
 
                                                     <div className="md:col-span-6">
-                                                        <label className="block text-xs font-bold text-slate-700 mb-1">Discharge Date <span className="text-red-500">*</span></label>
-                                                        <input required type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
+                                                        <label className="block text-xs font-bold text-slate-700 mb-1">{specialty === 'Corporate' ? 'Expiry Date / End Date' : 'Discharge Date'}</label>
+                                                        <input type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
                                                             value={newPatient.discharge_date} onChange={e => setNewPatient(prev => ({ ...prev, discharge_date: e.target.value }))} />
                                                     </div>
 
                                                     <div className="col-span-12">
-                                                        <label className="block text-xs font-bold text-slate-700 mb-1">Doctor Name(s)</label>
+                                                        <label className="block text-xs font-bold text-slate-700 mb-1">{terms.doctor}</label>
                                                         <input
                                                             type="text"
                                                             list="hospital-doctors-list"
                                                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm font-bold"
-                                                            placeholder="e.g. Dr. Dixit, Dr. Shah"
+                                                            placeholder={specialty === 'Corporate' ? 'e.g. HR, Finance, Operations' : 'e.g. Dr. Dixit, Dr. Shah'}
                                                             value={newPatient.doctor_name || ''}
                                                             onChange={e => setNewPatient(prev => ({ ...prev, doctor_name: e.target.value }))}
                                                         />
@@ -1506,26 +1527,30 @@ export default function RecordsList() {
                                         {activeTab === 'clinical' && (
                                             <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                                                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                                                    <div className="md:col-span-6">
-                                                        <label className="block text-xs font-bold text-slate-700 mb-1">Weight</label>
-                                                        <input type="text" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
-                                                            placeholder="e.g. 65kg"
-                                                            value={newPatient.weight || ''}
-                                                            onChange={e => setNewPatient(prev => ({ ...prev, weight: e.target.value }))} />
-                                                    </div>
+                                                    {specialty !== 'Corporate' && (
+                                                        <>
+                                                            <div className="md:col-span-6">
+                                                                <label className="block text-xs font-bold text-slate-700 mb-1">Weight</label>
+                                                                <input type="text" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
+                                                                    placeholder="e.g. 65kg"
+                                                                    value={newPatient.weight || ''}
+                                                                    onChange={e => setNewPatient(prev => ({ ...prev, weight: e.target.value }))} />
+                                                            </div>
 
-                                                    <div className="md:col-span-6">
-                                                        <label className="block text-xs font-bold text-slate-700 mb-1">Mediclaim</label>
-                                                        <input type="text" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
-                                                            placeholder="Yes / No"
-                                                            value={newPatient.mediclaim || ''}
-                                                            onChange={e => setNewPatient(prev => ({ ...prev, mediclaim: e.target.value }))} />
-                                                    </div>
+                                                            <div className="md:col-span-6">
+                                                                <label className="block text-xs font-bold text-slate-700 mb-1">Mediclaim</label>
+                                                                <input type="text" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
+                                                                    placeholder="Yes / No"
+                                                                    value={newPatient.mediclaim || ''}
+                                                                    onChange={e => setNewPatient(prev => ({ ...prev, mediclaim: e.target.value }))} />
+                                                            </div>
+                                                        </>
+                                                    )}
 
                                                     <div className="col-span-12">
-                                                        <label className="block text-xs font-bold text-slate-700 mb-1">Diagnosis / Notes</label>
+                                                        <label className="block text-xs font-bold text-slate-700 mb-1">{specialty === 'Corporate' ? 'Description / Notes' : 'Diagnosis / Notes'}</label>
                                                         <textarea className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm h-32"
-                                                            placeholder="Provisional diagnosis or medical notes..."
+                                                            placeholder={specialty === 'Corporate' ? 'Document description or internal notes...' : 'Provisional diagnosis or medical notes...'}
                                                             value={newPatient.diagnosis || ''}
                                                             onChange={e => setNewPatient(prev => ({ ...prev, diagnosis: e.target.value }))} />
                                                     </div>

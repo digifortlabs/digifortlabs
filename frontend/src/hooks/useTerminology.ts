@@ -46,10 +46,10 @@ export const useTerminology = () => {
                 defaultDoctor = 'QA Head';
                 defaultMRD = 'Batch No';
             } else if (spec === 'Corporate') {
-                defaultHospital = 'Office';
-                defaultPatient = 'Employee';
-                defaultDoctor = 'Manager';
-                defaultMRD = 'Emp ID';
+                defaultHospital = 'Company';
+                defaultPatient = 'Folder';
+                defaultDoctor = 'Department';
+                defaultMRD = 'Ref No';
             } else if (spec === 'Legal') {
                 defaultHospital = 'Firm';
                 defaultPatient = 'Case';
