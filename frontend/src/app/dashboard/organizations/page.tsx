@@ -784,9 +784,9 @@ export default function HospitalsPage() {
                                                         ))}
                                                     </div>
                                                     <div className="grid grid-cols-3 gap-4">
-                                                        <FormInput label="Base Price (₹)" value={modulePricing[modId]?.base_rate || ''} onChange={(val) => updateModulePricing(modId, 'base_rate', val)} type="number" />
-                                                        <FormInput label="Page Threshold" value={modulePricing[modId]?.threshold || ''} onChange={(val) => updateModulePricing(modId, 'threshold', val)} type="number" />
-                                                        <FormInput label="Extra Page (₹)" value={modulePricing[modId]?.standard_rate || ''} onChange={(val) => updateModulePricing(modId, 'standard_rate', val)} type="number" />
+                                                        <FormInput label="Base Price (₹)" value={modulePricing[modId]?.base_rate || ''} onChange={(val: string | number) => updateModulePricing(modId, 'base_rate', val)} type="number" />
+                                                        <FormInput label="Page Threshold" value={modulePricing[modId]?.threshold || ''} onChange={(val: string | number) => updateModulePricing(modId, 'threshold', val)} type="number" />
+                                                        <FormInput label="Extra Page (₹)" value={modulePricing[modId]?.standard_rate || ''} onChange={(val: string | number) => updateModulePricing(modId, 'standard_rate', val)} type="number" />
                                                     </div>
                                                 </div>
                                             ))}
