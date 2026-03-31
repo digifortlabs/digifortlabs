@@ -208,7 +208,7 @@ from fastapi import Depends, Request
 class CsrfSettings(BaseModel):
     secret_key: str = settings.SECRET_KEY
     cookie_samesite: str = "lax"
-    cookie_secure: bool = settings.ENVIRONMENT == "production"
+    cookie_secure: bool = settings.ENVIRONMENT == "production" and not any(x in str(settings.BACKEND_CORS_ORIGINS) for x in ["localhost", "127.0.0.1", "100.", "192.", "10."])
 
 @CsrfProtect.load_config
 def get_csrf_config():

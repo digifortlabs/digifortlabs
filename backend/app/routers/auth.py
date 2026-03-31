@@ -707,7 +707,7 @@ async def register_hospital(data: HospitalRegistrationRequest, db: Session = Dep
         enabled_modules.append("pharma")
     elif "legal" in specialty_lower or "law" in specialty_lower:
         enabled_modules.append("legal")
-    elif "corporate" in specialty_lower or "business" in specialty_lower:
+    elif "corporate" in specialty_lower or "business" in specialty_lower or "cooperate" in specialty_lower or "co-operate" in specialty_lower or "co opreate" in specialty_lower:
         enabled_modules.append("corporate")
     elif "hospital" in specialty_lower or "hms" in specialty_lower:
         enabled_modules.append("hms")

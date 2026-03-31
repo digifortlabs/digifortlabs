@@ -208,8 +208,7 @@ def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), cur
     db_hospital = Hospital(
         legal_name=hospital.legal_name, 
         subscription_tier=hospital.subscription_tier,
-        hospital_type=hospital.hospital_type.upper() if hospital.hospital_type else "PRIVATE",
-        organization_type=hospital.organization_type,
+        hospital_type=hospital.organization_type.upper() if hospital.organization_type else (hospital.hospital_type.upper() if hospital.hospital_type else "PRIVATE"),
         specialty=hospital.specialty,
         terminology=hospital.terminology,
         enabled_modules=hospital.enabled_modules,
@@ -498,6 +497,12 @@ def delete_hospital(hospital_id: int, db: Session = Depends(get_db), current_use
             db.query(AuditLog).filter(AuditLog.user_id.in_(user_ids)).update({AuditLog.user_id: None}, synchronize_session=False)
             db.query(InventoryLog).filter(InventoryLog.performed_by.in_(user_ids)).update({InventoryLog.performed_by: None}, synchronize_session=False)
             db.query(PhysicalMovementLog).filter(PhysicalMovementLog.performed_by_user_id.in_(user_ids)).update({PhysicalMovementLog.performed_by_user_id: None}, synchronize_session=False)
+            # Manually delete MFA tokens and trusted devices which were created via raw SQL later and lack ORM models
+            from sqlalchemy import text
+            uid_str = ",".join(map(str, user_ids))
+            db.execute(text(f"DELETE FROM login_otps WHERE user_id IN ({uid_str})"))
+            db.execute(text(f"DELETE FROM user_trusted_devices WHERE user_id IN ({uid_str})"))
+            db.execute(text(f"UPDATE system_error_logs SET user_id = NULL WHERE user_id IN ({uid_str})"))
 
         # 1.1 Also delete generic AuditLogs linked to the hospital directly
         db.query(AuditLog).filter(AuditLog.hospital_id == hospital_id).delete(synchronize_session=False)
@@ -519,7 +524,22 @@ def delete_hospital(hospital_id: int, db: Session = Depends(get_db), current_use
         # Boxes first (FK to Rack), then Racks
         db.query(PhysicalBox).filter(PhysicalBox.hospital_id == hospital_id).delete(synchronize_session=False)
         db.query(PhysicalRack).filter(PhysicalRack.hospital_id == hospital_id).delete(synchronize_session=False)
-        
+        # 4.5 Clean Up Automatic System Trackers & Empty Modules
+        from sqlalchemy import text
+        module_tables = [
+            "bandwidth_usage", "system_error_logs", "insurance_providers", 
+            "dental_labs", "dental_inventory_items", "pharma_medicines", "pharma_sales",
+            "ent_surgeries", "ent_examinations", "audiometry_tests", "ent_patients",
+            "dental_treatment_phases", "dental_treatment_plans", "dental_patients",
+            "opd_visits", "opd_patients", "ipd_admissions"
+        ]
+        for tbl in module_tables:
+            try:
+                # Protect transaction with savepoint to allow graceful pass on strictly locked complex resources
+                with db.begin_nested():
+                    db.execute(text(f"DELETE FROM {tbl} WHERE hospital_id = :hid"), {"hid": hospital_id})
+            except Exception:
+                pass
         # 5. Delete Patients (and cascading Files, Diagnosis, Procedures)
         if record_ids:
             db.query(PatientDiagnosis).filter(PatientDiagnosis.record_id.in_(record_ids)).delete(synchronize_session=False)
@@ -546,6 +566,9 @@ def delete_hospital(hospital_id: int, db: Session = Depends(get_db), current_use
 
     except Exception as e:
         db.rollback()
+        import traceback
+        with open("delete_error.log", "w") as f:
+            f.write(traceback.format_exc())
         raise HTTPException(status_code=400, detail=f"Cannot delete hospital. Ensure all patients/data are removed first. Error: {str(e)}")
     
     return {"message": f"Hospital {db_hospital.legal_name} deleted successfully"}

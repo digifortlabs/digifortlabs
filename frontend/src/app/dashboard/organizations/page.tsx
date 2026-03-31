@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { API_URL, apiFetch } from '../../../config/api';
+import { toast } from 'sonner';
 import {
     Plus,
     Search,
@@ -21,7 +22,8 @@ import {
     Power,
     Cpu,
     Archive,
-    IndianRupee
+    IndianRupee,
+    HardDrive
 } from 'lucide-react';
 
 export default function HospitalsPage() {
@@ -68,16 +70,20 @@ export default function HospitalsPage() {
     const [industry, setIndustry] = useState('Healthcare');
 
     // Step 5: Pricing Configuration
-    const [mrdPricingModel, setMrdPricingModel] = useState('per_file');
-    const [mrdBaseRate, setMrdBaseRate] = useState(100);
-    const [mrdThreshold, setMrdThreshold] = useState(40);
-    const [mrdStandardRate, setMrdStandardRate] = useState(1.0);
-    const [mrdPremiumRate, setMrdPremiumRate] = useState(1.5);
-    const [mrdDiscounts, setMrdDiscounts] = useState<any[]>([]);
     const [modulePricing, setModulePricing] = useState<any>({});
     const [retentionYears, setRetentionYears] = useState(5);
     const [pricingEffectiveDate, setPricingEffectiveDate] = useState(new Date().toISOString().split('T')[0]);
     const [pricingNotes, setPricingNotes] = useState('');
+
+    const updateModulePricing = (modId: string, field: string, value: any) => {
+        setModulePricing((prev: any) => ({
+            ...prev,
+            [modId]: {
+                ...(prev[modId] || { model: 'per_file', base_rate: '', threshold: '', standard_rate: '' }),
+                [field]: value
+            }
+        }));
+    };
 
     // Step 6: Review & Submit
     const [expectedVolume, setExpectedVolume] = useState('');
@@ -207,13 +213,11 @@ export default function HospitalsPage() {
 
         // Pricing
         const pricing = hospital.custom_pricing || {};
-        const mrd = pricing.mrd || {};
-        setMrdPricingModel(mrd.model || 'per_file');
-        setMrdBaseRate(mrd.base_rate || 100);
-        setMrdThreshold(mrd.threshold || 40);
-        setMrdStandardRate(mrd.standard_rate || 1.0);
-        setMrdPremiumRate(mrd.premium_rate || 1.5);
-        setModulePricing(pricing.modules || {});
+        const initialModules = pricing.modules || {};
+        if (pricing.mrd && Object.keys(pricing.mrd).length > 0 && !initialModules['core']) {
+            initialModules['core'] = pricing.mrd;
+        }
+        setModulePricing(initialModules);
         setRetentionYears(hospital.retention_years || 5);
 
         setShowModal(true);
@@ -224,7 +228,7 @@ export default function HospitalsPage() {
     const confirmDelete = async () => {
         if (!hospitalToDelete) return;
         if (deleteConfirmation !== hospitalToDelete.legal_name) {
-            alert('Confirmation name does not match');
+            toast.error('Confirmation name does not match');
             return;
         }
 
@@ -234,7 +238,7 @@ export default function HospitalsPage() {
                 method: 'DELETE'
             });
             if (res !== null) { // Expecting OK from apiFetch
-                alert('Client Deleted Successfully');
+                toast.success('Client Deleted Successfully');
                 setHospitals(prev => prev.filter(h => h.hospital_id !== hospitalToDelete.hospital_id));
                 setShowDeleteModal(false);
                 setHospitalToDelete(null);
@@ -243,7 +247,7 @@ export default function HospitalsPage() {
             }
         } catch (error: any) {
             console.error(error);
-            alert(`Failed to delete: ${error.message || 'Error deleting hospital'}`);
+            toast.error(`Failed to delete: ${error.message || 'Error deleting hospital'}`);
         }
     };
 
@@ -258,11 +262,11 @@ export default function HospitalsPage() {
                 method: 'POST'
             });
             if (data) {
-                alert(data.message);
+                toast.success(data.message);
             }
         } catch (e) {
             console.error(e);
-            alert("Failed to trigger OCR");
+            toast.error("Failed to trigger OCR");
         } finally {
             setOcrLoading(false);
         }
@@ -282,49 +286,42 @@ export default function HospitalsPage() {
             const bodyPayload = {
                 legal_name: legalName,
                 organization_type: orgType,
-                registration_number: regNumber,
-                established_year: estYear ? parseInt(estYear) : null,
+                registration_number: regNumber || undefined,
+                established_year: estYear ? parseInt(estYear) : undefined,
                 email,
-                secondary_email: secondaryEmail,
+                secondary_email: secondaryEmail || undefined,
                 phone,
-                alternate_phone: alternatePhone,
-                landline,
+                alternate_phone: alternatePhone || undefined,
+                landline: landline || undefined,
                 address: address1,
-                address_line2: address2,
+                address_line2: address2 || undefined,
                 city,
                 state,
                 pincode,
                 country,
-                google_maps_url: mapsUrl,
-                gst_number: gstNumber,
+                google_maps_url: mapsUrl || undefined,
+                gst_number: gstNumber || undefined,
 
                 admin_full_name: adminName,
                 admin_email: adminEmail,
                 admin_phone: adminPhone,
-                admin_designation: adminDesignation,
-                admin_password: adminPassword,
+                admin_designation: adminDesignation || undefined,
+                password: adminPassword,
 
                 specialty: industry,
                 enabled_modules: enabledModules,
                 custom_pricing: {
-                    mrd: {
-                        model: mrdPricingModel,
-                        base_rate: mrdBaseRate,
-                        threshold: mrdThreshold,
-                        standard_rate: mrdStandardRate,
-                        premium_rate: mrdPremiumRate,
-                        discounts: mrdDiscounts
-                    },
+                    mrd: modulePricing['core'] || {}, // Legacy fallback
                     modules: modulePricing,
-                    effective_date: pricingEffectiveDate,
-                    notes: pricingNotes
+                    effective_date: pricingEffectiveDate || undefined,
+                    notes: pricingNotes || undefined
                 },
                 retention_years: retentionYears,
 
-                expected_volume: expectedVolume ? parseInt(expectedVolume) : null,
-                expected_users: expectedUsers ? parseInt(expectedUsers) : null,
+                expected_monthly_volume: expectedVolume ? parseInt(expectedVolume) : undefined,
+                expected_users: expectedUsers ? parseInt(expectedUsers) : undefined,
                 storage_requirements: storageReqs,
-                special_requirements: specialReqs
+                special_requirements: specialReqs || undefined
             };
 
             const data = await apiFetch(url, {
@@ -338,7 +335,7 @@ export default function HospitalsPage() {
                 const msg = isEditMode
                     ? 'Organization Updated Successfully!'
                     : `Organization Registered Successfully!`;
-                alert(msg);
+                toast.success(msg);
 
                 // Reset form
                 setStep(1);
@@ -352,7 +349,7 @@ export default function HospitalsPage() {
             }
         } catch (error: any) {
             console.error(error);
-            alert(`Error: ${error.message || 'Failed to save organization'}`);
+            toast.error(`Error: ${error.message || 'Failed to save organization'}`);
         } finally {
             setSubmitting(false);
         }
@@ -634,7 +631,26 @@ export default function HospitalsPage() {
                                             <FormInput label="Official Legal Name" value={legalName} onChange={setLegalName} required placeholder="e.g. Apollo Hospitals" />
                                             <div className="space-y-1">
                                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Organization Type</label>
-                                                <select value={orgType} onChange={e => setOrgType(e.target.value)} className="w-full p-3 bg-slate-50 rounded-xl border-none font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20">
+                                                <select 
+                                                    value={orgType} 
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        setOrgType(val);
+                                                        if (val === 'Corporate Office') setIndustry('Corporate');
+                                                        else if (val === 'Law Firm') setIndustry('Legal');
+                                                        else if (val === 'Dental Clinic') setIndustry('Dental');
+                                                        else if (val === 'Pharma Manufacturing') setIndustry('Pharma');
+                                                        else setIndustry('Healthcare');
+                                                        
+                                                        // Auto-select modules based on type
+                                                        if (val === 'Corporate Office') {
+                                                            let mods = [...enabledModules];
+                                                            if (!mods.includes('corporate')) mods.push('corporate');
+                                                            setEnabledModules(mods);
+                                                        }
+                                                    }} 
+                                                    className="w-full p-3 bg-slate-50 rounded-xl border-none font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                >
                                                     <option>Hospital</option>
                                                     <option>Clinic</option>
                                                     <option>Dental Clinic</option>
@@ -714,11 +730,27 @@ export default function HospitalsPage() {
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <ModuleCard id="core" label="AIO Core Warehouse" icon={<Archive size={18} />} desc="Base data processor & cloud storage (Always Active)." active={true} fixed={true} />
-                                            <ModuleCard id="hms" label="HMS Pro" icon={<Hotel size={18} />} desc="IPD, Wards, OT and billing." active={enabledModules.includes('hms')} onClick={() => toggleModule('hms')} />
-                                            <ModuleCard id="dental" label="Dental Engine" icon={<span>🦷</span>} desc="3D Charting & clinical records." active={enabledModules.includes('dental')} onClick={() => toggleModule('dental')} />
+                                            <ModuleCard id="core" label="AIO Digital Core" icon={<HardDrive size={18} />} desc="Base data processor & cloud storage (Always Active)." active={true} fixed={true} />
+                                            
+                                            <ModuleCard id="warehouse" label="Physical Warehouse Mgt" icon={<Archive size={18} />} desc="Enable physical barcode tracking & storage." active={enabledModules.includes('warehouse')} onClick={() => toggleModule('warehouse')} />
+                                            
+                                            {industry !== 'Corporate' && industry !== 'Legal' && (
+                                                <>
+                                                    <ModuleCard id="hms" label="HMS Pro" icon={<Hotel size={18} />} desc="IPD, Wards, OT and billing." active={enabledModules.includes('hms')} onClick={() => toggleModule('hms')} />
+                                                    <ModuleCard id="dental" label="Dental Engine" icon={<span>🦷</span>} desc="3D Charting & clinical records." active={enabledModules.includes('dental')} onClick={() => toggleModule('dental')} />
+                                                </>
+                                            )}
+                                            
+                                            {industry === 'Corporate' && (
+                                                <ModuleCard id="corporate" label="Corporate Portal" icon={<Building2 size={18} />} desc="Enterprise documents & staff management." active={enabledModules.includes('corporate')} onClick={() => toggleModule('corporate')} />
+                                            )}
+
                                             <ModuleCard id="legal" label="Law Discovery" icon={<ShieldCheck size={18} />} desc="Case tracking and evidence vault." active={enabledModules.includes('legal')} onClick={() => toggleModule('legal')} />
-                                            <ModuleCard id="pharma" label="Pharma Ops" icon={<span>🧪</span>} desc="Manufacturing and batch tracing." active={enabledModules.includes('pharma')} onClick={() => toggleModule('pharma')} />
+                                            
+                                            {industry !== 'Corporate' && industry !== 'Legal' && (
+                                                <ModuleCard id="pharma" label="Pharma Ops" icon={<span>🧪</span>} desc="Manufacturing and batch tracing." active={enabledModules.includes('pharma')} onClick={() => toggleModule('pharma')} />
+                                            )}
+                                            
                                             <ModuleCard id="accounting" label="Financial Ledger" icon={<IndianRupee size={18} />} desc="GST invoicing and P&L tracking." active={enabledModules.includes('accounting')} onClick={() => toggleModule('accounting')} />
                                         </div>
                                     </div>
@@ -736,21 +768,28 @@ export default function HospitalsPage() {
                                             </div>
                                         </div>
                                         <div className="space-y-4">
-                                            <div className="bg-slate-50 p-4 rounded-xl space-y-4">
-                                                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">MRD Pricing Model</h4>
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    {['per_file', 'per_page', 'flat_monthly'].map(m => (
-                                                        <button key={m} type="button" onClick={() => setMrdPricingModel(m)} className={`py-2 px-3 rounded-lg text-[10px] font-black uppercase tracking-widest ${mrdPricingModel === m ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>
-                                                            {m.replace('_', ' ')}
-                                                        </button>
-                                                    ))}
+                                            {enabledModules.map(modId => (
+                                                <div key={modId} className="bg-slate-50 p-4 rounded-xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                                                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">{modId === 'core' ? 'AIO Digital Core' : modId} Pricing Model</h4>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        {['per_file', 'per_page', 'flat_monthly'].map(m => (
+                                                            <button 
+                                                                key={m} 
+                                                                type="button" 
+                                                                onClick={() => updateModulePricing(modId, 'model', m)} 
+                                                                className={`py-2 px-3 rounded-lg text-[10px] font-black uppercase tracking-widest ${modulePricing[modId]?.model === m || (!modulePricing[modId] && m === 'per_file') ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+                                                            >
+                                                                {m.replace('_', ' ')}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    <div className="grid grid-cols-3 gap-4">
+                                                        <FormInput label="Base Price (₹)" value={modulePricing[modId]?.base_rate || ''} onChange={(val) => updateModulePricing(modId, 'base_rate', val)} type="number" />
+                                                        <FormInput label="Page Threshold" value={modulePricing[modId]?.threshold || ''} onChange={(val) => updateModulePricing(modId, 'threshold', val)} type="number" />
+                                                        <FormInput label="Extra Page (₹)" value={modulePricing[modId]?.standard_rate || ''} onChange={(val) => updateModulePricing(modId, 'standard_rate', val)} type="number" />
+                                                    </div>
                                                 </div>
-                                                <div className="grid grid-cols-3 gap-4">
-                                                    <FormInput label="Base Price (₹)" value={mrdBaseRate} onChange={setMrdBaseRate} type="number" />
-                                                    <FormInput label="Page Threshold" value={mrdThreshold} onChange={setMrdThreshold} type="number" />
-                                                    <FormInput label="Extra Page (₹)" value={mrdStandardRate} onChange={setMrdStandardRate} type="number" />
-                                                </div>
-                                            </div>
+                                            ))}
                                             <div className="grid grid-cols-2 gap-4">
                                                 <FormInput label="Retention Years" value={retentionYears} onChange={setRetentionYears} type="number" />
                                                 <FormInput label="Effective Date" value={pricingEffectiveDate} onChange={setPricingEffectiveDate} type="date" />

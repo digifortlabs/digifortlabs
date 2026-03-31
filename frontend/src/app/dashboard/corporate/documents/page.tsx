@@ -5,9 +5,9 @@ import { Plus, Search, Filter, Download, Eye, Trash2, Edit, ChevronLeft, Chevron
 import { useTerminology } from '@/hooks/useTerminology';
 import CameraModal from './components/CameraModal';
 import PatientDetailView from './components/PatientDetailView';
-import DentalPatientDetail from '../dental/components/PatientDetail'; // Import Dental Detail View
+import DentalPatientDetail from '../../dental/components/PatientDetail'; // Import Dental Detail View
 import { useRouter, useSearchParams } from 'next/navigation';
-import { API_URL, apiFetch } from '../../../config/api';
+import { API_URL, apiFetch } from '../../../../config/api';
 import { toTitleCase, toUpperCaseMRD } from '@/lib/formatters';
 import { formatDate } from '@/lib/dateFormatter';
 
@@ -714,13 +714,13 @@ export default function RecordsList() {
 
 
     return (
-        <div className="w-full mx-auto px-4 sm:px-4 pb-4 pt-4">
+        <div className="w-full mx-auto px-4 sm:px-4 pb-4 pt-0">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2 gap-2">
                 <div>
                     <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-                        <User className="text-indigo-600 w-6 h-6" /> {terms.patient} Records
+                        <FolderOpen className="text-indigo-600 w-6 h-6" /> Company Documents
                     </h1>
-                    <p className="text-slate-500 mt-0.5 text-xs">Manage patient files and digital records.</p>
+                    <p className="text-slate-500 mt-0.5 text-xs">Manage corporate documents and company data.</p>
                 </div>
 
                 <div className="flex gap-2 w-full md:w-auto flex-wrap items-center">
@@ -744,23 +744,7 @@ export default function RecordsList() {
                         </div>
                     )}
 
-                    {/* Category Filter Pills - Hide for non-medical modules */}
-                    {['Hospital', 'Healthcare', 'Clinic', 'General'].some(s => specialty.includes(s)) && (
-                        <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto no-scrollbar">
-                            {['', 'IPD', 'OPD', 'MLC', 'BRT', 'DHT'].map(cat => (
-                                <button
-                                    key={cat}
-                                    onClick={() => setCategoryFilter(cat)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${categoryFilter === cat
-                                        ? 'bg-white text-indigo-600 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700'
-                                        }`}
-                                >
-                                    {cat || 'All'}
-                                </button>
-                            ))}
-                        </div>
-                    )}
+                    {/* Category Filter Pills entirely removed for Corporate module as it clutters the non-medical UI */}
 
                     <div className="relative flex-1 md:w-64 min-w-[200px]">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -845,7 +829,7 @@ export default function RecordsList() {
                             }}
                             className="bg-indigo-600 text-white px-4 md:px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/20"
                         >
-                            <Plus size={20} /> <span className="hidden md:inline">Add {terms.patient}</span>
+                            <Plus size={20} /> <span className="hidden md:inline">Add Document</span>
                         </button>
                     </div>
                 </div>
@@ -934,7 +918,7 @@ export default function RecordsList() {
                             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[calc(100vh-200px)]">
                                 <div className="overflow-x-auto h-full">
                                     <table className="w-full text-left">
-                                        <thead className="bg-gradient-to-r from-slate-50 to-slate-100 border-b-2 border-slate-200 sticky top-16 z-10">
+                                        <thead className="bg-gradient-to-r from-slate-50 to-slate-100 border-b-2 border-slate-200 sticky top-0 z-10">
                                             <tr>
                                                 <th className="p-3 text-left text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors whitespace-nowrap" onClick={() => handleSort('record_id')}>
                                                     <div className="flex items-center gap-1">RID <ArrowUpDown size={12} className="text-slate-300" /></div>

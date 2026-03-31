@@ -45,7 +45,7 @@ export const useTerminology = () => {
                 defaultPatient = 'Batch / Product';
                 defaultDoctor = 'QA Head';
                 defaultMRD = 'Batch No';
-            } else if (spec === 'Corporate') {
+            } else if (spec === 'Corporate' || spec.toLowerCase().includes('corporate') || spec.toLowerCase().includes('cooperate') || spec.toLowerCase().includes('co opreate')) {
                 defaultHospital = 'Office';
                 defaultPatient = 'Employee';
                 defaultDoctor = 'Manager';

@@ -65,12 +65,14 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
     const isHospitalAdmin = userRole === 'hospital_admin';
     const isWarehouseManager = userRole === 'warehouse_manager';
     const isStaff = userRole === 'superadmin_staff';
+    
+    const isCorporate = specialty?.toLowerCase().includes('corporate') || specialty?.toLowerCase().includes('cooperate') || specialty?.toLowerCase().includes('co opreate');
 
     // Grouping Logic
-    const showStorage = isSuperAdmin || isWarehouseManager;
+    const showStorage = (isSuperAdmin || isWarehouseManager) && !isCorporate;
     const showRequests = isHospitalAdmin || isWarehouseManager || isStaff || isSuperAdmin;
-    const showArchive = isWarehouseManager || isHospitalAdmin || isSuperAdmin || isStaff;
-    const showDrafts = isWarehouseManager || isSuperAdmin;
+    const showArchive = (isWarehouseManager || isHospitalAdmin || isSuperAdmin || isStaff) && !isCorporate;
+    const showDrafts = (isWarehouseManager || isSuperAdmin) && !isCorporate;
     const showWarehouseMenu = showStorage || showRequests || showArchive || showDrafts;
 
     return (
@@ -133,8 +135,34 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 </Link>
                             )}
 
-                            {/* Records Link */}
-                            {(isHospitalAdmin || isWarehouseManager || isSuperAdmin) && (
+                            {/* Corporate Links */}
+                            {isCorporate && (isHospitalAdmin || isWarehouseManager || isSuperAdmin) && (
+                                <>
+                                    <Link
+                                        href="/dashboard/corporate/documents"
+                                        className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/corporate/documents')
+                                            ? 'bg-slate-800 text-white'
+                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                            }`}
+                                    >
+                                        Company Documents
+                                    </Link>
+                                    {isHospitalAdmin && (
+                                        <Link
+                                            href="/dashboard/corporate/employees"
+                                            className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/corporate/employees')
+                                                ? 'bg-slate-800 text-white'
+                                                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                                }`}
+                                        >
+                                            Staff
+                                        </Link>
+                                    )}
+                                </>
+                            )}
+
+                            {/* Records Link - Hiding for Corporate */}
+                            {(isHospitalAdmin || isWarehouseManager || isSuperAdmin) && !isCorporate && (
                                 <Link
                                     href="/dashboard/records"
                                     className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/records')
@@ -221,8 +249,8 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 </div>
                             )}
 
-                            {/* Staff Mgmt */}
-                            {isHospitalAdmin && (
+                            {/* Staff Mgmt - Hiding for Corporate */}
+                            {isHospitalAdmin && !isCorporate && (
                                 <Link
                                     href="/dashboard/user_mgmt"
                                     className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/user_mgmt')
@@ -359,7 +387,23 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 </Link>
                             )}
 
-                            {(userRole === 'hospital_admin' || userRole === 'warehouse_manager' || userRole === 'superadmin') && (
+                            {/* Corporate Views for Mobile */}
+                            {isCorporate && (userRole === 'hospital_admin' || userRole === 'warehouse_manager' || userRole === 'superadmin') && (
+                                <>
+                                    <Link
+                                        href="/dashboard/corporate/documents"
+                                        onClick={() => setIsMenuOpen(false)}
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/corporate/documents')
+                                            ? 'bg-slate-800 text-white'
+                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                            }`}
+                                    >
+                                        <Database size={18} /> Company Documents
+                                    </Link>
+                                </>
+                            )}
+
+                            {(userRole === 'hospital_admin' || userRole === 'warehouse_manager' || userRole === 'superadmin') && !isCorporate && (
                                 <Link
                                     href="/dashboard/records"
                                     onClick={() => setIsMenuOpen(false)}
@@ -437,7 +481,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 </>
                             )}
 
-                            {isSuperAdmin && (
+                            {isSuperAdmin && !isCorporate && (
                                 <Link
                                     href="/dashboard/audit"
                                     onClick={() => setIsMenuOpen(false)}
@@ -450,7 +494,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 </Link>
                             )}
 
-                            {(userRole === 'superadmin' || userRole === 'warehouse_manager') && (
+                            {(userRole === 'superadmin' || userRole === 'warehouse_manager') && !isCorporate && (
                                 <Link
                                     href="/dashboard/storage"
                                     onClick={() => setIsMenuOpen(false)}

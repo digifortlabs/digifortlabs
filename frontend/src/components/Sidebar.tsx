@@ -184,6 +184,35 @@ export default function Sidebar({ userRole }: SidebarProps) {
                         </div>
                     )}
 
+                    {/* Corporate Specific Dashboard (Replaces core records) */}
+                    {specialty === 'Corporate' && (
+                        <div className="space-y-1">
+                            <Link
+                                href="/dashboard/corporate/documents"
+                                className={`block px-4 py-3 rounded-xl transition-all duration-200 border ${isActive('/dashboard/corporate/documents')
+                                    ? 'active bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-900/50'
+                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    }`}
+                            >
+                                <div className="flex items-center gap-3 font-medium">
+                                    <FileText className="w-5 h-5"/> Company Documents
+                                </div>
+                            </Link>
+                            
+                            <Link
+                                href="/dashboard/corporate/employees"
+                                className={`block px-4 py-2 ml-4 mt-1 rounded-xl transition-all duration-200 border ${isActive('/dashboard/corporate/employees')
+                                    ? 'active bg-indigo-900/40 text-indigo-400 border-indigo-800/50'
+                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    }`}
+                            >
+                                <div className="flex items-center gap-3 text-sm font-medium">
+                                    <Users className="w-4 h-4"/> Employees & Staff
+                                </div>
+                            </Link>
+                        </div>
+                    )}
+
                     {/* Warehouse (Moved to Main Menu) */}
                     {(userRole === 'hospital_admin' || userRole === 'website_admin' || userRole === 'superadmin' || userRole === 'mrd_staff' || userRole === 'website_staff') && (
                         <Link
@@ -199,8 +228,8 @@ export default function Sidebar({ userRole }: SidebarProps) {
                         </Link>
                     )}
 
-                    {/* Patient Records (Core Module) */}
-                    {(userRole === 'hospital_admin' || userRole === 'data_uploader' || userRole === 'website_staff' || userRole === 'mrd_staff') && enabledModules.includes('core') && (
+                    {/* Patient Records (Core Module - Hidden for Corporate) */}
+                    {specialty !== 'Corporate' && (userRole === 'hospital_admin' || userRole === 'data_uploader' || userRole === 'website_staff' || userRole === 'mrd_staff') && enabledModules.includes('core') && (
                         <Link
                             href="/dashboard/records"
                             className={`block px-4 py-3 rounded-xl transition-all duration-200 ${isActive('/dashboard/records')
@@ -263,7 +292,13 @@ export default function Sidebar({ userRole }: SidebarProps) {
                         <span>Sign Out</span>
                         <span className="text-xl">→</span>
                     </button>
-                    {userRole && <p className="text-[10px] text-center text-slate-600 mt-2 uppercase tracking-wider">{userRole.replace('_', ' ')}</p>}
+                    {userRole && (
+                        <p className="text-[10px] text-center text-slate-600 mt-2 uppercase tracking-wider">
+                            {userRole === 'hospital_admin' && specialty === 'Corporate' 
+                                ? 'COMPANY ADMIN' 
+                                : userRole.replace('_', ' ')}
+                        </p>
+                    )}
                 </div>
             </div>
         </div >

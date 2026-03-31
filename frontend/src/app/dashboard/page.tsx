@@ -27,7 +27,13 @@ import {
     ChevronRight,
     AppWindow, // Replacement
     Loader2, // Added for loading states
-    Archive
+    Archive,
+    Scale,
+    Briefcase,
+    Stethoscope,
+    Pill,
+    Ear,
+    Settings
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -37,7 +43,7 @@ export default function CommandCenter() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const hospitalId = searchParams?.get('hospital_id');
-    const { terms } = useTerminology();
+    const { terms, enabledModules, specialty } = useTerminology();
     const [stats, setStats] = useState<any>(null);
     const [warehouseCapacity, setWarehouseCapacity] = useState(0);
     const [systemHealth, setSystemHealth] = useState('good');
@@ -48,6 +54,7 @@ export default function CommandCenter() {
     const [isDetailedView, setIsDetailedView] = useState(false);
     const [sessionDuration, setSessionDuration] = useState('00:00:00');
     const [currentTime, setCurrentTime] = useState('');
+    const [upsellModule, setUpsellModule] = useState<string | null>(null);
 
     const [patients, setPatients] = useState<any[]>([]);
     const [loadingPatients, setLoadingPatients] = useState(false);
@@ -260,6 +267,117 @@ export default function CommandCenter() {
 
                 </div>
             </div>
+
+            {/* App Center Launchpad */}
+            {enabledModules && (
+                <div className="mb-6 p-5 sm:p-6 bg-white rounded-2xl shadow-sm border border-slate-200">
+                    <h2 className="text-[11px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <AppWindow size={14} /> Module Launcher
+                    </h2>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3 sm:gap-4">
+                        
+                        {/* 1. MRD */}
+                        <button 
+                            onClick={() => enabledModules.includes('mrd') || enabledModules.includes('core') || userRole === 'superadmin' ? router.push('/dashboard/records') : setUpsellModule('MRD')} 
+                            className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl transition-all gap-2 group border ${enabledModules.includes('mrd') || enabledModules.includes('core') || userRole === 'superadmin' ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-100' : 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100'}`}
+                        >
+                            <div className={`w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform ${enabledModules.includes('mrd') || enabledModules.includes('core') || userRole === 'superadmin' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                                <Database size={20} className="sm:w-6 sm:h-6" />
+                            </div>
+                            <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">MRD</span>
+                        </button>
+
+                        {/* 2. LAW / Legal */}
+                        <button 
+                            onClick={() => enabledModules.includes('legal') || userRole === 'superadmin' ? router.push('/dashboard/legal') : setUpsellModule('Legal')} 
+                            className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl transition-all gap-2 group border ${enabledModules.includes('legal') || userRole === 'superadmin' ? 'bg-amber-50 hover:bg-amber-100 border-amber-100' : 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100'}`}
+                        >
+                            <div className={`w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform ${enabledModules.includes('legal') || userRole === 'superadmin' ? 'text-amber-600' : 'text-slate-400'}`}>
+                                <Scale size={20} className="sm:w-6 sm:h-6" />
+                            </div>
+                            <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">LAW</span>
+                        </button>
+
+                        {/* 3. CORPORATE */}
+                        <button 
+                            onClick={() => enabledModules.includes('corporate') || userRole === 'superadmin' || specialty?.toLowerCase().includes('corporate') || specialty?.toLowerCase().includes('cooperate') ? router.push('/dashboard/corporate/documents') : setUpsellModule('Corporate')} 
+                            className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl transition-all gap-2 group border ${enabledModules.includes('corporate') || userRole === 'superadmin' || specialty?.toLowerCase().includes('corporate') || specialty?.toLowerCase().includes('cooperate') ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-100' : 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100'}`}
+                        >
+                            <div className={`w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform ${enabledModules.includes('corporate') || userRole === 'superadmin' || specialty?.toLowerCase().includes('corporate') || specialty?.toLowerCase().includes('cooperate') ? 'text-indigo-600' : 'text-slate-400'}`}>
+                                <Briefcase size={20} className="sm:w-6 sm:h-6" />
+                            </div>
+                            <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">Corp</span>
+                        </button>
+
+                        {/* 4. DENTAL */}
+                        <button 
+                            onClick={() => enabledModules.includes('dental') || userRole === 'superadmin' ? router.push('/dashboard/dental') : setUpsellModule('Dental')} 
+                            className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl transition-all gap-2 group border ${enabledModules.includes('dental') || userRole === 'superadmin' ? 'bg-teal-50 hover:bg-teal-100 border-teal-100' : 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100'}`}
+                        >
+                            <div className={`w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform ${enabledModules.includes('dental') || userRole === 'superadmin' ? 'text-teal-600' : 'text-slate-400'}`}>
+                                <AppWindow size={20} className="sm:w-6 sm:h-6" />
+                            </div>
+                            <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">Dental</span>
+                        </button>
+
+                        {/* 5. ENT */}
+                        <button 
+                            onClick={() => enabledModules.includes('ent') || userRole === 'superadmin' ? router.push('/dashboard/ent') : setUpsellModule('ENT')} 
+                            className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl transition-all gap-2 group border ${enabledModules.includes('ent') || userRole === 'superadmin' ? 'bg-rose-50 hover:bg-rose-100 border-rose-100' : 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100'}`}
+                        >
+                            <div className={`w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform ${enabledModules.includes('ent') || userRole === 'superadmin' ? 'text-rose-600' : 'text-slate-400'}`}>
+                                <Ear size={20} className="sm:w-6 sm:h-6" />
+                            </div>
+                            <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">ENT</span>
+                        </button>
+
+                        {/* 6. PHARMA */}
+                        <button 
+                            onClick={() => enabledModules.includes('pharma') || userRole === 'superadmin' ? router.push('/dashboard/pharma') : setUpsellModule('Pharma')} 
+                            className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl transition-all gap-2 group border ${enabledModules.includes('pharma') || userRole === 'superadmin' ? 'bg-sky-50 hover:bg-sky-100 border-sky-100' : 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100'}`}
+                        >
+                            <div className={`w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform ${enabledModules.includes('pharma') || userRole === 'superadmin' ? 'text-sky-600' : 'text-slate-400'}`}>
+                                <Pill size={20} className="sm:w-6 sm:h-6" />
+                            </div>
+                            <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">Pharma</span>
+                        </button>
+
+                        {/* 7. HMS */}
+                        <button 
+                            onClick={() => enabledModules.includes('hms') || userRole === 'superadmin' ? router.push('/dashboard/hms') : setUpsellModule('HMS System')} 
+                            className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl transition-all gap-2 group border ${enabledModules.includes('hms') || userRole === 'superadmin' ? 'bg-blue-50 hover:bg-blue-100 border-blue-100' : 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100'}`}
+                        >
+                            <div className={`w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform ${enabledModules.includes('hms') || userRole === 'superadmin' ? 'text-blue-600' : 'text-slate-400'}`}>
+                                <Building2 size={20} className="sm:w-6 sm:h-6" />
+                            </div>
+                            <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">HMS</span>
+                        </button>
+
+                        {/* 8. CLINIC */}
+                        <button 
+                            onClick={() => enabledModules.includes('clinic') || userRole === 'superadmin' ? router.push('/dashboard/clinic') : setUpsellModule('Clinic')} 
+                            className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl transition-all gap-2 group border ${enabledModules.includes('clinic') || userRole === 'superadmin' ? 'bg-orange-50 hover:bg-orange-100 border-orange-100' : 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100'}`}
+                        >
+                            <div className={`w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform ${enabledModules.includes('clinic') || userRole === 'superadmin' ? 'text-orange-600' : 'text-slate-400'}`}>
+                                <Stethoscope size={20} className="sm:w-6 sm:h-6" />
+                            </div>
+                            <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">Clinic</span>
+                        </button>
+
+                        {/* 9. SETTINGS */}
+                        <button 
+                            onClick={() => router.push('/dashboard/settings')} 
+                            className="flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl transition-all gap-2 group border bg-slate-100 hover:bg-slate-200 border-slate-200"
+                        >
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-slate-700 group-hover:scale-110 transition-transform group-hover:rotate-45 duration-300">
+                                <Settings size={20} className="sm:w-6 sm:h-6" />
+                            </div>
+                            <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">Settings</span>
+                        </button>
+
+                    </div>
+                </div>
+            )}
 
             {/* Top Metrics Grid - Comprehensive 8 Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
@@ -921,6 +1039,67 @@ export default function CommandCenter() {
                     closeOnConfirm={confirmModal.closeOnConfirm}
                     inputPlaceholder={confirmModal.inputPlaceholder}
                 />
+
+                {/* Upsell / Contact Sales Modal */}
+                {upsellModule && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div className="bg-white max-w-lg w-full rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+                            {/* Header */}
+                            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-100 pb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center">
+                                        <AppWindow size={20} className="text-indigo-600" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 tracking-tight">Access Restricted</h3>
+                                        <p className="text-xs text-slate-500">{upsellModule} Module Locked</p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => setUpsellModule(null)}
+                                    className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-800 transition-colors"
+                                >
+                                    <XCircle size={18} />
+                                </button>
+                            </div>
+                            
+                            {/* Content */}
+                            <div className="p-4 sm:p-6 text-center space-y-4">
+                                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100 shadow-sm">
+                                    <ShieldCheck size={28} className="text-slate-400" />
+                                </div>
+                                <p className="text-sm sm:text-base font-medium text-slate-700">
+                                    You have not subscribed to the <strong className="text-indigo-600">{upsellModule}</strong> module.
+                                </p>
+                                <p className="text-xs sm:text-sm text-slate-500 px-2 sm:px-6">
+                                    This module unlocks premium capabilities tailored precisely for your operations. If you would like to activate it or request a demo, our sales team can immediately assist you!
+                                </p>
+                            </div>
+
+                            {/* Footer / Actions */}
+                            <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row gap-3">
+                                <a 
+                                    href={`mailto:sales@digifortlabs.com?subject=Activate%20Module:%20${upsellModule}`}
+                                    className="flex-1 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <FileText size={16} /> Email Sales
+                                </a>
+                                <a 
+                                    href={`mailto:demo@digifortlabs.com?subject=Book%20Demo%20for%20${upsellModule}`}
+                                    className="flex-1 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl hover:bg-slate-50 hover:text-rose-600 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <Eye size={16} /> Book Demo
+                                </a>
+                                <a 
+                                    href="tel:+918452834884"
+                                    className="flex-[1.5] px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-[0_4px_10px_rgba(79,70,229,0.25)] transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Users size={16} /> Call Expert
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
             </div>
         </div>
