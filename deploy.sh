@@ -14,17 +14,19 @@ cd $PROJECT_DIR || { echo "❌ Failed to change directory"; exit 1; }
 echo "Updating code from GitHub..."
 git fetch --all
 git reset --hard origin/main
-git clean -fd
+# CRITICAL: Exclude .env and node_modules from clean to prevent configuration loss
+git clean -f -e .env -e .env.production -e node_modules/ -e venv/
 
 # Backend Refresh
 echo "Updating Backend and Database..."
 cd backend
+# Make sure we use the production environment for migrations
 python3 migrate_v1_3.py
 pm2 restart $BACKEND_NAME || pm2 start main.py --name $BACKEND_NAME
 cd ..
 
-# Frontend Build (Docker)
+# Frontend Build (Docker Compose v2)
 echo "Building and restarting Frontend container..."
-docker-compose -f docker-compose.prod.yml up -d --build $FRONTEND_SERVICE
+docker compose -f docker-compose.prod.yml up -d --build $FRONTEND_SERVICE
 
 echo "✅ Deployment Successful! Check logs with: pm2 logs backend"
