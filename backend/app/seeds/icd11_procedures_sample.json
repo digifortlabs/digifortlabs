@@ -1,0 +1,78 @@
+[
+    {
+        "code": "3010",
+        "description": "Appendectomy"
+    },
+    {
+        "code": "3020",
+        "description": "Cholecystectomy"
+    },
+    {
+        "code": "1010",
+        "description": "Chest X-Ray"
+    },
+    {
+        "code": "1020",
+        "description": "CT Scan Abdomen"
+    },
+    {
+        "code": "1030",
+        "description": "MRI Brain"
+    },
+    {
+        "code": "1040",
+        "description": "Ultrasound Guided Biopsy"
+    },
+    {
+        "code": "5010",
+        "description": "Coronary Artery Bypass Graft (CABG)"
+    },
+    {
+        "code": "5020",
+        "description": "Angioplasty with Stenting"
+    },
+    {
+        "code": "6010",
+        "description": "Total Hip Replacement"
+    },
+    {
+        "code": "6020",
+        "description": "Total Knee Replacement"
+    },
+    {
+        "code": "7010",
+        "description": "Cataract Extraction with IOL"
+    },
+    {
+        "code": "8010",
+        "description": "Normal Vaginal Delivery"
+    },
+    {
+        "code": "8020",
+        "description": "Caesarean Section"
+    },
+    {
+        "code": "9010",
+        "description": "Hemodialysis"
+    },
+    {
+        "code": "9020",
+        "description": "Chemotherapy Administration"
+    },
+    {
+        "code": "9030",
+        "description": "Physical Therapy Session"
+    },
+    {
+        "code": "9040",
+        "description": "Blood Transfusion"
+    },
+    {
+        "code": "0010",
+        "description": "General Physical Examination"
+    },
+    {
+        "code": "0020",
+        "description": "Electrocardiogram (ECG)"
+    }
+]

@@ -1,0 +1,551 @@
+from typing import List, Optional
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, EmailStr
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from ..audit import log_audit
+from ..database import get_db
+from ..models import (
+    AuditLog, 
+    Hospital, 
+    Patient, 
+    PDFFile, 
+    User, 
+    UserRole,
+    Invoice,
+    FileRequest,
+    QAIssue,
+    PhysicalBox,
+    PhysicalRack,
+    InventoryLog,
+    PhysicalMovementLog,
+    PatientProcedure
+)
+from ..utils import get_password_hash
+from .auth import get_current_user, require_permission
+from ..models import Permission
+from ..services.email_service import EmailService
+
+router = APIRouter()
+
+class HospitalCreate(BaseModel):
+    legal_name: str
+    subscription_tier: str = "Standard"
+    hospital_type: str = "Private"
+    organization_type: str = "Hospital"
+    specialty: str = "General"
+    terminology: dict = {}
+    enabled_modules: list = ["core"]
+    email: EmailStr
+    director_name: Optional[str] = None
+    registration_number: Optional[str] = None
+    established_year: Optional[int] = None
+    address: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    country: str = "India"
+    phone: Optional[str] = None
+    alternate_phone: Optional[str] = None
+    secondary_email: Optional[EmailStr] = None
+    landline: Optional[str] = None
+    google_maps_url: Optional[str] = None
+    
+    # Admin User Details (Step 3)
+    admin_full_name: str
+    admin_email: EmailStr
+    admin_phone: str
+    admin_designation: Optional[str] = None
+    password: str
+    
+    # Billing & Pricing (Steps 5 & 6)
+    price_per_file: float = 100.0
+    included_pages: int = 20
+    price_per_extra_page: float = 1.0
+    custom_pricing: dict = {}
+    pricing_effective_date: Optional[datetime] = None
+    pricing_notes: Optional[str] = None
+    
+    expected_monthly_volume: Optional[int] = None
+    expected_users: Optional[int] = None
+    storage_requirements: Optional[str] = None
+    special_requirements: Optional[str] = None
+    gst_number: Optional[str] = None
+    accept_marketing: bool = False
+
+class HospitalResponse(BaseModel):
+    hospital_id: int
+    legal_name: str
+    subscription_tier: str
+    hospital_type: Optional[str] = None
+    specialty: Optional[str] = "General"
+    terminology: Optional[dict] = {}
+    enabled_modules: Optional[list] = []
+    email: EmailStr
+    director_name: Optional[str] = None
+    registration_number: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    phone: Optional[str] = None
+    gst_number: Optional[str] = None
+    
+    price_per_file: float
+    included_pages: int
+    price_per_extra_page: float
+    
+    custom_pricing: Optional[dict] = {}
+    expected_monthly_volume: Optional[int] = None
+    expected_users: Optional[int] = None
+    storage_requirements: Optional[str] = None
+    
+    is_active: bool = True
+    pending_updates: Optional[str] = None # JSON String
+
+    class Config:
+        from_attributes = True
+
+class HospitalUpdate(BaseModel):
+    director_name: Optional[str] = None
+    registration_number: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    gst_number: Optional[str] = None
+    
+    # Super Admin Only Fields
+    legal_name: Optional[str] = None
+    subscription_tier: Optional[str] = None
+    hospital_type: Optional[str] = None
+    specialty: Optional[str] = None
+    terminology: Optional[dict] = None
+    enabled_modules: Optional[list] = None
+    is_active: Optional[bool] = None
+
+    price_per_file: Optional[float] = None
+    included_pages: Optional[int] = None
+    price_per_extra_page: Optional[float] = None
+    
+    max_users: Optional[int] = None
+    per_user_price: Optional[float] = None
+
+class AdminCreate(BaseModel):
+    email: EmailStr
+    password: str
+    legal_name: str # For convenience, to confirm context
+
+@router.get("/stats/platform")
+def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
+    # RBAC handles authorization instead of hardcoded SUPER_ADMIN check
+    
+    total_hospitals = db.query(Hospital).count()
+    active_hospitals = db.query(Hospital).filter(Hospital.is_active == True).count()
+    
+    # Active Users (Live in last 5 minutes)
+    from datetime import datetime, timedelta
+    five_mins_ago = datetime.utcnow() - timedelta(minutes=5)
+    live_active_users = db.query(User).filter(User.last_active_at >= five_mins_ago).count()
+    
+    # Check for pending approvals
+    pending_approvals = db.query(Hospital).filter(Hospital.pending_updates != None).count()
+    
+    # Tier Distribution
+    tiers = {
+        "Enterprise": db.query(Hospital).filter(Hospital.subscription_tier == "Enterprise").count(),
+        "Professional": db.query(Hospital).filter(Hospital.subscription_tier == "Professional").count(),
+        "Standard": db.query(Hospital).filter(Hospital.subscription_tier == "Standard").count(),
+        "Starter": db.query(Hospital).filter(Hospital.subscription_tier == "Starter").count(),
+    }
+    
+    # Storage & Bandwidth Insights
+    # Only count confirmed uploads
+    total_files = db.query(PDFFile).filter(PDFFile.upload_status == 'confirmed').count()
+    # file_size is in bytes. Sum it up, then divide by 1024*1024*1024 for GB
+    total_bytes = db.query(func.sum(PDFFile.file_size)).filter(PDFFile.upload_status == 'confirmed').scalar() or 0
+    total_bytes_val = total_bytes or 0
+    total_gigabytes = total_bytes_val / (1024 * 1024 * 1024)
+    
+    # Top Consuming Hospitals
+    from sqlalchemy import desc
+    top_hospitals = db.query(
+        Hospital.legal_name,
+        func.sum(PDFFile.file_size).label("total_usage")
+    ).select_from(Hospital).join(Patient).join(PDFFile).filter(PDFFile.upload_status == 'confirmed').group_by(Hospital.hospital_id).order_by(desc("total_usage")).limit(5).all()
+    
+    usage_list = [{"name": h[0], "usage_mb": round((h[1] or 0) / (1024*1024), 2)} for h in top_hospitals]
+
+    # Revenue Estimation (Mock)
+    revenue = (tiers["Enterprise"] * 500) + (tiers["Professional"] * 399) + (tiers["Standard"] * 199) + (tiers["Starter"] * 99)
+
+    return {
+        "total_hospitals": total_hospitals,
+        "active_hospitals": active_hospitals,
+        "total_users": live_active_users,
+        "pending_approvals": pending_approvals,
+        "system_status": "Operational",
+        "tier_distribution": tiers,
+        "total_files": total_files,
+        "total_gb": round(total_gigabytes, 2),
+        "top_consumers": usage_list,
+        "projected_revenue": revenue
+    }
+
+@router.post("/", response_model=HospitalResponse)
+def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
+    # RBAC handles authorization instead of hardcoded SUPER_ADMIN check
+
+    # Check for duplicate email
+    if db.query(Hospital).filter(Hospital.email == hospital.email).first():
+        raise HTTPException(status_code=400, detail="Hospital with this email already exists")
+    db_hospital = Hospital(
+        legal_name=hospital.legal_name, 
+        subscription_tier=hospital.subscription_tier,
+        hospital_type=hospital.hospital_type.upper() if hospital.hospital_type else "PRIVATE",
+        organization_type=hospital.organization_type,
+        specialty=hospital.specialty,
+        terminology=hospital.terminology,
+        enabled_modules=hospital.enabled_modules,
+        email=hospital.email,
+        director_name=hospital.director_name or hospital.admin_full_name,
+        registration_number=hospital.registration_number,
+        established_year=hospital.established_year,
+        address=hospital.address,
+        address_line2=hospital.address_line2,
+        city=hospital.city,
+        state=hospital.state,
+        pincode=hospital.pincode,
+        country=hospital.country,
+        phone=hospital.phone,
+        alternate_phone=hospital.alternate_phone,
+        secondary_email=hospital.secondary_email,
+        landline=hospital.landline,
+        google_maps_url=hospital.google_maps_url,
+        price_per_file=hospital.price_per_file,
+        included_pages=hospital.included_pages,
+        price_per_extra_page=hospital.price_per_extra_page,
+        custom_pricing=hospital.custom_pricing,
+        pricing_effective_date=hospital.pricing_effective_date,
+        pricing_notes=hospital.pricing_notes,
+        expected_monthly_volume=hospital.expected_monthly_volume,
+        expected_users=hospital.expected_users,
+        storage_requirements=hospital.storage_requirements,
+        special_requirements=hospital.special_requirements,
+        accept_marketing=hospital.accept_marketing,
+        gst_number=hospital.gst_number.upper() if hospital.gst_number else None
+    )
+    db.add(db_hospital)
+    db.flush() 
+
+    # Create Hospital Admin User (Step 3)
+    if not db.query(User).filter(User.email == hospital.admin_email).first():
+        new_admin = User(
+            email=hospital.admin_email,
+            full_name=hospital.admin_full_name,
+            hashed_password=get_password_hash(hospital.password),
+            role=UserRole.HOSPITAL_ADMIN,
+            hospital_id=db_hospital.hospital_id, 
+            phone=hospital.admin_phone,
+            is_active=True,
+            force_password_change=False # User set their own password
+        )
+        db.add(new_admin)
+        log_audit(db, current_user.user_id, "ADMIN_CREATED", f"Created admin {hospital.admin_full_name} for {hospital.legal_name}")
+        
+        # Send Welcome Email
+        EmailService.send_welcome_email(
+            email=hospital.admin_email,
+            name=hospital.admin_full_name,
+            password="[As specified by you]" 
+        )
+
+    log_audit(db, current_user.user_id, "HOSPITAL_ONBOARDED", f"Hospital {hospital.legal_name} added to platform.")
+    
+    db.commit() # Commit everything (Hospital + User + Audit Logs)
+    db.refresh(db_hospital)
+    
+    return db_hospital
+
+@router.get("/", response_model=List[HospitalResponse])
+def list_hospitals(db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
+    return db.query(Hospital).all()
+
+@router.post("/{hospital_id}/admin")
+def create_hospital_admin(hospital_id: int, admin_data: AdminCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
+    # RBAC handles authorization 
+    
+    # Check if hospital exists
+    hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    if not hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+
+    # Check if email exists
+    if db.query(User).filter(User.email == admin_data.email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+        
+    # Create Admin
+    new_admin = User(
+        email=admin_data.email,
+        full_name=admin_data.legal_name, # Fix: Populate full_name
+        hashed_password=get_password_hash(admin_data.password),
+        plain_password=admin_data.password,
+        role=UserRole.HOSPITAL_ADMIN,
+        hospital_id=hospital_id,
+        force_password_change=True
+    )
+    db.add(new_admin)
+    db.commit()
+    
+    # Send Welcome Email
+    EmailService.send_welcome_email(
+        email=admin_data.email,
+        name=admin_data.legal_name,
+        password=admin_data.password
+    )
+    
+    return {"message": f"Admin created for {hospital.legal_name}", "email": admin_data.email}
+
+@router.patch("/{hospital_id}", response_model=HospitalResponse)
+def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_SETTINGS))):
+    # 1. Fetch Hospital
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    if not db_hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+
+    # 2. Auth Check
+    is_super = current_user.role == UserRole.SUPER_ADMIN
+    is_owner = current_user.role == UserRole.HOSPITAL_ADMIN and (current_user.hospital_id == hospital_id)
+    
+    if not (is_super or is_owner):
+        raise HTTPException(status_code=403, detail="Not authorized to edit this hospital")
+
+    update_data = hospital_update.dict(exclude_unset=True)
+
+    # 3. Apply Logic
+    if is_super:
+        # Super Admin: Apply Immediately
+        old_email = db_hospital.email
+        new_email = update_data.get("email")
+
+        for key, value in update_data.items():
+            if key in ["gst_number", "hospital_type"] and value:
+                value = value.upper()
+            setattr(db_hospital, key, value)
+        
+        # Sync Email to Admin User if changed
+        if new_email and new_email != old_email:
+             admin_user = db.query(User).filter(
+                 User.hospital_id == hospital_id, 
+                 User.email == old_email,
+                 User.role == UserRole.HOSPITAL_ADMIN
+             ).first()
+             
+             if admin_user:
+                 admin_user.email = new_email
+                 # Send Notification to Old and New Email
+                 EmailService.send_email_update_notification(
+                    old_email=old_email,
+                    new_email=new_email,
+                    name=db_hospital.legal_name
+                 )
+                 
+                 # Optional: Log this sync
+                 log_audit(db, current_user.user_id, "ADMIN_EMAIL_SYNC", f"Updated admin email from {old_email} to {new_email}")
+
+        # Explicit handling for fields that might be reset or set to 0
+        if hospital_update.max_users is not None:
+             db_hospital.max_users = hospital_update.max_users
+        if hospital_update.per_user_price is not None:
+             db_hospital.per_user_price = hospital_update.per_user_price
+
+        # Also clear pending updates if any, as super overrides
+        db_hospital.pending_updates = None
+    else:
+        # Hospital Admin: Save to Pending
+        import json
+        db_hospital.pending_updates = json.dumps(update_data)
+
+    try:
+        log_audit(db, current_user.user_id, "HOSPITAL_UPDATED", f"Updated hospital details for {db_hospital.legal_name}")
+    except Exception as e:
+        print(f"Audit Log Error: {e}")
+
+    db.commit()
+    db.refresh(db_hospital)
+
+    return db_hospital
+
+@router.post("/{hospital_id}/approve")
+def approve_update(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    if not db_hospital or not db_hospital.pending_updates:
+        raise HTTPException(status_code=404, detail="No pending updates found")
+
+    import json
+    updates = json.loads(db_hospital.pending_updates)
+    
+    for key, value in updates.items():
+        if hasattr(db_hospital, key):
+            if key in ["gst_number", "hospital_type"] and value:
+                value = value.upper()
+            setattr(db_hospital, key, value)
+    
+    db_hospital.pending_updates = None
+    db.commit()
+    
+    log_audit(db, current_user.user_id, "UPDATE_APPROVED", f"Approved changes for {db_hospital.legal_name}")
+    
+    return {"message": "Updates approved and applied"}
+
+@router.post("/{hospital_id}/reject")
+def reject_update(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    if not db_hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+        
+    db_hospital.pending_updates = None
+    db.commit()
+    
+    log_audit(db, current_user.user_id, "UPDATE_REJECTED", f"Rejected changes for {db_hospital.legal_name}")
+    
+    return {"message": "Updates rejected"}
+
+@router.get("/{hospital_id}", response_model=HospitalResponse)
+def read_hospital(hospital_id: int, db: Session = Depends(get_db)):
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    if db_hospital is None:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+    return db_hospital
+
+@router.get("/{hospital_id}/stats/space")
+def get_space_savings(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.VIEW_HOSPITAL_REPORTS))):
+    # Validate access
+    if current_user.role != UserRole.SUPER_ADMIN and current_user.hospital_id != hospital_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # 1. Count Total Digital Files (Confirmed Only)
+    total_files = db.query(func.count(PDFFile.file_id)).join(Patient).filter(
+        Patient.hospital_id == hospital_id,
+        PDFFile.upload_status == 'confirmed'
+    ).scalar()
+    
+    # 2. Convert to "Physical Boxes Saved" logic
+    # Assumption: 1 Standard Box holds ~2,000 pages (~100 files)
+    # Assumption: 1 Box takes ~1.5 sq ft of space (including aisles)
+    estimated_boxes = total_files / 100
+    sq_ft_saved = estimated_boxes * 1.5
+    
+    # 3. Calculate "Cost Saved"
+    # Assumption: Real Estate cost $50/sq ft/year + Staff handling cost
+    yearly_savings = sq_ft_saved * 50
+    
+    return {
+        "files_digitized": total_files,
+        "estimated_boxes_removed": round(estimated_boxes, 1),
+        "sq_ft_recovered": round(sq_ft_saved, 2),
+        "yearly_cost_savings": round(yearly_savings, 2)
+    }
+
+@router.get("/{hospital_id}/stats/usage")
+def get_hospital_usage(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # 1. Auth: Super Admin or limits to own info
+    if current_user.role != UserRole.SUPER_ADMIN and current_user.hospital_id != hospital_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # 2. Calculate Total Usage from Files
+    total_bytes = db.query(func.sum(PDFFile.file_size)).join(Patient).filter(
+        Patient.hospital_id == hospital_id,
+        PDFFile.upload_status == 'confirmed'
+    ).scalar() or 0
+    
+    used_mb = total_bytes / (1024 * 1024)
+    used_gb = total_bytes / (1024 * 1024 * 1024)
+    
+    return {
+        "used_bytes": total_bytes,
+        "used_mb": round(used_mb, 2),
+        "used_gb": round(used_gb, 2),
+        "uptime_sla": 99.9 # This remains static for now as it's a platform promise
+    }
+
+@router.delete("/{hospital_id}")
+def delete_hospital(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    if not db_hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+    
+    # Optional: Check for active data or force delete
+    # For now, we will attempt delete. If foreign keys prevent it, it will raise 500 error, 
+    # which is generic but valid for V1.
+    try:
+        # Pre-fetch IDs for bulk operations
+        hospital_users = db.query(User.user_id).filter(User.hospital_id == hospital_id).all()
+        user_ids = [u[0] for u in hospital_users]
+        
+        hospital_patients = db.query(Patient.record_id).filter(Patient.hospital_id == hospital_id).all()
+        record_ids = [p[0] for p in hospital_patients]
+
+        # 1. Unlink Users from Audit Logs (Set user_id = None)
+        # We do this for ALL users belonging to this hospital
+        if user_ids:
+            db.query(AuditLog).filter(AuditLog.user_id.in_(user_ids)).update({AuditLog.user_id: None}, synchronize_session=False)
+            db.query(InventoryLog).filter(InventoryLog.performed_by.in_(user_ids)).update({InventoryLog.performed_by: None}, synchronize_session=False)
+            db.query(PhysicalMovementLog).filter(PhysicalMovementLog.performed_by_user_id.in_(user_ids)).update({PhysicalMovementLog.performed_by_user_id: None}, synchronize_session=False)
+
+        # 1.1 Also delete generic AuditLogs linked to the hospital directly
+        db.query(AuditLog).filter(AuditLog.hospital_id == hospital_id).delete(synchronize_session=False)
+        
+        # 2. Delete Invoices (Cascade to Items usually, but ensure Items are gone)
+        # If InvoiceItem has no direct hospital_id (it links to Invoice), deleting Invoice should be enough if DB cascade exists.
+        # But to be safe in SQLAlchemy:
+        invoice_ids = [i[0] for i in db.query(Invoice.invoice_id).filter(Invoice.hospital_id == hospital_id).all()]
+        if invoice_ids:
+             from ..models import InvoiceItem
+             db.query(InvoiceItem).filter(InvoiceItem.invoice_id.in_(invoice_ids)).delete(synchronize_session=False)
+        db.query(Invoice).filter(Invoice.hospital_id == hospital_id).delete(synchronize_session=False)
+        
+        # 3. Delete File Requests & QA & QAIssue
+        db.query(FileRequest).filter(FileRequest.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(QAIssue).filter(QAIssue.hospital_id == hospital_id).delete(synchronize_session=False)
+        
+        # 4. Delete Physical Inventory
+        # Boxes first (FK to Rack), then Racks
+        db.query(PhysicalBox).filter(PhysicalBox.hospital_id == hospital_id).delete(synchronize_session=False)
+        db.query(PhysicalRack).filter(PhysicalRack.hospital_id == hospital_id).delete(synchronize_session=False)
+        
+        # 5. Delete Patients (and cascading Files, Diagnosis, Procedures)
+        if record_ids:
+            db.query(PatientDiagnosis).filter(PatientDiagnosis.record_id.in_(record_ids)).delete(synchronize_session=False)
+            db.query(PatientProcedure).filter(PatientProcedure.record_id.in_(record_ids)).delete(synchronize_session=False)
+            
+            # Delete Files
+            db.query(PDFFile).filter(PDFFile.record_id.in_(record_ids)).delete(synchronize_session=False)
+        
+        db.query(Patient).filter(Patient.hospital_id == hospital_id).delete(synchronize_session=False)
+
+        # 6. Delete Users
+        db.query(User).filter(User.hospital_id == hospital_id).delete(synchronize_session=False)
+        
+        # 7. Delete Hospital
+        # 7. Delete Hospital
+        db.delete(db_hospital)
+        
+        try:
+             log_audit(db, current_user.user_id, "HOSPITAL_DELETED", f"Deleted hospital: {db_hospital.legal_name}")
+        except:
+             pass
+             
+        db.commit()
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Cannot delete hospital. Ensure all patients/data are removed first. Error: {str(e)}")
+    
+    return {"message": f"Hospital {db_hospital.legal_name} deleted successfully"}
