@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - NEXT_PUBLIC_API_URL=https://digifortlabs.com/api
+    container_name: digifortlabs-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=https://digifortlabs.com/api
+
+  backend:
+    build:
+      context: ./backend
+    container_name: digifortlabs-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15-alpine
+    container_name: digifortlabs-db
+    restart: always
+    environment:
+      - POSTGRES_DB=digifort_db
+      - POSTGRES_USER=digifort_admin
+      - POSTGRES_PASSWORD=digifort_pass # Placeholder - user should check .env
+    volumes:
+      - ./digifortlabsdb:/var/lib/postgresql/data
