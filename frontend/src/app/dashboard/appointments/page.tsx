@@ -41,7 +41,7 @@ export default function AppointmentsDashboard() {
     const loadAppointments = async () => {
         setIsLoading(true);
         try {
-            let url = `appointments?date=${selectedDate}`;
+            let url = `/appointments?date=${selectedDate}`;
             if (selectedDepartment !== "all") url += `&department_id=${selectedDepartment}`;
             if (selectedDoctor !== "all") url += `&doctor_id=${selectedDoctor}`;
 

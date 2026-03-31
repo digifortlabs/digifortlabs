@@ -1522,6 +1522,15 @@ class IPDAdmission(Base):
     bed = relationship("Bed")
     doctor = relationship("User")
 
+class SystemErrorLog(Base):
+    __tablename__ = "system_error_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    severity = Column(String, default="ERROR") # INFO, WARNING, ERROR, CRITICAL
+    module = Column(String, nullable=True)     # e.g., 'auth', 'hms', 'billing'
+    message = Column(Text, nullable=False)
+    traceback = Column(Text, nullable=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+
 class UserTrustedDevice(Base):
     __tablename__ = "user_trusted_devices"
     id = Column(Integer, primary_key=True, index=True)
