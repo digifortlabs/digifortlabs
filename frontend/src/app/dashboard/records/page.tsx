@@ -69,6 +69,22 @@ export default function RecordsList() {
     const [hospitals, setHospitals] = useState<any[]>([]);
     const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null);
 
+    // Read Global Hospital State
+    useEffect(() => {
+        const saved = localStorage.getItem('globalHospitalId');
+        if (saved) {
+            setSelectedHospitalId(Number(saved));
+        }
+
+        const handleHospitalChanged = (e: any) => {
+            const val = e.detail;
+            setSelectedHospitalId(val ? Number(val) : null);
+        };
+
+        window.addEventListener('hospitalChanged', handleHospitalChanged);
+        return () => window.removeEventListener('hospitalChanged', handleHospitalChanged);
+    }, []);
+
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => {
             if (globalSearchTerm.length > 2) {
@@ -1295,24 +1311,11 @@ export default function RecordsList() {
                                     </div>
 
                                     <form onSubmit={handleCreate} className="space-y-4">
-                                        {/* Hospital Selection for Super Admins - Always limit to first tab or all? Let's keep it in Identity or Global */}
-                                        {(userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff') && activeTab === 'identity' && (
-                                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4">
-                                                <label className="block text-xs font-bold text-slate-700 mb-1">Select {terms.hospital} <span className="text-red-500">*</span></label>
-                                                <div className="relative">
-                                                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                                    <select
-                                                        required
-                                                        className="w-full pl-10 pr-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-700 text-sm"
-                                                        value={selectedHospitalId || ''}
-                                                        onChange={(e) => setSelectedHospitalId(Number(e.target.value))}
-                                                    >
-                                                        <option value="">-- Choose {terms.hospital} --</option>
-                                                        {hospitals.map(h => (
-                                                            <option key={h.hospital_id} value={h.hospital_id}>{h.legal_name}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
+                                        {/* Hospital Selection for Super Admins */}
+                                        {(userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff') && activeTab === 'identity' && !selectedHospitalId && (
+                                            <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 mb-4 flex items-center gap-2">
+                                                <AlertTriangle size={16} className="text-amber-500" />
+                                                <p className="text-xs font-bold text-amber-700">Please select a {terms.hospital} from the top navigation to add a record.</p>
                                             </div>
                                         )}
 

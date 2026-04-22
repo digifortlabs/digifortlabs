@@ -4,10 +4,11 @@
 This roadmap outlines the journey from a modernized administrative interface to a stabilized, highly reliable clinical reporting platform. We move from visual refinements (Phase 1) to functional stability (Phase 2) and finally to deployment excellence (Phase 3).
 
 ## Phases
-- [ ] **Phase 1: Command Center UI Finalization** - Complete the high-density modernization of administrative modules.
+- [x] **Phase 1: Command Center UI Finalization** - Complete the high-density modernization of administrative modules.
 - [x] **Phase 2: Data Reliability & Stability** - Resolve patient data retrieval bugs and ensure robust error handling.
-- [ ] **Phase 3: Deployment Autopilot** - Establish a seamless synchronization pipeline between local and live environments.
-- [ ] **Phase 4: Role-Based Access Control (RBAC)** - Implement and verify distinct user experiences for Platform Admins, Hospital Admins, and Staff.
+- [x] **Phase 3: Deployment Autopilot** - Establish a seamless synchronization pipeline between local and live environments.
+- [x] **Phase 4: Role-Based Access Control (RBAC)** - Implement and verify distinct user experiences for Platform Admins, Hospital Admins, and Staff.
+- [x] **Phase 5: Global Hospital Selection** - Standardize Platform Admin navigation with a global top-navbar hospital selector and overview dashboard.
 
 ## Phase Details
 
@@ -22,9 +23,9 @@ This roadmap outlines the journey from a modernized administrative interface to 
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: Audit and unify Client Registry styles.
-- [ ] 01-02: Modernize Audit Logs with high-density layouts.
-- [ ] 01-03: Finalize Billing Intelligence dashboard components.
+- [x] 01-01: Audit and unify Client Registry styles.
+- [x] 01-02: Modernize Audit Logs with high-density layouts.
+- [x] 01-03: Finalize Billing Intelligence dashboard components.
 
 ### Phase 2: Data Reliability & Stability
 **Status:** Completed
@@ -42,7 +43,7 @@ Plans:
 - [ ] 02-02: Implement robust date filtering logic in the backend.
 
 ### Phase 3: Deployment Autopilot
-**Status:** In Progress
+**Status:** Completed
 **Goal**: Automate the sync between local code and AWS production environments.
 **Depends on**: Phase 2
 **Requirements**: Deployment Autopilot, Global Telemetry
@@ -68,14 +69,21 @@ Plans:
 
 Plans:
 - [ ] 04-01: Audit and map current `userRole` usage across Navbar and Sidebar.
-- [ ] 04-02: Implement role-based route protection and redirection.
-- [ ] 04-03: Customize Command Center dashboard views based on active role.
+- [x] 04-03: Enforce UI routing protections in `layout.tsx` to prevent cross-tenant leakage.
+
+### Phase 5: Global Hospital Selection
+**Status:** Completed
+**Goal**: Standardize Platform Admin hospital selection to a single global navbar component that drives context for all other modules.
+**Requirements**: 
+- Remove local hospital selection dropdowns from `/records` and `/appointments`.
+- Implement `GlobalHospitalSelector.tsx` in `DashboardNavbar`.
+- Auto-route to `/dashboard?hospital_id=[ID]` for hospital overview upon selection.
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. UI Finalization | 0/3 | Not started | - |
+| 1. UI Finalization | 3/3 | Completed | Yes |
 | 2. Data Reliability | 0/2 | Not started | - |
 | 3. Deployment Autopilot| 0/2 | Not started | - |
 | 4. Role-Based RBAC | 0/3 | Not started | - |

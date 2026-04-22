@@ -168,7 +168,9 @@ async def login_for_access_token(
                     known_devices = []
             
             # --- TRUSTED DEVICE CHECK ---
-            is_admin = (user.role in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN]) and (user.email.lower() != "demo@hospital.com")
+            # demo@hospital.com is permanently excluded from MFA/OTP
+            is_demo = user.email.lower() == "demo@hospital.com"
+            is_admin = (user.role in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN]) and not is_demo
             trusted_token = request.cookies.get("trusted_device")
             is_trusted = False
             

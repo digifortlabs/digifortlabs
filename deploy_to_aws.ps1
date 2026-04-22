@@ -33,13 +33,12 @@ if ($gitStatus) {
 # Step 2: Push to GitHub
 Write-Host ""
 Write-Host "[2/4] Pushing code to GitHub (origin/main)..." -ForegroundColor Yellow
-try {
-    git push origin main
-    Write-Host "✅ Push successful." -ForegroundColor Green
-} catch {
+git push origin master:main
+if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Failed to push to GitHub. Aborting deployment." -ForegroundColor Red
     exit 1
 }
+Write-Host "✅ Push successful." -ForegroundColor Green
 
 # Step 3: Trigger Remote Deployment via SSH
 Write-Host ""

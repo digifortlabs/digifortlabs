@@ -105,13 +105,29 @@ export default function AppointmentsDashboard() {
     useEffect(() => {
         if (userProfile) {
             if (['website_admin', 'website_staff', 'superadmin', 'superadmin_staff'].includes(userProfile.role)) {
-                fetchHospitals();
+                // Platform Admins rely on global state
+                const saved = localStorage.getItem('globalHospitalId');
+                if (saved) {
+                    setSelectedHospitalId(Number(saved));
+                }
             } else {
                 if (userProfile.hospital_id) {
                     setSelectedHospitalId(userProfile.hospital_id);
                 }
             }
         }
+    }, [userProfile]);
+
+    useEffect(() => {
+        const handleHospitalChanged = (e: any) => {
+            if (['website_admin', 'website_staff', 'superadmin', 'superadmin_staff'].includes(userProfile?.role)) {
+                const val = e.detail;
+                setSelectedHospitalId(val ? Number(val) : null);
+            }
+        };
+
+        window.addEventListener('hospitalChanged', handleHospitalChanged);
+        return () => window.removeEventListener('hospitalChanged', handleHospitalChanged);
     }, [userProfile]);
 
     useEffect(() => {
@@ -161,27 +177,7 @@ export default function AppointmentsDashboard() {
                 <CardHeader className="border-b border-slate-800 pb-4">
                     <div className="flex flex-col md:flex-row gap-4 justify-between">
                         <div className="flex gap-4 flex-wrap">
-                            {['superadmin', 'superadmin_staff', 'website_admin', 'website_staff'].includes(userProfile?.role) && (
-                                <div className="w-48">
-                                    <label className="text-xs text-slate-400 mb-1 block">Hospital Client</label>
-                                    <Select value={selectedHospitalId?.toString() || "all"} onValueChange={(val) => setSelectedHospitalId(val === "all" ? null : parseInt(val))}>
-                                        <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
-                                            <div className="flex items-center gap-2 truncate">
-                                                <Building2 className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-                                                <SelectValue placeholder="Select Client" />
-                                            </div>
-                                        </SelectTrigger>
-                                        <SelectContent className="bg-slate-800 border-slate-700 text-white">
-                                            <SelectItem value="all">Select Client</SelectItem>
-                                            {hospitals.map((h: any) => (
-                                                <SelectItem key={h.hospital_id} value={h.hospital_id.toString()}>
-                                                    {h.legal_name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            )}
+                            {/* Global hospital state is now controlled via the top Navbar for Platform Admins */}
                             <div className="w-48">
                                 <label className="text-xs text-slate-400 mb-1 block">Date</label>
                                 <Input

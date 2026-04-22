@@ -4,6 +4,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Building2, Menu, X, Settings, LogOut, LayoutDashboard, Database, Archive, FileClock, Users as UsersIcon, Box, FileText, Receipt, Shield, HardDrive } from 'lucide-react';
 import { useTerminology } from '@/hooks/useTerminology';
+import GlobalHospitalSelector from './GlobalHospitalSelector';
 
 interface DashboardNavbarProps {
     userRole: string;
@@ -106,8 +107,11 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
                     {/* Right Side: Account & Profile */}
                     <div className="flex items-center gap-4">
+                        {/* Global Hospital Selector for Platform Admins */}
+                        {(isSuperAdmin || isStaff) && <GlobalHospitalSelector />}
+
                         {/* Hospital Badge for Tenants */}
-                        {hospitalName && (
+                        {hospitalName && !(isSuperAdmin || isStaff) && (
                             <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full">
                                 <Building2 size={14} className="text-indigo-400" />
                                 <div className="flex flex-col">
