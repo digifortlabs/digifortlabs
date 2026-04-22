@@ -120,12 +120,12 @@ export default function CommandCenter() {
     useEffect(() => {
         // Role is handled by localStorage now during login
         if (typeof window !== 'undefined') {
-            const storedRole = localStorage.getItem('userRole');
+            const storedRole = (localStorage.getItem('userRole') || '').toLowerCase();
             if (!storedRole) {
                 router.push('/login');
                 return;
             }
-            setUserRole((storedRole || '').toLowerCase());
+            setUserRole(storedRole);
         }
 
         // Fetch Real Dashboard Stats (with optional hospital_id for drill-down)
@@ -170,16 +170,25 @@ export default function CommandCenter() {
         fetchDashboardData();
     }, [hospitalId, router]);
 
+    const isPlatformAdmin = userRole === 'superadmin' || userRole === 'superadmin_staff' || userRole === 'website_admin';
+    const isHospitalAdmin = userRole === 'hospital_admin';
+    const isStaff = userRole === 'hospital_staff' || userRole === 'mrd_staff' || userRole === 'website_staff' || userRole === 'data_uploader' || userRole === 'warehouse_manager';
+
     // Separate Effect for Session Timer
     useEffect(() => {
         // Simplified session timer using localStorage login time if we strictly need it,
         // or removing it as JWT parsing is no longer possible client-side securely with HttpOnly
         const loginTimeStr = localStorage.getItem('loginTime');
-        const iat = loginTimeStr ? parseInt(loginTimeStr) : Math.floor(Date.now() / 1000); // Fallback to now if not set
+        let iat = loginTimeStr ? parseInt(loginTimeStr) : null;
+        
+        if (!iat) {
+            iat = Math.floor(Date.now() / 1000);
+            localStorage.setItem('loginTime', iat.toString());
+        }
 
         const updateTimer = () => {
             const now = Math.floor(Date.now() / 1000);
-            const diff = now - iat;
+            const diff = now - (iat as number);
             const h = Math.floor(diff / 3600).toString().padStart(2, '0');
             const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
             const s = (diff % 60).toString().padStart(2, '0');
@@ -214,27 +223,27 @@ export default function CommandCenter() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2 gap-2">
                 <div>
                     <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                        {userRole === 'superadmin' && !isDetailedView ? (
+                        {isPlatformAdmin && !isDetailedView ? (
                             <>
                                 <Activity className="text-indigo-600 w-6 h-6" /> Global Platform Analytics
                             </>
-                        ) : isDetailedView && stats?.hospital_name ? (
+                        ) : isHospitalAdmin || (isDetailedView && stats?.hospital_name) ? (
                             <>
                                 <Building2 className="text-indigo-600 w-6 h-6" />
-                                {stats.hospital_name}
+                                {stats?.hospital_name || "Hospital Command Center"}
                             </>
                         ) : (
                             <>
-                                <Activity className="text-indigo-600 w-6 h-6" /> Control Command Center
+                                <Activity className="text-indigo-600 w-6 h-6" /> Workstation Dashboard
                             </>
                         )}
                     </h1>
                     <p className="text-slate-500 font-medium text-xs">
-                        {userRole === 'superadmin' && !isDetailedView
+                        {isPlatformAdmin && !isDetailedView
                             ? "Aggregated telemetry across all registered enterprises and clients."
-                            : isDetailedView
-                                ? "Client-specific metrics, billing, and operational insights."
-                                : "Real-time system monitoring and integrity oversight."}
+                            : isHospitalAdmin
+                                ? "Operational performance, staff productivity, and financial oversight."
+                                : "Pending tasks, recent records, and real-time operational tools."}
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -287,8 +296,8 @@ export default function CommandCenter() {
                             <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">MRD</span>
                         </button>
 
-                        {/* 2. LAW / Legal */}
-                        <button 
+                        {/* LAW module deactivated */}
+                        {/* <button 
                             onClick={() => enabledModules.includes('legal') || userRole === 'superadmin' ? router.push('/dashboard/legal') : setUpsellModule('Legal')} 
                             className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl transition-all gap-2 group border ${enabledModules.includes('legal') || userRole === 'superadmin' ? 'bg-amber-50 hover:bg-amber-100 border-amber-100' : 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100'}`}
                         >
@@ -296,10 +305,10 @@ export default function CommandCenter() {
                                 <Scale size={20} className="sm:w-6 sm:h-6" />
                             </div>
                             <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">LAW</span>
-                        </button>
+                        </button> */}
 
-                        {/* 3. CORPORATE */}
-                        <button 
+                        {/* CORP module deactivated */}
+                        {/* <button 
                             onClick={() => enabledModules.includes('corporate') || userRole === 'superadmin' || specialty?.toLowerCase().includes('corporate') || specialty?.toLowerCase().includes('cooperate') ? router.push('/dashboard/corporate/documents') : setUpsellModule('Corporate')} 
                             className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl transition-all gap-2 group border ${enabledModules.includes('corporate') || userRole === 'superadmin' || specialty?.toLowerCase().includes('corporate') || specialty?.toLowerCase().includes('cooperate') ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-100' : 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100'}`}
                         >
@@ -307,7 +316,7 @@ export default function CommandCenter() {
                                 <Briefcase size={20} className="sm:w-6 sm:h-6" />
                             </div>
                             <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">Corp</span>
-                        </button>
+                        </button> */}
 
                         {/* 4. DENTAL */}
                         <button 
@@ -331,8 +340,8 @@ export default function CommandCenter() {
                             <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">ENT</span>
                         </button>
 
-                        {/* 6. PHARMA */}
-                        <button 
+                        {/* PHARMA module deactivated */}
+                        {/* <button 
                             onClick={() => enabledModules.includes('pharma') || userRole === 'superadmin' ? router.push('/dashboard/pharma') : setUpsellModule('Pharma')} 
                             className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl transition-all gap-2 group border ${enabledModules.includes('pharma') || userRole === 'superadmin' ? 'bg-sky-50 hover:bg-sky-100 border-sky-100' : 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100'}`}
                         >
@@ -340,7 +349,7 @@ export default function CommandCenter() {
                                 <Pill size={20} className="sm:w-6 sm:h-6" />
                             </div>
                             <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">Pharma</span>
-                        </button>
+                        </button> */}
 
                         {/* 7. HMS */}
                         <button 
@@ -379,81 +388,117 @@ export default function CommandCenter() {
                 </div>
             )}
 
-            {/* Top Metrics Grid - Comprehensive 8 Cards */}
+            {/* Top Metrics Grid - Role Based */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-
-                <MetricCard
-                    label={userRole === 'superadmin' ? 'Total Platform Entities' : `Total ${terms.patient}s`}
-                    value={stats?.patients?.total || 0}
-                    trend={stats?.patients?.trend || "+0%"}
-                    trendUp={stats?.patients?.trend?.startsWith('+') && stats?.patients?.trend !== "+0%"}
-                    icon={<Users size={18} />}
-                    color="indigo"
-                />
-
-                <MetricCard
-                    label="Active Requests"
-                    value={stats?.requests?.pending || 0}
-                    trend={stats?.requests?.pending > 0 ? "Urgent" : "Normal"}
-                    trendUp={stats?.requests?.pending > 0}
-                    icon={<FileText size={18} />}
-                    color="amber"
-                />
-
-                <MetricCard
-                    label="Scanned Today"
-                    value={stats?.requests?.todays_scans || 0}
-                    trend={stats?.requests?.todays_scans > 0 ? "Active" : "+0"}
-                    trendUp={stats?.requests?.todays_scans > 0}
-                    icon={<ScanLine size={18} />}
-                    color="emerald"
-                />
-
-                <MetricCard
-                    label="Open Boxes"
-                    value={stats?.warehouse?.open_boxes || 0}
-                    trend={stats?.warehouse?.open_boxes > 0 ? "Active" : "None"}
-                    trendUp={stats?.warehouse?.open_boxes > 0}
-                    icon={<Package size={18} />}
-                    color="cyan"
-                />
-
-                <MetricCard
-                    label="Pending QA"
-                    value={stats?.qa?.pending || 0}
-                    trend={stats?.qa?.pending > 0 ? "Review" : "Clear"}
-                    trendUp={false}
-                    icon={<AlertTriangle size={18} />}
-                    color="purple"
-                />
-
-                <MetricCard
-                    label="Storage Used"
-                    value={stats?.storage?.usage || "0 GB"}
-                    trend={`${stats?.storage?.capacity_pct || 0}%`}
-                    trendUp={true}
-                    icon={<HardDrive size={18} />}
-                    color="blue"
-                    sub={`Capacity: ${stats?.storage?.capacity_pct || 0}%`}
-                />
-
-                <MetricCard
-                    label="Recent Uploads"
-                    value={stats?.recent_uploads || 0}
-                    trend="Last 24h"
-                    trendUp={stats?.recent_uploads > 0}
-                    icon={<ArrowUpRight size={18} />}
-                    color="emerald"
-                />
-
-                <MetricCard
-                    label="System Health"
-                    value={stats?.system?.health || "Good"}
-                    trend={stats?.system?.uptime || "..."}
-                    trendUp={true}
-                    icon={<ShieldCheck size={18} />}
-                    color="emerald"
-                />
+                {isPlatformAdmin && !isDetailedView ? (
+                    <>
+                        <MetricCard
+                            label="Total Platform Entities"
+                            value={stats?.patients?.total || 0}
+                            trend={stats?.patients?.trend || "+0%"}
+                            trendUp={stats?.patients?.trend?.startsWith('+') && stats?.patients?.trend !== "+0%"}
+                            icon={<Users size={18} />}
+                            color="indigo"
+                        />
+                        <MetricCard
+                            label="Global Active Requests"
+                            value={stats?.requests?.pending || 0}
+                            trend={stats?.requests?.pending > 0 ? "Urgent" : "Normal"}
+                            trendUp={stats?.requests?.pending > 0}
+                            icon={<FileText size={18} />}
+                            color="amber"
+                        />
+                        <MetricCard
+                            label="System Throughput"
+                            value={stats?.requests?.todays_scans || 0}
+                            trend="Live"
+                            trendUp={true}
+                            icon={<ScanLine size={18} />}
+                            color="emerald"
+                        />
+                        <MetricCard
+                            label="Storage Overhead"
+                            value={stats?.storage?.usage || "0 GB"}
+                            trend={`${stats?.storage?.capacity_pct || 0}%`}
+                            trendUp={true}
+                            icon={<HardDrive size={18} />}
+                            color="blue"
+                        />
+                    </>
+                ) : (
+                    <>
+                        <MetricCard
+                            label={`Total ${terms.patient}s`}
+                            value={stats?.patients?.total || 0}
+                            trend={stats?.patients?.trend || "+0%"}
+                            trendUp={stats?.patients?.trend?.startsWith('+') && stats?.patients?.trend !== "+0%"}
+                            icon={<Users size={18} />}
+                            color="indigo"
+                        />
+                        <MetricCard
+                            label="Pending Actions"
+                            value={stats?.requests?.pending || 0}
+                            trend={stats?.requests?.pending > 0 ? "Review" : "Clear"}
+                            trendUp={stats?.requests?.pending > 0}
+                            icon={<FileText size={18} />}
+                            color="amber"
+                        />
+                        <MetricCard
+                            label="Your Activity"
+                            value={stats?.requests?.todays_scans || 0}
+                            trend="Today"
+                            trendUp={true}
+                            icon={<Activity size={18} />}
+                            color="emerald"
+                        />
+                        <MetricCard
+                            label="Open Boxes"
+                            value={stats?.warehouse?.open_boxes || 0}
+                            trend="In Progress"
+                            trendUp={false}
+                            icon={<Package size={18} />}
+                            color="cyan"
+                        />
+                    </>
+                )}
+                
+                {/* Secondary Metrics for Admins */}
+                {(isPlatformAdmin || isHospitalAdmin) && (
+                    <>
+                        <MetricCard
+                            label="Pending QA"
+                            value={stats?.qa?.pending || 0}
+                            trend="Audit"
+                            trendUp={false}
+                            icon={<AlertTriangle size={18} />}
+                            color="purple"
+                        />
+                        <MetricCard
+                            label="Staff Active"
+                            value={stats?.staff_active || 0}
+                            trend="Online"
+                            trendUp={true}
+                            icon={<Users size={18} />}
+                            color="blue"
+                        />
+                        <MetricCard
+                            label="Recent Uploads"
+                            value={stats?.recent_uploads || 0}
+                            trend="24h"
+                            trendUp={true}
+                            icon={<ArrowUpRight size={18} />}
+                            color="emerald"
+                        />
+                        <MetricCard
+                            label="System Health"
+                            value={stats?.system?.health || "Good"}
+                            trend="Stable"
+                            trendUp={true}
+                            icon={<ShieldCheck size={18} />}
+                            color="emerald"
+                        />
+                    </>
+                )}
             </div>
 
             {/* Charts Section - 2 Visual Charts */}
@@ -691,40 +736,87 @@ export default function CommandCenter() {
                     <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
                         <h3 className="text-lg font-bold text-slate-800 mb-6">Quick Actions</h3>
 
-                        {/* Admin Only Actions */}
-                        {(userRole === 'website_admin' || userRole === 'superadmin') && (
-                            <div className="grid grid-cols-2 gap-4">
-                                <ActionButton
-                                    icon={<RefreshCcw size={18} />}
-                                    label="Clear Cache"
-                                    onClick={handleClearCache}
-                                />
-                                <ActionButton
-                                    icon={<IndianRupee size={18} />}
-                                    label="Platform Billing"
-                                    onClick={() => router.push('/dashboard/accounting')}
-                                />
-                                <ActionButton
-                                    icon={<Building2 size={18} />}
-                                    label="Manage Clients"
-                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 hover:border-blue-100"
-                                    onClick={() => router.push('/dashboard/organizations')}
-                                />
-                                <ActionButton
-                                    icon={<Archive size={18} />}
-                                    label="Global Archives"
-                                    onClick={() => router.push('/dashboard/archive')}
-                                />
-                                <ActionButton
-                                    icon={<HardDrive size={18} />}
-                                    label="Manage Drafts"
-                                    className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 hover:border-amber-100"
-                                    onClick={() => router.push('/dashboard/drafts')}
-                                />
-                                <ActionButton
-                                    icon={<CheckCircle2 size={18} />}
-                                    label="Confirm Pending Uploads"
-                                    className="col-span-2 bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-100"
+                        {/* Quick Actions Grid */}
+                        <div className="grid grid-cols-2 gap-4">
+                            {isPlatformAdmin && !isDetailedView && (
+                                <>
+                                    <ActionButton
+                                        icon={<RefreshCcw size={18} />}
+                                        label="Clear Cache"
+                                        onClick={handleClearCache}
+                                    />
+                                    <ActionButton
+                                        icon={<IndianRupee size={18} />}
+                                        label="Global Billing"
+                                        onClick={() => router.push('/dashboard/accounting')}
+                                    />
+                                    <ActionButton
+                                        icon={<Building2 size={18} />}
+                                        label="Manage Clients"
+                                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 hover:border-blue-100"
+                                        onClick={() => router.push('/dashboard/organizations')}
+                                    />
+                                    <ActionButton
+                                        icon={<Archive size={18} />}
+                                        label="Global Archives"
+                                        onClick={() => router.push('/dashboard/archive')}
+                                    />
+                                </>
+                            )}
+
+                            {(isHospitalAdmin || isDetailedView) && (
+                                <>
+                                    <ActionButton
+                                        icon={<IndianRupee size={18} />}
+                                        label="Financials"
+                                        onClick={() => router.push('/dashboard/accounting')}
+                                    />
+                                    <ActionButton
+                                        icon={<TrendingUp size={18} />}
+                                        label="Analytics"
+                                        onClick={() => router.push('/dashboard/reports')}
+                                    />
+                                    <ActionButton
+                                        icon={<Users size={18} />}
+                                        label="Manage Staff"
+                                        onClick={() => router.push('/dashboard/user_mgmt')}
+                                    />
+                                    <ActionButton
+                                        icon={<Settings size={18} />}
+                                        label="Settings"
+                                        onClick={() => router.push('/dashboard/settings')}
+                                    />
+                                </>
+                            )}
+
+                            {isStaff && (
+                                <>
+                                    <ActionButton
+                                        icon={<FileText size={18} />}
+                                        label="Request File"
+                                        onClick={() => router.push('/dashboard/requests')}
+                                    />
+                                    <ActionButton
+                                        icon={<Users size={18} />}
+                                        label="Add Patient"
+                                        onClick={() => router.push('/dashboard/records?action=new')}
+                                    />
+                                    <ActionButton
+                                        icon={<Package size={18} />}
+                                        label="Warehouse"
+                                        onClick={() => router.push('/dashboard/storage')}
+                                    />
+                                    <ActionButton
+                                        icon={<HardDrive size={18} />}
+                                        label="Draft Queue"
+                                        onClick={() => router.push('/dashboard/drafts')}
+                                    />
+                                </>
+                            )}
+
+                            {/* Confirm Drafts Action (Admin only) */}
+                            {(isPlatformAdmin || isHospitalAdmin) && (
+                                <button
                                     disabled={confirmModal.isLoading}
                                     onClick={() => {
                                         setConfirmModal({
@@ -737,13 +829,8 @@ export default function CommandCenter() {
                                             onConfirm: async () => {
                                                 setConfirmModal(prev => ({ ...prev, isLoading: true }));
                                                 try {
-                                                    // Token is handled by HttpOnly cookies
-
-                                                    // 1. Fetch Drafts List
                                                     const drafts = await apiFetch(`storage/drafts${hospitalId ? `?hospital_id=${hospitalId}` : ''}`);
-
                                                     if (!Array.isArray(drafts)) throw new Error("Failed to fetch drafts list");
-
                                                     if (drafts.length === 0) {
                                                         setConfirmModal(prev => ({
                                                             ...prev,
@@ -754,21 +841,11 @@ export default function CommandCenter() {
                                                         }));
                                                         return;
                                                     }
-
-                                                    // 2. Process one by one
                                                     let successCount = 0;
                                                     for (const file of drafts) {
-                                                        setConfirmModal(prev => ({ ...prev, message: `Publishing: ${file.filename}\n(Patient: ${file.patient_name})` }));
-
-                                                        const confRes = await apiFetch(`patients/files/${file.file_id}/confirm`, {
-                                                            method: 'POST'
-                                                        });
-
-                                                        if (confRes !== null) successCount++;
-                                                        // We continue even if one fails
+                                                        await apiFetch(`patients/files/${file.file_id}/confirm`, { method: 'POST' });
+                                                        successCount++;
                                                     }
-
-                                                    // 3. Show Final Result
                                                     setConfirmModal(prev => ({
                                                         ...prev,
                                                         isLoading: false,
@@ -793,148 +870,13 @@ export default function CommandCenter() {
                                             }
                                         });
                                     }}
-                                />
-                            </div>
-                        )}
-
-                        {/* Hospital & Staff Actions */}
-                        {(userRole === 'hospital_admin' || userRole === 'hospital_staff' || userRole === 'warehouse_manager' || userRole === 'superadmin_staff') && (
-                            <div className="grid grid-cols-2 gap-4">
-
-                                {/* Universal Admin Action: Confirm Uploads */}
-                                {(userRole === 'hospital_admin' || userRole === 'superadmin_staff') && (
-                                    <button
-                                        disabled={confirmModal.isLoading}
-                                        onClick={() => {
-                                            setConfirmModal({
-                                                isOpen: true,
-                                                title: "Confirm All Drafts",
-                                                message: "Are you sure you want to confirm all pending uploads immediately? This will finalize their storage locations.",
-                                                type: 'success',
-                                                confirmText: "Confirm All",
-                                                closeOnConfirm: false,
-                                                onConfirm: async () => {
-                                                    setConfirmModal(prev => ({ ...prev, isLoading: true }));
-                                                    try {
-                                                        // Token is handled by HttpOnly cookies
-
-                                                        // 1. Fetch Drafts List
-                                                        const drafts = await apiFetch(`storage/drafts${hospitalId ? `?hospital_id=${hospitalId}` : ''}`);
-
-                                                        if (!Array.isArray(drafts)) throw new Error("Failed to fetch drafts list");
-
-                                                        if (drafts.length === 0) {
-                                                            setConfirmModal(prev => ({
-                                                                ...prev,
-                                                                isLoading: false,
-                                                                message: "No pending drafts found.",
-                                                                confirmText: "OK",
-                                                                onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
-                                                            }));
-                                                            return;
-                                                        }
-
-                                                        // 2. Process one by one
-                                                        let successCount = 0;
-                                                        for (const file of drafts) {
-                                                            setConfirmModal(prev => ({ ...prev, message: `Publishing: ${file.filename}\n(Patient: ${file.patient_name})` }));
-
-                                                            const confRes = await apiFetch(`patients/files/${file.file_id}/confirm`, {
-                                                                method: 'POST'
-                                                            });
-
-                                                            if (confRes !== null) successCount++;
-                                                        }
-
-                                                        // 3. Show Final Result
-                                                        setConfirmModal(prev => ({
-                                                            ...prev,
-                                                            isLoading: false,
-                                                            title: "Confirmation Complete",
-                                                            message: `Successfully confirmed ${successCount} of ${drafts.length} files.`,
-                                                            confirmText: "OK",
-                                                            onConfirm: () => {
-                                                                setConfirmModal(prev => ({ ...prev, isOpen: false }));
-                                                                window.location.reload();
-                                                            }
-                                                        }));
-                                                    } catch (e: any) {
-                                                        setConfirmModal(prev => ({
-                                                            ...prev,
-                                                            isLoading: false,
-                                                            type: 'danger',
-                                                            message: e.message || "Failed to confirm uploads",
-                                                            confirmText: "Dismiss",
-                                                            onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
-                                                        }));
-                                                    }
-                                                }
-                                            });
-                                        }}
-                                        className="col-span-2 bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-100 p-4 rounded-2xl flex items-center justify-center gap-2 font-bold text-xs"
-                                    >
-                                        <CheckCircle2 size={18} />
-                                        {confirmModal.isLoading ? <Loader2 size={14} className="animate-spin" /> : "Confirm All Pending Uploads"}
-                                    </button>
-                                )}
-
-                                {/* Warehouse Manager (MRD) Actions */}
-                                {userRole === 'warehouse_manager' ? (
-                                    <>
-                                        <ActionButton
-                                            icon={<AppWindow size={18} />}
-                                            label="Scanner App"
-                                            onClick={() => window.open('digifort://quick_launch', '_self')}
-                                        />
-                                        <ActionButton
-                                            icon={<Users size={18} />}
-                                            label={`Search ${terms.patient}`}
-                                            onClick={() => router.push('/dashboard/records')}
-                                        />
-                                        <ActionButton
-                                            icon={<FileText size={18} />}
-                                            label="View Pending"
-                                            onClick={() => router.push('/dashboard/requests')}
-                                        />
-                                        <ActionButton
-                                            icon={<Archive size={18} />}
-                                            label="Physical Archive"
-                                            onClick={() => router.push('/dashboard/archive')}
-                                        />
-                                        <ActionButton
-                                            icon={<HardDrive size={18} />}
-                                            label="Manage Drafts"
-                                            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 hover:border-amber-100"
-                                            onClick={() => router.push('/dashboard/drafts')}
-                                        />
-                                    </>
-                                ) : (
-                                    /* Hospital Admin & Staff Actions */
-                                    <>
-                                        <ActionButton
-                                            icon={<FileText size={18} />}
-                                            label="Request File"
-                                            onClick={() => router.push('/dashboard/requests')}
-                                        />
-
-                                        <ActionButton
-                                            icon={<Users size={18} />}
-                                            label="Add Patient"
-                                            onClick={() => router.push('/dashboard/records?action=new')}
-                                        />
-                                    </>
-                                )}
-
-                                {userRole === 'hospital_admin' && (
-                                    <ActionButton
-                                        icon={<Users size={18} />}
-                                        label="Manage Staff"
-                                        onClick={() => router.push('/dashboard/user_mgmt')}
-                                    />
-                                )}
-
-                            </div>
-                        )}
+                                    className="col-span-2 bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-100 p-4 rounded-2xl flex items-center justify-center gap-2 font-bold text-xs mt-2"
+                                >
+                                    <CheckCircle2 size={18} />
+                                    {confirmModal.isLoading ? <Loader2 size={14} className="animate-spin" /> : "Confirm All Pending Uploads"}
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                 </div>

@@ -93,12 +93,6 @@ export default function ENTDashboard() {
                 </div>
                 <div className="flex items-center gap-3">
                     <Button
-                        onClick={() => {/* Open New Patient Modal */ }}
-                        className="bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-600/20"
-                    >
-                        <Plus className="w-4 h-4 mr-2" /> New Patient
-                    </Button>
-                    <Button
                         onClick={() => router.push('/dashboard/appointments')}
                         variant="outline"
                         className="gap-2 bg-white shadow-sm"

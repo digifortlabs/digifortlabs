@@ -49,53 +49,53 @@ export default function FinancialDashboard({ onViewAging }: { onViewAging: () =>
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Primary Metrics Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-2xl flex flex-col justify-between h-44 relative overflow-hidden">
+                <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-xl flex flex-col justify-between h-36 relative overflow-hidden">
                     <div className="absolute -right-4 -top-4 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
                     <div>
-                        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Net Cash in Hand</p>
-                        <h3 className="text-3xl font-black mt-2">₹{stats.cash_in_hand.toLocaleString()}</h3>
+                        <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest">Net Cash in Hand</p>
+                        <h3 className="text-2xl font-black mt-1">₹{stats.cash_in_hand.toLocaleString()}</h3>
                     </div>
-                    <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
-                        <TrendingUp size={14} /> Corrected for Expenses
-                    </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-3xl border border-rose-100 shadow-sm flex flex-col justify-between h-44">
-                    <div className="flex items-center justify-between">
-                        <div className="p-2.5 bg-rose-50 rounded-xl text-rose-600">
-                            <ArrowUpRight size={20} />
-                        </div>
-                        <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest">Receivables</span>
-                    </div>
-                    <div>
-                        <p className="text-slate-500 text-xs font-bold uppercase">To be Collected</p>
-                        <h3 className="text-2xl font-black text-slate-900 mt-1">₹{stats.total_receivables.toLocaleString()}</h3>
+                    <div className="flex items-center gap-2 text-emerald-400 text-[10px] font-bold">
+                        <TrendingUp size={12} /> Corrected for Expenses
                     </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-3xl border border-indigo-100 shadow-sm flex flex-col justify-between h-44">
+                <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-sm flex flex-col justify-between h-36">
                     <div className="flex items-center justify-between">
-                        <div className="p-2.5 bg-indigo-50 rounded-xl text-indigo-600">
-                            <BarChart3 size={20} />
+                        <div className="p-2 bg-rose-50 rounded-lg text-rose-600">
+                            <ArrowUpRight size={16} />
                         </div>
-                        <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Sales (MTD)</span>
+                        <span className="text-[9px] font-black text-rose-400 uppercase tracking-widest">Receivables</span>
                     </div>
                     <div>
-                        <p className="text-slate-500 text-xs font-bold uppercase">This Month</p>
-                        <h3 className="text-2xl font-black text-slate-900 mt-1">₹{stats.total_sales_mtd.toLocaleString()}</h3>
+                        <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest">To be Collected</p>
+                        <h3 className="text-xl font-black text-slate-900 mt-1">₹{stats.total_receivables.toLocaleString()}</h3>
                     </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-3xl border border-emerald-100 shadow-sm flex flex-col justify-between h-44">
+                <div className="bg-white p-4 rounded-2xl border border-indigo-100 shadow-sm flex flex-col justify-between h-36">
                     <div className="flex items-center justify-between">
-                        <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600">
-                            <DollarSign size={20} />
+                        <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+                            <BarChart3 size={16} />
                         </div>
-                        <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Net Profit</span>
+                        <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Sales (MTD)</span>
                     </div>
                     <div>
-                        <p className="text-slate-500 text-xs font-bold uppercase">Estimated Profit</p>
-                        <h3 className="text-2xl font-black text-slate-900 mt-1">₹{stats.net_profit_mtd.toLocaleString()}</h3>
+                        <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest">This Month</p>
+                        <h3 className="text-xl font-black text-slate-900 mt-1">₹{stats.total_sales_mtd.toLocaleString()}</h3>
+                    </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl border border-emerald-100 shadow-sm flex flex-col justify-between h-36">
+                    <div className="flex items-center justify-between">
+                        <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
+                            <DollarSign size={16} />
+                        </div>
+                        <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Net Profit</span>
+                    </div>
+                    <div>
+                        <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest">Estimated Profit</p>
+                        <h3 className="text-xl font-black text-slate-900 mt-1">₹{stats.net_profit_mtd.toLocaleString()}</h3>
                     </div>
                 </div>
             </div>

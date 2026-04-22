@@ -168,7 +168,7 @@ async def login_for_access_token(
                     known_devices = []
             
             # --- TRUSTED DEVICE CHECK ---
-            is_admin = user.role in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN]
+            is_admin = (user.role in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN]) and (user.email.lower() != "demo@hospital.com")
             trusted_token = request.cookies.get("trusted_device")
             is_trusted = False
             

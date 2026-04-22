@@ -210,23 +210,21 @@ export default function AccountingPage() {
     }
 
     return (
-        <div className="w-full mx-auto space-y-4 pb-8">
+        <div className="min-h-screen bg-slate-50/50 p-3 lg:p-4 pt-0">
             {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-1 mb-2">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
-                        <Receipt className="text-indigo-600" size={32} />
-                        Financial Desk
+                    <h1 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-1.5 leading-none">
+                        <Receipt size={20} className="text-slate-900" /> Financial Desk
                     </h1>
-                    <p className="text-slate-500 mt-1">Manage hospital billings, invoices, and payment tracking.</p>
+                    <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-1">Global Billing & Revenue Command</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                     <button
                         onClick={() => setShowGenModal(true)}
-                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-semibold shadow-lg shadow-indigo-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        className="bg-slate-900 text-white px-4 py-2 rounded-lg font-black text-xs flex items-center gap-2 hover:bg-slate-800 transition-all shadow-sm active:scale-95"
                     >
-                        <Plus size={16} />
-                        Generate Invoice
+                        <Plus size={14} /> Generate Invoice
                     </button>
                     <div className="relative">
                         <button
@@ -294,27 +292,27 @@ export default function AccountingPage() {
             </div>
 
             {/* Tab Switcher */}
-            <div className="flex items-center gap-1 p-1 bg-slate-200/50 rounded-xl w-fit">
+            <div className="flex items-center gap-1 p-1 bg-slate-200/50 rounded-xl w-fit mb-3">
                 {[
-                    { id: 'dashboard', label: 'Company Overview', icon: Eye },
+                    { id: 'dashboard', label: 'Overview', icon: Eye },
                     { id: 'invoices', label: 'Sales & Invoices', icon: Receipt },
                     { id: 'parties', label: 'Hospital Ledgers', icon: Building2 },
-                    { id: 'vendors', label: 'Vendor Payables', icon: Truck },
-                    { id: 'expenses', label: 'Expenses & Costs', icon: ArrowDownLeft },
-                    { id: 'reports', label: 'Tax & P&L', icon: PieChart },
-                    { id: 'setup', label: 'Sequence Setup', icon: Settings2 },
+                    { id: 'vendors', label: 'Vendors', icon: Truck },
+                    { id: 'expenses', label: 'Expenses', icon: ArrowDownLeft },
+                    { id: 'reports', label: 'P&L', icon: PieChart },
+                    { id: 'setup', label: 'Setup', icon: Settings2 },
                 ].map((tab) => {
                     const Icon = tab.icon;
                     return (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as any)}
-                            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === tab.id
-                                ? 'bg-white text-indigo-600 shadow-sm shadow-slate-200'
+                            className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all ${activeTab === tab.id
+                                ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
                                 : 'text-slate-500 hover:bg-white/50'
                                 }`}
                         >
-                            <Icon size={18} />
+                            <Icon size={14} />
                             {tab.label}
                         </button>
                     );
@@ -325,37 +323,35 @@ export default function AccountingPage() {
             {activeTab === 'invoices' && (
                 <>
                     {/* Stats Overview */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                         {[
-                            { label: 'Pending Collections', value: `₹${stats.total_pending.toLocaleString()}`, icon: <Clock className="text-amber-500" />, trend: 'Waiting for Payment', color: 'border-amber-200' },
-                            { label: 'Total Revenue', value: `₹${stats.total_paid.toLocaleString()}`, icon: <ArrowUpRight className="text-emerald-500" />, trend: 'Collected to date', color: 'border-emerald-200' },
-                            { label: 'Active Invoices', value: stats.total_invoices, icon: <Receipt className="text-indigo-500" />, trend: 'In current system', color: 'border-indigo-200' },
+                            { label: 'Pending Collections', value: `₹${stats.total_pending.toLocaleString()}`, icon: <Clock size={14} className="text-amber-500" />, trend: 'Awaiting' },
+                            { label: 'Total Revenue', value: `₹${stats.total_paid.toLocaleString()}`, icon: <ArrowUpRight size={14} className="text-emerald-500" />, trend: 'Realized' },
+                            { label: 'Active Invoices', value: stats.total_invoices, icon: <Receipt size={14} className="text-indigo-500" />, trend: 'Count' },
                         ].map((stat, i) => (
-                            <div key={i} className={`bg-white p-4 rounded-xl border ${stat.color} shadow-sm space-y-3`}>
-                                <div className="flex items-center justify-between">
-                                    <div className="p-3 bg-slate-50 rounded-xl">
-                                        {stat.icon}
-                                    </div>
-                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{stat.trend}</span>
+                            <div key={i} className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2.5 hover:shadow-md transition-shadow group">
+                                <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center transition-transform group-hover:scale-110">
+                                    {stat.icon}
                                 </div>
                                 <div>
-                                    <p className="text-slate-500 text-sm font-medium">{stat.label}</p>
-                                    <h3 className="text-2xl font-bold text-slate-900 mt-1">{stat.value}</h3>
+                                    <p className="text-slate-400 text-[8px] font-black uppercase tracking-widest leading-none mb-0.5">{stat.label}</p>
+                                    <div className="text-base font-black text-slate-800 leading-tight">{stat.value}</div>
                                 </div>
+                                <div className="ml-auto text-[8px] font-black text-slate-300 uppercase tracking-tighter">{stat.trend}</div>
                             </div>
                         ))}
                     </div>
 
                     {/* Filters & Search */}
-                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
-                        <div className="flex items-center gap-2 w-full md:w-auto">
+                    <div className="bg-white p-2 px-3 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 items-center justify-between mb-3">
+                        <div className="flex items-center gap-1 w-full md:w-auto">
                             {['ALL', 'PENDING', 'PAID'].map((status) => (
                                 <button
                                     key={status}
                                     onClick={() => setFilterStatus(status)}
-                                    className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${filterStatus === status
-                                        ? 'bg-slate-900 text-white shadow-md shadow-slate-200'
-                                        : 'text-slate-500 hover:bg-slate-100'
+                                    className={`px-3 py-1 text-[10px] font-black rounded-lg transition-all uppercase tracking-widest ${filterStatus === status
+                                        ? 'bg-slate-900 text-white shadow-sm'
+                                        : 'text-slate-400 hover:bg-slate-50'
                                         }`}
                                 >
                                     {status}
@@ -363,13 +359,13 @@ export default function AccountingPage() {
                             ))}
                         </div>
                         <div className="relative w-full md:w-96">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                            <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
                             <input
                                 type="text"
                                 placeholder="Search by Invoice # or Hospital..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                className="w-full pl-9 pr-4 py-1.5 bg-slate-50 border border-slate-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/5 transition-all text-xs font-medium"
                             />
                         </div>
                     </div>
@@ -377,128 +373,105 @@ export default function AccountingPage() {
                     {/* Invoices Table */}
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50 border-bottom border-slate-200">
-                                        <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Invoice Info</th>
-                                        <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Hospital</th>
-                                        <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</th>
-                                        <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                                        <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Issue Date</th>
-                                        <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50/50 border-b border-slate-100">
+                                    <tr>
+                                        <th className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice Info</th>
+                                        <th className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hospital</th>
+                                        <th className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                                        <th className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                        <th className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Issue Date</th>
+                                        <th className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {loading ? (
                                         Array(5).fill(0).map((_, i) => (
                                             <tr key={i} className="animate-pulse">
-                                                <td colSpan={6} className="px-6 py-4">
-                                                    <div className="h-10 bg-slate-50 rounded-lg"></div>
+                                                <td colSpan={6} className="px-3 py-1.5">
+                                                    <div className="h-8 bg-slate-50 rounded-lg"></div>
                                                 </td>
                                             </tr>
                                         ))
                                     ) : filteredInvoices.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                                            <td colSpan={6} className="px-3 py-8 text-center text-slate-400">
                                                 <div className="flex flex-col items-center gap-2">
-                                                    <Receipt size={40} className="opacity-20" />
-                                                    <p>No invoices found matching your criteria.</p>
+                                                    <Receipt size={32} className="opacity-20" />
+                                                    <p className="text-[10px] font-bold uppercase tracking-widest">No matching invoices</p>
                                                 </div>
                                             </td>
                                         </tr>
                                     ) : filteredInvoices.map((invoice) => (
-                                        <tr key={invoice.invoice_id} className="hover:bg-slate-50/50 transition-colors group">
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-bold text-xs">
+                                        <tr key={invoice.invoice_id} className="hover:bg-slate-50/80 transition-colors group">
+                                            <td className="px-3 py-1">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-6 h-6 bg-slate-100 text-slate-600 rounded flex items-center justify-center font-black text-[8px]">
                                                         INV
                                                     </div>
                                                     <div>
-                                                        <p className="font-bold text-slate-900">#{invoice.invoice_number}</p>
-                                                        <div className="flex items-center gap-2 mt-0.5">
-                                                            <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded uppercase">{invoice.items?.length || 0} Files</span>
-                                                            <span className="text-slate-300">•</span>
-                                                            <p className="text-xs text-slate-500 flex items-center gap-1" title="Created On">
-                                                                <Clock size={10} /> {format(new Date(invoice.created_at), 'MMM dd')}
-                                                            </p>
+                                                        <p className="font-bold text-slate-800 text-[11px]">#{invoice.invoice_number}</p>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-[8px] font-black bg-slate-50 text-slate-400 px-1 py-0.5 rounded border border-slate-100 uppercase">{invoice.items?.length || 0} Items</span>
+                                                            <span className="text-[9px] text-slate-400 font-medium">{format(new Date(invoice.created_at), 'MMM dd')}</span>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2">
-                                                    <Building2 size={16} className="text-slate-400" />
-                                                    <span className="font-medium text-slate-700">{invoice.hospital_name}</span>
+                                            <td className="px-3 py-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Building2 size={10} className="text-slate-400" />
+                                                    <span className="text-[11px] font-bold text-slate-700">{invoice.hospital_name}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <p className="font-bold text-slate-900">₹{invoice.total_amount.toLocaleString()}</p>
-                                                <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-tighter flex items-center gap-1">
-                                                    <Percent size={8} /> {invoice.gst_rate}% GST Incl.
+                                            <td className="px-3 py-1">
+                                                <p className="font-black text-slate-800 text-[11px]">₹{invoice.total_amount.toLocaleString()}</p>
+                                                <p className="text-[8px] text-emerald-600 font-black uppercase tracking-tighter flex items-center gap-0.5">
+                                                    <Percent size={8} /> {invoice.gst_rate}% GST
                                                 </p>
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusStyle(invoice.status)}`}>
+                                            <td className="px-3 py-1">
+                                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[9px] font-black border uppercase tracking-wider ${getStatusStyle(invoice.status)}`}>
                                                     {getStatusIcon(invoice.status)}
                                                     {invoice.status}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <p className="text-sm font-bold text-slate-700">{format(new Date(invoice.bill_date || invoice.created_at), 'dd/MM/yyyy')}</p>
-                                                <p className="text-[10px] text-slate-400 uppercase">Bill Date</p>
+                                            <td className="px-3 py-1">
+                                                <p className="text-[11px] font-bold text-slate-700">{format(new Date(invoice.bill_date || invoice.created_at), 'dd/MM/yyyy')}</p>
+                                                <p className="text-[8px] text-slate-400 font-black uppercase tracking-widest leading-none">Bill Date</p>
                                             </td>
-                                            <td className="px-4 py-3 text-right">
-                                                <div className="flex items-center justify-end gap-2">
+                                            <td className="px-3 py-1 text-right">
+                                                <div className="flex items-center justify-end gap-1">
                                                     {invoice.status === 'PENDING' && (
                                                         <button
                                                             onClick={() => handleReceivePayment(invoice)}
-                                                            title="Mark as Paid"
-                                                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-emerald-100"
+                                                            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                                                         >
-                                                            <DollarSign size={18} />
+                                                            <DollarSign size={12} />
                                                         </button>
                                                     )}
                                                     <button
                                                         disabled={emailLoading === invoice.invoice_id}
                                                         onClick={() => handleSendEmail(invoice.invoice_id)}
-                                                        title="Send Email"
-                                                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                        className="p-1 text-slate-400 hover:text-slate-900 rounded-lg transition-colors"
                                                     >
-                                                        {emailLoading === invoice.invoice_id ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />}
+                                                        {emailLoading === invoice.invoice_id ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />}
                                                     </button>
                                                     <button
                                                         onClick={() => handlePreview(invoice.invoice_id)}
-                                                        title="View/Preview Tax Invoice"
-                                                        className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors border border-slate-200"
+                                                        className="p-1 text-slate-400 hover:text-slate-900 rounded-lg transition-colors"
                                                     >
-                                                        <Eye size={18} />
+                                                        <Eye size={12} />
                                                     </button>
-
-                                                    <button
-                                                        onClick={() => handleEditManual(invoice)}
-                                                        title="Edit Invoice Details"
-                                                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-indigo-100"
-                                                    >
-                                                        <Settings2 size={18} />
-                                                    </button>
-
                                                     {invoice.status === 'PENDING' && (
                                                         <button
                                                             disabled={deleteLoading === invoice.invoice_id}
                                                             onClick={() => handleDeleteInvoice(invoice.invoice_id)}
-                                                            title="Cancel & Delete Invoice"
-                                                            className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-rose-100"
+                                                            className="p-1 text-red-400 hover:text-red-600 rounded-lg transition-colors"
                                                         >
-                                                            {deleteLoading === invoice.invoice_id ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+                                                            {deleteLoading === invoice.invoice_id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                                                         </button>
                                                     )}
-
-                                                    <button
-                                                        title="More Actions"
-                                                        className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-colors"
-                                                    >
-                                                        <ChevronRight size={18} />
-                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>

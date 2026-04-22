@@ -346,7 +346,8 @@ export default function RecordsList() {
 
     const fetchNextMRD = async () => {
         const storedRole = localStorage.getItem('userRole');
-        if ((storedRole === 'superadmin' || storedRole === 'superadmin_staff') && !selectedHospitalId) {
+        const isPlatform = ['superadmin', 'superadmin_staff', 'website_admin', 'website_staff'].includes(storedRole || '');
+        if (isPlatform && !selectedHospitalId) {
             return;
         }
 
@@ -515,7 +516,7 @@ export default function RecordsList() {
                 url = `dental/patients?skip=0&limit=100`;
             }
 
-            if (selectedHospitalId && (userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff')) {
+            if (selectedHospitalId && ['superadmin', 'superadmin_staff', 'website_admin', 'website_staff'].includes(userProfile?.role)) {
                 url += `&hospital_id=${selectedHospitalId}`;
             }
 
@@ -538,7 +539,7 @@ export default function RecordsList() {
     const fetchDoctors = async () => {
         try {
             let url = `patients/doctors`;
-            if (selectedHospitalId && (userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff')) {
+            if (selectedHospitalId && ['superadmin', 'superadmin_staff', 'website_admin', 'website_staff'].includes(userProfile?.role)) {
                 url += `?hospital_id=${selectedHospitalId}`;
             }
             const data = await apiFetch(url);
@@ -556,8 +557,8 @@ export default function RecordsList() {
                 return;
             }
 
-            // Check if super admin has selected a hospital
-            if ((userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff') && !selectedHospitalId) {
+            // Check if platform admin has selected a hospital
+            if (['superadmin', 'superadmin_staff', 'website_admin', 'website_staff'].includes(userProfile?.role) && !selectedHospitalId) {
                 alert("Please select a hospital first.");
                 return;
             }
@@ -613,8 +614,8 @@ export default function RecordsList() {
             // Append Unit to Age
             body.age = `${newPatient.age} ${ageUnit}`;
 
-            // Include hospital_id for super admins
-            if (selectedHospitalId && (userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff')) {
+            // Include hospital_id for platform admins
+            if (selectedHospitalId && ['superadmin', 'superadmin_staff', 'website_admin', 'website_staff'].includes(userProfile?.role)) {
                 body.hospital_id = selectedHospitalId;
             }
 
@@ -725,7 +726,7 @@ export default function RecordsList() {
 
                 <div className="flex gap-2 w-full md:w-auto flex-wrap items-center">
                     {/* Hospital Selector for Platform Admins */}
-                    {(userProfile?.role === 'superadmin' || userProfile?.role === 'superadmin_staff') && (
+                    {['superadmin', 'superadmin_staff', 'website_admin', 'website_staff'].includes(userProfile?.role) && (
                         <div className="flex flex-1 md:flex-none items-center gap-2 bg-white border border-slate-200 px-3 md:px-4 py-3 rounded-xl shadow-sm min-w-[200px]">
                             <Building2 size={18} className="text-indigo-600 flex-shrink-0" />
                             <select
@@ -837,16 +838,7 @@ export default function RecordsList() {
                     </div>
 
                     <div className="flex gap-2">
-                        <button
-                            onClick={() => {
-                                resetForm();
-                                setShowCreateModal(true);
-                                fetchNextMRD(); // Auto-fill next MRD
-                            }}
-                            className="bg-indigo-600 text-white px-4 md:px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/20"
-                        >
-                            <Plus size={20} /> <span className="hidden md:inline">Add {terms.patient}</span>
-                        </button>
+                        {/* Add Patient button removed - now global in Sidebar */}
                     </div>
                 </div>
             </div>

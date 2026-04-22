@@ -120,6 +120,7 @@ function LoginForm() {
 
     const completeLogin = (data: any) => {
         localStorage.setItem('userEmail', email); // Store for Secure View Watermark
+        localStorage.setItem('loginTime', Math.floor(Date.now() / 1000).toString()); // Persist for session timer
         if (data.access_token) sessionStorage.setItem('access_token', data.access_token); // For Scanner protocol handoff
 
         if (data.role) localStorage.setItem('userRole', data.role);

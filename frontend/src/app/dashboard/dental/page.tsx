@@ -310,30 +310,6 @@ export default function DentalDashboard() {
                 </div>
                 <div className="flex gap-2">
                     <Button
-                        onClick={() => {
-                            setEditingId(null);
-                            setNewPatientData({
-                                full_name: '',
-                                phone: '',
-                                email: '',
-                                gender: '',
-                                date_of_birth: '',
-                                address: '',
-                                uhid: '',
-                                opd_number: '',
-                                medical_history: '',
-                                allergies: '',
-                                medications: '',
-                                chief_complaint: ''
-                            });
-                            setShowNewPatientModal(true);
-                            fetchNextIds();
-                        }}
-                        className="bg-blue-900 hover:bg-blue-800 text-white gap-2 shadow-sm"
-                    >
-                        <Plus className="w-4 h-4" /> New Patient
-                    </Button>
-                    <Button
                         onClick={() => router.push('/dashboard/appointments')}
                         variant="outline"
                         className="gap-2 bg-white shadow-sm"

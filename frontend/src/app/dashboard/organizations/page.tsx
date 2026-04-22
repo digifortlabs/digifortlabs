@@ -366,15 +366,15 @@ export default function HospitalsPage() {
     }, 0);
 
     return (
-        <div className="min-h-screen bg-slate-50 p-4 lg:p-6 pt-0">
+        <div className="min-h-screen bg-slate-50/50 p-3 lg:p-4 pt-0">
 
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-3">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                        <Building2 className="text-indigo-600" /> Client Management
+                    <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                        <Building2 size={24} className="text-slate-900" /> Client Registry
                     </h1>
-                    <p className="text-slate-500 font-medium">Register and manage partner clients.</p>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Administrative Management Center</p>
                 </div>
                 <button
                     onClick={() => {
@@ -391,9 +391,9 @@ export default function HospitalsPage() {
                         setShowModal(true);
                     }}
 
-                    className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
+                    className="bg-slate-900 text-white px-4 py-2 rounded-lg font-black text-xs flex items-center gap-2 hover:bg-slate-800 transition-all shadow-sm active:scale-95"
                 >
-                    <Plus size={20} /> Register New Client
+                    <Plus size={14} /> Register New Client
                 </button>
             </div>
 
@@ -430,56 +430,56 @@ export default function HospitalsPage() {
 
             {/* List */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-                <div className="p-4 border-b border-slate-100 flex gap-4 justify-between items-center">
+                <div className="p-3 border-b border-slate-100 flex gap-4 justify-between items-center">
                     <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-4 top-3 text-slate-400" size={20} />
+                        <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
                         <input
                             type="text"
                             placeholder="Search clients..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-12 pr-4 py-2 bg-slate-50 rounded-xl font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400 text-sm"
+                            className="w-full pl-10 pr-4 py-1.5 bg-slate-50 rounded-lg font-medium text-slate-700 outline-none focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400 text-xs"
                         />
                     </div>
 
                     {/* Bulk Actions Menu */}
                     {selectedHospitals.length > 0 && (
                         <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5">
-                            <span className="text-sm font-bold text-slate-500">{selectedHospitals.length} Selected</span>
-                            <div className="h-8 w-[1px] bg-slate-200 mx-2"></div>
-                            <button className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-bold text-sm transition-colors">
-                                <Trash size={16} /> Delete
+                            <span className="text-[10px] font-bold text-slate-500">{selectedHospitals.length} Selected</span>
+                            <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
+                            <button className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-bold text-[10px] transition-colors">
+                                <Trash size={12} /> Delete
                             </button>
-                            <button className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-bold text-sm transition-colors">
-                                <Power size={16} /> Deactivate
+                            <button className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 font-bold text-[10px] transition-colors">
+                                <Power size={12} /> Deactivate
                             </button>
                         </div>
                     )}
                 </div>
 
                 <table className="w-full text-left">
-                    <thead className="bg-slate-50 border-b border-slate-100">
+                    <thead className="bg-slate-50/50 border-b border-slate-100">
                         <tr>
-                            <th className="px-4 py-3">
+                            <th className="px-3 py-1.5 w-10">
                                 <input
                                     type="checkbox"
                                     checked={hospitals.length > 0 && selectedHospitals.length === hospitals.length}
                                     onChange={toggleSelectAll}
-                                    className="w-5 h-5 rounded-md border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                 />
                             </th>
-                            <th className="px-4 py-3 text-xs font-black text-slate-500 uppercase tracking-wider">Client Name</th>
-                            <th className="px-4 py-3 text-xs font-black text-slate-500 uppercase tracking-wider">Type</th>
-                            <th className="px-4 py-3 text-xs font-black text-slate-500 uppercase tracking-wider">Plan</th>
-                            <th className="px-4 py-3 text-xs font-black text-slate-500 uppercase tracking-wider">City</th>
-                            <th className="px-4 py-3 text-xs font-black text-slate-500 uppercase tracking-wider">Billing</th>
-                            <th className="px-4 py-3 text-xs font-black text-slate-500 uppercase tracking-wider">Status</th>
-                            <th className="px-4 py-3 text-xs font-black text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                            <th className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Client Name</th>
+                            <th className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Type</th>
+                            <th className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Plan</th>
+                            <th className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">City</th>
+                            <th className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Billing</th>
+                            <th className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                            <th className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {loading ? (
-                            <tr><td colSpan={6} className="p-4 text-center text-slate-400">Loading...</td></tr>
+                            <tr><td colSpan={8} className="p-4 text-center text-slate-400 text-xs">Loading...</td></tr>
                         ) : hospitals.filter(h =>
                             h.legal_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             h.city?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -487,74 +487,71 @@ export default function HospitalsPage() {
                             <tr
                                 key={h.hospital_id}
                                 onClick={() => router.push(`/dashboard?hospital_id=${h.hospital_id}`)}
-                                className={`hover:bg-slate-50/50 transition-colors relative group cursor-pointer ${selectedHospitals.includes(h.hospital_id) ? 'bg-indigo-50/30' : ''}`}
+                                className={`hover:bg-slate-50/80 transition-colors relative group cursor-pointer ${selectedHospitals.includes(h.hospital_id) ? 'bg-indigo-50/40' : ''}`}
                             >
-                                <td className="px-4 py-3">
+                                <td className="px-3 py-1.5">
                                     <div onClick={(e) => e.stopPropagation()}>
                                         <input
                                             type="checkbox"
                                             checked={selectedHospitals.includes(h.hospital_id)}
                                             onChange={() => toggleSelect(h.hospital_id)}
-                                            className="w-5 h-5 rounded-md border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                         />
                                     </div>
                                 </td>
-                                <td className="px-4 py-3">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                                <td className="px-3 py-1.5">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-[10px]">
                                             {h.legal_name.substring(0, 2).toUpperCase()}
                                         </div>
                                         <div>
-                                            <p className="font-bold text-slate-800">{h.legal_name}</p>
-                                            <p className="text-xs text-slate-400">{h.email}</p>
+                                            <p className="font-bold text-slate-800 text-[11px] leading-tight">{h.legal_name}</p>
+                                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight">{h.email}</p>
                                         </div>
                                     </div>
                                 </td>
-                                <td className="px-4 py-3">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="px-3 py-1 rounded-xl text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200 w-fit">
+                                <td className="px-3 py-1.5">
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="px-2 py-0.5 rounded-lg text-[9px] font-black bg-slate-100 text-slate-600 border border-slate-200 w-fit">
                                             {h.hospital_type || 'Private'}
                                         </span>
-                                        <span className={`px-3 py-1 rounded-xl text-[10px] font-black border w-fit ${h.specialty === 'Dental' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : h.specialty === 'Legal' ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>
+                                        <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black border w-fit ${h.specialty === 'Dental' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : h.specialty === 'Legal' ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>
                                             {h.specialty || 'General'}
                                         </span>
                                     </div>
                                 </td>
-                                <td className="px-4 py-3">
+                                <td className="px-3 py-1.5">
                                     <PlanBadge plan={h.subscription_tier} />
                                 </td>
-                                <td className="px-4 py-3 text-sm font-medium text-slate-600">
+                                <td className="px-3 py-1.5 text-[11px] font-bold text-slate-500">
                                     {h.city || 'N/A'}
                                 </td>
-                                <td className="px-4 py-3">
+                                <td className="px-3 py-1.5">
                                     <div className="flex flex-col">
-                                        <span className="text-xs font-bold text-slate-700">
+                                        <span className="text-[10px] font-black text-slate-700 leading-none">
                                             ₹{h.custom_pricing?.mrd?.base_rate || h.price_per_file || 100}/file
                                         </span>
-                                        <span className="text-[10px] text-slate-400 font-medium">
+                                        <span className="text-[9px] text-slate-400 font-bold">
                                             {h.custom_pricing?.mrd?.threshold || h.included_pages} pgs inc.
                                         </span>
-                                        <span className="text-[10px] text-slate-400 font-medium">
-                                            ₹{h.custom_pricing?.mrd?.standard_rate || h.price_per_extra_page}/extra pg
-                                        </span>
                                     </div>
                                 </td>
-                                <td className="px-4 py-3">
-                                    <div className="flex items-center gap-2">
-                                        <div className={`w-2 h-2 rounded-xl ${h.is_active ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
-                                        <span className="text-sm font-bold text-slate-600">{h.is_active ? 'Active' : 'Inactive'}</span>
+                                <td className="px-3 py-1.5">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className={`w-1.5 h-1.5 rounded-full ${h.is_active ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                                        <span className="text-[11px] font-bold text-slate-600">{h.is_active ? 'Active' : 'Inactive'}</span>
                                     </div>
                                 </td>
-                                <td className="px-4 py-3 text-right">
+                                <td className="px-3 py-1.5 text-right">
                                     <div className="relative inline-block text-left">
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setActiveActionId(activeActionId === h.hospital_id ? null : h.hospital_id);
                                             }}
-                                            className="text-slate-400 hover:text-indigo-600 p-2 rounded-xl hover:bg-slate-100 transition-colors"
+                                            className="text-slate-300 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
                                         >
-                                            <MoreVertical size={18} />
+                                            <MoreVertical size={14} />
                                         </button>
 
                                         {activeActionId === h.hospital_id && (
@@ -654,9 +651,6 @@ export default function HospitalsPage() {
                                                     <option>Hospital</option>
                                                     <option>Clinic</option>
                                                     <option>Dental Clinic</option>
-                                                    <option>Law Firm</option>
-                                                    <option>Corporate Office</option>
-                                                    <option>Pharma Manufacturing</option>
                                                 </select>
                                             </div>
                                             <FormInput label="Registration Number" value={regNumber} onChange={setRegNumber} placeholder="License or Govt ID" />
@@ -739,16 +733,6 @@ export default function HospitalsPage() {
                                                     <ModuleCard id="hms" label="HMS Pro" icon={<Hotel size={18} />} desc="IPD, Wards, OT and billing." active={enabledModules.includes('hms')} onClick={() => toggleModule('hms')} />
                                                     <ModuleCard id="dental" label="Dental Engine" icon={<span>🦷</span>} desc="3D Charting & clinical records." active={enabledModules.includes('dental')} onClick={() => toggleModule('dental')} />
                                                 </>
-                                            )}
-                                            
-                                            {industry === 'Corporate' && (
-                                                <ModuleCard id="corporate" label="Corporate Portal" icon={<Building2 size={18} />} desc="Enterprise documents & staff management." active={enabledModules.includes('corporate')} onClick={() => toggleModule('corporate')} />
-                                            )}
-
-                                            <ModuleCard id="legal" label="Law Discovery" icon={<ShieldCheck size={18} />} desc="Case tracking and evidence vault." active={enabledModules.includes('legal')} onClick={() => toggleModule('legal')} />
-                                            
-                                            {industry !== 'Corporate' && industry !== 'Legal' && (
-                                                <ModuleCard id="pharma" label="Pharma Ops" icon={<span>🧪</span>} desc="Manufacturing and batch tracing." active={enabledModules.includes('pharma')} onClick={() => toggleModule('pharma')} />
                                             )}
                                             
                                             <ModuleCard id="accounting" label="Financial Ledger" icon={<IndianRupee size={18} />} desc="GST invoicing and P&L tracking." active={enabledModules.includes('accounting')} onClick={() => toggleModule('accounting')} />
@@ -960,28 +944,28 @@ const StatsCard = ({ title, value, icon: Icon, color }: any) => {
     };
 
     return (
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-lg transition-shadow">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colorStyles[color]}`}>
-                <Icon size={20} />
+        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-2.5 hover:shadow-md transition-shadow group">
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110 ${colorStyles[color]}`}>
+                <Icon size={14} />
             </div>
             <div>
-                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">{title}</p>
-                <div className="text-xl font-black text-slate-800">{value}</div>
+                <p className="text-slate-400 text-[8px] font-black uppercase tracking-widest leading-none mb-0.5">{title}</p>
+                <div className="text-base font-black text-slate-800 leading-tight">{value}</div>
             </div>
         </div>
     );
 };
 
 const FormInput = ({ label, value, onChange, type = "text", required = false, placeholder = "", onBlur }: any) => (
-    <div className="space-y-1">
-        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider">{label} {required && '*'}</label>
+    <div className="space-y-0.5">
+        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label} {required && '*'}</label>
         <input
             type={type}
             required={required}
             value={value}
             onChange={e => onChange(type === "number" ? Number(e.target.value) : e.target.value)}
             onBlur={onBlur}
-            className="w-full p-3 bg-slate-50 rounded-xl border-none font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20"
+            className="w-full px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-100 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-slate-900/5 transition-all text-xs"
             placeholder={placeholder}
         />
     </div>
@@ -990,15 +974,15 @@ const FormInput = ({ label, value, onChange, type = "text", required = false, pl
 const ModuleCard = ({ id, label, icon, desc, active, onClick, fixed = false }: any) => (
     <div
         onClick={onClick}
-        className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${active ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100 hover:border-slate-300'} ${fixed ? 'opacity-80 active:scale-100' : 'active:scale-98'}`}
+        className={`p-2.5 rounded-lg border-2 transition-all cursor-pointer ${active ? 'border-slate-900 bg-slate-50' : 'border-slate-100 hover:border-slate-300'} ${fixed ? 'opacity-80 active:scale-100' : 'active:scale-98'}`}
     >
-        <div className="flex justify-between items-start mb-2">
-            <div className={`flex items-center gap-2 font-black ${active ? 'text-indigo-900' : 'text-slate-600'}`}>
+        <div className="flex justify-between items-start mb-0.5">
+            <div className={`flex items-center gap-2 font-black text-[11px] ${active ? 'text-slate-900' : 'text-slate-600'}`}>
                 {icon} {label}
             </div>
-            {active && <CheckCircle2 size={16} className="text-indigo-600" />}
+            {active && <CheckCircle2 size={12} className="text-slate-900" />}
         </div>
-        <p className="text-[10px] font-semibold text-slate-500 leading-relaxed">{desc}</p>
+        <p className="text-[8px] font-bold text-slate-400 leading-tight">{desc}</p>
     </div>
 );
 

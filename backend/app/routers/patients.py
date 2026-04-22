@@ -5,7 +5,7 @@ from typing import List, Optional, Union
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, Response, Request
 from pydantic import BaseModel
-from sqlalchemy import or_
+from sqlalchemy import or_, cast, Date
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import SessionLocal, get_db
@@ -958,8 +958,8 @@ def get_patients(
     q: Optional[str] = None, 
     unassigned_only: bool = False,
     hospital_id: Optional[int] = None, # New: Allow filtering by specific hospital
-    start_date: Optional[datetime.datetime] = None,
-    end_date: Optional[datetime.datetime] = None,
+    start_date: Optional[datetime.date] = None,
+    end_date: Optional[datetime.date] = None,
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
@@ -982,9 +982,9 @@ def get_patients(
     
     # Apply Date Filtering
     if start_date:
-        query = query.filter(or_(Patient.discharge_date >= start_date, Patient.admission_date >= start_date))
+        query = query.filter(or_(cast(Patient.discharge_date, Date) >= start_date, cast(Patient.admission_date, Date) >= start_date))
     if end_date:
-        query = query.filter(or_(Patient.discharge_date <= end_date, Patient.admission_date <= end_date))
+        query = query.filter(or_(cast(Patient.discharge_date, Date) <= end_date, cast(Patient.admission_date, Date) <= end_date))
 
     if q:
         query = query.filter(

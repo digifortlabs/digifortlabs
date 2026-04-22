@@ -76,7 +76,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
     const showWarehouseMenu = showStorage || showRequests || showArchive || showDrafts;
 
     return (
-        <nav className="fixed top-0 w-full z-40 bg-slate-900 border-b border-slate-800 shadow-md">
+        <nav className="sticky top-0 w-full z-40 bg-slate-900 border-b border-slate-800 shadow-sm">
             <div className="w-full px-4 lg:px-6">
                 <div className="flex items-center justify-between h-16">
                     {/* Mobile Menu Toggle */}
@@ -91,177 +91,16 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
                     {/* Left Side: Logo & Main Nav */}
                     <div className="flex items-center gap-2 lg:gap-8">
-                        {/* Brand */}
-                        <div className="flex-shrink-0 flex items-center">
-                            <div className="bg-white rounded-lg px-1.5 py-1 md:px-2 md:py-1 transition-all">
-                                <img src="/logo/longlogo.png" alt="Digifort Labs" className="h-6 md:h-8 w-auto object-contain" />
+                        {/* Brand (Mobile Only) */}
+                        <div className="flex-shrink-0 flex items-center md:hidden">
+                            <div className="bg-white rounded-lg px-1.5 py-1 transition-all">
+                                <img src="/logo/longlogo.png" alt="Digifort Labs" className="h-6 w-auto object-contain" />
                             </div>
                         </div>
 
-                        {/* Desktop Navigation */}
+                        {/* Desktop Navigation (Moved to Sidebar) */}
                         <div className="hidden md:flex items-center space-x-1 lg:space-x-2">
-                            <Link
-                                href="/dashboard"
-                                className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${pathname === '/dashboard'
-                                    ? 'bg-slate-800 text-white'
-                                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                    }`}
-                            >
-                                Overview
-                            </Link>
-
-                            {specialty === 'Dental' && (
-                                <Link
-                                    href="/dashboard/dental"
-                                    className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/dental')
-                                        ? 'bg-emerald-600 text-white'
-                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                        }`}
-                                >
-                                    Dental
-                                </Link>
-                            )}
-
-                            {/* Super Admin Links */}
-                            {isSuperAdmin && (
-                                <Link
-                                    href="/dashboard/organizations"
-                                    className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/organizations')
-                                        ? 'bg-indigo-600 text-white'
-                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                        }`}
-                                >
-                                    Clients
-                                </Link>
-                            )}
-
-                            {/* Corporate Links */}
-                            {isCorporate && (isHospitalAdmin || isWarehouseManager || isSuperAdmin) && (
-                                <>
-                                    <Link
-                                        href="/dashboard/corporate/documents"
-                                        className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/corporate/documents')
-                                            ? 'bg-slate-800 text-white'
-                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                            }`}
-                                    >
-                                        Company Documents
-                                    </Link>
-                                    {isHospitalAdmin && (
-                                        <Link
-                                            href="/dashboard/corporate/employees"
-                                            className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/corporate/employees')
-                                                ? 'bg-slate-800 text-white'
-                                                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                                }`}
-                                        >
-                                            Staff
-                                        </Link>
-                                    )}
-                                </>
-                            )}
-
-                            {/* Records Link - Hiding for Corporate */}
-                            {(isHospitalAdmin || isWarehouseManager || isSuperAdmin) && !isCorporate && (
-                                <Link
-                                    href="/dashboard/records"
-                                    className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/records')
-                                        ? 'bg-slate-800 text-white'
-                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                        }`}
-                                >
-                                    Records
-                                </Link>
-                            )}
-
-                            {/* Reports & Accounting */}
-                            {isSuperAdmin && (
-                                <>
-                                    <Link
-                                        href="/dashboard/reports"
-                                        className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/reports')
-                                            ? 'bg-slate-800 text-white'
-                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                            }`}
-                                    >
-                                        Reports
-                                    </Link>
-                                    <Link
-                                        href="/dashboard/accounting"
-                                        className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/accounting')
-                                            ? 'bg-slate-800 text-white'
-                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                            }`}
-                                    >
-                                        Accounting
-                                    </Link>
-                                </>
-                            )}
-
-                            {/* Audit Logs */}
-                            {isSuperAdmin && (
-                                <Link
-                                    href="/dashboard/audit"
-                                    className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/audit')
-                                        ? 'bg-slate-800 text-white'
-                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                        }`}
-                                >
-                                    Audit Logs
-                                </Link>
-                            )}
-
-                            {/* Warehouse Dropdown */}
-                            {showWarehouseMenu && (
-                                <div className="relative group">
-                                    <button
-                                        className={`flex items-center gap-1 px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/storage') || isActive('/dashboard/requests') || isActive('/dashboard/archive') || isActive('/dashboard/drafts')
-                                            ? 'bg-slate-800 text-white'
-                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                            }`}
-                                    >
-                                        Warehouse <span className="text-[10px]">▼</span>
-                                    </button>
-                                    <div className="absolute left-0 mt-0 w-48 bg-slate-900 border border-slate-800 rounded-xl shadow-xl overflow-hidden hidden group-hover:block animate-in fade-in zoom-in-95 duration-150">
-                                        <div className="p-1 space-y-0.5">
-                                            {showStorage && (
-                                                <Link href="/dashboard/storage" className="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg">
-                                                    Overview
-                                                </Link>
-                                            )}
-                                            {showRequests && (
-                                                <Link href="/dashboard/requests" className="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg">
-                                                    File Requests
-                                                </Link>
-                                            )}
-                                            {showArchive && (
-                                                <Link href="/dashboard/archive" className="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg">
-                                                    Physical Archive
-                                                </Link>
-                                            )}
-                                            {showDrafts && (
-                                                <Link href="/dashboard/drafts" className="block px-4 py-2 text-sm text-amber-500 hover:bg-slate-800 hover:text-amber-400 rounded-lg">
-                                                    Drafts
-                                                </Link>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Staff Mgmt - Hiding for Corporate */}
-                            {isHospitalAdmin && !isCorporate && (
-                                <Link
-                                    href="/dashboard/user_mgmt"
-                                    className={`px-2 lg:px-3 py-2 rounded-md text-[11px] lg:text-sm font-medium transition-colors ${isActive('/dashboard/user_mgmt')
-                                        ? 'bg-slate-800 text-white'
-                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                        }`}
-                                >
-                                    Staff
-                                </Link>
-                            )}
-
+                            {/* Navigation links consolidated in the Sidebar for Command Center layout */}
                         </div>
                     </div>
 
@@ -286,6 +125,15 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 </div>
                             </div>
                         )}
+
+                        {/* Quick Add Patient Button (Desktop) */}
+                        <button 
+                            onClick={() => window.dispatchEvent(new CustomEvent('open-global-patient-register'))}
+                            className="hidden sm:flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-black shadow-lg shadow-indigo-500/20 transition-all active:scale-95 border border-indigo-400/30"
+                        >
+                            <UsersIcon size={14} />
+                            <span className="uppercase tracking-tight">Add {terms.patient}</span>
+                        </button>
 
                         {/* Profile Dropdown */}
                         <div className="relative">
@@ -363,6 +211,18 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                 isMenuOpen && (
                     <div className="md:hidden bg-slate-900 border-b border-slate-800 shadow-2xl animate-in fade-in slide-in-from-top-5 duration-200">
                         <div className="flex flex-col p-4 space-y-2">
+                            {/* Mobile Quick Action */}
+                            <button 
+                                onClick={() => {
+                                    setIsMenuOpen(false);
+                                    window.dispatchEvent(new CustomEvent('open-global-patient-register'));
+                                }}
+                                className="w-full bg-indigo-600 text-white font-black py-4 rounded-xl flex items-center justify-center gap-3 mb-4 shadow-lg shadow-indigo-900/40"
+                            >
+                                <UsersIcon size={20} />
+                                <span className="uppercase tracking-tight text-sm">Add New {terms.patient}</span>
+                            </button>
+
                             <Link
                                 href="/dashboard"
                                 onClick={() => setIsMenuOpen(false)}
