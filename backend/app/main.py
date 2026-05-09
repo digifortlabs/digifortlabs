@@ -11,6 +11,9 @@ setup_logging()
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
+from sqlalchemy.orm import configure_mappers
+configure_mappers()
+
 # --- SECURITY CHECKS ---
 if settings.ENVIRONMENT == "production" and settings.IS_UNSAFE_SECRET_KEY:
     import logging
@@ -22,183 +25,6 @@ if settings.ENVIRONMENT == "production" and settings.IS_UNSAFE_SECRET_KEY:
     # Based on user feedback: "make sure website should not crash or data both"
     # We will log a critical warning but allow the application to proceed.
 
-# --- AUTO MIGRATION (Fix for UndefinedColumn Errors) ---
-from sqlalchemy import text
-def run_migrations():
-    print("🐘 Running auto-migrations...")
-    try:
-        with engine.connect() as conn:
-            # 1. Add download_request_count to pdf_files
-            conn.execute(text("ALTER TABLE pdf_files ADD COLUMN IF NOT EXISTS download_request_count INTEGER DEFAULT 0"))
-            
-            # 2. Add missing columns to users
-            # full_name is NOT NULL, so we need a default for existing records
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR NOT NULL DEFAULT 'Legacy User'"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT 0"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS previous_login_at TIMESTAMP"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS known_devices TEXT DEFAULT '[]'"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP"))
-            
-            # Security Fix: Drop plain_password column if it exists
-            try:
-                conn.execute(text("ALTER TABLE users DROP COLUMN IF EXISTS plain_password"))
-            except Exception as drop_e:
-                print(f"Notice: Could not drop plain_password column (maybe it doesn't exist): {drop_e}")
-
-            # 3. Add Medical Fields to Patients
-            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS doctor_name VARCHAR"))
-            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS weight VARCHAR"))
-            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS diagnosis TEXT"))
-            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS operative_notes TEXT"))
-            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS mediclaim VARCHAR"))
-            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS medical_summary TEXT"))
-            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS remarks TEXT"))
-            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS mother_record_id INTEGER"))
-
-            # 5. Dental & Genericization
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS specialty VARCHAR DEFAULT 'General'"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS terminology JSON DEFAULT '{}'"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS enabled_modules JSON DEFAULT '[\"core\"]'"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS ai_settings JSON DEFAULT '{\"enabled\": false, \"api_key\": \"\"}'"))
-            
-            # Additional hospital columns
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS director_name VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS registration_number VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS established_year INTEGER"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS address VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS address_line2 VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS city VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS state VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS pincode VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS country VARCHAR DEFAULT 'India'"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS phone VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS alternate_phone VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS secondary_email VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS landline VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS google_maps_url TEXT"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS price_per_file FLOAT DEFAULT 100.0"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS included_pages INTEGER DEFAULT 20"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS price_per_extra_page FLOAT DEFAULT 1.0"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS custom_pricing JSON DEFAULT '{}'"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS pricing_effective_date TIMESTAMP"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS pricing_notes TEXT"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS expected_monthly_volume INTEGER"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS expected_users INTEGER"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS storage_requirements VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS special_requirements TEXT"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS accept_marketing BOOLEAN DEFAULT false"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS max_users INTEGER DEFAULT 10"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS per_user_price FLOAT DEFAULT 500.0"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS registration_fee FLOAT DEFAULT 0.0"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS is_reg_fee_paid BOOLEAN DEFAULT true"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS gst_number VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS bank_name VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS bank_account_no VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS bank_ifsc VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS pan_number VARCHAR"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
-            conn.execute(text("ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"))
-            conn.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS specialty_data JSON DEFAULT '{}'"))
-            
-            # 5b. Dental Patient Enhanced Fields
-            conn.execute(text("ALTER TABLE dental_patients ADD COLUMN IF NOT EXISTS clinical_data JSON DEFAULT '{}'"))
-            conn.execute(text("ALTER TABLE dental_patients ADD COLUMN IF NOT EXISTS habits JSON DEFAULT '{}'"))
-
-            # 6. Accounting Config Enhancements
-            conn.execute(text("ALTER TABLE accounting_config ADD COLUMN IF NOT EXISTS company_phone VARCHAR"))
-            conn.execute(text("ALTER TABLE accounting_config ADD COLUMN IF NOT EXISTS company_pan VARCHAR"))
-            conn.execute(text("ALTER TABLE accounting_config ADD COLUMN IF NOT EXISTS company_bank_branch VARCHAR"))
-
-            # 7. System Settings
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS system_settings (
-                    id SERIAL PRIMARY KEY,
-                    key VARCHAR UNIQUE NOT NULL,
-                    value TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """))
-
-            # 8. System Error Logs
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS system_error_logs (
-                    id SERIAL PRIMARY KEY,
-                    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    error_type VARCHAR NOT NULL,
-                    error_message TEXT NOT NULL,
-                    stack_trace TEXT,
-                    endpoint VARCHAR,
-                    user_id INTEGER REFERENCES users(user_id),
-                    method VARCHAR,
-                    status VARCHAR DEFAULT 'unresolved',
-                    notes TEXT
-                )
-            """))
-
-            # 9. MFA Login OTPs
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS login_otps (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER REFERENCES users(user_id) NOT NULL,
-                    device_id VARCHAR NOT NULL,
-                    otp_code VARCHAR NOT NULL,
-                    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                )
-            """))
-
-            # 10. User Trusted Devices (Skip MFA)
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS user_trusted_devices (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER REFERENCES users(user_id) NOT NULL,
-                    device_token_hash VARCHAR NOT NULL,
-                    device_name VARCHAR,
-                    last_used_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                )
-            """))
-            
-            # Index for performance
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_trusted_device_token ON user_trusted_devices(device_token_hash)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_trusted_device_user ON user_trusted_devices(user_id)"))
-
-            # 11. Dental Treatment Plans & Phases (fixes UndefinedColumn: phase_id)
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS dental_treatment_plans (
-                    plan_id SERIAL PRIMARY KEY,
-                    patient_id INTEGER REFERENCES dental_patients(patient_id) NOT NULL,
-                    name VARCHAR NOT NULL,
-                    status VARCHAR DEFAULT 'proposed',
-                    priority VARCHAR DEFAULT 'normal',
-                    estimated_cost FLOAT DEFAULT 0.0,
-                    notes TEXT,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                )
-            """))
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS dental_treatment_phases (
-                    phase_id SERIAL PRIMARY KEY,
-                    plan_id INTEGER REFERENCES dental_treatment_plans(plan_id) NOT NULL,
-                    name VARCHAR NOT NULL,
-                    phase_order INTEGER DEFAULT 1,
-                    status VARCHAR DEFAULT 'pending',
-                    estimated_duration_days INTEGER
-                )
-            """))
-            # Add phase_id to dental_treatments if not present
-            conn.execute(text("ALTER TABLE dental_treatments ADD COLUMN IF NOT EXISTS phase_id INTEGER REFERENCES dental_treatment_phases(phase_id)"))
-
-            conn.commit()
-            print("✅ Auto-migrations completed successfully.")
-    except Exception as e:
-        print(f"⚠️ Auto-migration skipped or failed: {e}")
-
-run_migrations()
 
 from fastapi_csrf_protect import CsrfProtect
 from fastapi_csrf_protect.exceptions import CsrfProtectError
@@ -215,17 +41,25 @@ def get_csrf_config():
     return CsrfSettings()
 
 async def verify_csrf(request: Request, csrf_protect: CsrfProtect = Depends()):
-    # Apply CSRF to all mutative state changes
-    if request.method in ["POST", "PUT", "PATCH", "DELETE"]:
-        path = request.url.path
-        # Exclude endpoints that create sessions/auth where token cannot exist yet
-        # OR desktop scanner app endpoints that cannot manage browser cookies
-        if (path.endswith("/auth/token") or 
-            path.endswith("/auth/request-password-reset") or
-            "/scanner/" in path or 
-            path.endswith("/upload")):
-            return
-        await csrf_protect.validate_csrf(request)
+    """
+    Global dependency to validate CSRF tokens on all state-changing requests.
+    Excludes public endpoints and health checks.
+    """
+    # 1. Skip if specifically disabled or public
+    if request.url.path in ["/health", "/docs", "/redoc", "/openapi.json", "/auth/csrf-token", "/auth/token"]:
+        return
+        
+    # 2. Skip for non-mutating methods (GET, HEAD, OPTIONS)
+    if request.method in ["GET", "HEAD", "OPTIONS"]:
+        return
+
+    # 3. Validate
+    try:
+        await csrf_protect.validate_csrf_in_cookies(request)
+    except CsrfProtectError as e:
+        print(f"🛡️ CSRF Validation Failed: {e.message}")
+        raise e
+
 
 app = FastAPI(
     title="THE DIGIFORT LABS - Hospital Archive",
@@ -266,29 +100,11 @@ app.add_middleware(BandwidthMiddleware)
 
 # IMPORTANT: CORS must be added LAST to be the outermost middleware 
 # and handle preflight requests before security headers or rate limits.
-cors_origins = [str(origin) for origin in settings.BACKEND_CORS_ORIGINS]
-
-# Determine if we are running locally based on the presence of localhost in origins
-# Ensure production domains and localhost are always included
-is_dev_env = any("localhost" in origin for origin in cors_origins) or settings.ENVIRONMENT == "development"
-
-if is_dev_env:
-    if "http://localhost:3000" not in cors_origins:
-        cors_origins.append("http://localhost:3000")
-    if "https://localhost:3000" not in cors_origins:
-        cors_origins.append("https://localhost:3000")
-        
-# Always secure live domain paths
-if "https://digifortlabs.com" not in cors_origins:
-    cors_origins.extend([
-        "https://digifortlabs.com", 
-        "https://www.digifortlabs.com",
-        "https://admin.digifortlabs.com"
-    ])
+CORS_ORIGIN_REGEX = r"https://(.*\.)?digifortlabs\.com|http://(.*\.)?localhost:3000"
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origin_regex=CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -342,8 +158,9 @@ async def global_exception_handler(request: Request, exc: Exception):
     
     # Manually add CORS headers since middleware might be bypassed on error
     origin = request.headers.get("origin")
-    if "*" in cors_origins or origin in cors_origins:
-        response.headers["Access-Control-Allow-Origin"] = origin or "*"
+    import re
+    if origin and re.match(CORS_ORIGIN_REGEX, origin):
+        response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Methods"] = "*"
         response.headers["Access-Control-Allow-Headers"] = "*"
@@ -358,8 +175,9 @@ async def validation_exception_handler(request: Request, exc: ResponseValidation
         content={"detail": "Data formatting error in server response.", "errors": exc.errors()}
     )
     origin = request.headers.get("origin")
-    if "*" in cors_origins or origin in cors_origins:
-        response.headers["Access-Control-Allow-Origin"] = origin or "*"
+    import re
+    if origin and re.match(CORS_ORIGIN_REGEX, origin):
+        response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Methods"] = "*"
         response.headers["Access-Control-Allow-Headers"] = "*"
@@ -423,14 +241,8 @@ app.include_router(ent.router)
 from .routers import clinic
 app.include_router(clinic.router)
 
-from .routers import pharma
-app.include_router(pharma.router)
 
-from .routers import legal
-app.include_router(legal.router)
 
-from .routers import corporate
-app.include_router(corporate.router)
 
 from .routers import hms
 app.include_router(hms.router)
@@ -442,6 +254,9 @@ except Exception as e:
     print(f"⚠️  WARNING: Failed to load scanner router. Error: {e}")
     # Continue running app even if scanner fails
     pass
+
+from .routers import compliance
+app.include_router(compliance.router)
 
 
 # Always mount local_storage for dental scans (and simulation mode)

@@ -15,6 +15,7 @@ export default function DashboardLayout({
     children: React.ReactNode;
 }) {
     const [userRole, setUserRole] = useState<string>('');
+    const [hospitalSlug, setHospitalSlug] = useState<string>('');
     const [isMounted, setIsMounted] = useState(false);
     const router = useRouter();
     const pathname = usePathname();
@@ -30,6 +31,16 @@ export default function DashboardLayout({
 
     useEffect(() => {
         setIsMounted(true);
+        
+        // Extract hospital slug from subdomain
+        const host = window.location.host;
+        const parts = host.split('.');
+        const subdomain = parts.length > 2 ? parts[0] : '';
+        if (subdomain && subdomain !== 'www' && subdomain !== 'admin' && subdomain !== 'dashboard') {
+            setHospitalSlug(subdomain);
+            console.log(`Scoped to hospital: ${subdomain}`);
+        }
+
         const checkAuth = async () => {
             try {
                 const { apiFetch } = await import('@/lib/api');
@@ -51,8 +62,8 @@ export default function DashboardLayout({
                 const isAdmin = isSuperAdmin || isHospitalAdmin;
                 const path = pathname || '';
 
-                // 1. Platform Level Protection (Organizations, Global Settings)
-                if (path.includes('/dashboard/organizations') && !isSuperAdmin) {
+                // 1. Platform Level Protection (Hospitals, Global Settings)
+                if (path.includes('/dashboard/hospitals') && !isSuperAdmin) {
                     router.replace('/dashboard');
                 }
 
@@ -88,7 +99,7 @@ export default function DashboardLayout({
     return (
         <div className="flex h-screen overflow-hidden bg-slate-950">
             {/* Sidebar - Always on top left for Desktop */}
-            <Sidebar userRole={userRole} />
+            <Sidebar userRole={userRole} hospitalSlug={hospitalSlug} />
 
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 {/* Navbar - Sticky to top of content area */}
