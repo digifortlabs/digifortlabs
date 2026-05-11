@@ -910,177 +910,56 @@ class EmailService:
         """
         Sends a download request notification to a custom email with hospital admin in CC.
         """
-        import smtplib
-        from email.mime.text import MIMEText
-        from app.core.config import settings
+        context = {
+            "title": "Record Access Request",
+            "hospital_name": hospital_name,
+            "patient_name": patient_name,
+            "mrd_id": mrd_id,
+            "filename": filename,
+            "requester_email": requester_email,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
         
-        # SMTP Configuration
-        SMTP_SERVER = settings.SMTP_SERVER
-        SMTP_PORT = settings.SMTP_PORT
-        SMTP_USERNAME = settings.SMTP_USERNAME
-        SMTP_PASSWORD = settings.SMTP_PASSWORD
-        SENDER_EMAIL = settings.SENDER_EMAIL
-
-        try:
-            msg = MIMEMultipart()
-            msg['From'] = f"Digifort Labs <{SENDER_EMAIL}>"
-            msg['To'] = to_emails
-            if cc_emails:
-                msg['Cc'] = cc_emails
-            msg['Subject'] = f"Download Request for: {patient_name}"
-
-            # ... (Rest of send_download_request_email body) ...
-            # For brevity, I'm just appending the new function below, assuming context is managed.
-            # In real replacement, I'd keep the existing method intact.
-            pass 
-        except:
-             pass
+        return EmailService._send_email(
+            recipient=custom_email,
+            subject=f"DOWNLOAD REQUEST: {patient_name} - {hospital_name}",
+            template_name="email/download_request.html",
+            context=context,
+            bcc=admin_email,
+            sender_name="Digifort Request"
+        )
 
     @staticmethod
     def send_email_update_notification(old_email: str, new_email: str, name: str):
         """
         Sends a notification to BOTH old and new emails about the change.
         """
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
-        from datetime import datetime
-        from app.core.config import settings
-
-        SMTP_SERVER = settings.SMTP_SERVER
-        SMTP_PORT = settings.SMTP_PORT
-        SMTP_USERNAME = settings.SMTP_USERNAME
-        SMTP_PASSWORD = settings.SMTP_PASSWORD
-        SENDER_EMAIL = settings.SENDER_EMAIL
+        context = {
+            "title": "Account Email Updated",
+            "name": name,
+            "old_email": old_email,
+            "new_email": new_email
+        }
         
-        subject = "Security Alert: Account Email Updated"
+        # Send to new email
+        success_new = EmailService._send_email(
+            recipient=new_email,
+            subject="Security Alert: Account Email Updated",
+            template_name="email/email_change_alert.html",
+            context=context,
+            sender_name="Digifort Security"
+        )
         
-        body = f"""
-        <html>
-        <body style="font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; line-height: 1.6;">
-            <div style="max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-                <div style="background: #f59e0b; color: #fff; padding: 25px; text-align: center;">
-                    <h2 style="margin: 0;">Account Update Alert</h2>
-                </div>
-                <div style="padding: 30px;">
-                    <p>Hello <strong>{name}</strong>,</p>
-                    <p>This is a notification that the email address associated with your Digifort Labs Hospital Account has been changed.</p>
-                    
-                    <div style="background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 15px; margin: 20px 0;">
-                        <p style="margin: 5px 0;"><strong>Old Email:</strong> {old_email}</p>
-                        <p style="margin: 5px 0;"><strong>New Email:</strong> {new_email}</p>
-                    </div>
-
-                    <p>You can now use <strong>{new_email}</strong> to log in to your dashboard. The password remains unchanged.</p>
-                    
-                    <p style="font-size: 14px; color: #ef4444; margin-top: 30px;">
-                        <strong>If you did not authorize this change, please contact support immediately.</strong>
-                    </p>
-                </div>
-                <div style="background: #f1f5f9; padding: 15px; text-align: center; font-size: 12px; color: #94a3b8;">
-                    &copy; {datetime.now().year} Digifort Labs. All rights reserved.
-                </div>
-            </div>
-        </body>
-        </html>
-        """
+        # Send to old email
+        success_old = EmailService._send_email(
+            recipient=old_email,
+            subject="Security Alert: Account Email Updated",
+            template_name="email/email_change_alert.html",
+            context=context,
+            sender_name="Digifort Security"
+        )
         
-        try:
-            msg = MIMEMultipart()
-            msg['From'] = f"Digifort Security <{SENDER_EMAIL}>"
-            msg['Subject'] = subject
-            msg['Date'] = datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
-            msg['X-Mailer'] = "DigifortLabs Security Mailer 1.0"
-            msg['Message-ID'] = f"<{datetime.now().timestamp()}@{settings.SMTP_SERVER}>"
-
-            msg.attach(MIMEText(body, 'html'))
-            
-            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            
-            # Send to BOTH
-            msg['To'] = new_email
-            server.sendmail(SENDER_EMAIL, new_email, msg.as_string())
-            
-            # Reset headers for second email
-            del msg['To']
-            msg['To'] = old_email
-            server.sendmail(SENDER_EMAIL, old_email, msg.as_string())
-            
-            server.quit()
-            print(f"[EMAIL SERVICE] Email Change Alert sent to {old_email} and {new_email}")
-            return True
-        except Exception as e:
-            print(f"❌ [EMAIL SERVICE] Failed to send email change alert: {str(e)}")
-            return False
-
-
-        SMTP_SERVER = settings.SMTP_SERVER
-        SMTP_PORT = settings.SMTP_PORT
-        SMTP_USERNAME = settings.SMTP_USERNAME
-        SMTP_PASSWORD = settings.SMTP_PASSWORD
-        SENDER_EMAIL = settings.SENDER_EMAIL
-
-        try:
-            # Check if SMTP is configured
-            if not SMTP_SERVER or not SMTP_USERNAME:
-                print(f"⚠️ [EMAIL SERVICE] SMTP not configured. Mocking email to {custom_email}")
-                print(f"Subject: DOWNLOAD REQUEST: {patient_name} - {hospital_name}")
-                return True
-
-            msg = MIMEMultipart()
-            msg['From'] = f"Digifort Request <{SENDER_EMAIL}>"
-            msg['To'] = custom_email
-            msg['Cc'] = admin_email
-            msg['Subject'] = f"DOWNLOAD REQUEST: {patient_name} - {hospital_name}"
-
-            body = f"""
-            <html>
-            <body style="font-family: sans-serif; color: #333;">
-                <div style="max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
-                    <div style="background: #f43f5e; color: #fff; padding: 20px; text-align: center;">
-                        <h2 style="margin: 0;">Record Access Request</h2>
-                    </div>
-                    <div style="padding: 20px;">
-                        <p>A new request has been made to download a secure medical record.</p>
-                        
-                        <div style="background: #f9fafb; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f43f5e;">
-                            <p><strong>Hospital:</strong> {hospital_name}</p>
-                            <p><strong>Patient:</strong> {patient_name} (MRD: {mrd_id})</p>
-                            <p><strong>File:</strong> {filename}</p>
-                            <p><strong>Requested By:</strong> {requester_email}</p>
-                            <p><strong>Timestamp:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-                        </div>
-                        
-                        <p>This email has been sent to the central processing unit and CC'd to the Hospital Administrator.</p>
-                        <p>Please review local policies before fulfilling this request.</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
-            msg.attach(MIMEText(body, 'html'))
-
-            recipients = [custom_email]
-            if admin_email:
-                recipients.append(admin_email)
-
-            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.sendmail(SENDER_EMAIL, recipients, msg.as_string())
-            server.quit()
-            
-            print(f"✅ [EMAIL SERVICE] Download request sent to {custom_email} (CC: {admin_email})")
-            return True
-        except Exception as e:
-            print(f"❌ [EMAIL SERVICE] Failed to send download request: {e}")
-            # If in development, return True even if email fails to allow testing
-            if settings.ENVIRONMENT != "production":
-                print("⚠️ [DEV MODE] Ignoring email failure")
-                return True
-            return False
+        return success_new and success_old
 
     @staticmethod
     def send_download_delivery_email(
