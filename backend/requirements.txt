@@ -30,3 +30,6 @@ google-generativeai
 pylsd-nova
 scipy
 fastapi-csrf-protect
+alembic
+pydantic-settings
+jinja2
