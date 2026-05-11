@@ -2,10 +2,10 @@
 
 ## Milestone 1.0.0: Sharp Compression & Scalability
 
-### Phase 1: Foundation & Security
-- [ ] **Task 1.1**: Rotate `SECRET_KEY` and move to environment variables.
-- [ ] **Task 1.2**: Fix hardcoded paths for Tesseract/Poppler in `ocr.py`.
-- [ ] **Task 1.3**: Refactor `email_service.py` to use external Jinja2 templates.
+### Phase 1: Foundation & Security [COMPLETE - 2026-05-11]
+- [x] **Task 1.1**: Rotate `SECRET_KEY` and move to environment variables.
+- [x] **Task 1.2**: Fix hardcoded paths for Tesseract/Poppler in `ocr.py`.
+- [x] **Task 1.3**: Refactor `email_service.py` to use external Jinja2 templates.
 - **Goal**: Secure and clean the codebase for new feature integration.
 
 ### Phase 2: Infrastructure & Async Prep
