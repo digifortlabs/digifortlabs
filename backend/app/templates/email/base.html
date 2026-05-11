@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+</head>
+<body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; margin: 0; padding: 0;">
+    <div style="max-width: 600px; margin: 20px auto; border: 1px solid #eee; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05);">
+        <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #f4f4f4; padding-bottom: 15px;">
+            <h1 style="color: #2c3e50; margin: 0; font-size: 24px;">DIGIFORT LABS</h1>
+        </div>
+        
+        {% block content %}{% endblock %}
+
+        <div style="margin-top: 30px; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 15px; text-align: center;">
+            <p>&copy; {{ current_year }} Digifort Labs. All rights reserved.</p>
+            <p>Providing cutting-edge clinical archival and management solutions.</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{% extends "email/base.html" %}
+
+{% block content %}
+<h2 style="color: #d9534f; margin-top: 0;">New Login Detected</h2>
+<p>Hello,</p>
+<p>We detected a new login to your Digifort Labs account.</p>
+
+<table style="width: 100%; background: #f9f9f9; padding: 15px; margin: 20px 0; border-radius: 5px;">
+    <tr><td style="font-weight: bold; width: 120px; padding: 5px 0;">Time:</td><td style="padding: 5px 0;">{{ timestamp }}</td></tr>
+    <tr><td style="font-weight: bold; padding: 5px 0;">IP Address:</td><td style="padding: 5px 0;">{{ ip_address }}</td></tr>
+    <tr><td style="font-weight: bold; padding: 5px 0;">Device:</td><td style="padding: 5px 0;">{{ device_info }}</td></tr>
+</table>
+
+<p style="font-size: 14px; color: #444;">
+    If this was you, you can ignore this email.<br>
+    If you did not sign in, please <a href="{{ login_url }}" style="color: #d9534f; text-decoration: none; font-weight: bold;">reset your password</a> immediately and contact support.
+</p>
+
+<div style="margin-top: 20px; font-weight: bold; color: #2c3e50;">
+    Digifort Labs Security Team
+</div>
+{% endblock %}

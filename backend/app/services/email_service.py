@@ -1,82 +1,84 @@
-
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from app.core.config import settings
 
+# Setup Jinja2 Environment for Email Templates
+# We use a standalone environment to avoid dependency on FastAPI Request object
+template_env = Environment(
+    loader=FileSystemLoader("backend/app/templates"), # Path relative to project root
+    autoescape=select_autoescape(["html", "xml"])
+)
 
 class EmailService:
+    @staticmethod
+    def _send_email(
+        recipient: str, 
+        subject: str, 
+        template_name: str, 
+        context: dict, 
+        bcc: str = "info@digifortlabs.com",
+        sender_name: str = "Digifort Labs"
+    ):
+        """
+        Private helper to render a template and send an email via SMTP.
+        """
+        try:
+            # 1. Render Template
+            context["current_year"] = datetime.now().year
+            template = template_env.get_template(template_name)
+            html_body = template.render(**context)
+
+            # 2. Build Message
+            msg = MIMEMultipart()
+            msg['From'] = f"{sender_name} <{settings.SENDER_EMAIL}>"
+            msg['To'] = recipient
+            if bcc:
+                msg['Bcc'] = bcc
+            msg['Subject'] = subject
+            msg['Date'] = datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
+            msg['X-Mailer'] = "DigifortLabs Security Mailer 1.0"
+            msg['Message-ID'] = f"<{datetime.now().timestamp()}@{settings.SMTP_SERVER}>"
+
+            msg.attach(MIMEText(html_body, 'html'))
+
+            # 3. Send Email
+            server = smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT)
+            server.starttls()
+            server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+            recipients = [recipient]
+            if bcc:
+                recipients.append(bcc)
+            server.sendmail(settings.SENDER_EMAIL, recipients, msg.as_string())
+            server.quit()
+            
+            return True
+        except Exception as e:
+            print(f"[EMAIL SERVICE] Error sending email to {recipient}: {str(e)}")
+            return False
+
     @staticmethod
     def send_login_alert(email: str, ip_address: str, device_info: str):
         """
         Sends a security alert email when a new login occurs.
         """
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
-        from datetime import datetime
-        from app.core.config import settings
-
-        # SMTP Configuration
-        SMTP_SERVER = settings.SMTP_SERVER
-        SMTP_PORT = settings.SMTP_PORT
-        SMTP_USERNAME = settings.SMTP_USERNAME
-        SMTP_PASSWORD = settings.SMTP_PASSWORD
-        SENDER_EMAIL = settings.SENDER_EMAIL
-
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        context = {
+            "title": "Security Alert: New Login",
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "ip_address": ip_address,
+            "device_info": device_info,
+            "login_url": "https://digifortlabs.com/login"
+        }
         
-        try:
-            msg = MIMEMultipart()
-            msg['From'] = f"Digifort Security <{SENDER_EMAIL}>"
-            msg['To'] = email
-            msg['Bcc'] = "info@digifortlabs.com"
-            msg['Subject'] = "Security Alert: New Login Detected"
-            msg['Date'] = datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
-            msg['X-Mailer'] = "DigifortLabs Security Mailer 1.0"
-            msg['Message-ID'] = f"<{datetime.now().timestamp()}@{settings.SMTP_SERVER}>"
-
-            body = f"""
-            <!DOCTYPE html>
-            <html>
-            <body style="font-family: Arial, sans-serif; color: #333;">
-                <div style="max-width: 600px; margin: 0 auto; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
-                    <h2 style="color: #d9534f; margin-top: 0;">New Login Detected</h2>
-                    <p>Hello,</p>
-                    <p>We detected a new login to your Digifort Labs account.</p>
-                    
-                    <table style="width: 100%; background: #f9f9f9; padding: 10px; margin: 15px 0;">
-                        <tr><td style="font-weight: bold; width: 100px;">Time:</td><td>{timestamp}</td></tr>
-                        <tr><td style="font-weight: bold;">IP Address:</td><td>{ip_address}</td></tr>
-                        <tr><td style="font-weight: bold;">Device:</td><td>{device_info}</td></tr>
-                    </table>
-
-                    <p style="font-size: 13px; color: #666;">
-                        If this was you, you can ignore this email.<br>
-                        If you did not sign in, please <a href="https://digifortlabs.com/login" style="color: #d9534f; text-decoration: none; font-weight: bold;">reset your password</a> immediately and contact support.
-                    </p>
-                    
-                    <div style="margin-top: 20px; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 10px;">
-                        Digifort Labs Security Team
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
-            
-            msg.attach(MIMEText(body, 'html'))
-
-            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.sendmail(SENDER_EMAIL, [email, "info@digifortlabs.com"], msg.as_string())
-            server.quit()
-            
-            print(f"[EMAIL SERVICE] Login Alert sent to {email}")
-            return True
-
-        except Exception as e:
-            print(f"[EMAIL SERVICE] Failed to send login alert to {email}: {str(e)}")
-            return False
-
-        return True
+        return EmailService._send_email(
+            recipient=email,
+            subject="Security Alert: New Login Detected",
+            template_name="email/login_alert.html",
+            context=context,
+            sender_name="Digifort Security"
+        )
 
     @staticmethod
     def send_account_locked_email(email: str, reason: str):
@@ -146,97 +148,20 @@ class EmailService:
     @staticmethod
     def send_otp_email(email: str, otp_code: str):
         """
-        Sends a password reset OTP using SMTP.
+        Sends an OTP email using Jinja2 templates.
         """
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
-        from datetime import datetime
-        from app.core.config import settings
-
-        # SMTP Configuration
-        SMTP_SERVER = settings.SMTP_SERVER
-        SMTP_PORT = settings.SMTP_PORT
-        SMTP_USERNAME = settings.SMTP_USERNAME
-        SMTP_PASSWORD = settings.SMTP_PASSWORD
-        SENDER_EMAIL = settings.SENDER_EMAIL
-
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        try:
-            # Validate credentials
-            if not SMTP_USERNAME or not SMTP_PASSWORD:
-                print("[EMAIL SERVICE] SMTP Credentials missing. Using Fallback mode.")
-                raise Exception("SMTP_USERNAME or SMTP_PASSWORD not set in environment settings")
-
-            msg = MIMEMultipart()
-            msg['From'] = f"Digifort Labs <{SENDER_EMAIL}>"
-            msg['To'] = email
-            msg['Subject'] = "Security Verification - Digifort Labs"
-            msg['Date'] = datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
-            msg['X-Mailer'] = "DigifortLabs Mailer 1.0"
-            msg['Message-ID'] = f"<{datetime.now().timestamp()}@{settings.SMTP_SERVER}>"
-
-            body = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <style>
-                    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f9fafb; }}
-                    .container {{ max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; }}
-                    .header {{ background-color: #1e293b; padding: 30px; text-align: center; }}
-                    .header h1 {{ margin: 0; color: #ffffff; font-size: 24px; font-weight: 600; letter-spacing: 1px; }}
-                    .content {{ padding: 40px 30px; }}
-                    .otp-box {{ background-color: #f3f4f6; border-radius: 8px; padding: 20px; text-align: center; margin: 30px 0; letter-spacing: 8px; font-size: 32px; font-weight: 700; color: #2563eb; border: 1px dashed #cbd5e1; }}
-                    .footer {{ background-color: #f8fafc; padding: 20px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }}
-                    .expiry {{ text-align: center; color: #ef4444; font-size: 14px; font-weight: 500; }}
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>DIGIFORT LABS</h1>
-                    </div>
-                    <div class="content">
-                        <p style="font-size: 16px; margin-bottom: 20px;">Hello,</p>
-                        <p>We received a request to access your account or reset your password. To verify your identity, please use the following One-Time Password (OTP):</p>
-                        
-                        <div class="otp-box">
-                            {otp_code}
-                        </div>
-
-                        <p class="expiry">This code is valid for 10 minutes.</p>
-                        
-                        <p style="margin-top: 30px; font-size: 14px; color: #64748b;">If you did not initiate this request, please ignore safe in the knowledge that your account securely remains unchanged.</p>
-                    </div>
-                    <div class="footer">
-                        <p>&copy; {datetime.now().year} Digifort Labs. All rights reserved.</p>
-                        <p>This is an automated system message. Please do not reply.</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
-            
-            msg.attach(MIMEText(body, 'html'))
-
-            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            text = msg.as_string()
-            server.sendmail(SENDER_EMAIL, email, text)
-            server.quit()
-            
-            print(f"[EMAIL SERVICE] OTP Sent to {email}")
-            return True
-        except Exception as e:
-            print(f"[EMAIL SERVICE] Failed to send OTP to {email}: {str(e)}")
-            # FALLBACK FOR LOCAL TESTING
-            print("\n" + "="*60)
-            print(f"📧 [FALLBACK] OTP for {email}: {otp_code}")
-            print("="*60 + "\n")
-            return False
+        context = {
+            "title": "Verification Code",
+            "otp_code": otp_code
+        }
+        
+        return EmailService._send_email(
+            recipient=email,
+            subject="Security Verification - Digifort Labs",
+            template_name="email/otp.html",
+            context=context,
+            sender_name="Digifort Security"
+        )
 
     @staticmethod
     def send_mfa_otp_email(email: str, otp_code: str, ip_address: str, device_info: str):
