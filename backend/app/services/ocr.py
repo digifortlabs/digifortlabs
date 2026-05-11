@@ -9,49 +9,33 @@ try:
     import pytesseract
     from pdf2image import convert_from_bytes
     from PIL import Image
+    from app.core.config import settings
+    
     HAS_OCR = True
     
-    # --- AUTO-CONFIGURE EXTERNAL TOOLS ---
+    # --- CONFIGURE EXTERNAL TOOLS ---
     
     # 1. Tesseract Configuration
-    # Check standard install locations if not in PATH
-    tesseract_paths = [
-        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-        shutil.which("tesseract")
-    ]
-    
-    found_tesseract = False
-    for path in tesseract_paths:
-        if path and os.path.exists(path):
-            pytesseract.pytesseract.tesseract_cmd = path
-            print(f"[OK] OCR Config: Found Tesseract at {path}")
-            found_tesseract = True
-            break
-            
-    if not found_tesseract:
-        print("[WARN] OCR Config: Tesseract binary not found. OCR will fail unless added to PATH.")
-        # We don't disable HAS_OCR yet, we let it fail gracefully in the function or rely on user PATH later
-
-    # 2. Poppler Configuration (for pdf2image)
-    # Check project-local poppler first
-    project_root = os.getcwd()
-    local_poppler_bin = os.path.join(project_root, "poppler-25.12.0", "Library", "bin")
-    
-    POPPLER_PATH = None
-    if os.path.exists(local_poppler_bin):
-        POPPLER_PATH = local_poppler_bin
-        # Add to PATH temporarily for this process to ensure other tools prefer it
-        os.environ["PATH"] = local_poppler_bin + os.pathsep + os.environ["PATH"]
-        print(f"[OK] OCR Config: Using local Poppler at {local_poppler_bin}")
+    if settings.TESSERACT_CMD:
+        pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
+        print(f"[OK] OCR Config: Using Tesseract at {settings.TESSERACT_CMD}")
     else:
-        # Check if default is available
+        print("[WARN] OCR Config: Tesseract binary not found in settings or PATH.")
+
+    # 2. Poppler Configuration
+    POPPLER_PATH = settings.POPPLER_PATH
+    if POPPLER_PATH:
+        # Add to PATH temporarily to ensure subprocesses find it
+        os.environ["PATH"] = POPPLER_PATH + os.pathsep + os.environ["PATH"]
+        print(f"[OK] OCR Config: Using Poppler at {POPPLER_PATH}")
+    else:
         if not shutil.which("pdftoppm"):
-             print("[WARN] OCR Config: Poppler not found locally or in PATH. PDF processing may fail.")
+             print("[WARN] OCR Config: Poppler not found in settings or PATH. PDF processing may fail.")
 
 except ImportError:
     HAS_OCR = False
     print("Warning: OCR Dependencies missing. Falling back to text-only mode.")
+
 
 from pypdf import PdfReader
 
