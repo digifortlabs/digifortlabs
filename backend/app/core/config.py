@@ -27,6 +27,11 @@ class Settings:
     AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
     AWS_BUCKET_NAME: str = os.getenv("AWS_BUCKET_NAME", "digifort-labs-files")
 
+    # Redis / Celery
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", REDIS_URL)
+    CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", REDIS_URL)
+
     # Email / SMTP
     SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
