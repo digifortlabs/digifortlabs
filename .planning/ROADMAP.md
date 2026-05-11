@@ -1,93 +1,42 @@
-# Roadmap: Digifort Labs
+# Roadmap: Advanced PDF Optimization
 
-## Overview
-This roadmap outlines the journey from a modernized administrative interface to a stabilized, highly reliable clinical reporting platform. We move from visual refinements (Phase 1) to functional stability (Phase 2) and finally to deployment excellence (Phase 3).
+## Milestone 1.0.0: Sharp Compression & Scalability
 
-## Phases
-- [x] **Phase 1: Command Center UI Finalization** - Complete the high-density modernization of administrative modules.
-- [x] **Phase 2: Data Reliability & Stability** - Resolve patient data retrieval bugs and ensure robust error handling.
-- [x] **Phase 3: Deployment Autopilot** - Establish a seamless synchronization pipeline between local and live environments.
-- [x] **Phase 4: Role-Based Access Control (RBAC)** - Implement and verify distinct user experiences for Platform Admins, Hospital Admins, and Staff.
-- [x] **Phase 5: Global Hospital Selection** - Standardize Platform Admin navigation with a global top-navbar hospital selector and overview dashboard.
+### Phase 1: Foundation & Security
+- [ ] **Task 1.1**: Rotate `SECRET_KEY` and move to environment variables.
+- [ ] **Task 1.2**: Fix hardcoded paths for Tesseract/Poppler in `ocr.py`.
+- [ ] **Task 1.3**: Refactor `email_service.py` to use external Jinja2 templates.
+- **Goal**: Secure and clean the codebase for new feature integration.
 
-## Phase Details
+### Phase 2: Infrastructure & Async Prep
+- [ ] **Task 2.1**: Configure Celery and Redis in `backend/app/core/`.
+- [ ] **Task 2.2**: Implement shared storage abstraction for temporary files.
+- [ ] **Task 2.3**: Create base background task handlers.
+- **Goal**: Enable asynchronous processing for heavy PDF tasks.
 
-### Phase 1: Command Center UI Finalization
-**Goal**: Finalize the "Command Center" aesthetic across the Client Registry, Audit Logs, and Billing Intelligence modules.
-**Depends on**: Nothing
-**Requirements**: Platform Admin Modernization
-**Success Criteria**:
-  1. Administrative modules follow the high-density, professional aesthetic.
-  2. Legacy UI clutter is completely removed from Client Registry.
-  3. Billing Intelligence page provides high-level telemetry insights.
-**Plans**: 3 plans
+### Phase 3: High-Density Compression Engine
+- [ ] **Task 3.1**: Integrate `ocrmypdf` for JBIG2 monochrome compression.
+- [ ] **Task 3.2**: Integrate `Ghostscript` for general PDF downsampling.
+- [ ] **Task 3.3**: Update `compression.py` with multi-level strategies (Low/Med/High).
+- **Goal**: Achieve the "clean and sharp" compression quality.
 
-Plans:
-- [x] 01-01: Audit and unify Client Registry styles.
-- [x] 01-02: Modernize Audit Logs with high-density layouts.
-- [x] 01-03: Finalize Billing Intelligence dashboard components.
+### Phase 4: Async Compression Pipeline
+- [ ] **Task 4.1**: Implement the background compression task logic.
+- [ ] **Task 4.2**: Create API endpoints for status polling and task retrieval.
+- [ ] **Task 4.3**: Implement automatic cleanup of temporary files.
+- **Goal**: Full end-to-end background optimization workflow.
 
-### Phase 2: Data Reliability & Stability
-**Status:** Completed
-**Goal**: Resolve systemic retrieval errors and stabilize the clinical data pipeline.
-**Depends on**: Phase 1
-**Requirements**: Patient Data Reliability
-**Success Criteria**:
-  1. Patients' listing endpoint consistently returns 200 OK.
-  2. Date filtering for laboratory results handles all valid ISO formats.
-  3. System error logs are easily accessible for future debugging.
-**Plans**: 2 plans
+### Phase 5: Dashboard Integration
+- [ ] **Task 5.1**: Add "Compression Level" selection to the record upload flow.
+- [ ] **Task 5.2**: Implement real-time status indicators (Optimizing...) in the UI.
+- [ ] **Task 5.3**: Add success/failure notifications for background tasks.
+- **Goal**: Expose the new capabilities to the end-user.
 
-Plans:
-- [ ] 02-01: Fix 500 error on patient data listing.
-- [ ] 02-02: Implement robust date filtering logic in the backend.
-
-### Phase 3: Deployment Autopilot
-**Status:** Completed
-**Goal**: Automate the sync between local code and AWS production environments.
-**Depends on**: Phase 2
-**Requirements**: Deployment Autopilot, Global Telemetry
-**Success Criteria**:
-  1. Developers can sync local code to live server with a single command.
-  2. Live module health is visible via a "Billboard" telemetry view.
-  3. Security credentials and PEM files are managed securely during sync.
-**Plans**: 2 plans
-
-Plans:
-- [ ] 03-01: Refine `fetch_live_code.ps1` and `deploy.sh` for parity.
-- [ ] 03-02: Implement live billboard monitoring (telemetry).
-
-### Phase 4: Role-Based Access Control (RBAC)
-**Goal**: Implement and verify role-based navigation and content isolation for Platform Admin, Hospital Admin, and Hospital Staff.
-**Depends on**: Phase 1
-**Requirements**: Multi-Role RBAC
-**Success Criteria**:
-  1. Platform Admin can manage global telemetry and client registry.
-  2. Hospital Admin can manage their specific hospital's staff and billing.
-  3. Hospital Staff can only access patient records and clinical modules.
-**Plans**: 3 plans
-
-Plans:
-- [ ] 04-01: Audit and map current `userRole` usage across Navbar and Sidebar.
-- [x] 04-03: Enforce UI routing protections in `layout.tsx` to prevent cross-tenant leakage.
-
-### Phase 5: Global Hospital Selection
-**Status:** Completed
-**Goal**: Standardize Platform Admin hospital selection to a single global navbar component that drives context for all other modules.
-**Requirements**: 
-- Remove local hospital selection dropdowns from `/records` and `/appointments`.
-- Implement `GlobalHospitalSelector.tsx` in `DashboardNavbar`.
-- Auto-route to `/dashboard?hospital_id=[ID]` for hospital overview upon selection.
-
-## Progress
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. UI Finalization | 3/3 | Completed | Yes |
-| 2. Data Reliability | 0/2 | Not started | - |
-| 3. Deployment Autopilot| 0/2 | Not started | - |
-| 4. Role-Based RBAC | 0/3 | Not started | - |
-
+### Phase 6: Validation & Performance
+- [ ] **Task 6.1**: UAT with user-provided sample PDFs (~500KB target).
+- [ ] **Task 6.2**: Benchmarking and performance tuning of the Celery worker.
+- [ ] **Task 6.3**: Final documentation of the optimization engine.
+- **Goal**: Ensure the solution meets "clean and sharp" requirements at scale.
 
 ---
-*Last updated: 2026-04-22 after initialization*
+*Roadmap generated: 2026-05-11*
