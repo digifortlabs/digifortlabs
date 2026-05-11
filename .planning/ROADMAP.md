@@ -8,10 +8,10 @@
 - [x] **Task 1.3**: Refactor `email_service.py` to use external Jinja2 templates.
 - **Goal**: Secure and clean the codebase for new feature integration.
 
-### Phase 2: Infrastructure & Async Prep
-- [ ] **Task 2.1**: Configure Celery and Redis in `backend/app/core/`.
-- [ ] **Task 2.2**: Implement shared storage abstraction for temporary files.
-- [ ] **Task 2.3**: Create base background task handlers.
+### Phase 2: Infrastructure & Async Prep [COMPLETE - 2026-05-11]
+- [x] **Task 2.1**: Configure Celery and Redis in `backend/app/core/`.
+- [x] **Task 2.2**: Implement shared storage abstraction for temporary files.
+- [x] **Task 2.3**: Create base background task handlers.
 - **Goal**: Enable asynchronous processing for heavy PDF tasks.
 
 ### Phase 3: High-Density Compression Engine
