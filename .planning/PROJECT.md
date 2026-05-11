@@ -1,56 +1,42 @@
-# Digifort Labs
+# Project: Digifort Labs - Advanced PDF Optimization
 
 ## What This Is
-Digifort Labs is a modern Laboratory Information Management System (LIMS) and clinical reporting platform. It provides a high-performance "Command Center" interface for laboratory professionals to manage patient data, clinical results, and administrative workflows with precision.
+A project to enhance the core medical record processing engine, focusing on achieving high-density PDF compression that maintains "clean and sharp" text quality for digitized medical records, while ensuring system scalability and security.
 
 ## Core Value
-The ONE thing that matters most: **The secure and accurate delivery of clinical laboratory results through a high-density, professional administrative interface.**
+To provide hospitals with a storage-efficient archival system where records are minimized to ~500KB without sacrificing the legibility and "sharpness" required for medical compliance and future clinical review.
+
+## Context
+- **Existing Stack**: FastAPI (Python), Next.js 16, SQLAlchemy, Redis/Celery.
+- **Current State**: Basic image-based JPEG compression (quality 60) which can be blurry and is skipped for files >20MB due to server load concerns.
+- **Target**: Achieve the quality and compression ratio seen in provided samples (e.g., ~500KB for full reports) while keeping text sharp.
 
 ## Requirements
 
 ### Validated
-- ✓ **Backend API Core** — Flask-based RESTful service for laboratory data management.
-- ✓ **Authentication Layer** — Secure JWT-based user authentication and session management.
-- ✓ **Dashboard Foundation** — Next.js 16/React 19 administrative interface.
-- ✓ **Report Generation** — Automated PDF generation (jspdf) for clinical results.
-- ✓ **Cloud Infrastructure** — Multi-environment sync (Local/AWS) with Docker orchestration.
+- ✓ Basic PDF archival and retrieval system - existing
+- ✓ Basic OCR and AI data extraction - existing
+- ✓ Basic AWS S3 integration - existing
 
 ### Active
-- [ ] **Platform Admin Modernization** — Finalize high-density "Command Center" UI for administrative modules.
-- [ ] **Patient Data Reliability** — Resolve 500 errors and stabilize date-filtered data retrieval.
-- [ ] **Deployment Autopilot** — Refine the local-to-AWS synchronization pipeline for zero-friction updates.
-- [ ] **Global Telemetry** — Implement live module monitoring and billboard telemetry for system health.
+- [ ] **Advanced Compression Engine**: Implement high-quality grayscale/JBIG2-style compression to achieve "clean and sharp" results.
+- [ ] **Background Processing**: Move heavy compression tasks to Celery/Redis to support large files without blocking the API.
+- [ ] **Security Hardening**: Rotate `SECRET_KEY` and audit CSRF/MFA flows identified during codebase mapping.
+- [ ] **Service Refactoring**: De-monolithize `email_service.py` and move templates to external files.
 
 ### Out of Scope
-- [Mobile Native App] — Focus is entirely on high-performance Desktop/Web administration.
-- [External Public API] — Product is currently private-tenant; public third-party APIs are deferred.
-
-## Context
-- **Tech Stack**: Next.js 16/Tailwind 4 frontend, Flask/PostgreSQL backend.
-- **Environment**: Distributed deployment across local development and AWS EC2/S3.
-- **Prior Work**: Extensive modernization of Dashboard UI and billing modules already completed.
-
-## Constraints
-- **Stack**: Must stay within the Python/Flask and TypeScript/Next.js ecosystem.
-- **Security**: Must maintain strict data isolation and secure sync over PEM-guarded connections.
-- **Performance**: Dashboard must maintain high density without sacrificing render speed.
+- Mobile App development - prioritized web dashboard first.
+- Real-time video consultation - focus is on archival and data extraction.
 
 ## Key Decisions
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Next.js 16 | Future-proofing with React 19 features | ✓ Good |
-| Tailwind 4 | Extreme performance and utility-first styling speed | ✓ Good |
-| Flask Backend | Lightweight, modular API development | ✓ Good |
+| Background Tasks | Heavy compression hangs the main thread; Celery provides scalability. | — Pending |
+| Sharp Compression | JPEG 60 is too blurry for medical text; need better format (Grayscale/PNG/JBIG2). | — Pending |
+| YOLO Mode | User approved autonomous execution with automated verification. | — Pending |
 
----
 ## Evolution
 This document evolves at phase transitions and milestone boundaries.
 
-**After each phase transition**:
-1. Requirements invalidated? → Move to Out of Scope with reason
-2. Requirements validated? → Move to Validated with phase reference
-3. New requirements emerged? → Add to Active
-4. Decisions to log? → Add to Key Decisions
-
 ---
-*Last updated: 2026-04-22 after initialization*
+*Last updated: 2026-05-11 after initialization*
