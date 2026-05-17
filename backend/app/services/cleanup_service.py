@@ -66,3 +66,36 @@ class CleanupService:
             "patients_deleted": total_patients_deleted,
             "files_deleted": total_files_deleted
         }
+
+    @staticmethod
+    def cleanup_temp_jobs(max_age_hours: int = 24, temp_dir_path: str = "backend/data/temp"):
+        """
+        Removes temporary job directories from storage/jobs that are older than max_age_hours.
+        """
+        import time
+        import shutil
+        from pathlib import Path
+        
+        # Base temp dir from StorageService logic
+        temp_dir = Path(temp_dir_path)
+        if not temp_dir.exists():
+            return 0
+            
+        print(f"🧹 [Job Cleanup] Scanning {temp_dir} for expired jobs...")
+        now = time.time()
+        max_age_sec = max_age_hours * 3600
+        
+        removed_count = 0
+        for item in temp_dir.iterdir():
+            if item.is_dir():
+                # Check directory creation time
+                if (now - item.stat().st_mtime) > max_age_sec:
+                    try:
+                        shutil.rmtree(item)
+                        removed_count += 1
+                    except Exception as e:
+                        print(f"⚠️ Failed to remove expired job dir {item}: {e}")
+        
+        if removed_count > 0:
+            print(f"✅ Job Cleanup Complete: Removed {removed_count} expired job directories.")
+        return removed_count
