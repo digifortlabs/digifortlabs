@@ -31,14 +31,16 @@ def register_demo_account(data: DemoRegistrationRequest, db: Session):
     enabled = ["core"]
     specialty = "General"
     
-    mod = data.target_module.lower() if data.target_module else "mrd"
-    if mod and mod not in ["mrd", "core"]:
+    mod = data.target_module.lower() if data.target_module else "all"
+    
+    if mod == "all":
+        enabled.extend(["mrd", "hms", "dental", "ent", "pharma", "clinic", "accounting"])
+        specialty = "Multi-Specialty Hospital"
+    elif mod and mod not in ["mrd", "core"]:
         enabled.append(mod)
         if mod == "dental": specialty = "Dental"
         elif mod == "ent": specialty = "ENT"
         elif mod == "pharma": specialty = "Pharmacy"
-        elif mod == "legal": specialty = "Law Firm"
-        elif mod == "corporate": specialty = "Corporate"
         elif mod == "clinic": specialty = "Clinic"
         elif mod == "hms": specialty = "Hospital"
         

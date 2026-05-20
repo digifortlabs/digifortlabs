@@ -76,7 +76,7 @@ def get_ent_patients(
                 "created_at": ep.created_at,
                 "full_name": base_patient.full_name,
                 "phone": base_patient.phone,
-                "mrd_number": base_patient.mrd_number
+                "mrd_number": base_patient.patient_u_id
             }
             result.append(patient_dict)
     

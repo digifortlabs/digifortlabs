@@ -133,7 +133,7 @@ export default function InvoiceRenderer({ invoice, itemsPerPage = 25 }: InvoiceR
     return (
         <div className="flex flex-col items-center gap-8 print:gap-0 font-sans antialiased text-slate-900">
             {/* -- STYLE RESET -- */}
-            <style jsx global>{`
+            <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
                     @page { size: A4 portrait; margin: 0mm; }
                     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box !important; }
@@ -153,7 +153,7 @@ export default function InvoiceRenderer({ invoice, itemsPerPage = 25 }: InvoiceR
                     user-select: none;
                     z-index: -10;
                 }
-            `}</style>
+            `}} />
 
             {/* --- PAGE 1: MAIN TAX INVOICE --- */}
             <div className="bg-white shadow-2xl border border-slate-200 print:shadow-none print:border-none print:m-0 w-[210mm] h-[297mm] print:h-[297mm] relative overflow-hidden flex flex-col px-[15mm] py-[12mm] print:py-[10mm] print:break-after-page">

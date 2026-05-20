@@ -1,15 +1,29 @@
 "use client";
-import Link from 'next/link';
+
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { API_URL, apiFetch } from '../../../config/api';
+import { apiFetch } from '@/config/api';
+import { 
+    User as UserIcon, 
+    Settings as SettingsIcon, 
+    Users, 
+    Shield, 
+    Activity, 
+    LayoutDashboard,
+    Loader2
+} from 'lucide-react';
 
-import { Loader2 } from 'lucide-react';
+// Components
 import CompanyProfileSettings from './components/CompanyProfileSettings';
 import LoginActivityPanel from './components/LoginActivityPanel';
+import AccountSettings from './components/AccountSettings';
+import PlatformConfig from './components/PlatformConfig';
 
 export default function SettingsPage() {
     const router = useRouter();
+    const [activeTab, setActiveTab] = useState('account');
+    
+    // Core State
     const [profile, setProfile] = useState({
         director_name: '',
         registration_number: '',
@@ -19,799 +33,217 @@ export default function SettingsPage() {
         pincode: '',
         ai_settings: { enabled: false, api_key: '' }
     });
-    const [subscription, setSubscription] = useState({
-        tier: 'Standard',
-        is_active: true
-    });
     const [hospitalId, setHospitalId] = useState<number | null>(null);
     const [userRole, setUserRole] = useState('');
     const [systemSettings, setSystemSettings] = useState({ maintenance_mode: 'false', announcement: '', platform_ai_settings: '{"enabled":false,"api_key":""}' });
     const [passwordData, setPasswordData] = useState({ old: '', new: '', confirm: '' });
     const [platformStaff, setPlatformStaff] = useState<any[]>([]);
-    const [showStaffModal, setShowStaffModal] = useState(false);
-    const [showEditStaffModal, setShowEditStaffModal] = useState(false);
-    const [editingStaff, setEditingStaff] = useState<any>(null);
-    const [editStaffData, setEditStaffData] = useState({ password: '' });
-    const [newStaff, setNewStaff] = useState({ email: '', password: '' });
     const [mustChangePassword, setMustChangePassword] = useState(false);
+
+    // Platform Utilities State
+    const [ocrLoading, setOcrLoading] = useState(false);
+    const [ocrStats, setOcrStats] = useState({ pending: 0, analyzing: 0, completed: 0 });
+    const [ocrLogs, setOcrLogs] = useState<string[]>([]);
+    const [systemErrors, setSystemErrors] = useState<any[]>([]);
+    const [loadingErrors, setLoadingErrors] = useState(false);
 
     useEffect(() => {
         const storedRole = localStorage.getItem('userRole') || '';
         const storedHospitalId = localStorage.getItem('hospital_id') ? parseInt(localStorage.getItem('hospital_id') as string) : null;
+        
         if (!storedRole) {
             router.push('/login');
-        } else {
-            setUserRole(storedRole);
-            setHospitalId(storedHospitalId);
-
-            if (storedRole !== 'website_admin' && storedHospitalId) {
-                fetchProfile(storedHospitalId);
-            }
-            if (['website_admin', 'superadmin'].includes(storedRole)) {
-                fetchPlatformStaff();
-                fetchSystemSettings();
-            }
-            if (localStorage.getItem('force_password_change') === 'true') {
-                setMustChangePassword(true);
-            }
+            return;
         }
-    }, [router]);
+
+        setUserRole(storedRole);
+        setHospitalId(storedHospitalId);
+
+        if (storedRole !== 'website_admin' && storedHospitalId) {
+            fetchProfile(storedHospitalId);
+        }
+        
+        if (['website_admin', 'superadmin'].includes(storedRole)) {
+            fetchPlatformStaff();
+            fetchSystemSettings();
+            fetchOcrStats();
+            fetchSystemErrors();
+        }
+
+        if (localStorage.getItem('force_password_change') === 'true') {
+            setMustChangePassword(true);
+        }
+    }, []);
+
+    // API Handlers (Simplified for brevity in wrapper)
+    const fetchProfile = async (id: number) => {
+        try {
+            const data = await apiFetch(`hospitals/${id}`);
+            if (data) setProfile({
+                director_name: data.director_name || '',
+                registration_number: data.registration_number || '',
+                address: data.address || '',
+                city: data.city || '',
+                state: data.state || '',
+                pincode: data.pincode || '',
+                ai_settings: data.ai_settings || { enabled: false, api_key: '' }
+            });
+        } catch (e) { console.error(e); }
+    };
 
     const fetchSystemSettings = async () => {
         try {
             const data = await apiFetch(`platform/settings`);
-            if (data) {
-                setSystemSettings({
-                    maintenance_mode: data.maintenance_mode || 'false',
-                    announcement: data.announcement || '',
-                    platform_ai_settings: data.platform_ai_settings || '{"enabled":false,"api_key":""}'
-                });
-            }
-        } catch (error) { console.error(error); }
+            if (data) setSystemSettings({
+                maintenance_mode: data.maintenance_mode || 'false',
+                announcement: data.announcement || '',
+                platform_ai_settings: data.platform_ai_settings || '{"enabled":false,"api_key":""}'
+            });
+        } catch (e) { console.error(e); }
     };
 
     const updateSystemSetting = async (key: string, value: string) => {
         try {
-            const res = await apiFetch(`platform/settings/${key}`, {
-                method: 'POST',
-                body: JSON.stringify({ value })
-            });
-            if (res !== null) {
-                setSystemSettings(prev => ({ ...prev, [key]: value }));
-            }
-        } catch (error: any) {
-            console.error(error);
-            alert(`Failed to update setting: ${error.message}`);
-        }
+            await apiFetch(`platform/settings/${key}`, { method: 'POST', body: JSON.stringify({ value }) });
+            setSystemSettings(prev => ({ ...prev, [key]: value }));
+        } catch (e) { alert("Failed to update setting"); }
     };
 
-    // Bulk OCR Logic
-    const [ocrLoading, setOcrLoading] = useState(false);
-    const [ocrStats, setOcrStats] = useState({ pending: 0, analyzing: 0, completed: 0 });
-    const [ocrLogs, setOcrLogs] = useState<string[]>([]);
+    const handlePasswordChange = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (passwordData.new !== passwordData.confirm) return alert("Passwords mismatch");
+        try {
+            await apiFetch(`users/change-password`, { method: 'POST', body: JSON.stringify({ old_password: passwordData.old, new_password: passwordData.new }) });
+            alert("Success! Re-login required.");
+            localStorage.clear();
+            router.push('/login');
+        } catch (e: any) { alert(e.message); }
+    };
+
+    const handleSaveProfile = async () => {
+        if (!hospitalId) return;
+        try {
+            await apiFetch(`hospitals/${hospitalId}`, { method: 'PATCH', body: JSON.stringify(profile) });
+            alert("Profile synced.");
+        } catch (e) { alert("Update failed"); }
+    };
+
+    const fetchPlatformStaff = async () => {
+        try {
+            const users = await apiFetch(`users/`);
+            if (users) setPlatformStaff(users.filter((u: any) => u.role === 'superadmin_staff'));
+        } catch (e) { console.error(e); }
+    };
 
     const fetchOcrStats = async () => {
         try {
             const data = await apiFetch(`platform/ocr-status`);
-            if (data) {
-                setOcrStats({
-                    pending: data.pending_ocr,
-                    analyzing: data.analyzing,
-                    completed: data.completed_ocr
-                });
-            }
-        } catch (error) {
-            console.error(error);
-        }
+            if (data) setOcrStats({ pending: data.pending_ocr, analyzing: data.analyzing, completed: data.completed_ocr });
+            const logs = await apiFetch(`platform/ocr-logs`);
+            if (logs) setOcrLogs(logs.logs || []);
+        } catch (e) { console.error(e); }
     };
 
-    const fetchOcrLogs = async () => {
+    const runBulkOCR = async () => {
+        setOcrLoading(true);
         try {
-            const data = await apiFetch(`platform/ocr-logs`);
-            if (data) {
-                setOcrLogs(data.logs || []);
-            }
-        } catch (error) {
-            console.error(error);
-        }
-    }
-
-    // System Error Logs State
-    const [systemErrors, setSystemErrors] = useState<any[]>([]);
-    const [loadingErrors, setLoadingErrors] = useState(false);
+            await apiFetch(`platform/bulk-ocr?limit=50`, { method: 'POST' });
+            fetchOcrStats();
+        } catch (e) { console.error(e); }
+        finally { setOcrLoading(false); }
+    };
 
     const fetchSystemErrors = async () => {
         setLoadingErrors(true);
         try {
             const data = await apiFetch(`platform/system-error-logs`);
-            if (data) {
-                setSystemErrors(data);
-            }
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoadingErrors(false);
-        }
-    }
-
-    useEffect(() => {
-        if (['website_admin', 'superadmin'].includes(userRole)) {
-            fetchOcrStats();
-            fetchOcrLogs();
-            fetchSystemErrors();
-            const interval = setInterval(() => {
-                fetchOcrStats();
-                fetchOcrLogs();
-            }, 3000); // Poll every 3 seconds
-            return () => clearInterval(interval);
-        }
-    }, [userRole]);
-
-    const runBulkOCR = async () => {
-        if (!confirm("This will trigger background OCR for up to 50 pending files. Continue?")) return;
-        setOcrLoading(true);
-        try {
-            const data = await apiFetch(`platform/bulk-ocr?limit=50`, {
-                method: 'POST'
-            });
-            if (data) {
-                fetchOcrStats();
-            }
-        } catch (e: any) {
-            console.error(e);
-            alert(`Error: ${e.message || "Failed to trigger OCR"}`);
-        } finally {
-            setOcrLoading(false);
-        }
+            if (data) setSystemErrors(data);
+        } catch (e) { console.error(e); }
+        finally { setLoadingErrors(false); }
     };
 
-    const fetchPlatformStaff = async () => {
-        try {
-            const allUsers = await apiFetch(`users/`);
-            if (allUsers) {
-                setPlatformStaff(allUsers.filter((u: any) => u.role === 'superadmin_staff'));
-            }
-        } catch (error) {
-            console.error(error);
-        }
-    };
-
-    const handleCreateStaff = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        try {
-            const res = await apiFetch(`users/`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    email: newStaff.email,
-                    password: newStaff.password,
-                    role: 'superadmin_staff'
-                })
-            });
-
-            if (res) {
-                alert("Platform Staff created successfully!");
-                setShowStaffModal(false);
-                setNewStaff({ email: '', password: '' });
-                fetchPlatformStaff();
-            }
-        } catch (error: any) {
-            console.error(error);
-            alert(error.message || "Failed to create staff");
-        }
-    };
-
-    const handleUpdateStaff = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!editingStaff) return;
-
-        try {
-            const body: any = {};
-            if (editStaffData.password) {
-                body.password = editStaffData.password;
-            } else {
-                alert("Please enter a new password to update.");
-                return;
-            }
-
-            const res = await apiFetch(`users/${editingStaff.user_id}`, {
-                method: 'PATCH',
-                body: JSON.stringify(body)
-            });
-
-            if (res !== null) {
-                alert("Staff updated successfully!");
-                setShowEditStaffModal(false);
-                setEditingStaff(null);
-                setEditStaffData({ password: '' });
-                fetchPlatformStaff();
-            }
-        } catch (error: any) {
-            console.error(error);
-            alert(error.message || "Failed to update staff");
-        }
-    };
-
-    const handleDeleteStaff = async (staffId: number) => {
-        if (!confirm("Are you sure you want to permanently delete this staff member? This action cannot be undone.")) return;
-
-        try {
-            const res = await apiFetch(`users/${staffId}`, {
-                method: 'DELETE'
-            });
-
-            if (res === null) {
-                alert("Staff member deleted successfully.");
-                fetchPlatformStaff();
-            }
-        } catch (error: any) {
-            console.error(error);
-            alert(error.message || "Failed to delete staff");
-        }
-    };
-
-    const openEditModal = (staff: any) => {
-        setEditingStaff(staff);
-        setEditStaffData({ password: '' });
-        setShowEditStaffModal(true);
-    };
-
-    const handlePasswordChange = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (passwordData.new !== passwordData.confirm) {
-            alert("New passwords do not match!");
-            return;
-        }
-
-        try {
-            const res = await apiFetch(`users/change-password`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    old_password: passwordData.old,
-                    new_password: passwordData.new
-                })
-            });
-
-            if (res) {
-                alert("Password changed successfully! You will now be logged out to re-authenticate.");
-                localStorage.removeItem('token');
-                router.push('/login');
-            }
-        } catch (error: any) {
-            console.error(error);
-            alert(error.message || "Failed to change password");
-        }
-    };
-
-    const fetchProfile = async (id: number) => {
-        try {
-            const data = await apiFetch(`hospitals/${id}`);
-            if (data) {
-                setProfile({
-                    director_name: data.director_name || '',
-                    registration_number: data.registration_number || '',
-                    address: data.address || '',
-                    city: data.city || '',
-                    state: data.state || '',
-                    pincode: data.pincode || '',
-                    ai_settings: data.ai_settings || { enabled: false, api_key: '' }
-                });
-                setSubscription({
-                    tier: data.subscription_tier || 'Standard',
-                    is_active: data.is_active !== false
-                });
-            }
-        } catch (error) {
-            console.error(error);
-        }
-    };
-
-    const handleSaveProfile = async () => {
-        if (!hospitalId) return;
-
-        try {
-            const res = await apiFetch(`hospitals/${hospitalId}`, {
-                method: 'PATCH',
-                body: JSON.stringify(profile)
-            });
-
-            if (res) {
-                alert("Client Profile Updated Successfully!");
-            }
-        } catch (error: any) {
-            console.error(error);
-            alert("Failed to update profile.");
-        }
-    };
+    const isPlatformAdmin = ['website_admin', 'superadmin'].includes(userRole);
 
     return (
-        <div className="flex-1 px-8 pt-0">
-            <h1 className="text-2xl font-bold text-gray-800 mb-4">Settings</h1>
-
-            {mustChangePassword && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-8 shadow-sm">
-                    <div className="flex">
-                        <div className="flex-shrink-0">
-                            <span className="text-xl">⚠️</span>
-                        </div>
-                        <div className="ml-3">
-                            <h3 className="text-sm font-bold text-red-800">Password Update Required</h3>
-                            <p className="text-sm text-red-700 mt-1">
-                                Since this is your first login (or requested by admin), you must change your temporary password to continue accessing the dashboard.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Hospital Profile Form (Visible ONLY to Hospital Admins) */}
-            {userRole === 'hospital_admin' && (
-                <>
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl mb-6">
-                        <h2 className="text-lg font-semibold mb-4 text-indigo-700">🏥 Client Profile & Compliance</h2>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="col-span-2">
-                                <label className="block text-sm font-medium text-gray-700">Client Director / Owner Name</label>
-                                <input type="text"
-                                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                                    value={profile.director_name} onChange={e => setProfile({ ...profile, director_name: e.target.value })}
-                                    placeholder="Dr. John Doe"
-                                />
-                            </div>
-                            <div className="col-span-2">
-                                <label className="block text-sm font-medium text-gray-700">Registration / License Number</label>
-                                <input type="text"
-                                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                                    value={profile.registration_number} onChange={e => setProfile({ ...profile, registration_number: e.target.value })}
-                                    placeholder="REG-2024-XXXX"
-                                />
-                            </div>
-                            <div className="col-span-2">
-                                <label className="block text-sm font-medium text-gray-700">Address Line</label>
-                                <input type="text"
-                                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                                    value={profile.address} onChange={e => setProfile({ ...profile, address: e.target.value })}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">City</label>
-                                <input type="text"
-                                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                                    value={profile.city} onChange={e => setProfile({ ...profile, city: e.target.value })}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">State</label>
-                                <input type="text"
-                                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                                    value={profile.state} onChange={e => setProfile({ ...profile, state: e.target.value })}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Pincode</label>
-                                <input type="text"
-                                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                                    value={profile.pincode} onChange={e => setProfile({ ...profile, pincode: e.target.value })}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="mt-6 pt-6 border-t border-gray-100">
-                            <h3 className="text-md font-bold text-gray-800 mb-3 ml-2 flex items-center gap-2">🤖 AI Extraction Settings</h3>
-                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-4">
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <p className="font-medium text-gray-800">Enable Gemini AI Features</p>
-                                        <p className="text-xs text-gray-500">Activates auto-extraction for uploaded files.</p>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            className="sr-only peer"
-                                            checked={profile.ai_settings.enabled}
-                                            onChange={(e) => setProfile(p => ({ ...p, ai_settings: { ...p.ai_settings, enabled: e.target.checked } }))}
-                                        />
-                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none ring-0 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                                    </label>
-                                </div>
-                                <div className={!profile.ai_settings.enabled ? 'opacity-50 pointer-events-none' : ''}>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Google Gemini API Key</label>
-                                    <input type="password"
-                                        className="w-full border border-gray-300 rounded-md p-2 bg-white"
-                                        value={profile.ai_settings.api_key} onChange={e => setProfile(p => ({ ...p, ai_settings: { ...p.ai_settings, api_key: e.target.value } }))}
-                                        placeholder="AIzaSy..."
-                                    />
-                                    <p className="text-[10px] text-gray-500 mt-1">Stored securely. Required for document summarization.</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="mt-6 flex justify-end">
-                            <button onClick={handleSaveProfile} className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">Save Profile Settings</button>
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl mb-6">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-lg font-semibold text-slate-800">💎 Plan & Subscription</h2>
-                            <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-bold uppercase tracking-wider">
-                                {subscription.tier} Plan
-                            </span>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-6 bg-slate-50 p-6 rounded-xl border border-slate-100">
-                            <div>
-                                <h3 className="text-sm font-bold text-slate-500 uppercase mb-3">Current Plan Features</h3>
-                                <ul className="space-y-2">
-                                    <li className="flex items-center gap-2 text-sm text-slate-700">
-                                        <span className="text-green-500 font-bold">✓</span>
-                                        {subscription.tier === 'Standard' ? '2 User Seats' : subscription.tier === 'Premium' ? '5 User Seats' : '10 User Seats'}
-                                    </li>
-                                    <li className="flex items-center gap-2 text-sm text-slate-700">
-                                        <span className="text-green-500 font-bold">✓</span>
-                                        {subscription.tier === 'Standard' ? '100GB Storage' : subscription.tier === 'Premium' ? '500GB Storage' : 'Priority Global Support'}
-                                    </li>
-                                    <li className="flex items-center gap-2 text-sm text-slate-700 font-medium">
-                                        <span className="text-blue-500">✨</span> Cloud Digitization Active
-                                    </li>
-                                </ul>
-                            </div>
-                            <div className="flex flex-col justify-center">
-                                <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm text-center">
-                                    <p className="text-sm font-bold text-slate-800 mb-1">
-                                        {subscription.tier === 'Enterprise' ? 'Scale Further? 🚀' : 'Need More?'}
-                                    </p>
-                                    <p className="text-[10px] text-gray-500 mb-3">
-                                        {subscription.tier === 'Enterprise'
-                                            ? 'For 10+ users or custom SLA, reach out to us.'
-                                            : 'Upgrade for more seats and AI features.'}
-                                    </p>
-                                    <button className="w-full bg-slate-900 text-white py-2 rounded-md font-bold text-sm hover:bg-slate-800 transition">
-                                        Contact Sales
-                                    </button>
-                                    <p className="text-[9px] text-gray-400 mt-2">Support: sales@dizivault.com</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </>
-            )}
-
-            {/* Platform Settings (Visible ONLY to Super Admin) */}
-            {/* Platform Settings (Visible ONLY to Super Admin) */}
-            {['website_admin', 'superadmin'].includes(userRole) && (
-                <div className="bg-indigo-50 rounded-lg shadow-sm border border-indigo-100 p-6 max-w-2xl mb-6">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 bg-indigo-100 rounded-lg">
-                            <span className="text-2xl">⚙️</span>
-                        </div>
-                        <div>
-                            <h2 className="text-lg font-bold text-indigo-900">Platform Configuration</h2>
-                            <p className="text-xs text-indigo-700">Global settings affecting all tenants.</p>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center bg-white p-4 rounded border border-indigo-100">
-                            <div>
-                                <p className="font-medium text-gray-800">System Maintenance Mode</p>
-                                <p className="text-xs text-gray-500">Prevent logins during updates.</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    className="sr-only peer"
-                                    checked={systemSettings.maintenance_mode === 'true'}
-                                    onChange={(e) => updateSystemSetting('maintenance_mode', e.target.checked ? 'true' : 'false')}
-                                />
-                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-                            </label>
-                        </div>
-
-                        <div className="bg-white p-4 rounded border border-indigo-100">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Global Announcement Banner</label>
-                            <input
-                                type="text"
-                                className="w-full border rounded p-2 text-sm"
-                                placeholder="e.g. Scheduled downtime on Sunday..."
-                                value={systemSettings.announcement}
-                                onChange={(e) => setSystemSettings({ ...systemSettings, announcement: e.target.value })}
-                                onBlur={(e) => updateSystemSetting('announcement', e.target.value)}
-                            />
-                            <p className="text-[10px] text-gray-400 mt-1">Changes are saved automatically on blur.</p>
-                        </div>
-                    </div>
-
-
-
-                    {/* Platform Global AI Configuration */}
-                    <div className="mt-4 bg-white p-4 rounded border border-indigo-100">
-                        <div className="flex justify-between items-center mb-3">
-                            <div>
-                                <p className="font-bold text-gray-800">Global AI Fallback (Gemini)</p>
-                                <p className="text-[11px] text-gray-500">Used if a hospital hasn't configured their own API Key.</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                {(() => {
-                                    try {
-                                        const parsed = JSON.parse(systemSettings.platform_ai_settings);
-                                        return (
-                                            <input
-                                                type="checkbox"
-                                                className="sr-only peer"
-                                                checked={parsed.enabled}
-                                                onChange={(e) => {
-                                                    const updated = { ...parsed, enabled: e.target.checked };
-                                                    setSystemSettings(s => ({ ...s, platform_ai_settings: JSON.stringify(updated) }));
-                                                    updateSystemSetting('platform_ai_settings', JSON.stringify(updated));
-                                                }}
-                                            />
-                                        );
-                                    } catch { return null; }
-                                })()}
-                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                            </label>
-                        </div>
-                        {(() => {
-                            try {
-                                const parsed = JSON.parse(systemSettings.platform_ai_settings);
-                                return (
-                                    <div className={!parsed.enabled ? 'opacity-50 pointer-events-none mt-2' : 'mt-2'}>
-                                        <input
-                                            type="password"
-                                            className="w-full border rounded p-2 text-sm bg-gray-50"
-                                            placeholder="Platform Gemini Key (AIzaSy...)"
-                                            value={parsed.api_key}
-                                            onChange={(e) => {
-                                                const updated = { ...parsed, api_key: e.target.value };
-                                                setSystemSettings(s => ({ ...s, platform_ai_settings: JSON.stringify(updated) }));
-                                            }}
-                                        />
-                                        <div className="flex justify-between items-center mt-2">
-                                            <p className="text-[10px] text-gray-400">Used for bulk OCR tasks or fallback extractions.</p>
-                                            <button
-                                                onClick={() => updateSystemSetting('platform_ai_settings', systemSettings.platform_ai_settings)}
-                                                className="text-[10px] bg-slate-800 text-white px-2 py-1 rounded"
-                                            >
-                                                Save Key
-                                            </button>
-                                        </div>
-                                    </div>
-                                );
-                            } catch { return null; }
-                        })()}
-                    </div>
-
-                    <div className="mt-4 bg-white p-4 rounded border border-indigo-100">
-                        <div className="flex justify-between items-center mb-3">
-                            <div>
-                                <p className="font-medium text-gray-800">Bulk OCR Utility</p>
-                                <p className="text-xs text-gray-500">Scan 50 old files for data extraction.</p>
-                                {(ocrStats.analyzing > 0 || ocrStats.pending > 0) && (
-                                    <p className="text-xs font-bold text-indigo-600 mt-1">
-                                        Processing: {ocrStats.analyzing} | Pending: {ocrStats.pending} | Completed: {ocrStats.completed}
-                                    </p>
-                                )}
-                            </div>
-                            <button
-                                onClick={runBulkOCR}
-                                disabled={ocrLoading || ocrStats.analyzing > 0}
-                                className="bg-indigo-600 text-white px-4 py-2 rounded text-sm font-bold flex items-center gap-2 hover:bg-indigo-700 disabled:opacity-50"
-                            >
-                                {ocrLoading && <Loader2 className="animate-spin" size={16} />}
-                                {ocrStats.analyzing > 0 ? 'Processing...' : 'Run Batch'}
-                            </button>
-                        </div>
-
-                        {/* CLI Log Viewer */}
-                        {(ocrStats.analyzing > 0 || ocrLogs.length > 0) && (
-                            <div className="bg-black text-green-400 font-mono text-xs p-3 rounded h-48 overflow-y-auto whitespace-pre-wrap">
-                                {ocrLogs.length > 0 ? ocrLogs.join('\n') : '> Waiting for logs...'}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* System Error Logs */}
-                    <div className="mt-4 bg-white p-4 rounded border border-red-100">
-                        <div className="flex justify-between items-center mb-3">
-                            <div>
-                                <p className="font-bold text-red-800">System Error Logs</p>
-                                <p className="text-xs text-red-500">Live feed of backend exceptions across all tenants.</p>
-                            </div>
-                            <button
-                                onClick={fetchSystemErrors}
-                                className="px-3 py-1.5 bg-red-50 text-red-600 rounded text-xs font-bold border border-red-200 hover:bg-red-100"
-                            >
-                                Refresh Logs
-                            </button>
-                        </div>
-
-                        <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden">
-                            <div className="max-h-64 overflow-y-auto p-3 flex flex-col gap-2">
-                                {loadingErrors ? (
-                                    <p className="text-slate-400 text-xs text-center py-4">Loading errors...</p>
-                                ) : systemErrors.length > 0 ? (
-                                    systemErrors.map((err, idx) => (
-                                        <div key={idx} className="bg-slate-800 rounded p-2 border-l-2 border-red-500 text-xs">
-                                            <div className="flex justify-between items-start mb-1 text-slate-300">
-                                                <span className="font-bold text-red-400">{err.error_type}</span>
-                                                <span className="text-[10px]">{new Date(err.timestamp).toLocaleString()}</span>
-                                            </div>
-                                            <p className="text-white text-[11px] mb-1 font-mono">{err.error_message}</p>
-                                            {err.endpoint && <p className="text-[10px] text-indigo-300 bg-slate-900 p-1 rounded inline-block">{err.method} {err.endpoint}</p>}
-                                        </div>
-                                    ))
-                                ) : (
-                                    <p className="text-green-400 text-xs text-center border border-dashed border-green-800 p-4 bg-green-950/30 rounded">
-                                        No active system errors found! 🎉
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div >
-            )
-            }
-
-            {/* Platform Company Profile (Visible ONLY to Super Admin) */}
-            {
-                ['website_admin', 'superadmin'].includes(userRole) && (
-                    <CompanyProfileSettings />
-                )
-            }
-
-            {/* Login Activity (Visible to Admins) */}
-            {
-                ['website_admin', 'superadmin', 'hospital_admin'].includes(userRole) && (
-                    <LoginActivityPanel />
-                )
-            }
-
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl mb-6">
-                <h2 className="text-lg font-semibold mb-4">Account Security</h2>
-                <form onSubmit={handlePasswordChange} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Old Password</label>
-                        <input
-                            type="password"
-                            required
-                            className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                            value={passwordData.old}
-                            onChange={e => setPasswordData({ ...passwordData, old: e.target.value })}
-                        />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">New Password</label>
-                            <input
-                                type="password"
-                                required
-                                className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                                value={passwordData.new}
-                                onChange={e => setPasswordData({ ...passwordData, new: e.target.value })}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">Confirm New Password</label>
-                            <input
-                                type="password"
-                                required
-                                className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                                value={passwordData.confirm}
-                                onChange={e => setPasswordData({ ...passwordData, confirm: e.target.value })}
-                            />
-                        </div>
-                    </div>
-                    <div className="flex justify-end">
-                        <button type="submit" className="bg-slate-800 text-white px-4 py-2 rounded-md hover:bg-slate-700 font-medium">Update Password</button>
-                    </div>
-                </form>
+        <div className="px-4 sm:px-6 pb-20 pt-4 w-full mx-auto min-h-screen">
+            {/* Header */}
+            <div className="mb-10">
+                <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-4">
+                    <SettingsIcon className="text-indigo-600 w-10 h-10" /> 
+                    System Control
+                </h1>
+                <p className="text-slate-500 font-medium mt-2">Manage your credentials, platform configuration, and system logs.</p>
             </div>
 
-            {
-                ['website_admin', 'superadmin'].includes(userRole) && (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl mb-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-lg font-semibold">🔧 Manage Platform Staff</h2>
-                            <button
-                                onClick={() => setShowStaffModal(true)}
-                                className="bg-indigo-600 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-indigo-700"
-                            >
-                                + Add Platform Staff
-                            </button>
-                        </div>
-                        <p className="text-xs text-gray-500 mb-4">Staff members who can access and process digitizations for all hospitals.</p>
+            {/* Tab Navigation */}
+            <div className="flex flex-wrap gap-2 mb-10 bg-white p-2 rounded-3xl border border-slate-200 shadow-sm w-fit">
+                <button
+                    onClick={() => setActiveTab('account')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all ${
+                        activeTab === 'account' ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' : 'text-slate-500 hover:bg-slate-50'
+                    }`}
+                >
+                    <UserIcon size={18} /> Account
+                </button>
+                
+                {isPlatformAdmin && (
+                    <button
+                        onClick={() => setActiveTab('platform')}
+                        className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all ${
+                            activeTab === 'platform' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-500 hover:bg-slate-50'
+                        }`}
+                    >
+                        <Shield size={18} /> Platform
+                    </button>
+                )}
 
-                        <div className="space-y-2">
-                            {platformStaff.length > 0 ? platformStaff.map((staff, idx) => (
-                                <div key={idx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-sm font-medium text-gray-700">{staff.email}</span>
-                                        <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded uppercase font-bold">Platform Staff</span>
-                                    </div>
-                                    <div>
-                                        <button
-                                            onClick={() => openEditModal(staff)}
-                                            className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold mr-3"
-                                        >
-                                            Edit
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteStaff(staff.user_id)}
-                                            className="text-xs text-red-600 hover:text-red-800 font-semibold"
-                                        >
-                                            Delete
-                                        </button>
-                                    </div>
-                                </div>
-                            )) : (
-                                <p className="text-center text-gray-400 py-4 text-sm">No platform staff created yet.</p>
-                            )}
-                        </div>
-                    </div>
-                )
-            }
-
-            {
-                showStaffModal && (
-                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
-                            <h2 className="text-xl font-bold mb-4 text-indigo-700">Add Platform Scanning Staff</h2>
-                            <form onSubmit={handleCreateStaff}>
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Staff Email</label>
-                                    <input required type="email" className="w-full border rounded p-2"
-                                        value={newStaff.email} onChange={e => setNewStaff({ ...newStaff, email: e.target.value })}
-                                        placeholder="scanning.staff@dizivault.com"
-                                    />
-                                </div>
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Temporary Password</label>
-                                    <input required type="text" className="w-full border rounded p-2"
-                                        value={newStaff.password} onChange={e => setNewStaff({ ...newStaff, password: e.target.value })}
-                                    />
-                                </div>
-                                <div className="flex justify-end gap-3 mt-6">
-                                    <button type="button" onClick={() => setShowStaffModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
-                                    <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-bold">Create Staff Account</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )
-            }
-
-            {
-                showEditStaffModal && editingStaff && (
-                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
-                            <h2 className="text-xl font-bold mb-4 text-indigo-700">Edit Staff: {editingStaff.email}</h2>
-                            <form onSubmit={handleUpdateStaff}>
-                                <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">New Password (Reset)</label>
-                                    <input required type="text" className="w-full border rounded p-2"
-                                        value={editStaffData.password} onChange={e => setEditStaffData({ ...editStaffData, password: e.target.value })}
-                                        placeholder="Enter new password"
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">Updates the user's password immediately.</p>
-                                </div>
-                                <div className="flex justify-end gap-3 mt-6">
-                                    <button type="button" onClick={() => setShowEditStaffModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
-                                    <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-bold">Update Staff</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )
-            }
-
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 max-w-2xl mt-6">
-                <h2 className="text-lg font-semibold mb-4 text-red-600">Danger Zone</h2>
-                <p className="text-sm text-gray-600 mb-4">Clear all local cache and reset default views.</p>
-                <button className="border border-red-200 text-red-600 px-4 py-2 rounded-md hover:bg-red-50">Reset Dashboard</button>
+                <button
+                    onClick={() => setActiveTab('security')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all ${
+                        activeTab === 'security' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100' : 'text-slate-500 hover:bg-slate-50'
+                    }`}
+                >
+                    <Activity size={18} /> Activity & Logs
+                </button>
             </div>
-        </div >
 
+            {/* Tab Content */}
+            <div className="max-w-6xl">
+                {activeTab === 'account' && (
+                    <AccountSettings 
+                        userRole={userRole}
+                        profile={profile}
+                        setProfile={setProfile}
+                        passwordData={passwordData}
+                        setPasswordData={setPasswordData}
+                        handlePasswordChange={handlePasswordChange}
+                        handleSaveProfile={handleSaveProfile}
+                        mustChangePassword={mustChangePassword}
+                    />
+                )}
+
+                {activeTab === 'platform' && isPlatformAdmin && (
+                    <PlatformConfig 
+                        systemSettings={systemSettings}
+                        setSystemSettings={setSystemSettings}
+                        updateSystemSetting={updateSystemSetting}
+                        runBulkOCR={runBulkOCR}
+                        ocrLoading={ocrLoading}
+                        ocrStats={ocrStats}
+                        ocrLogs={ocrLogs}
+                        systemErrors={systemErrors}
+                        loadingErrors={loadingErrors}
+                        fetchSystemErrors={fetchSystemErrors}
+                    />
+                )}
+
+                {activeTab === 'security' && (
+                    <div className="space-y-8 animate-in fade-in duration-500">
+                        {isPlatformAdmin && <CompanyProfileSettings />}
+                        <LoginActivityPanel />
+                    </div>
+                )}
+            </div>
+        </div>
     );
 }
-

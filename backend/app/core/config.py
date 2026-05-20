@@ -50,9 +50,11 @@ class Settings:
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY")
     PLATFORM_AI_ENABLED: bool = os.getenv("PLATFORM_AI_ENABLED", "false").lower() == "true"
 
-    # External Binaries (Pre-work for Phase 1.2)
+    # External Binaries
     TESSERACT_CMD: str = os.getenv("TESSERACT_CMD", shutil.which("tesseract") or r"C:\Program Files\Tesseract-OCR\tesseract.exe")
     POPPLER_PATH: Optional[str] = os.getenv("POPPLER_PATH", None) # Defaults to None if in PATH
+    GHOSTSCRIPT_CMD: str = os.getenv("GHOSTSCRIPT_CMD", shutil.which("gswin64c") or shutil.which("gs") or "gswin64c")
+    DEFAULT_COMPRESSION_STRATEGY: str = os.getenv("DEFAULT_COMPRESSION_STRATEGY", "BALANCED")
     
     @property
     def IS_UNSAFE_SECRET_KEY(self) -> bool:

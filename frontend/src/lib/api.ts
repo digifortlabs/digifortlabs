@@ -1,12 +1,12 @@
 import { API_URL as ConfigAPI_URL, getCsrfToken } from '@/config/api';
 const API_URL = ConfigAPI_URL;
 
-export async function apiFetch(endpoint: string, options: RequestInit = {}) {
+export async function apiFetch(endpoint: string, options: Omit<RequestInit, 'body'> & { body?: any } = {}) {
     // Automatically include cookies for HttpOnly JWT authentication
     const fetchOptions: RequestInit = {
         ...options,
         credentials: 'include',
-    };
+    } as any;
 
     // Auto-detect JSON if body is an object and not FormData
     if (options.body && !(options.body instanceof FormData) && !(options.body instanceof URLSearchParams) && typeof options.body === 'object') {

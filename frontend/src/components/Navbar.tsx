@@ -1,6 +1,10 @@
 "use client";
-import Link from 'next/link';
-import Image from 'next/image';
+// @ts-ignore
+import NextLink from 'next/link';
+// @ts-ignore
+import NextImage from 'next/image';
+const Link = NextLink as any;
+const Image = NextImage as any;
 import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
 

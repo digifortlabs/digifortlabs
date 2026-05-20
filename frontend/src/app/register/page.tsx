@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+// @ts-ignore
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+// @ts-ignore
+import NextLink from 'next/link';
+const Link = NextLink as any;
 import { apiFetch } from '@/lib/api';
 import {
     Building2, User, Mail, Phone, Lock,
@@ -11,7 +14,7 @@ import {
     Stethoscope, Scale, FlaskConical, Briefcase,
     Cpu, Archive, Hotel, IndianRupee, Loader2,
     MapPin, Hash, Calendar, FileText, ChevronRight,
-    Sparkles, Star, Zap
+    Sparkles, Star, Zap, ChevronDown
 } from 'lucide-react';
 
 const STEPS = [
@@ -22,15 +25,13 @@ const STEPS = [
     { id: 5, label: 'Review', icon: CheckCircle2, color: 'green' },
 ];
 
-const ORG_TYPES = ['Hospital', 'Clinic', 'Dental Clinic', 'Law Firm', 'Corporate Office', 'Pharma Manufacturing'];
-const SPECIALTIES = ['General Medical', 'Dental Practice', 'ENT Specialist', 'Corporate HR/Biz', 'Legal', 'Manufacturing'];
+const ORG_TYPES = ['Hospital', 'Clinic', 'Dental Clinic'];
+const SPECIALTIES = ['General Medical', 'Dental Practice', 'ENT Specialist'];
 
 const MODULES = [
     { id: 'core', label: 'AIO Core Warehouse', icon: Archive, color: 'slate', desc: 'Base data processor & cloud storage', fixed: true },
     { id: 'hms', label: 'HMS Pro', icon: Hotel, color: 'indigo', desc: 'IPD, Wards, OT and smart billing' },
     { id: 'dental', label: 'Dental Engine', icon: Stethoscope, color: 'emerald', desc: '3D charting & clinical records' },
-    { id: 'legal', label: 'Law Discovery', icon: Scale, color: 'amber', desc: 'Case tracking and evidence vault' },
-    { id: 'pharma', label: 'Pharma Ops', icon: FlaskConical, color: 'blue', desc: 'Manufacturing and batch tracing' },
     { id: 'accounting', label: 'Financial Ledger', icon: IndianRupee, color: 'purple', desc: 'GST invoicing and P&L tracking' },
 ];
 
@@ -310,17 +311,23 @@ export default function RegisterPage() {
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Organization Type</label>
-                                            <select value={orgType} onChange={e => setOrgType(e.target.value)} className="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all appearance-none">
+                                        <div className="space-y-1.5 relative group">
+                                            <label className="text-[10px] font-black text-indigo-600 uppercase tracking-wider absolute -top-2 left-3 bg-white px-1.5 z-10">Organization Type</label>
+                                            <select value={orgType} onChange={e => setOrgType(e.target.value)} className="w-full px-4 py-3.5 bg-white border-2 border-indigo-500/10 rounded-xl text-slate-800 font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all appearance-none cursor-pointer">
                                                 {ORG_TYPES.map(t => <option key={t}>{t}</option>)}
                                             </select>
+                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 pt-4 text-indigo-500">
+                                                <ChevronDown size={16} />
+                                            </div>
                                         </div>
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Specialty / Industry</label>
-                                            <select value={specialty} onChange={e => setSpecialty(e.target.value)} className="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all appearance-none">
+                                        <div className="space-y-1.5 relative group">
+                                            <label className="text-[10px] font-black text-indigo-600 uppercase tracking-wider absolute -top-2 left-3 bg-white px-1.5 z-10">Specialty / Industry</label>
+                                            <select value={specialty} onChange={e => setSpecialty(e.target.value)} className="w-full px-4 py-3.5 bg-white border-2 border-indigo-500/10 rounded-xl text-slate-800 font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all appearance-none cursor-pointer">
                                                 {SPECIALTIES.map(s => <option key={s}>{s}</option>)}
                                             </select>
+                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 pt-4 text-indigo-600">
+                                                <ChevronDown size={16} />
+                                            </div>
                                         </div>
                                     </div>
 

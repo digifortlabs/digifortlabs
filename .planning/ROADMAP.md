@@ -14,29 +14,29 @@
 - [x] **Task 2.3**: Create base background task handlers.
 - **Goal**: Enable asynchronous processing for heavy PDF tasks.
 
-### Phase 3: High-Density Compression Engine
-- [ ] **Task 3.1**: Integrate `ocrmypdf` for JBIG2 monochrome compression.
-- [ ] **Task 3.2**: Integrate `Ghostscript` for general PDF downsampling.
-- [ ] **Task 3.3**: Update `compression.py` with multi-level strategies (Low/Med/High).
+### Phase 3: High-Density Compression Engine [COMPLETE - 2026-05-16]
+- [x] **Task 3.1**: Integrate `ocrmypdf` for JBIG2 monochrome compression.
+- [x] **Task 3.2**: Integrate `Ghostscript` for general PDF downsampling.
+- [x] **Task 3.3**: Update `compression.py` with multi-level strategies (Low/Med/High).
 - **Goal**: Achieve the "clean and sharp" compression quality.
 
-### Phase 4: Async Compression Pipeline
-- [ ] **Task 4.1**: Implement the background compression task logic.
-- [ ] **Task 4.2**: Create API endpoints for status polling and task retrieval.
-- [ ] **Task 4.3**: Implement automatic cleanup of temporary files.
+### Phase 4: Async Compression Pipeline [COMPLETE - 2026-05-16]
+- [x] **Task 4.1**: Implement the background compression task logic.
+- [x] **Task 4.2**: Create API endpoints for status polling and task retrieval.
+- [x] **Task 4.3**: Implement automatic cleanup of temporary files.
 - **Goal**: Full end-to-end background optimization workflow.
 
-### Phase 5: Dashboard Integration
-- [ ] **Task 5.1**: Add "Compression Level" selection to the record upload flow.
-- [ ] **Task 5.2**: Implement real-time status indicators (Optimizing...) in the UI.
-- [ ] **Task 5.3**: Add success/failure notifications for background tasks.
+### Phase 5: Dashboard Integration [COMPLETE - 2026-05-17]
+- [x] **Task 5.1**: Add "Compression Level" selection to the record upload flow.
+- [x] **Task 5.2**: Implement real-time status indicators (Optimizing...) in the UI.
+- [x] **Task 5.3**: Add success/failure notifications for background tasks.
 - **Goal**: Expose the new capabilities to the end-user.
 
-### Phase 6: Validation & Performance
-- [ ] **Task 6.1**: UAT with user-provided sample PDFs (~500KB target).
-- [ ] **Task 6.2**: Benchmarking and performance tuning of the Celery worker.
-- [ ] **Task 6.3**: Final documentation of the optimization engine.
+### Phase 6: Validation & Performance [COMPLETE - 2026-05-17]
+- [x] **Task 6.1**: UAT with user-provided sample PDFs (~500KB target).
+- [x] **Task 6.2**: Benchmarking and performance tuning of the Celery worker.
+- [x] **Task 6.3**: Final documentation of the optimization engine.
 - **Goal**: Ensure the solution meets "clean and sharp" requirements at scale.
 
 ---
-*Roadmap generated: 2026-05-11*
+*Roadmap updated: 2026-05-17*

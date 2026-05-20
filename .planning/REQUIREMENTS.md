@@ -24,11 +24,11 @@
 ### 2.1 Backend (FastAPI/Celery)
 - [ ] Integration of `ocrmypdf` and `ghostscript` into the `compression.py` service.
 - [ ] Implementation of status polling endpoints for background tasks.
-- [ ] Move HTML email templates from `email_service.py` to external Jinja2 templates.
+- [x] Move HTML email templates from `email_service.py` to external Jinja2 templates.
 
 ### 2.2 Security
-- [ ] Rotate `SECRET_KEY` and ensure it's loaded from environment variables only.
-- [ ] Fix hardcoded paths in `ocr.py` to be environment-agnostic (Docker-friendly).
+- [x] Rotate `SECRET_KEY` and ensure it's loaded from environment variables only.
+- [x] Fix hardcoded paths in `ocr.py` to be environment-agnostic (Docker-friendly).
 
 ## 3. Success Criteria (UAT)
 - [ ] **Sharpness**: Text remains legible at 200% zoom after "High" compression.

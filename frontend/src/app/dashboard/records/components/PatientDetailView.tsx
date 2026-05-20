@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import imageCompression from 'browser-image-compression';
-import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download, FileText, Pencil, Archive, Box, AlertCircle, Info, Shield, Ear } from 'lucide-react';
+import { Upload, X, Loader2, PlayCircle, FileType, CheckCircle, Stethoscope, Activity, Plus, Trash2, Search, Syringe, Camera, Sparkles, Monitor, Download, FileText, Pencil, Archive, Box, AlertCircle, Info, Shield, Ear, Clock, Zap } from 'lucide-react';
 import DigitizationScanner from '../../../../components/Scanner/DigitizationScanner';
 import SecurePDFViewer from '@/components/SecurePDFViewer';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -142,6 +142,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
     const [isUploading, setIsUploading] = useState(false);
     const [confirmingFiles, setConfirmingFiles] = useState<Set<number>>(new Set());
     const abortControllers = useRef<{ [key: string]: XMLHttpRequest }>({});
+    const [compressionLevel, setCompressionLevel] = useState<'FAST' | 'BALANCED' | 'ULTRA' | 'NONE'>('BALANCED');
 
     // ICD-11 State
     const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
@@ -351,11 +352,16 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
             }
             prevFileCountRef.current = currentCount;
         }
-
-        const hasProcessing = patient.files.some(f => f.processing_stage === 'analyzing' || f.upload_status === 'draft');
+        const hasProcessing = patient.files.some(f => 
+            f.processing_stage === 'queued' || 
+            f.processing_stage === 'compressing' || 
+            f.processing_stage === 'processing' || 
+            f.processing_stage === 'analyzing' || 
+            f.upload_status === 'draft'
+        );
 
         // Poll if: 
-        // 1. Files are processing/analyzing
+        // 1. Files are processing/analyzing/compressing/queued
         // 2. We just launched the Desktop App (isPollingForDesktop is true)
         if (hasProcessing || isPollingForDesktop) {
             const interval = setInterval(() => {
@@ -376,7 +382,29 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
                 if (timeout) clearTimeout(timeout);
             };
         }
-    }, [patient?.files?.length, id, isPollingForDesktop]);
+    }, [patient?.files, id, isPollingForDesktop]);
+
+    // Track background task completions/failures for toast notifications
+    const prevFilesRef = useRef<FileData[]>([]);
+    useEffect(() => {
+        if (!patient?.files) return;
+
+        const prevFiles = prevFilesRef.current;
+        if (prevFiles.length > 0) {
+            patient.files.forEach(file => {
+                const prevFile = prevFiles.find(f => f.file_id === file.file_id);
+                if (prevFile) {
+                    if (prevFile.processing_stage !== 'completed' && file.processing_stage === 'completed') {
+                        triggerToast(`File "${file.filename}" successfully optimized and indexed!`, "success");
+                    }
+                    if (prevFile.processing_stage !== 'failed' && file.processing_stage === 'failed') {
+                        triggerToast(`Optimization failed for "${file.filename}".`, "error");
+                    }
+                }
+            });
+        }
+        prevFilesRef.current = patient.files;
+    }, [patient?.files]);
 
     // Handlers (Copy-pasted logic mostly)
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -409,6 +437,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
         return new Promise<number>((resolve, reject) => {
             const formData = new FormData();
             formData.append('file', item.compressedFile || item.originalFile);
+            formData.append('compression_level', compressionLevel);
 
             const xhr = new XMLHttpRequest();
             abortControllers.current[item.id] = xhr;
@@ -1383,10 +1412,29 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
                                                 🔍 SEARCHABLE
                                             </span>
                                         )}
-                                        {file.upload_status === 'confirmed' && !file.is_searchable && file.processing_stage === 'analyzing' && (
-                                            <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
-                                                <Loader2 size={10} className="animate-spin" /> ANALYZING OCR...
-                                            </span>
+                                        {file.upload_status === 'confirmed' && !file.is_searchable && (
+                                            <>
+                                                {file.processing_stage === 'queued' && (
+                                                    <span className="bg-blue-50 text-blue-700 border border-blue-100 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
+                                                        <Clock size={10} /> QUEUED
+                                                    </span>
+                                                )}
+                                                {file.processing_stage === 'compressing' && (
+                                                    <span className="bg-amber-50 text-amber-700 border border-amber-100 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
+                                                        <Zap size={10} className="text-amber-500 animate-bounce" /> OPTIMIZING...
+                                                    </span>
+                                                )}
+                                                {(file.processing_stage === 'processing' || file.processing_stage === 'analyzing') && (
+                                                    <span className="bg-purple-50 text-purple-700 border border-purple-100 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
+                                                        <Loader2 size={10} className="animate-spin" /> EXTRACTING TEXT...
+                                                    </span>
+                                                )}
+                                                {file.processing_stage === 'failed' && (
+                                                    <span className="bg-red-50 text-red-700 border border-red-100 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
+                                                        <AlertCircle size={10} /> FAILED
+                                                    </span>
+                                                )}
+                                            </>
                                         )}
                                     </div>
 
@@ -1471,7 +1519,22 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
                         <div className="mt-8 pt-8 border-t border-gray-100">
                             <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
                                 <h3 className="text-sm font-bold text-gray-400 uppercase">Input Files</h3>
-                                <div className="flex gap-2">
+                                <div className="flex items-center gap-3">
+                                    {/* Compression Level Selector */}
+                                    <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg">
+                                        <span className="text-[10px] font-bold text-slate-500">Compression:</span>
+                                        <select
+                                            value={compressionLevel}
+                                            onChange={(e) => setCompressionLevel(e.target.value as any)}
+                                            disabled={isUploading}
+                                            className="bg-transparent text-[11px] font-black text-slate-700 outline-none cursor-pointer"
+                                        >
+                                            <option value="FAST">FAST</option>
+                                            <option value="BALANCED">BALANCED</option>
+                                            <option value="ULTRA">ULTRA</option>
+                                            <option value="NONE">NONE</option>
+                                        </select>
+                                    </div>
 
                                     {fileQueue.length > 0 && !isUploading && (
                                         <button

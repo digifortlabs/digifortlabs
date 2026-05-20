@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from .core.config import settings
 from .database import Base, engine
 from .routers import auth, hospitals, patients
+from .routers.auth import require_module
 from .core.logging_config import setup_logging
 
 # Initialize Logging
@@ -18,7 +19,7 @@ configure_mappers()
 if settings.ENVIRONMENT == "production" and settings.IS_UNSAFE_SECRET_KEY:
     import logging
     logger = logging.getLogger(__name__)
-    logger.critical("🚨 CRITICAL SECURITY WARNING 🚨")
+    logger.critical("CRITICAL SECURITY WARNING")
     logger.critical("The application is running in PRODUCTION with the DEFAULT SECRET_KEY.")
     logger.critical("This is a massive security risk. Authentication tokens can be forged.")
     logger.critical("Please set the SECRET_KEY environment variable immediately.")
@@ -32,7 +33,7 @@ from pydantic import BaseModel
 from fastapi import Depends, Request
 
 class CsrfSettings(BaseModel):
-    secret_key: str = settings.SECRET_KEY
+    secret_key: str = settings.SECRET_KEY.get_secret_value()
     cookie_samesite: str = "lax"
     cookie_secure: bool = settings.ENVIRONMENT == "production" and not any(x in str(settings.BACKEND_CORS_ORIGINS) for x in ["localhost", "127.0.0.1", "100.", "192.", "10."])
 
@@ -46,7 +47,7 @@ async def verify_csrf(request: Request, csrf_protect: CsrfProtect = Depends()):
     Excludes public endpoints and health checks.
     """
     # 1. Skip if specifically disabled or public
-    if request.url.path in ["/health", "/docs", "/redoc", "/openapi.json", "/auth/csrf-token", "/auth/token"]:
+    if request.url.path in ["/health", "/docs", "/redoc", "/openapi.json", "/auth/csrf-token", "/auth/token", "/optimization/trigger"]:
         return
         
     # 2. Skip for non-mutating methods (GET, HEAD, OPTIONS)
@@ -55,9 +56,9 @@ async def verify_csrf(request: Request, csrf_protect: CsrfProtect = Depends()):
 
     # 3. Validate
     try:
-        await csrf_protect.validate_csrf_in_cookies(request)
+        await csrf_protect.validate_csrf(request)
     except CsrfProtectError as e:
-        print(f"🛡️ CSRF Validation Failed: {e.message}")
+        print(f"CSRF Validation Failed: {e.message}")
         raise e
 
 
@@ -100,7 +101,7 @@ app.add_middleware(BandwidthMiddleware)
 
 # IMPORTANT: CORS must be added LAST to be the outermost middleware 
 # and handle preflight requests before security headers or rate limits.
-CORS_ORIGIN_REGEX = r"https://(.*\.)?digifortlabs\.com|http://(.*\.)?localhost:3000"
+CORS_ORIGIN_REGEX = r"https://(.*\.)?digifortlabs\.com|http://(.*\.)?localhost(:\d+)?|http://(.*\.)?127\.0\.0\.1(:\d+)?"
 
 app.add_middleware(
     CORSMiddleware,
@@ -121,7 +122,7 @@ async def csrf_protect_exception_handler(request: Request, exc: CsrfProtectError
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     # Log the detail for debugging
-    print(f"🔥 Global Exception: {type(exc).__name__}: {str(exc)}")
+    print(f"Global Exception: {type(exc).__name__}: {str(exc)}")
     import traceback
     tb_str = traceback.format_exc()
     traceback.print_exc()
@@ -133,20 +134,17 @@ async def global_exception_handler(request: Request, exc: Exception):
         db = SessionLocal()
         
         err_log = SystemErrorLog(
-            error_type=type(exc).__name__,
-            error_message=str(exc)[:1000], # Trucate if too long
-            stack_trace=tb_str,
-            endpoint=str(request.url),
-            method=request.method
+            severity="ERROR",
+            module=request.url.path.split("/")[1] if request.url.path else "unknown",
+            message=f"[{type(exc).__name__}] {str(exc)[:500]} | {request.method} {str(request.url)}",
+            traceback=tb_str
         )
         db.add(err_log)
         db.commit()
         db.close()
-        
+
     except Exception as dbe:
-        print(f"⚠️ Failed to write to system_error_logs: {dbe}")
-    except Exception as e:
-        print(f"Failed to log global exception to DB: {e}")
+        print(f"WARNING: Failed to write to system_error_logs: {dbe}")
     
     status_code = 500
     if isinstance(exc, HTTPException): status_code = exc.status_code
@@ -169,7 +167,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.exception_handler(ResponseValidationError)
 async def validation_exception_handler(request: Request, exc: ResponseValidationError):
-    print(f"❌ Response Validation Error: {exc.errors()}")
+    print(f"Response Validation Error: {exc.errors()}")
     response = JSONResponse(
         status_code=500,
         content={"detail": "Data formatting error in server response.", "errors": exc.errors()}
@@ -198,17 +196,19 @@ from .routers import users
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(users.router, prefix="/users", tags=["users"])
-from .routers import audit_logs, platform
+from .routers import audit_logs, platform, platform_ops
 
 app.include_router(audit_logs.router, prefix="/audit", tags=["audit"])
 app.include_router(platform.router, prefix="/platform", tags=["platform"])
+app.include_router(platform_ops.router)
+
 
 from .routers import server_files
 app.include_router(server_files.router, prefix="/server-files", tags=["server-files"])
 
 from .routers import storage
 
-app.include_router(storage.router, prefix="/storage", tags=["storage"])
+app.include_router(storage.router, prefix="/storage", tags=["storage"], dependencies=[Depends(require_module("core"))])
 from .routers import stats, diagnoses
 
 app.include_router(stats.router, prefix="/stats", tags=["stats"])
@@ -227,7 +227,7 @@ app.include_router(accounting.router, prefix="/accounting", tags=["accounting"])
 app.include_router(accounting_advanced.router, prefix="/accounting-adv", tags=["accounting-advanced"])
 
 from .routers import inventory 
-app.include_router(inventory.router, prefix="/inventory", tags=["inventory"])
+app.include_router(inventory.router, prefix="/inventory", tags=["inventory"], dependencies=[Depends(require_module("inventory"))])
 
 from .routers import dental
 app.include_router(dental.router, prefix="/dental", tags=["dental"])
@@ -245,18 +245,19 @@ app.include_router(clinic.router)
 
 
 from .routers import hms
-app.include_router(hms.router)
+app.include_router(hms.router, dependencies=[Depends(require_module("hms"))])
 
 try:
     from .routers import scanner
     app.include_router(scanner.router) # Scanner Service
 except Exception as e:
-    print(f"⚠️  WARNING: Failed to load scanner router. Error: {e}")
+    print(f"WARNING: Failed to load scanner router. Error: {e}")
     # Continue running app even if scanner fails
     pass
 
-from .routers import compliance
+from .routers import compliance, optimization
 app.include_router(compliance.router)
+app.include_router(optimization.router, prefix="/optimization", tags=["optimization"])
 
 
 # Always mount local_storage for dental scans (and simulation mode)
@@ -284,6 +285,7 @@ async def startup_event():
                 db = SessionLocal()
                 from .services.cleanup_service import CleanupService
                 CleanupService.run_retention_policy(db)
+                CleanupService.cleanup_temp_jobs() # Added job cleanup
                 db.close()
             except Exception as e:
                 print(f"Retention Cleanup Error: {e}")

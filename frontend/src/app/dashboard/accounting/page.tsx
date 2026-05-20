@@ -79,6 +79,7 @@ export default function AccountingPage() {
         total_paid: 0,
         total_invoices: 0
     });
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
     // Modal states
     const [showGenModal, setShowGenModal] = useState(false);
@@ -93,8 +94,12 @@ export default function AccountingPage() {
 
     const fetchInvoices = async () => {
         setLoading(true);
+        setFetchError(null);
         try {
             const data = await apiFetch('/accounting/');
+            if (!Array.isArray(data)) {
+                throw new Error(`Unexpected response format: ${JSON.stringify(data)}`);
+            }
             setInvoices(data);
 
             // Calculate stats
@@ -106,8 +111,9 @@ export default function AccountingPage() {
                 total_paid: paid,
                 total_invoices: data.length
             });
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error fetching invoices:", error);
+            setFetchError(error?.message || 'Failed to load invoices. Check console for details.');
         } finally {
             setLoading(false);
         }

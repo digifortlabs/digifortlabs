@@ -26,7 +26,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
         "exp": expire,
         "iat": datetime.utcnow()
     })
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY.get_secret_value(), algorithm=settings.ALGORITHM)
     return encoded_jwt
 
 def validate_magic_bytes(header: bytes, ext: str) -> bool:

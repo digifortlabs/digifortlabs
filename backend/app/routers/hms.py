@@ -216,7 +216,7 @@ def get_admissions(
             "admission_id": adm.admission_id,
             "patient_id": adm.patient_id,
             "patient_name": patient.full_name if patient else "Unknown",
-            "mrd_number": patient.mrd_number if patient else None,
+            "mrd_number": patient.patient_u_id if patient else None,
             "ward_name": ward.ward_name if ward else None,
             "bed_number": bed.bed_number if bed else None,
             "admission_date": adm.admission_date,

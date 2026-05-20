@@ -15,3 +15,11 @@ ignore = []
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.pyrefly]
+python-interpreter = ".venv/Scripts/python.exe"
+
+[tool.pyright]
+pythonPath = ".venv/Scripts/python.exe"
+venvPath = "."
+venv = ".venv"

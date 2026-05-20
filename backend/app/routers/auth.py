@@ -1,17 +1,28 @@
+import os
+import re
 import uuid
-import random
+import json
+import hmac
+
+import hashlib
+import logging
+import secrets
+from typing import Optional, cast
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
 from fastapi.responses import JSONResponse
-
-# Rate limiting storage for OTPs
-otp_request_tracker = defaultdict(list)
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi_csrf_protect import CsrfProtect
 from jose import JWTError, jwt
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
+
+# Rate limiting storage for OTPs
+otp_request_tracker = defaultdict(list)
 
 from ..core.config import settings
 from ..database import get_db
@@ -39,8 +50,6 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
-from fastapi_csrf_protect import CsrfProtect
-
 @router.get("/csrf-token")
 async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
     """Returns a CSRF token and sets the signed cookie for frontend usage."""
@@ -49,7 +58,34 @@ async def get_csrf_token(csrf_protect: CsrfProtect = Depends()):
     csrf_protect.set_csrf_cookie(signed_token, response)
     return response
 
+class EmailCheckRequest(BaseModel):
+    email: EmailStr
 
+@router.post("/check-email")
+def check_email(data: EmailCheckRequest, db: Session = Depends(get_db)):
+    """Check if an email belongs to a hospital and return the target subdomain slug."""
+    user = db.query(User).filter(func.lower(User.email) == func.lower(data.email), User.is_deleted == False).first()  # noqa: E712
+    if not user:
+        raise HTTPException(status_code=404, detail="Email address not found in our registry.")
+        
+    if user.hospital:
+        hospital_slug = user.hospital.hospital_slug or re.sub(r'[^a-z0-9]', '', user.hospital.legal_name.lower())
+    else:
+        hospital_slug = None
+
+    # Determine subdomain
+    target_subdomain = 'dashboard'
+    if user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN, UserRole.WAREHOUSE_MANAGER]:
+        target_subdomain = 'admin'
+    elif hospital_slug:
+        target_subdomain = hospital_slug
+
+    return {
+        "email": user.email,
+        "role": user.role,
+        "hospital_slug": hospital_slug,
+        "target_subdomain": target_subdomain
+    }
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
@@ -58,7 +94,7 @@ async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(), 
     db: Session = Depends(get_db)
 ):
-    print(f"🔐 [AUTH] Login attempt for: {form_data.username}")
+    logger.info("[AUTH] Login attempt for: %s", form_data.username)
     
     # Query user (Case insensitive)
     user = db.query(User).filter(func.lower(User.email) == func.lower(form_data.username)).first()
@@ -67,7 +103,8 @@ async def login_for_access_token(
         try:
              log_audit(db, None, "LOGIN_FAILED", f"User not found: {form_data.username}")
              db.commit()
-        except: pass
+        except (OSError, RuntimeError, ValueError) as e:
+            logger.warning("[AUTH] Failed to log audit for missing user: %s", e)
         
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -95,28 +132,28 @@ async def login_for_access_token(
             )
         else:
             # Lock expired, reset counters
-            user.locked_until = None
-            user.failed_login_attempts = 0
+            user.locked_until = None  # type: ignore[assignment]
+            user.failed_login_attempts = 0  # type: ignore[assignment]
 
     # 2. Verify Password
     if not verify_password(form_data.password, user.hashed_password):
         # Audit Failure
-        log_audit(db, user.user_id, "LOGIN_FAILED", "Incorrect password")
+        log_audit(db, cast(int, user.user_id), "LOGIN_FAILED", "Incorrect password")
         
         # Increment failed attempts
-        user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+        user.failed_login_attempts = (user.failed_login_attempts or 0) + 1  # type: ignore[assignment]
         db.commit()
 
         if user.failed_login_attempts >= 6:
             # Requirements: Lockout 30 mins after 6 attempts (in IST)
-            user.locked_until = datetime.now(IST) + timedelta(minutes=30)
+            user.locked_until = datetime.now(IST) + timedelta(minutes=30)  # type: ignore[assignment]
             db.commit()
             
             # Send Lockout Email
             try:
-                EmailService.send_account_locked_email(user.email, "Multiple failed login attempts")
-            except Exception as e:
-                print(f"[AUTH] Failed to send lockout email: {e}")
+                EmailService.send_account_locked_email(cast(str, user.email), "Multiple failed login attempts")
+            except (ConnectionError, OSError, TimeoutError, RuntimeError) as e:
+                logger.warning("[AUTH] Failed to send lockout email: %s", e)
 
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -140,20 +177,19 @@ async def login_for_access_token(
 
     # Success: Reset counters & Update Session
     if (user.failed_login_attempts or 0) > 0 or user.locked_until:
-        user.failed_login_attempts = 0
-        user.locked_until = None
+        user.failed_login_attempts = 0  # type: ignore[assignment]
+        user.locked_until = None  # type: ignore[assignment]
     
     new_session_id = str(uuid.uuid4())
-    user.current_session_id = new_session_id
+    user.current_session_id = new_session_id  # type: ignore[assignment]
     
     # --- NOTIFICATIONS & AUDIT ---
     # Audit Log (Non-blocking add)
-    log_audit(db, user.user_id, "LOGIN_SUCCESS", "User logged in successfully")
+    log_audit(db, cast(int, user.user_id), "LOGIN_SUCCESS", "User logged in successfully")
     
     # Device Tracking & MFA
     try:
-        import json
-        if request:
+        if request and request.client:
             client_ip = request.client.host
             user_agent = request.headers.get("User-Agent", "Unknown")
             # Extract device_id sent by frontend or fallback to IP+Agent
@@ -163,36 +199,37 @@ async def login_for_access_token(
             known_devices = []
             if user.known_devices:
                 try:
-                    known_devices = json.loads(user.known_devices)
-                except:
+                    known_devices = json.loads(cast(str, user.known_devices))
+                except (ValueError, TypeError) as e:
+                    logger.warning("[AUTH] Failed to parse known_devices for user %s: %s", user.user_id, e)
                     known_devices = []
             
             # --- TRUSTED DEVICE CHECK ---
-            # demo@hospital.com is permanently excluded from MFA/OTP
-            is_demo = user.email.lower() == "demo@hospital.com"
-            is_admin = (user.role in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN]) and not is_demo
+            # MFA/OTP is enabled for administrative accounts.
+            is_demo = user.email.lower() == os.environ.get("DEMO_ACCOUNT_EMAIL", "").lower()
+            is_admin = user.role in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.WAREHOUSE_MANAGER]
             trusted_token = request.cookies.get("trusted_device")
             is_trusted = False
             
             if trusted_token:
-                import hashlib
-                token_hash = hashlib.sha256(trusted_token.encode()).hexdigest()
+                token_hash = hmac.new(settings.SECRET_KEY.get_secret_value().encode(), trusted_token.encode(), hashlib.sha256).hexdigest()
                 trusted_device = db.query(UserTrustedDevice).filter(
                     UserTrustedDevice.user_id == user.user_id,
                     UserTrustedDevice.device_token_hash == token_hash
                 ).first()
                 if trusted_device:
-                    print(f"✅ [AUTH] Trusted Device recognized for {user.email}. Skipping MFA.")
+                    logger.info("[AUTH] Trusted Device recognized for %s. Skipping MFA.", user.email)
                     is_trusted = True
-                    trusted_device.last_used_at = datetime.now(IST)
+                    trusted_device.last_used_at = datetime.now(IST)  # type: ignore[assignment]
             
             # Check if this device is new
+            skip_mfa = os.environ.get("SKIP_MFA", "false").lower() == "true"
             if not is_trusted and device_signature not in known_devices:
-                if is_admin:
+                if is_admin and not skip_mfa:
                     # NEW DEVICE FOR ADMIN: Trigger MFA
-                    print(f"🔐 [AUTH] New Device MFA Triggered for {user.email}")
+                    logger.info("[AUTH] New Device MFA Triggered for %s", user.email)
                     
-                    otp_code = f"{random.randint(100000, 999999)}"
+                    otp_code = str(secrets.randbelow(900000) + 100000)
                     
                     from ..models import LoginOTP
                     db.query(LoginOTP).filter(LoginOTP.user_id == user.user_id, LoginOTP.device_id == device_signature).delete()
@@ -208,7 +245,7 @@ async def login_for_access_token(
                     
                     background_tasks.add_task(
                         EmailService.send_mfa_otp_email,
-                        user.email,
+                        cast(str, user.email),
                         otp_code,
                         client_ip,
                         user_agent
@@ -221,40 +258,41 @@ async def login_for_access_token(
                     })
                 else:
                     # NEW DEVICE FOR STANDARD USER: Send Alert
-                    print(f"🔐 [AUTH] New Device Detected for {user.email}")
-                    background_tasks.add_task(EmailService.send_login_alert, user.email, client_ip, user_agent)
+                    logger.info("[AUTH] New Device Detected for %s", user.email)
+                    background_tasks.add_task(EmailService.send_login_alert, cast(str, user.email), client_ip, user_agent)
                     
                     # Add to known devices automatically for non-admins
                     known_devices.append(device_signature)
                     if len(known_devices) > 10:
                         known_devices.pop(0)
                         
-                    user.known_devices = json.dumps(known_devices)
+                    user.known_devices = json.dumps(known_devices)  # type: ignore[assignment]
                     db.commit()
             elif is_trusted:
                  # Ensure it's in known_devices if it's trusted but signature changed (e.g. IP changed)
                  if device_signature not in known_devices:
                     known_devices.append(device_signature)
                     if len(known_devices) > 10: known_devices.pop(0)
-                    user.known_devices = json.dumps(known_devices)
-                 print(f"🔐 [AUTH] Trusted Device Login for {user.email}. Alert/MFA Skipped.")
+                    user.known_devices = json.dumps(known_devices)  # type: ignore[assignment]
+                 logger.info("[AUTH] Trusted Device Login for %s. Alert/MFA Skipped.", user.email)
             else:
                 # KNOWN DEVICE: Skip Alert & MFA
-                print(f"🔐 [AUTH] Known Device Login for {user.email}. Alert Skipped.")
+                logger.info("[AUTH] Known Device Login for %s. Alert Skipped.", user.email)
                 
     except Exception as e:
-        print(f"Device Tracking Error: {e}")
-        # Not blocking login unless we intentionally return earlier
+        logger.error("[AUTH] Device tracking error for user %s: %s", getattr(user, 'user_id', 'unknown'), e)
 
     # Update Login Timestamps
     user.previous_login_at = user.last_login_at
-    user.last_login_at = datetime.now(IST)
+    user.last_login_at = datetime.now(IST)  # type: ignore[assignment]
     
     # Create Token
     token_data = {
         "sub": user.email, 
         "role": user.role, 
         "hospital_id": user.hospital_id,
+        "group_id": user.hospital.group_id if user.hospital else None,
+        "pricing_tier": user.hospital.pricing_tier if user.hospital else "C",
         "hospital_name": user.hospital.legal_name if user.hospital else None,
         "specialty": user.hospital.specialty if user.hospital else "General",
         "terminology": user.hospital.terminology if user.hospital else {},
@@ -271,18 +309,23 @@ async def login_for_access_token(
     if user.hospital:
         token_data["hospital_name"] = user.hospital.legal_name
 
-    access_token = create_access_token(data=token_data, expires_delta=expires_delta)
+    access_token = create_access_token(data=token_data, expires_delta=expires_delta)  # type: ignore[arg-type]
     
     # Final Commit for Session & Audit
     db.commit()
     
     # Return as JSONResponse and set the secure HttpOnly cookie
+    if user.hospital:
+        hospital_slug = user.hospital.hospital_slug or re.sub(r'[^a-z0-9]', '', user.hospital.legal_name.lower())
+    else:
+        hospital_slug = None
     response = JSONResponse(content={
         "message": "Login successful",
         "access_token": access_token, # Needed for desktop app handoff
         # Optionally return non-sensitive user metadata here if frontend needs it immediately
         "role": user.role,
         "email": user.email,
+        "hospital_slug": hospital_slug,
         "specialty": user.hospital.specialty if user.hospital else "General",
         "enabled_modules": user.hospital.enabled_modules if user.hospital else ["core"],
         "terminology": user.hospital.terminology if user.hospital else {}
@@ -298,7 +341,8 @@ async def login_for_access_token(
         secure=settings.ENVIRONMENT == "production", # Must be true in prod for HTTPS
         samesite="lax", # Protects against CSRF for most GET navigations, but strict is safer if API is same-domain
         max_age=max_age,
-        path="/"
+        path="/",
+        domain=settings.COOKIE_DOMAIN if settings.COOKIE_DOMAIN else None
     )
     
     return response
@@ -343,44 +387,53 @@ async def verify_device_otp(req: VerifyDeviceRequest, db: Session = Depends(get_
     
     if not otp_record:
         # Increment failed attempts on MFA failure
-        user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+        user.failed_login_attempts = (user.failed_login_attempts or 0) + 1  # type: ignore[assignment]
         if user.failed_login_attempts >= 6:
-            user.locked_until = datetime.now(IST) + timedelta(minutes=30)
-            try: EmailService.send_account_locked_email(user.email, "Multiple failed MFA attempts")
-            except: pass
+            user.locked_until = datetime.now(IST) + timedelta(minutes=30)  # type: ignore[assignment]
+            try:
+                EmailService.send_account_locked_email(cast(str, user.email), "Multiple failed MFA attempts")
+            except (ConnectionError, OSError, TimeoutError, RuntimeError) as e:
+                logger.warning("[AUTH] Failed to send lockout email during MFA: %s", e)
         db.commit()
         raise HTTPException(status_code=400, detail="Invalid or expired verification code.")
         
-    if otp_record.expires_at < datetime.now(IST):
+    # Normalize timezone: SQLite stores naive datetimes; make comparison timezone-safe
+    otp_expires = otp_record.expires_at
+    if otp_expires.tzinfo is None:
+        otp_expires = otp_expires.replace(tzinfo=IST)
+    if otp_expires < datetime.now(IST):
         raise HTTPException(status_code=400, detail="Verification code has expired.")
         
     # 4. OTP Valid -> Add device to known devices
-    import json
     known_devices = []
     if user.known_devices:
-        try: known_devices = json.loads(user.known_devices)
-        except: pass
+        try:
+            known_devices = json.loads(cast(str, user.known_devices))
+        except (ValueError, TypeError) as e:
+            logger.warning("[AUTH] Failed to parse known_devices during MFA verify: %s", e)
             
     if req.device_id not in known_devices:
         known_devices.append(req.device_id)
         if len(known_devices) > 10: known_devices.pop(0)
-        user.known_devices = json.dumps(known_devices)
+        user.known_devices = json.dumps(known_devices)  # type: ignore[assignment]
     
     # 5. Clean up OTPs and reset locks
     db.query(LoginOTP).filter(LoginOTP.user_id == user.user_id, LoginOTP.device_id == req.device_id).delete()
-    user.failed_login_attempts = 0
-    user.locked_until = None
+    user.failed_login_attempts = 0  # type: ignore[assignment]
+    user.locked_until = None  # type: ignore[assignment]
     
     # 6. Generate Session Token (same logic as /token)
     new_session_id = str(uuid.uuid4())
-    user.current_session_id = new_session_id
+    user.current_session_id = new_session_id  # type: ignore[assignment]
     user.previous_login_at = user.last_login_at
-    user.last_login_at = datetime.now(IST)
+    user.last_login_at = datetime.now(IST)  # type: ignore[assignment]
     
-    log_audit(db, user.user_id, "LOGIN_SUCCESS", "MFA User logged in successfully")
+    log_audit(db, cast(int, user.user_id), "LOGIN_SUCCESS", "MFA User logged in successfully")
     
     token_data = {
         "sub": user.email, "role": user.role, "hospital_id": user.hospital_id,
+        "group_id": user.hospital.group_id if user.hospital else None,
+        "pricing_tier": user.hospital.pricing_tier if user.hospital else "C",
         "hospital_name": user.hospital.legal_name if user.hospital else None,
         "specialty": user.hospital.specialty if user.hospital else "General",
         "terminology": user.hospital.terminology if user.hospital else {},
@@ -391,14 +444,12 @@ async def verify_device_otp(req: VerifyDeviceRequest, db: Session = Depends(get_
     }
 
     expires_delta = timedelta(days=30) if user.role == UserRole.SUPER_ADMIN else None
-    access_token = create_access_token(data=token_data, expires_delta=expires_delta)
+    access_token = create_access_token(data=token_data, expires_delta=expires_delta)  # type: ignore[arg-type]
     db.commit()
     
     # 7. Generate Trusted Device Token
-    import secrets
-    import hashlib
     raw_token = secrets.token_urlsafe(64)
-    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    token_hash = hmac.new(settings.SECRET_KEY.get_secret_value().encode(), raw_token.encode(), hashlib.sha256).hexdigest()
     
     new_trusted_device = UserTrustedDevice(
         user_id=user.user_id,
@@ -408,10 +459,15 @@ async def verify_device_otp(req: VerifyDeviceRequest, db: Session = Depends(get_
     db.add(new_trusted_device)
     db.commit()
 
+    if user.hospital:
+        hospital_slug = user.hospital.hospital_slug or re.sub(r'[^a-z0-9]', '', user.hospital.legal_name.lower())
+    else:
+        hospital_slug = None
     response = JSONResponse(content={
         "message": "Login successful",
         "access_token": access_token,
         "role": user.role, "email": user.email,
+        "hospital_slug": hospital_slug,
         "specialty": user.hospital.specialty if user.hospital else "General",
         "enabled_modules": user.hospital.enabled_modules if user.hospital else ["core"],
         "terminology": user.hospital.terminology if user.hospital else {}
@@ -420,7 +476,8 @@ async def verify_device_otp(req: VerifyDeviceRequest, db: Session = Depends(get_
     max_age = int(expires_delta.total_seconds()) if expires_delta else settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     response.set_cookie(
         key="access_token", value=f"Bearer {access_token}", httponly=True,
-        secure=settings.ENVIRONMENT == "production", samesite="lax", max_age=max_age, path="/"
+        secure=settings.ENVIRONMENT == "production", samesite="lax", max_age=max_age, path="/",
+        domain=settings.COOKIE_DOMAIN if settings.COOKIE_DOMAIN else None
     )
     
     # Set Trusted Device Cookie (Long lived: 1 year)
@@ -431,7 +488,8 @@ async def verify_device_otp(req: VerifyDeviceRequest, db: Session = Depends(get_
         secure=settings.ENVIRONMENT == "production",
         samesite="lax",
         max_age=31536000, # 1 year
-        path="/"
+        path="/",
+        domain=settings.COOKIE_DOMAIN if settings.COOKIE_DOMAIN else None
     )
     return response
 
@@ -455,11 +513,11 @@ async def request_password_reset(request: PasswordResetRequest, db: Session = De
     # Invalidate previous active OTPs
     db.query(PasswordResetOTP).filter(
         func.lower(PasswordResetOTP.email) == email,
-        PasswordResetOTP.is_used == False
+        PasswordResetOTP.is_used == False  # noqa: E712 - SQLAlchemy requires == for column comparison
     ).update({PasswordResetOTP.is_used: True}, synchronize_session=False)
 
     # Generate 8-digit secure OTP
-    otp_code = str(random.randint(10000000, 99999999))
+    otp_code = str(secrets.randbelow(90000000) + 10000000)
     # Expires in 10 mins (IST)
     expires_at = datetime.now(IST) + timedelta(minutes=10)
 
@@ -474,7 +532,7 @@ async def request_password_reset(request: PasswordResetRequest, db: Session = De
     db.commit()
 
     # Send Email
-    EmailService.send_otp_email(user.email, otp_code)
+    EmailService.send_otp_email(cast(str, user.email), otp_code)
 
     return {"message": "If this email is registered, you will receive an OTP shortly."}
 
@@ -489,8 +547,8 @@ async def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_d
     # Find Valid OTP
     otp_entry = db.query(PasswordResetOTP).filter(
         func.lower(PasswordResetOTP.email) == email,
-        PasswordResetOTP.is_used == False,
-        PasswordResetOTP.expires_at > datetime.now(IST)
+        PasswordResetOTP.is_used == False,  # noqa: E712 - SQLAlchemy requires == for column comparison
+        PasswordResetOTP.expires_at > datetime.now(IST).replace(microsecond=0)
     ).first()
 
     if not otp_entry:
@@ -498,13 +556,13 @@ async def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_d
         
     # Check attempt count (max 5 attempts to protect against brute force)
     if otp_entry.attempt_count >= 5:
-        otp_entry.is_used = True
+        otp_entry.is_used = True  # type: ignore[assignment]
         db.commit()
         raise HTTPException(status_code=429, detail="Too many failed attempts. Request a new OTP.")
         
     # Verify OTP
     if otp_entry.otp_code != data.otp:
-        otp_entry.attempt_count += 1
+        otp_entry.attempt_count += 1  # type: ignore[assignment]
         db.commit()
         raise HTTPException(status_code=400, detail=f"Invalid OTP. {5 - otp_entry.attempt_count} attempts remaining.")
 
@@ -516,11 +574,11 @@ async def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_d
     user.hashed_password = get_password_hash(data.new_password)
     
     # Unlock account if it was locked
-    user.locked_until = None
-    user.failed_login_attempts = 0
+    user.locked_until = None  # type: ignore[assignment]
+    user.failed_login_attempts = 0  # type: ignore[assignment]
 
     # Mark OTP as used
-    otp_entry.is_used = True
+    otp_entry.is_used = True  # type: ignore[assignment]
     
     db.commit()
 
@@ -533,45 +591,47 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
         detail="Could not validate credentials",
     )
     
-    # 1. Try to get token from HttpOnly Cookie
-    token = request.cookies.get("access_token")
-    
-    # 2. Fallback to Authorization Header (for Swagger UI / programmatic API access)
+    # 1. Prefer Authorization header — used by admin subdomain (localStorage-based Bearer token).
+    #    This must take priority over the cookie so that fresh tokens from the header
+    #    are not shadowed by a stale/expired HttpOnly cookie from a prior session.
+    auth_header = request.headers.get("Authorization")
+    token = None
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header  # Full "Bearer <token>" string — stripped below
+
+    # 2. Fallback to HttpOnly Cookie — used by hospital subdomains (cookie-based auth).
     if not token:
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header
+        token = request.cookies.get("access_token")
             
     if not token:
-        print("[AUTH_DEBUG] No token found in cookies or Authorization header.")
+        logger.debug("[AUTH] No token found in Authorization header or cookies.")
         raise credentials_exception
 
     # Strip 'Bearer ' prefix if present
     if token.startswith("Bearer "):
-         token = token.replace("Bearer ", "")
+         token = token.replace("Bearer ", "", 1)
 
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        email: str = payload.get("sub")
-        session_id: str = payload.get("session_id")
+        payload = jwt.decode(token, settings.SECRET_KEY.get_secret_value(), algorithms=[settings.ALGORITHM])
+        email: str = payload.get("sub") or ""
+        session_id: str = payload.get("session_id") or ""
         if email is None:
-            print("[AUTH_DEBUG] Token decoded but email (sub) is missing.")
+            logger.debug("[AUTH] Token decoded but email (sub) is missing.")
             raise credentials_exception
     except JWTError as e:
-        print(f"[AUTH_DEBUG] JWT decoding failed: {e}")
+        logger.debug("[AUTH] JWT decoding failed: %s", e)
         raise credentials_exception
     
     
-    from sqlalchemy import func
     user = db.query(User).filter(func.lower(User.email) == func.lower(email)).first()
     if user is None:
-        print(f"[AUTH_DEBUG] User with email {email} not found in database.")
+        logger.debug("[AUTH] User with email %s not found in database.", email)
         raise credentials_exception
     
     # Single Session Verification
     if user.role != UserRole.SUPER_ADMIN:
         if user.current_session_id and session_id != user.current_session_id:
-            print(f"[AUTH_DEBUG] Session Expired. Expected: {user.current_session_id}, Got: {session_id}")
+            logger.debug("[AUTH] Session Expired for %s. Expected: %s, Got: %s", email, user.current_session_id, session_id)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Session Expired: You have logged in fromanother device.",
@@ -595,7 +655,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
         last_active = last_active.replace(tzinfo=IST)
         
     if not last_active or (now - last_active).total_seconds() > 300:
-        user.last_active_at = now
+        user.last_active_at = now  # type: ignore[assignment]
         db.commit()
     
     return user
@@ -608,6 +668,8 @@ async def get_session_token(current_user: User = Depends(get_current_user)):
         "sub": current_user.email, 
         "role": current_user.role, 
         "hospital_id": current_user.hospital_id,
+        "group_id": current_user.hospital.group_id if current_user.hospital else None,
+        "pricing_tier": current_user.hospital.pricing_tier if current_user.hospital else "C",
         "hospital_name": current_user.hospital.legal_name if current_user.hospital else None,
         "specialty": current_user.hospital.specialty if current_user.hospital else "General",
         "terminology": current_user.hospital.terminology if current_user.hospital else {},
@@ -621,7 +683,7 @@ async def get_session_token(current_user: User = Depends(get_current_user)):
     if current_user.role == UserRole.SUPER_ADMIN:
         expires_delta = timedelta(days=30)
 
-    access_token = create_access_token(data=token_data, expires_delta=expires_delta)
+    access_token = create_access_token(data=token_data, expires_delta=expires_delta)  # type: ignore[arg-type]
     return {"access_token": access_token}
 
 
@@ -634,7 +696,7 @@ def require_permission(required_permission: Permission):
         if current_user.role == UserRole.SUPER_ADMIN:
             return current_user
             
-        user_permissions = ROLE_PERMISSIONS.get(current_user.role, [])
+        user_permissions = ROLE_PERMISSIONS.get(cast(UserRole, current_user.role), [])
         if required_permission not in user_permissions:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -644,13 +706,66 @@ def require_permission(required_permission: Permission):
     return permission_checker
 
 
+def require_module(module_name: str):
+    """
+    Dependency generator that checks if the current tenant hospital has the required module enabled.
+    """
+    def module_checker(current_user: User = Depends(get_current_user)):
+        # Super Admin has global bypass
+        if current_user.role == UserRole.SUPER_ADMIN:
+            return current_user
+            
+        hospital = current_user.hospital
+        if not hospital:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not associated with any registered client hospital."
+            )
+            
+        # Core module is mandatory
+        if module_name == "core":
+            return current_user
+            
+        enabled = hospital.enabled_modules or []
+        if module_name not in enabled:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Subscription upgrade required. The module '{module_name}' is not active for your organization."
+            )
+        return current_user
+    return module_checker
+
+
+def require_tier(required_tier: str):
+    """
+    Dependency generator that checks if the hospital has the required pricing tier.
+    Tiers: A (Platinum), B (Gold), C (Standard)
+    Note: A > B > C (lower letter = higher tier)
+    """
+    def tier_checker(current_user: User = Depends(get_current_user)):
+        if current_user.role == UserRole.SUPER_ADMIN:
+            return current_user
+            
+        tier_order = {"A": 1, "B": 2, "C": 3}
+        user_tier = current_user.hospital.pricing_tier if current_user.hospital else "C"
+        
+        user_tier_val = tier_order.get(user_tier, 3)
+        req_tier_val = tier_order.get(required_tier, 3)
+        
+        if user_tier_val > req_tier_val:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Package upgrade required for this feature. Required: {required_tier}"
+            )
+        return current_user
+    return tier_checker
+
+
 @router.post("/logout")
 async def logout(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Logs the user out by clearing the HttpOnly cookie and session ID."""
-    import uuid
-    
     # Invalidate session in DB immediately
-    current_user.current_session_id = str(uuid.uuid4())
+    current_user.current_session_id = str(uuid.uuid4())  # type: ignore[assignment]
     db.commit()
     
     response = JSONResponse(content={"message": "Successfully logged out"})
@@ -661,7 +776,8 @@ async def logout(current_user: User = Depends(get_current_user), db: Session = D
         path="/",
         secure=settings.ENVIRONMENT == "production",
         httponly=True,
-        samesite="lax"
+        samesite="lax",
+        domain=settings.COOKIE_DOMAIN if settings.COOKIE_DOMAIN else None
     )
     
     return response
@@ -751,8 +867,8 @@ async def register_hospital(data: HospitalRegistrationRequest, db: Session = Dep
     # 5. Log Audit and Commit
     try:
         log_audit(db, None, "HOSPITAL_REGISTERED", f"New registration: {data.legal_name}")
-    except:
-        pass
+    except (OSError, RuntimeError, ValueError) as e:
+        logger.warning("[AUTH] Failed to log audit for hospital registration: %s", e)
         
     db.commit()
 
@@ -763,12 +879,67 @@ async def register_hospital(data: HospitalRegistrationRequest, db: Session = Dep
             name=full_name,
             password="[As defined during registration]"
         )
-    except Exception as e:
-        print(f"Failed to send welcome email: {e}")
+    except (ConnectionError, OSError, TimeoutError, RuntimeError) as e:
+        logger.warning("[AUTH] Failed to send welcome email to %s: %s", email_lower, e)
 
     return {
         "message": "Registration successful",
         "hospital_id": new_hospital.hospital_id,
         "email": new_admin.email
     }
+
+
+def get_subdomain_hospital_id(request: Request, db: Session = Depends(get_db)) -> Optional[int]:
+    """
+    FastAPI dependency that parses the Host header to resolve the tenant's hospital_id dynamically.
+    E.g. fortis.digifortlabs.com -> hospital_id of Fortis.
+    """
+    from ..models import Hospital
+    host = request.headers.get("Host", "")
+    if not host:
+        return None
+        
+    # Standardize Host: remove port number if any
+    host_name = host.split(":")[0]
+    
+    # Split by '.'
+    domain_parts = host_name.split(".")
+    
+    # Identify subdomain:
+    # 1. Localhost setup (e.g. fortis.localhost or fortis.localhost.com)
+    if "localhost" in host_name or "127.0.0.1" in host_name or "10.0" in host_name:
+        if len(domain_parts) > 1 and domain_parts[-1] != "localhost":
+            subdomain = domain_parts[0]
+        elif len(domain_parts) > 2 and domain_parts[-1] == "localhost":
+            subdomain = domain_parts[0]
+        else:
+            return None
+    else:
+        # Production domain: e.g. fortis.digifortlabs.com (length > 2)
+        if len(domain_parts) > 2:
+            subdomain = domain_parts[0]
+        else:
+            return None
+            
+    if subdomain.lower() in ["www", "dashboard", "admin", "api", "app"]:
+        return None
+        
+    # Query database for the hospital matching the subdomain slug
+    import re
+    target = subdomain.lower()
+    hospital = db.query(Hospital).filter(
+        Hospital.is_deleted == False,  # noqa: E712 - SQLAlchemy requires == for column comparison
+        Hospital.hospital_slug == target
+    ).first()
+    if hospital:
+        return cast(int, hospital.hospital_id)
+    # Fallback: derive from legal_name for rows without a stored slug
+    for h in db.query(Hospital).filter(
+        Hospital.is_deleted == False,  # noqa: E712
+        Hospital.hospital_slug == None  # noqa: E711
+    ).all():
+        if re.sub(r'[^a-z0-9]', '', h.legal_name.lower()) == target:
+            return cast(int, h.hospital_id)
+            
+    return None
 

@@ -1,4 +1,5 @@
-import Link from "next/link";
+import NextLink from "next/link";
+const Link = NextLink as any;
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { FileText, ScanLine, Lock, Cloud, Search, ChevronDown } from "lucide-react";
@@ -37,12 +38,14 @@ export default function Home() {
         </div>
 
         <div className="max-w-7xl mx-auto px-6 relative z-10 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-full mb-8 animate-fade-in-up backdrop-blur-sm">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/10 border border-blue-500/20 rounded-full mb-8 animate-fade-in-up backdrop-blur-sm">
+            <Lock className="w-4 h-4 text-blue-400" />
+            <span className="text-xs font-bold text-blue-300 tracking-wider uppercase">DPDP ACT 2023 Compliant</span>
           </div>
 
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold text-white tracking-tight mb-8 leading-[1.1]">
             The Future of <br className="hidden sm:block" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400 drop-shadow-[0_0_30px_rgba(59,130,246,0.5)]">Data Processing</span> is Hybrid.
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400 drop-shadow-[0_0_30px_rgba(59,130,246,0.5)]">Data Processing</span> is <span className="text-blue-400">Hybrid</span>.
           </h1>
 
           <p className="text-lg md:text-2xl text-slate-400 max-w-3xl mx-auto mb-12 leading-relaxed font-medium">
@@ -54,7 +57,7 @@ export default function Home() {
             <Link href="/contact" className="px-10 py-5 bg-blue-600 text-white text-lg font-bold rounded-full hover:bg-blue-500 transition shadow-xl shadow-blue-900/40 hover:-translate-y-1 hover:shadow-blue-600/20 border border-transparent">
               Get Started
             </Link>
-            <Link href="/services" className="px-10 py-5 bg-slate-800/50 text-white text-lg font-bold rounded-full hover:bg-slate-800 transition border border-slate-700 hover:border-slate-500 backdrop-blur-sm">
+            <Link href="/demo" className="px-10 py-5 bg-slate-800/50 text-white text-lg font-bold rounded-full hover:bg-slate-800 transition border border-slate-700 hover:border-slate-500 backdrop-blur-sm">
               View Demo
             </Link>
           </div>

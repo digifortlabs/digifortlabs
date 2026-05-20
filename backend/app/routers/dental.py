@@ -533,12 +533,37 @@ def create_patient(
         existing = db.query(DentalPatient).filter(DentalPatient.hospital_id == hospital_id, DentalPatient.opd_number == patient.opd_number).first()
         if existing:
             raise HTTPException(status_code=400, detail=f"Patient with OPD number {patient.opd_number} already exists.")
+
+    try:
+        # Check if core Patient exists
+        core_patient = None
+        if patient.uhid:
+            core_patient = db.query(Patient).filter(Patient.hospital_id == hospital_id, Patient.uhid == patient.uhid).first()
         
-    db_patient = DentalPatient(**patient.dict(), hospital_id=hospital_id)
-    db.add(db_patient)
-    db.commit()
-    db.refresh(db_patient)
-    return db_patient
+        if not core_patient and patient.phone:
+            core_patient = db.query(Patient).filter(Patient.hospital_id == hospital_id, Patient.contact_number == patient.phone).first()
+            
+        if not core_patient:
+            # Create core Patient
+            core_patient = Patient(
+                hospital_id=hospital_id,
+                uhid=patient.uhid,
+                full_name=patient.full_name,
+                gender=patient.gender,
+                contact_number=patient.phone,
+                patient_u_id=patient.opd_number or f"MRD-{int(datetime.now().timestamp())}"
+            )
+            db.add(core_patient)
+            db.flush() # Get record_id
+            
+        db_patient = DentalPatient(**patient.dict(), hospital_id=hospital_id, main_patient_id=core_patient.record_id)
+        db.add(db_patient)
+        db.commit()
+        db.refresh(db_patient)
+        return db_patient
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database transaction failed: {str(e)}")
 
 @router.get("/patients/{patient_id}", response_model=DentalPatientResponse)
 def get_patient(

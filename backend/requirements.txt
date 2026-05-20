@@ -33,3 +33,7 @@ fastapi-csrf-protect
 alembic
 pydantic-settings
 jinja2
+ocrmypdf
+pikepdf
+pdfminer.six
+markdown

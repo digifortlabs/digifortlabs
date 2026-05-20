@@ -55,7 +55,7 @@ export default function ContactPage() {
             <Navbar />
 
             {/* Header - Neo-Clean */}
-            <div className="pt-40 pb-16 bg-slate-900 border-b border-slate-800 text-center px-4 relative overflow-hidden">
+            <div className="pt-32 pb-16 bg-slate-900 border-b border-slate-800 text-center px-4 relative overflow-hidden">
                 <div className="absolute inset-0 z-0 opacity-10 bg-grid-white pointer-events-none" />
                 <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px] opacity-40 animate-pulse pointer-events-none"></div>
 

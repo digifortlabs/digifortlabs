@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from 'react';
+// @ts-ignore
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
-import Link from 'next/link';
-import { User, Mail, Phone, Building, ArrowRight, Home, Activity } from 'lucide-react';
+// @ts-ignore
+import NextLink from 'next/link';
+import { User, Mail, Phone, Building, ArrowRight, Home, Activity, ChevronDown } from 'lucide-react';
+const Link = NextLink as any;
 
 
 export default function DemoRegistration() {
@@ -13,7 +16,7 @@ export default function DemoRegistration() {
         email: '',
         phone: '',
         organization_name: '',
-        target_module: 'mrd'
+        target_module: 'all'
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -70,7 +73,7 @@ export default function DemoRegistration() {
                     </div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-3">Try Demo Account</h1>
                     <p className="text-slate-500 font-medium leading-relaxed">
-                        Experience DIGIFORT LABS instantly with a fully-featured, limited-time trial <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">(100MB storage, 2 users)</span>.
+                        Experience DIGIFORT LABS instantly with <span className="text-indigo-600 font-bold underline decoration-indigo-200 underline-offset-4">all clinical modules</span> enabled by default. Secure, limited-time trial <span className="text-slate-900 font-bold">(100MB storage, 2 users)</span>.
                     </p>
                 </div>
 
@@ -124,26 +127,7 @@ export default function DemoRegistration() {
                         />
                     </div>
 
-                    <div className="relative group">
-                        <select
-                            value={formData.target_module}
-                            onChange={(e) => setFormData({ ...formData, target_module: e.target.value })}
-                            className="appearance-none block w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 font-bold transition-all shadow-sm cursor-pointer"
-                            required
-                        >
-                            <option value="mrd">Medical Record Digitization (MRD)</option>
-                            <option value="hms">Hospital Management System (HMS)</option>
-                            <option value="clinic">Clinic OPD Management</option>
-                            <option value="dental">Dental OPD Module</option>
-                            <option value="ent">ENT OPD Module</option>
-                            <option value="pharma">Pharma & Medical Store</option>
-                            <option value="legal">Law Firm Management</option>
-                            <option value="corporate">Corporate Management</option>
-                        </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
-                            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
-                        </div>
-                    </div>
+
 
                     {error && (
                         <div className="p-4 bg-red-50 text-red-600 border border-red-100 rounded-xl text-sm font-bold animate-in zoom-in-95">

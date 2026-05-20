@@ -15,7 +15,7 @@ router = APIRouter()
 
 @router.delete("/{user_id}")
 def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_USERS))):
-    target_user = db.query(User).filter(User.user_id == user_id).first()
+    target_user = db.query(User).filter(User.user_id == user_id, User.is_deleted == False).first()
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
         
@@ -24,20 +24,19 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User 
         if current_user.hospital_id != target_user.hospital_id:
             raise HTTPException(status_code=403, detail="Not authorized")
 
-    # Decouple from Audit Logs (Set user_id to NULL to keep history)
-    db.query(AuditLog).filter(AuditLog.user_id == user_id).update({AuditLog.user_id: None})
+    # Soft Delete
+    target_user.is_deleted = True
+    target_user.is_active = False
     
     try:
         from ..audit import log_audit
-        # We use current_user here because target_user is deleted
-        log_audit(db, current_user.user_id, "USER_DELETED", f"Deleted user: {target_user.email}", hospital_id=current_user.hospital_id)
+        log_audit(db, current_user.user_id, "USER_DELETED", f"Soft-deleted user: {target_user.email}", hospital_id=current_user.hospital_id)
     except Exception as e:
         print(f"Audit Log Error: {e}")
 
-    db.delete(target_user)
     db.commit()
 
-    return {"message": "User deleted"}
+    return {"message": "User deleted (soft delete)"}
 
 PLAN_LIMITS = {
     "Standard": 2,
@@ -56,6 +55,7 @@ class HospitalMini(BaseModel):
     legal_name: str
     specialty: str
     terminology: dict
+    enabled_modules: List[str] = ["core"]
     class Config:
         from_attributes = True
 
@@ -85,14 +85,14 @@ def get_users(db: Session = Depends(get_db), current_user: User = Depends(get_cu
 
     try:
         if current_user.role == UserRole.SUPER_ADMIN:
-            return db.query(User).all()
+            return db.query(User).filter(User.is_deleted == False).all()
 
         elif current_user.role == UserRole.HOSPITAL_ADMIN:
-            return db.query(User).filter(User.hospital_id == current_user.hospital_id).all()
+            return db.query(User).filter(User.hospital_id == current_user.hospital_id, User.is_deleted == False).all()
             
         else: # HOSPITAL_STAFF
             # Hospital staff can only see themselves (Issue 46)
-            return db.query(User).filter(User.user_id == current_user.user_id).all()
+            return db.query(User).filter(User.user_id == current_user.user_id, User.is_deleted == False).all()
             
     except Exception as e:
         import traceback
@@ -140,17 +140,26 @@ def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: U
         if not hospital:
             raise HTTPException(status_code=404, detail="Hospital not found")
         
-        current_count = db.query(User).filter(User.hospital_id == target_hospital_id).count()
+        current_count = db.query(User).filter(User.hospital_id == target_hospital_id, User.is_deleted == False).count()
         
         # Use Hospital-specific limit if set, otherwise fallback to Plan limit (which is now just a label)
         # Default max_users in DB is 2.
         limit = hospital.max_users if hospital.max_users is not None else PLAN_LIMITS.get(hospital.subscription_tier, 2)
         
         if current_count >= limit:
-            raise HTTPException(
-                status_code=403, 
-                detail=f"User Limit Reached. Your current limit is {limit} users. Contact support to add more seats."
-            )
+            # SOFT LIMIT: Allow creation but log for billing
+            try:
+                from ..audit import log_audit
+                overage_count = current_count - limit + 1
+                log_audit(
+                    db, 
+                    current_user.user_id, 
+                    "BILLING_OVERAGE", 
+                    f"User limit {limit} exceeded for {hospital.legal_name}. Overage: {overage_count} user(s).",
+                    hospital_id=target_hospital_id
+                )
+            except:
+                pass
 
     # 2. Check if email exists
     db_user = db.query(User).filter(User.email == user.email).first()
@@ -264,15 +273,17 @@ def get_login_activity(
     
     # Build query based on role
     if current_user.role == UserRole.SUPER_ADMIN:
-        # Super Admin sees all users
+        # Super Admin sees all active users
         users = db.query(User).filter(
-            User.last_login_at.isnot(None)
+            User.last_login_at.isnot(None),
+            User.is_deleted == False
         ).order_by(User.last_login_at.desc()).limit(limit).all()
     else:
         # Hospital Admin sees only their hospital users
         users = db.query(User).filter(
             User.hospital_id == current_user.hospital_id,
-            User.last_login_at.isnot(None)
+            User.last_login_at.isnot(None),
+            User.is_deleted == False
         ).order_by(User.last_login_at.desc()).limit(limit).all()
     
     # Format response

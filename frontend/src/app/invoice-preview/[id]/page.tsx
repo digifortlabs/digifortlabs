@@ -92,7 +92,7 @@ export default function InvoicePreviewPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 print:bg-white print:h-auto print:block flex flex-col items-center font-sans antialiased text-slate-900 pb-20">
-            <style jsx global>{`
+            <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
                     @page { size: A4; margin: 0; }
                     body { 
@@ -104,7 +104,7 @@ export default function InvoicePreviewPage() {
                     html { background: white !important; }
                     .print-hidden { display: none !important; }
                 }
-            `}</style>
+            `}} />
 
             {/* TOOLBAR */}
             <div className="sticky top-4 z-[100] w-full max-w-[210mm] px-4 print:hidden mb-12">

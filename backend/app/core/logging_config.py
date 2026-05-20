@@ -38,4 +38,4 @@ def setup_logging():
     # 3. System Logger (Startup, Errors, Config)
     setup_logger('system', os.path.join(base_dir, "system.log"))
     
-    print(f"✅ Logging initialized. Logs writing to: {base_dir}")
+    print(f"[OK] Logging initialized. Logs writing to: {base_dir}")

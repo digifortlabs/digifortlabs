@@ -11,6 +11,8 @@ export default function StaffManagement() {
     const [showModal, setShowModal] = useState(false);
     const [newStaff, setNewStaff] = useState({ email: '', password: '', role: 'mrd_staff' });
     const [error, setError] = useState('');
+    const [hospitalInfo, setHospitalInfo] = useState<any>(null);
+    const [planLimits] = useState({ 'Standard': 2, 'Premium': 5, 'Enterprise': 10 });
 
     // New states for confirmation modal and potential edit mode (though edit mode is not fully implemented in this change)
     const [editMode, setEditMode] = useState(false); // Added as per instruction, but not used in this snippet
@@ -32,7 +34,20 @@ export default function StaffManagement() {
 
     useEffect(() => {
         fetchStaff();
+        const storedHospitalId = localStorage.getItem('hospital_id');
+        if (storedHospitalId) {
+            fetchHospitalPlan(storedHospitalId);
+        }
     }, []);
+
+    const fetchHospitalPlan = async (hospitalId: string) => {
+        try {
+            const data = await apiFetch(`hospitals/${hospitalId}`);
+            if (data) setHospitalInfo(data);
+        } catch (error) {
+            console.error(error);
+        }
+    };
 
     const fetchStaff = async () => {
         try {
@@ -97,14 +112,38 @@ export default function StaffManagement() {
                     <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
                         <Users className="text-indigo-600" /> Staff Management
                     </h1>
-                    <p className="text-slate-500 mt-2">Manage your MRD team access permissions.</p>
+                    <p className="text-slate-500 mt-2">Manage your team access permissions.</p>
+                    {hospitalInfo && (
+                        <div className="flex items-center gap-2 mt-2">
+                            <span className="text-sm text-slate-500">
+                                Subscription: <span className="font-bold text-indigo-600">{hospitalInfo.subscription_tier}</span>
+                            </span>
+                            <span className="text-sm font-medium text-slate-400">•</span>
+                            <span className={`text-sm font-bold ${staff.length >= planLimits[hospitalInfo.subscription_tier as keyof typeof planLimits] ? 'text-red-500' : 'text-slate-600'}`}>
+                                {staff.length} / {planLimits[hospitalInfo.subscription_tier as keyof typeof planLimits]} Seats Used
+                            </span>
+                        </div>
+                    )}
                 </div>
-                <button
-                    onClick={() => setShowModal(true)}
-                    className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition"
-                >
-                    <Plus size={18} /> Add New Staff
-                </button>
+                <div className="flex gap-4 items-center">
+                    {hospitalInfo && staff.length >= planLimits[hospitalInfo.subscription_tier as keyof typeof planLimits] && (
+                        <a href="/dashboard/settings" className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg hover:bg-indigo-100 transition">
+                            🚀 Upgrade Plan
+                        </a>
+                    )}
+                    <button
+                        onClick={() => setShowModal(true)}
+                        disabled={hospitalInfo && staff.length >= planLimits[hospitalInfo.subscription_tier as keyof typeof planLimits]}
+                        className={`px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition ${hospitalInfo && staff.length >= planLimits[hospitalInfo.subscription_tier as keyof typeof planLimits]
+                            ? 'bg-amber-100 text-amber-700 cursor-default border border-amber-200'
+                            : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
+                            }`}
+                    >
+                        {hospitalInfo && staff.length >= planLimits[hospitalInfo.subscription_tier as keyof typeof planLimits]
+                            ? '📞 Contact Sales to Add'
+                            : <><Plus size={18} /> Add New Staff</>}
+                    </button>
+                </div>
             </div>
 
             {/* Stats / Limit Warning could go here */}
@@ -171,6 +210,18 @@ export default function StaffManagement() {
                                     value={newStaff.password}
                                     onChange={e => setNewStaff({ ...newStaff, password: e.target.value })}
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-2">Role</label>
+                                <select
+                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition font-medium"
+                                    value={newStaff.role}
+                                    onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })}
+                                >
+                                    <option value="mrd_staff">MRD Staff (Warehouse Only)</option>
+                                    <option value="data_uploader">Data Uploader (Records Only)</option>
+                                    <option value="hospital_admin">Client Admin (Full Access)</option>
+                                </select>
                             </div>
                             <div className="flex gap-3 pt-4">
                                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-6 py-3 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">

@@ -22,7 +22,7 @@ class BandwidthMiddleware(BaseHTTPMiddleware):
         if token:
             token = token.replace("Bearer ", "")
             try:
-                payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+                payload = jwt.decode(token, settings.SECRET_KEY.get_secret_value(), algorithms=[settings.ALGORITHM])
                 hospital_id = payload.get("hospital_id")
             except JWTError:
                 pass

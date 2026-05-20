@@ -38,10 +38,8 @@ export default function SessionMonitor() {
             // 1. Skip check if on a public page
             if (PUBLIC_ROUTES.includes(pathname)) return;
 
-            // 2. Only check if we think we are logged in (based on localStorage)
-            // This prevents the modal for pure guest visitors on non-whitelisted but potentially accessible pages
-            const userRole = localStorage.getItem('userRole');
-            if (!userRole) return;
+            // 2. We don't check localStorage here because subdomains have separate localStorage.
+            // We rely on the HttpOnly cookie and the /users/me ping.
 
             // 3. Check Idle Time
             if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {

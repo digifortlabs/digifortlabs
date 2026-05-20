@@ -88,7 +88,7 @@ def get_opd_patients(
                 "patient_id": op.patient_id,
                 "full_name": base_patient.full_name,
                 "phone": base_patient.phone,
-                "mrd_number": base_patient.mrd_number,
+                "mrd_number": base_patient.patient_u_id,
                 "blood_group": op.blood_group,
                 "allergies": op.allergies
             })

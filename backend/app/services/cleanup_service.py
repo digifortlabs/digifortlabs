@@ -71,6 +71,7 @@ class CleanupService:
     def cleanup_temp_jobs(max_age_hours: int = 24, temp_dir_path: str = "backend/data/temp"):
         """
         Removes temporary job directories from storage/jobs that are older than max_age_hours.
+        Also scans active directories to delete any unencrypted PDF files older than 1 hour.
         """
         import time
         import shutil
@@ -81,21 +82,43 @@ class CleanupService:
         if not temp_dir.exists():
             return 0
             
-        print(f"🧹 [Job Cleanup] Scanning {temp_dir} for expired jobs...")
+        print(f"🧹 [Job Cleanup] Scanning {temp_dir} for expired jobs and lingering unencrypted files...")
         now = time.time()
         max_age_sec = max_age_hours * 3600
+        unencrypted_age_sec = 1 * 3600 # 1 hour
         
         removed_count = 0
+        unencrypted_scrubbed_count = 0
+        
         for item in temp_dir.iterdir():
             if item.is_dir():
-                # Check directory creation time
+                # 1. Clean up entire directories past the max age limit
                 if (now - item.stat().st_mtime) > max_age_sec:
                     try:
                         shutil.rmtree(item)
                         removed_count += 1
+                        continue # Entire directory removed, move to next
                     except Exception as e:
                         print(f"⚠️ Failed to remove expired job dir {item}: {e}")
+                
+                # 2. Secondary Sweep: Clean up unencrypted PDF files inside active directories if older than 1 hour
+                try:
+                    for subitem in item.iterdir():
+                        if subitem.is_file() and subitem.suffix.lower() == ".pdf":
+                            if (now - subitem.stat().st_mtime) > unencrypted_age_sec:
+                                try:
+                                    subitem.unlink()
+                                    unencrypted_scrubbed_count += 1
+                                    print(f"🗑️ Proactive Scrub: Lingering unencrypted file {subitem.name} removed.")
+                                except Exception as e:
+                                    print(f"⚠️ Failed to proactively scrub {subitem}: {e}")
+                except Exception as e:
+                    print(f"⚠️ Error scanning subdirectory {item} for intermediate PDFs: {e}")
         
         if removed_count > 0:
             print(f"✅ Job Cleanup Complete: Removed {removed_count} expired job directories.")
+        if unencrypted_scrubbed_count > 0:
+            print(f"🧹 Lingering Unencrypted Scrub Complete: Removed {unencrypted_scrubbed_count} raw/intermediate PDF files.")
+            
         return removed_count
+

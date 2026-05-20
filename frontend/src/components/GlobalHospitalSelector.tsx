@@ -52,10 +52,11 @@ export default function GlobalHospitalSelector() {
             window.dispatchEvent(new CustomEvent('hospitalChanged', { detail: value }));
             
             // Navigate to overview with the selected hospital
-            if (pathname === '/dashboard') {
-                router.replace(`/dashboard?hospital_id=${value}`);
+            const targetPath = `/dashboard/hospital-overview?hospital_id=${value}`;
+            if (pathname === '/dashboard/hospital-overview') {
+                router.replace(targetPath);
             } else {
-                router.push(`/dashboard?hospital_id=${value}`);
+                router.push(targetPath);
             }
         } else {
             localStorage.removeItem('globalHospitalId');

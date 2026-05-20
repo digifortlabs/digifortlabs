@@ -1,4 +1,9 @@
-import Link from 'next/link';
+// @ts-ignore
+import NextImage from 'next/image';
+// @ts-ignore
+import NextLink from 'next/link';
+const Link = NextLink as any;
+const Image = NextImage as any;
 
 export default function Footer() {
     return (
@@ -6,7 +11,14 @@ export default function Footer() {
             <div className="max-w-7xl mx-auto px-6">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
                     <div className="col-span-1 md:col-span-2">
-                        <h3 className="text-2xl font-bold text-white mb-4">DIGIFORT<span className="text-blue-500">LABS</span></h3>
+                        <div className="relative w-48 h-12 bg-white rounded-lg px-2 overflow-hidden mb-6 flex items-center justify-center">
+                            <Image
+                                src="/logo/longlogo.png"
+                                alt="Digifort Labs Logo"
+                                fill
+                                className="object-contain p-1"
+                            />
+                        </div>
                         <p className="max-w-sm text-slate-400">
                             Pioneering the future of secure enterprise archives.
                             We bridge the physical and digital worlds to safeguard critical enterprise data.

@@ -2,8 +2,8 @@ from typing import List, Optional
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, EmailStr
-from sqlalchemy import func
+from pydantic import BaseModel, EmailStr, validator
+from sqlalchemy import func, text, bindparam
 from sqlalchemy.orm import Session
 
 from ..audit import log_audit
@@ -80,8 +80,9 @@ class HospitalCreate(BaseModel):
 class HospitalResponse(BaseModel):
     hospital_id: int
     legal_name: str
+    hospital_slug: Optional[str] = None
     subscription_tier: str
-    hospital_type: Optional[str] = None
+    organization_type: Optional[str] = None
     specialty: Optional[str] = "General"
     terminology: Optional[dict] = {}
     enabled_modules: Optional[list] = []
@@ -94,18 +95,27 @@ class HospitalResponse(BaseModel):
     pincode: Optional[str] = None
     phone: Optional[str] = None
     gst_number: Optional[str] = None
-    
+
     price_per_file: float
     included_pages: int
     price_per_extra_page: float
-    
+
     custom_pricing: Optional[dict] = {}
     expected_monthly_volume: Optional[int] = None
     expected_users: Optional[int] = None
     storage_requirements: Optional[str] = None
-    
+
     is_active: bool = True
+    is_deleted: bool = False
     pending_updates: Optional[str] = None # JSON String
+
+    @validator('hospital_slug', always=True, pre=False)
+    def compute_slug(cls, v, values):
+        if v:
+            return v
+        import re
+        name = values.get('legal_name', '')
+        return re.sub(r'[^a-z0-9]', '', name.lower()) if name else v
 
     class Config:
         from_attributes = True
@@ -123,6 +133,7 @@ class HospitalUpdate(BaseModel):
     
     # Super Admin Only Fields
     legal_name: Optional[str] = None
+    hospital_slug: Optional[str] = None
     subscription_tier: Optional[str] = None
     hospital_type: Optional[str] = None
     specialty: Optional[str] = None
@@ -146,29 +157,43 @@ class AdminCreate(BaseModel):
 def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
     # RBAC handles authorization instead of hardcoded SUPER_ADMIN check
     
-    total_hospitals = db.query(Hospital).count()
-    active_hospitals = db.query(Hospital).filter(Hospital.is_active == True).count()
+    total_hospitals = db.query(Hospital).filter(Hospital.is_deleted == False).count()
+    active_hospitals = db.query(Hospital).filter(Hospital.is_active == True, Hospital.is_deleted == False).count()
     
-    # Active Users (Live in last 5 minutes)
+    # Active Users (distinct user sessions active in AuditLog or User.last_active_at in last 5 minutes)
     from datetime import datetime, timedelta
     five_mins_ago = datetime.utcnow() - timedelta(minutes=5)
-    live_active_users = db.query(User).filter(User.last_active_at >= five_mins_ago).count()
+    
+    # 1. Count from AuditLog
+    live_users_audit = db.query(AuditLog.user_id).filter(
+        AuditLog.timestamp >= five_mins_ago,
+        AuditLog.user_id != None
+    ).distinct().count()
+    
+    # 2. Count from User.last_active_at
+    live_users_active_field = db.query(User).filter(
+        User.last_active_at >= five_mins_ago,
+        User.is_active == True,
+        User.is_deleted == False
+    ).count()
+    
+    # Use max to be robust and accurate, ensuring at least 1 (current user)
+    live_active_users = max(live_users_audit, live_users_active_field, 1)
     
     # Check for pending approvals
-    pending_approvals = db.query(Hospital).filter(Hospital.pending_updates != None).count()
+    pending_approvals = db.query(Hospital).filter(Hospital.pending_updates != None, Hospital.is_deleted == False).count()
     
     # Tier Distribution
     tiers = {
-        "Enterprise": db.query(Hospital).filter(Hospital.subscription_tier == "Enterprise").count(),
-        "Professional": db.query(Hospital).filter(Hospital.subscription_tier == "Professional").count(),
-        "Standard": db.query(Hospital).filter(Hospital.subscription_tier == "Standard").count(),
-        "Starter": db.query(Hospital).filter(Hospital.subscription_tier == "Starter").count(),
+        "Enterprise": db.query(Hospital).filter(Hospital.subscription_tier == "Enterprise", Hospital.is_deleted == False).count(),
+        "Professional": db.query(Hospital).filter(Hospital.subscription_tier == "Professional", Hospital.is_deleted == False).count(),
+        "Standard": db.query(Hospital).filter(Hospital.subscription_tier == "Standard", Hospital.is_deleted == False).count(),
+        "Starter": db.query(Hospital).filter(Hospital.subscription_tier == "Starter", Hospital.is_deleted == False).count(),
     }
     
     # Storage & Bandwidth Insights
     # Only count confirmed uploads
     total_files = db.query(PDFFile).filter(PDFFile.upload_status == 'confirmed').count()
-    # file_size is in bytes. Sum it up, then divide by 1024*1024*1024 for GB
     total_bytes = db.query(func.sum(PDFFile.file_size)).filter(PDFFile.upload_status == 'confirmed').scalar() or 0
     total_bytes_val = total_bytes or 0
     total_gigabytes = total_bytes_val / (1024 * 1024 * 1024)
@@ -178,13 +203,32 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
     top_hospitals = db.query(
         Hospital.legal_name,
         func.sum(PDFFile.file_size).label("total_usage")
-    ).select_from(Hospital).join(Patient).join(PDFFile).filter(PDFFile.upload_status == 'confirmed').group_by(Hospital.hospital_id).order_by(desc("total_usage")).limit(5).all()
+    ).select_from(Hospital).join(Patient).join(PDFFile).filter(
+        PDFFile.upload_status == 'confirmed',
+        Hospital.is_deleted == False
+    ).group_by(Hospital.hospital_id).order_by(desc("total_usage")).limit(5).all()
     
     usage_list = [{"name": h[0], "usage_mb": round((h[1] or 0) / (1024*1024), 2)} for h in top_hospitals]
-
-    # Revenue Estimation (Mock)
-    revenue = (tiers["Enterprise"] * 500) + (tiers["Professional"] * 399) + (tiers["Standard"] * 199) + (tiers["Starter"] * 99)
-
+    
+    # Revenue Estimation: Dynamically calculated MRR based on active client tiers + variable usage-based MRD
+    # Flat base fees: Enterprise: 5000, Professional: 2500, Standard: 1000, Starter: 500
+    base_fees = {
+        "Enterprise": 5000.0,
+        "Professional": 2500.0,
+        "Standard": 1000.0,
+        "Starter": 500.0
+    }
+    
+    projected_revenue = 0.0
+    active_clients_list = db.query(Hospital).filter(Hospital.is_active == True, Hospital.is_deleted == False).all()
+    for h in active_clients_list:
+        base = base_fees.get(h.subscription_tier, 500.0)
+        # Variable usage-based metric: Price per Patient MRD File * expected volume
+        # Default volume estimate: 100 files
+        volume = h.expected_monthly_volume if (h.expected_monthly_volume and h.expected_monthly_volume > 0) else 100
+        variable = (h.price_per_file or 100.0) * volume
+        projected_revenue += (base + variable)
+        
     return {
         "total_hospitals": total_hospitals,
         "active_hospitals": active_hospitals,
@@ -195,9 +239,10 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
         "total_files": total_files,
         "total_gb": round(total_gigabytes, 2),
         "top_consumers": usage_list,
-        "projected_revenue": revenue
+        "projected_revenue": round(projected_revenue, 2)
     }
 
+@router.post("", response_model=HospitalResponse, include_in_schema=False)
 @router.post("/", response_model=HospitalResponse)
 def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
     # RBAC handles authorization instead of hardcoded SUPER_ADMIN check
@@ -205,10 +250,21 @@ def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), cur
     # Check for duplicate email
     if db.query(Hospital).filter(Hospital.email == hospital.email).first():
         raise HTTPException(status_code=400, detail="Hospital with this email already exists")
+
+    # Validate subdomain uniqueness
+    import re
+    target_slug = re.sub(r'[^a-z0-9]', '', hospital.legal_name.lower())
+    for existing in db.query(Hospital).filter(Hospital.is_deleted == False).all():
+        existing_slug = re.sub(r'[^a-z0-9]', '', existing.legal_name.lower())
+        if existing_slug == target_slug:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"The subdomain slug '{target_slug}' derived from the hospital's legal name is already taken. Please use a unique legal name."
+            )
     db_hospital = Hospital(
         legal_name=hospital.legal_name, 
         subscription_tier=hospital.subscription_tier,
-        hospital_type=hospital.organization_type.upper() if hospital.organization_type else (hospital.hospital_type.upper() if hospital.hospital_type else "PRIVATE"),
+        organization_type=hospital.organization_type.upper() if hospital.organization_type else (hospital.hospital_type.upper() if hasattr(hospital, 'hospital_type') and hospital.hospital_type else "PRIVATE"),
         specialty=hospital.specialty,
         terminology=hospital.terminology,
         enabled_modules=hospital.enabled_modules,
@@ -272,9 +328,42 @@ def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), cur
     
     return db_hospital
 
+@router.get("", response_model=List[HospitalResponse], include_in_schema=False)
 @router.get("/", response_model=List[HospitalResponse])
-def list_hospitals(db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
-    return db.query(Hospital).all()
+def list_hospitals(
+    db: Session = Depends(get_db), 
+    tier: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    include_deleted: bool = False, 
+    current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))
+):
+    query = db.query(Hospital)
+    
+    if include_deleted:
+        # Include both deleted and active for recycle bin review
+        pass
+    else:
+        query = query.filter(Hospital.is_deleted == False)
+        
+    if tier and tier != "All":
+        query = query.filter(Hospital.subscription_tier == tier)
+        
+    if status:
+        if status.lower() == "active":
+            query = query.filter(Hospital.is_active == True)
+        elif status.lower() == "suspended":
+            query = query.filter(Hospital.is_active == False)
+            
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            (Hospital.legal_name.ilike(search_pattern)) |
+            (Hospital.registration_number.ilike(search_pattern)) |
+            (Hospital.email.ilike(search_pattern))
+        )
+        
+    return query.all()
 
 @router.post("/{hospital_id}/admin")
 def create_hospital_admin(hospital_id: int, admin_data: AdminCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
@@ -314,7 +403,7 @@ def create_hospital_admin(hospital_id: int, admin_data: AdminCreate, db: Session
 @router.patch("/{hospital_id}", response_model=HospitalResponse)
 def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_SETTINGS))):
     # 1. Fetch Hospital
-    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id, Hospital.is_deleted == False).first()
     if not db_hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
 
@@ -327,6 +416,17 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Sessi
 
     update_data = hospital_update.dict(exclude_unset=True)
 
+    # Validate slug uniqueness if being changed
+    if 'hospital_slug' in update_data and update_data['hospital_slug']:
+        import re
+        clean_slug = re.sub(r'[^a-z0-9-]', '', update_data['hospital_slug'].lower().strip())
+        if not clean_slug:
+            raise HTTPException(status_code=400, detail="Invalid subdomain slug")
+        conflict = db.query(Hospital).filter(Hospital.hospital_slug == clean_slug, Hospital.hospital_id != hospital_id).first()
+        if conflict:
+            raise HTTPException(status_code=400, detail=f"Subdomain '{clean_slug}' is already taken")
+        update_data['hospital_slug'] = clean_slug
+
     # 3. Apply Logic
     if is_super:
         # Super Admin: Apply Immediately
@@ -334,7 +434,7 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Sessi
         new_email = update_data.get("email")
 
         for key, value in update_data.items():
-            if key in ["gst_number", "hospital_type"] and value:
+            if key in ["gst_number", "organization_type"] and value:
                 value = value.upper()
             setattr(db_hospital, key, value)
         
@@ -392,7 +492,7 @@ def approve_update(hospital_id: int, db: Session = Depends(get_db), current_user
     
     for key, value in updates.items():
         if hasattr(db_hospital, key):
-            if key in ["gst_number", "hospital_type"] and value:
+            if key in ["gst_number", "organization_type"] and value:
                 value = value.upper()
             setattr(db_hospital, key, value)
     
@@ -418,7 +518,7 @@ def reject_update(hospital_id: int, db: Session = Depends(get_db), current_user:
 
 @router.get("/{hospital_id}", response_model=HospitalResponse)
 def read_hospital(hospital_id: int, db: Session = Depends(get_db)):
-    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id, Hospital.is_deleted == False).first()
     if db_hospital is None:
         raise HTTPException(status_code=404, detail="Hospital not found")
     return db_hospital
@@ -474,101 +574,228 @@ def get_hospital_usage(hospital_id: int, db: Session = Depends(get_db), current_
         "uptime_sla": 99.9 # This remains static for now as it's a platform promise
     }
 
+
 @router.delete("/{hospital_id}")
 def delete_hospital(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id, Hospital.is_deleted == False).first()
+    if not db_hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+    
+    # Soft Delete Implementation
+    db_hospital.is_deleted = True
+    db_hospital.is_active = False
+    
+    # Also soft-delete all users of this hospital
+    db.query(User).filter(User.hospital_id == hospital_id).update({"is_deleted": True, "is_active": False}, synchronize_session=False)
+    
+    # Also soft-delete all patients of this hospital
+    db.query(Patient).filter(Patient.hospital_id == hospital_id).update({"is_deleted": True}, synchronize_session=False)
+
+    try:
+        log_audit(db, current_user.user_id, "HOSPITAL_DELETED", f"Soft-deleted hospital: {db_hospital.legal_name}")
+    except:
+        pass
+        
+    db.commit()
+    
+    return {"message": f"Hospital {db_hospital.legal_name} deleted successfully (soft delete)"}
+
+
+@router.post("/{hospital_id}/restore")
+def restore_hospital(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
     db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
     if not db_hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
     
-    # Optional: Check for active data or force delete
-    # For now, we will attempt delete. If foreign keys prevent it, it will raise 500 error, 
-    # which is generic but valid for V1.
+    # Reset Soft Delete
+    db_hospital.is_deleted = False
+    db_hospital.is_active = True
+    
+    # Also restore all users of this hospital
+    db.query(User).filter(User.hospital_id == hospital_id).update({"is_deleted": False, "is_active": True}, synchronize_session=False)
+    
+    # Also restore all patients of this hospital
+    db.query(Patient).filter(Patient.hospital_id == hospital_id).update({"is_deleted": False}, synchronize_session=False)
+
     try:
-        # Pre-fetch IDs for bulk operations
-        hospital_users = db.query(User.user_id).filter(User.hospital_id == hospital_id).all()
-        user_ids = [u[0] for u in hospital_users]
+        log_audit(db, current_user.user_id, "HOSPITAL_RESTORED", f"Restored soft-deleted hospital: {db_hospital.legal_name}")
+    except:
+        pass
         
-        hospital_patients = db.query(Patient.record_id).filter(Patient.hospital_id == hospital_id).all()
-        record_ids = [p[0] for p in hospital_patients]
+    db.commit()
 
-        # 1. Unlink Users from Audit Logs (Set user_id = None)
-        # We do this for ALL users belonging to this hospital
-        if user_ids:
-            db.query(AuditLog).filter(AuditLog.user_id.in_(user_ids)).update({AuditLog.user_id: None}, synchronize_session=False)
-            db.query(InventoryLog).filter(InventoryLog.performed_by.in_(user_ids)).update({InventoryLog.performed_by: None}, synchronize_session=False)
-            db.query(PhysicalMovementLog).filter(PhysicalMovementLog.performed_by_user_id.in_(user_ids)).update({PhysicalMovementLog.performed_by_user_id: None}, synchronize_session=False)
-            # Manually delete MFA tokens and trusted devices which were created via raw SQL later and lack ORM models
-            from sqlalchemy import text
-            uid_str = ",".join(map(str, user_ids))
-            db.execute(text(f"DELETE FROM login_otps WHERE user_id IN ({uid_str})"))
-            db.execute(text(f"DELETE FROM user_trusted_devices WHERE user_id IN ({uid_str})"))
-            db.execute(text(f"UPDATE system_error_logs SET user_id = NULL WHERE user_id IN ({uid_str})"))
+    return {"message": f"Hospital {db_hospital.legal_name} restored successfully from Recycle Bin"}
 
-        # 1.1 Also delete generic AuditLogs linked to the hospital directly
-        db.query(AuditLog).filter(AuditLog.hospital_id == hospital_id).delete(synchronize_session=False)
-        
-        # 2. Delete Invoices (Cascade to Items usually, but ensure Items are gone)
-        # If InvoiceItem has no direct hospital_id (it links to Invoice), deleting Invoice should be enough if DB cascade exists.
-        # But to be safe in SQLAlchemy:
-        invoice_ids = [i[0] for i in db.query(Invoice.invoice_id).filter(Invoice.hospital_id == hospital_id).all()]
-        if invoice_ids:
-             from ..models import InvoiceItem
-             db.query(InvoiceItem).filter(InvoiceItem.invoice_id.in_(invoice_ids)).delete(synchronize_session=False)
-        db.query(Invoice).filter(Invoice.hospital_id == hospital_id).delete(synchronize_session=False)
-        
-        # 3. Delete File Requests & QA & QAIssue
-        db.query(FileRequest).filter(FileRequest.hospital_id == hospital_id).delete(synchronize_session=False)
-        db.query(QAIssue).filter(QAIssue.hospital_id == hospital_id).delete(synchronize_session=False)
-        
-        # 4. Delete Physical Inventory
-        # Boxes first (FK to Rack), then Racks
-        db.query(PhysicalBox).filter(PhysicalBox.hospital_id == hospital_id).delete(synchronize_session=False)
-        db.query(PhysicalRack).filter(PhysicalRack.hospital_id == hospital_id).delete(synchronize_session=False)
-        # 4.5 Clean Up Automatic System Trackers & Empty Modules
-        from sqlalchemy import text
-        module_tables = [
-            "bandwidth_usage", "system_error_logs", "insurance_providers", 
-            "dental_labs", "dental_inventory_items", "pharma_medicines", "pharma_sales",
-            "ent_surgeries", "ent_examinations", "audiometry_tests", "ent_patients",
-            "dental_treatment_phases", "dental_treatment_plans", "dental_patients",
-            "opd_visits", "opd_patients", "ipd_admissions"
-        ]
-        for tbl in module_tables:
-            try:
-                # Protect transaction with savepoint to allow graceful pass on strictly locked complex resources
-                with db.begin_nested():
-                    db.execute(text(f"DELETE FROM {tbl} WHERE hospital_id = :hid"), {"hid": hospital_id})
-            except Exception:
-                pass
-        # 5. Delete Patients (and cascading Files, Diagnosis, Procedures)
-        if record_ids:
-            db.query(PatientDiagnosis).filter(PatientDiagnosis.record_id.in_(record_ids)).delete(synchronize_session=False)
-            db.query(PatientProcedure).filter(PatientProcedure.record_id.in_(record_ids)).delete(synchronize_session=False)
-            
-            # Delete Files
-            db.query(PDFFile).filter(PDFFile.record_id.in_(record_ids)).delete(synchronize_session=False)
-        
-        db.query(Patient).filter(Patient.hospital_id == hospital_id).delete(synchronize_session=False)
 
-        # 6. Delete Users
-        db.query(User).filter(User.hospital_id == hospital_id).delete(synchronize_session=False)
-        
-        # 7. Delete Hospital
-        # 7. Delete Hospital
-        db.delete(db_hospital)
-        
-        try:
-             log_audit(db, current_user.user_id, "HOSPITAL_DELETED", f"Deleted hospital: {db_hospital.legal_name}")
-        except:
-             pass
-             
+def _purge_hospital_cascade(db: Session, hospital_id: int) -> dict:
+    """
+    Permanently delete a hospital and EVERY row in its dependency subtree.
+
+    Reads the live FK graph from information_schema so it stays correct as the
+    schema evolves (no hand-maintained table list to rot). Runs inside the
+    caller's transaction: the caller commits on success or rolls back on error,
+    so a purge is atomic — it never leaves a hospital half-deleted.
+    """
+    IN = lambda name: bindparam(name, expanding=True)
+
+    fk_rows = db.execute(text("""
+        SELECT tc.table_name AS child_t, kcu.column_name AS child_c,
+               ccu.table_name AS parent_t, ccu.column_name AS parent_c
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+        JOIN information_schema.constraint_column_usage ccu
+            ON tc.constraint_name = ccu.constraint_name
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+    """)).fetchall()
+
+    pk_rows = db.execute(text("""
+        SELECT tc.table_name AS t, kcu.column_name AS c
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+        WHERE tc.constraint_type = 'PRIMARY KEY'
+    """)).fetchall()
+
+    pk_of: dict = {}
+    for t, c in pk_rows:
+        pk_of.setdefault(t, c)  # all relevant tables use a single-column PK
+
+    from collections import defaultdict, deque
+    children = defaultdict(list)               # parent_table -> [(child_t, child_c, parent_c)]
+    for ct, cc, pt, pc in fk_rows:
+        children[pt].append((ct, cc, pc))
+
+    # 1. BFS: collect the exact PK values to delete in every dependent table.
+    to_delete: dict = defaultdict(set)
+    to_delete["hospitals"].add(hospital_id)
+    queue = deque([("hospitals", {hospital_id})])
+
+    while queue:
+        parent_t, new_vals = queue.popleft()
+        if not new_vals:
+            continue
+        parent_pk = pk_of.get(parent_t)
+        for ct, cc, pc in children.get(parent_t, []):
+            if ct == parent_t:
+                continue  # skip self-referential FKs (whole table deleted at once)
+            child_pk = pk_of.get(ct)
+            if child_pk is None:
+                # Fail loud inside the transaction rather than silently skipping
+                # rows — the caller rolls back, so no partial purge happens.
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Cannot safely purge: table '{ct}' has no single-column primary key."
+                )
+            if pc != parent_pk:
+                resolved = db.execute(
+                    text(f'SELECT DISTINCT "{pc}" FROM "{parent_t}" WHERE "{parent_pk}" IN :v')
+                    .bindparams(IN("v")),
+                    {"v": list(new_vals)}
+                ).fetchall()
+                join_vals = [r[0] for r in resolved if r[0] is not None]
+            else:
+                join_vals = list(new_vals)
+            if not join_vals:
+                continue
+            found = db.execute(
+                text(f'SELECT "{child_pk}" FROM "{ct}" WHERE "{cc}" IN :v')
+                .bindparams(IN("v")),
+                {"v": join_vals}
+            ).fetchall()
+            newly = {r[0] for r in found if r[0] is not None} - to_delete[ct]
+            if newly:
+                to_delete[ct] |= newly
+                queue.append((ct, newly))
+
+    # 2. Topological order: a table may only be deleted once every table that
+    #    references it (among the involved set) is already deleted.
+    involved = set(to_delete.keys())
+    referenced_by = {t: 0 for t in involved}
+    parent_of = defaultdict(list)              # child_t -> [parent_t]
+    for ct, cc, pt, pc in fk_rows:
+        if ct in involved and pt in involved and ct != pt:
+            referenced_by[pt] += 1
+            parent_of[ct].append(pt)
+
+    ready = deque([t for t in involved if referenced_by[t] == 0])
+    order: list = []
+    while ready:
+        t = ready.popleft()
+        order.append(t)
+        for pt in parent_of[t]:
+            referenced_by[pt] -= 1
+            if referenced_by[pt] == 0:
+                ready.append(pt)
+    # Any leftover (cyclic among involved) — append; retry loop below resolves it.
+    for t in involved:
+        if t not in order:
+            order.append(t)
+
+    # 3. Delete bottom-up, chunked, all within the caller's transaction.
+    CHUNK = 5000
+    deleted_counts: dict = {}
+    for t in order:
+        pk = pk_of[t]
+        ids = list(to_delete[t])
+        total = 0
+        for i in range(0, len(ids), CHUNK):
+            chunk = ids[i:i + CHUNK]
+            res = db.execute(
+                text(f'DELETE FROM "{t}" WHERE "{pk}" IN :v').bindparams(IN("v")),
+                {"v": chunk}
+            )
+            total += res.rowcount or 0
+        if total:
+            deleted_counts[t] = total
+
+    return deleted_counts
+
+
+@router.delete("/{hospital_id}/permanent")
+def permanently_delete_hospital(
+    hospital_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))
+):
+    """
+    IRREVERSIBLE. Permanently purges a hospital and its entire data subtree
+    (patients, files, invoices, appointments, users, ...). Safety gate: the
+    hospital must already be soft-deleted (sitting in the Recycle Bin).
+    """
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    if not db_hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+
+    if not db_hospital.is_deleted:
+        raise HTTPException(
+            status_code=400,
+            detail="Hospital must be sent to the Recycle Bin (soft-deleted) before it can be permanently deleted."
+        )
+
+    hospital_name = db_hospital.legal_name
+
+    try:
+        deleted_counts = _purge_hospital_cascade(db, hospital_id)
+        # Platform-scoped audit entry (hospital_id=None) so it is NOT part of the
+        # purged subtree and survives the commit.
+        log_audit(
+            db,
+            current_user.user_id,
+            "HOSPITAL_PURGED",
+            f"Permanently deleted hospital '{hospital_name}' (id={hospital_id}). "
+            f"Rows removed: {deleted_counts}",
+            hospital_id=None
+        )
         db.commit()
-
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
-        import traceback
-        with open("delete_error.log", "w") as f:
-            f.write(traceback.format_exc())
-        raise HTTPException(status_code=400, detail=f"Cannot delete hospital. Ensure all patients/data are removed first. Error: {str(e)}")
-    
-    return {"message": f"Hospital {db_hospital.legal_name} deleted successfully"}
+        raise HTTPException(status_code=500, detail=f"Permanent deletion failed and was rolled back: {e}")
+
+    return {
+        "message": f"Hospital '{hospital_name}' and all associated data were permanently deleted.",
+        "deleted_rows": deleted_counts
+    }

@@ -19,6 +19,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [globalHospitalId, setGlobalHospitalId] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchUserRole = async () => {
@@ -44,7 +45,20 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
             }
         };
         fetchUserRole();
+
+        // Handle global hospital selection state
+        const savedId = localStorage.getItem('globalHospitalId');
+        setGlobalHospitalId(savedId);
+
+        const handleHospitalChange = (e: any) => {
+            setGlobalHospitalId(e.detail || null);
+        };
+
+        window.addEventListener('hospitalChanged', handleHospitalChange);
+        return () => window.removeEventListener('hospitalChanged', handleHospitalChange);
     }, []);
+
+    const dashboardPath = globalHospitalId ? `/dashboard/hospital-overview?hospital_id=${globalHospitalId}` : '/dashboard';
 
     const handleLogout = async () => {
         setIsMenuOpen(false);
@@ -63,17 +77,17 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
     const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');
 
     const isSuperAdmin = userRole === 'superadmin';
+    const isGroupAdmin = userRole === 'group_admin';
     const isHospitalAdmin = userRole === 'hospital_admin';
     const isWarehouseManager = userRole === 'warehouse_manager';
     const isStaff = userRole === 'superadmin_staff';
+    const isPlatformStaff = isSuperAdmin || isStaff;
     
-    const isCorporate = specialty?.toLowerCase().includes('corporate') || specialty?.toLowerCase().includes('cooperate') || specialty?.toLowerCase().includes('co opreate');
-
     // Grouping Logic
-    const showStorage = (isSuperAdmin || isWarehouseManager) && !isCorporate;
+    const showStorage = isSuperAdmin || isWarehouseManager;
     const showRequests = isHospitalAdmin || isWarehouseManager || isStaff || isSuperAdmin;
-    const showArchive = (isWarehouseManager || isHospitalAdmin || isSuperAdmin || isStaff) && !isCorporate;
-    const showDrafts = (isWarehouseManager || isSuperAdmin) && !isCorporate;
+    const showArchive = isWarehouseManager || isHospitalAdmin || isSuperAdmin || isStaff;
+    const showDrafts = isWarehouseManager || isSuperAdmin;
     const showWarehouseMenu = showStorage || showRequests || showArchive || showDrafts;
 
     return (
@@ -108,10 +122,10 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                     {/* Right Side: Account & Profile */}
                     <div className="flex items-center gap-4">
                         {/* Global Hospital Selector for Platform Admins */}
-                        {(isSuperAdmin || isStaff) && <GlobalHospitalSelector />}
+                        {isPlatformStaff && <GlobalHospitalSelector />}
 
-                        {/* Hospital Badge for Tenants */}
-                        {hospitalName && !(isSuperAdmin || isStaff) && (
+                        {/* Hospital Badge for Tenants & Group Admins */}
+                        {hospitalName && !isPlatformStaff && (
                             <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full">
                                 <Building2 size={14} className="text-indigo-400" />
                                 <div className="flex flex-col">
@@ -131,13 +145,15 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                         )}
 
                         {/* Quick Add Patient Button (Desktop) */}
-                        <button 
-                            onClick={() => window.dispatchEvent(new CustomEvent('open-global-patient-register'))}
-                            className="hidden sm:flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-black shadow-lg shadow-indigo-500/20 transition-all active:scale-95 border border-indigo-400/30"
-                        >
-                            <UsersIcon size={14} />
-                            <span className="uppercase tracking-tight">Add {terms.patient}</span>
-                        </button>
+                        {!isPlatformStaff && (
+                            <button 
+                                onClick={() => window.dispatchEvent(new CustomEvent('open-global-patient-register'))}
+                                className="hidden sm:flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-black shadow-lg shadow-indigo-500/20 transition-all active:scale-95 border border-indigo-400/30"
+                            >
+                                <UsersIcon size={14} />
+                                <span className="uppercase tracking-tight">Add {terms.patient}</span>
+                            </button>
+                        )}
 
                         {/* Profile Dropdown */}
                         <div className="relative">
@@ -165,7 +181,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
                                     {/* Links */}
                                     <div className="p-2 space-y-1">
-                                        {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'superadmin_staff') && (
+                                        {(isHospitalAdmin || isGroupAdmin || isPlatformStaff) && (
                                             <Link
                                                 href="/dashboard/settings"
                                                 onClick={() => setIsProfileOpen(false)}
@@ -216,19 +232,21 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                     <div className="md:hidden bg-slate-900 border-b border-slate-800 shadow-2xl animate-in fade-in slide-in-from-top-5 duration-200">
                         <div className="flex flex-col p-4 space-y-2">
                             {/* Mobile Quick Action */}
-                            <button 
-                                onClick={() => {
-                                    setIsMenuOpen(false);
-                                    window.dispatchEvent(new CustomEvent('open-global-patient-register'));
-                                }}
-                                className="w-full bg-indigo-600 text-white font-black py-4 rounded-xl flex items-center justify-center gap-3 mb-4 shadow-lg shadow-indigo-900/40"
-                            >
-                                <UsersIcon size={20} />
-                                <span className="uppercase tracking-tight text-sm">Add New {terms.patient}</span>
-                            </button>
+                            {!isPlatformStaff && (
+                                <button 
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        window.dispatchEvent(new CustomEvent('open-global-patient-register'));
+                                    }}
+                                    className="w-full bg-indigo-600 text-white font-black py-4 rounded-xl flex items-center justify-center gap-3 mb-4 shadow-lg shadow-indigo-900/40"
+                                >
+                                    <UsersIcon size={20} />
+                                    <span className="uppercase tracking-tight text-sm">Add New {terms.patient}</span>
+                                </button>
+                            )}
 
                             <Link
-                                href="/dashboard"
+                                href={dashboardPath}
                                 onClick={() => setIsMenuOpen(false)}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${pathname === '/dashboard'
                                     ? 'bg-slate-800 text-white'
@@ -240,9 +258,9 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
                             {userRole === 'superadmin' && (
                                 <Link
-                                    href="/dashboard/organizations"
+                                    href="/dashboard/hospitals"
                                     onClick={() => setIsMenuOpen(false)}
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/organizations')
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/hospitals')
                                         ? 'bg-indigo-600 text-white'
                                         : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                         }`}
@@ -251,23 +269,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 </Link>
                             )}
 
-                            {/* Corporate Views for Mobile */}
-                            {isCorporate && (userRole === 'hospital_admin' || userRole === 'warehouse_manager' || userRole === 'superadmin') && (
-                                <>
-                                    <Link
-                                        href="/dashboard/corporate/documents"
-                                        onClick={() => setIsMenuOpen(false)}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/corporate/documents')
-                                            ? 'bg-slate-800 text-white'
-                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                            }`}
-                                    >
-                                        <Database size={18} /> Company Documents
-                                    </Link>
-                                </>
-                            )}
-
-                            {(userRole === 'hospital_admin' || userRole === 'warehouse_manager' || userRole === 'superadmin') && !isCorporate && (
+                            {(userRole === 'hospital_admin' || userRole === 'warehouse_manager' || userRole === 'superadmin' || userRole === 'group_admin') && (
                                 <Link
                                     href="/dashboard/records"
                                     onClick={() => setIsMenuOpen(false)}
@@ -280,7 +282,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 </Link>
                             )}
 
-                            {(userRole === 'hospital_admin' || userRole === 'warehouse_manager' || userRole === 'superadmin_staff' || userRole === 'superadmin') && (
+                            {(userRole === 'hospital_admin' || userRole === 'warehouse_manager' || userRole === 'superadmin_staff' || userRole === 'superadmin' || userRole === 'group_admin') && (
                                 <>
                                     {userRole === 'hospital_admin' && (
                                         <Link
@@ -320,7 +322,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             )}
 
                             {/* Reports & Accounting Link - Admins */}
-                            {userRole === 'superadmin' && (
+                            {(userRole === 'superadmin' || userRole === 'group_admin') && (
                                 <>
                                     <Link
                                         href="/dashboard/reports"
@@ -345,7 +347,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 </>
                             )}
 
-                            {isSuperAdmin && !isCorporate && (
+                            {isSuperAdmin && (
                                 <Link
                                     href="/dashboard/audit"
                                     onClick={() => setIsMenuOpen(false)}
@@ -358,7 +360,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 </Link>
                             )}
 
-                            {(userRole === 'superadmin' || userRole === 'warehouse_manager') && !isCorporate && (
+                            {(userRole === 'superadmin' || userRole === 'warehouse_manager') && (
                                 <Link
                                     href="/dashboard/storage"
                                     onClick={() => setIsMenuOpen(false)}
@@ -372,7 +374,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             )}
 
                             <div className="pt-4 mt-4 border-t border-slate-800">
-                                {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'superadmin_staff') && (
+                                {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'superadmin_staff' || userRole === 'group_admin') && (
                                     <Link
                                         href="/dashboard/settings"
                                         onClick={() => setIsMenuOpen(false)}

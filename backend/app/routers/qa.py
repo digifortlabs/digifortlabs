@@ -8,11 +8,40 @@ from pydantic import BaseModel
 
 router = APIRouter(tags=["qa"])
 
+class QAResponse(BaseModel):
+    issue_id: int
+    hospital_id: int
+    filename: str
+    issue_type: str
+    details: str
+    severity: str
+    status: str
+    created_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 class QAReportRequest(BaseModel):
     file_id: int
     issue_type: str
     details: str
     severity: str = "medium"
+
+@router.get("/", response_model=List[QAResponse])
+def get_qa_issues(
+    status: Optional[str] = "open",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(QAIssue)
+    
+    if current_user.role != UserRole.SUPER_ADMIN:
+        query = query.filter(QAIssue.hospital_id == current_user.hospital_id)
+        
+    if status:
+        query = query.filter(QAIssue.status == status)
+        
+    return query.all()
 
 @router.post("/report")
 def report_qa_issue(

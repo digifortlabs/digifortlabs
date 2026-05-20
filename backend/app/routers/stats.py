@@ -2,7 +2,7 @@ import math
 from datetime import date, datetime, timedelta
 from typing import Dict, Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -385,3 +385,72 @@ def get_dashboard_stats(
         "traffic_data": [] 
     }
 
+@router.get("/group")
+def get_group_stats(
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+) -> Dict:
+    """Aggregated stats for Group Admins across all their branches."""
+    if current_user.role != UserRole.GROUP_ADMIN:
+        # Fallback: If not group admin but has group_id, allow (soft check)
+        if not current_user.hospital or not current_user.hospital.group_id:
+             raise HTTPException(status_code=403, detail="Not authorized for group views")
+
+    group_id = current_user.hospital.group_id
+    hospitals = db.query(Hospital).filter(Hospital.group_id == group_id).all()
+    hospital_ids = [h.hospital_id for h in hospitals]
+
+    # Aggregate counts
+    total_patients = db.query(Patient).filter(Patient.hospital_id.in_(hospital_ids)).count()
+    total_files = db.query(PDFFile).join(Patient).filter(Patient.hospital_id.in_(hospital_ids)).count()
+    total_users = db.query(User).filter(User.hospital_id.in_(hospital_ids)).count()
+    
+    # Revenue aggregation
+    total_revenue = 0
+    branch_stats = []
+    for h in hospitals:
+        branch_files = db.query(PDFFile).join(Patient).filter(Patient.hospital_id == h.hospital_id).count()
+        rev = branch_files * h.price_per_file
+        total_revenue += rev
+        branch_stats.append({
+            "hospital_id": h.hospital_id,
+            "name": h.legal_name,
+            "patient_count": db.query(Patient).filter(Patient.hospital_id == h.hospital_id).count(),
+            "file_count": branch_files,
+            "revenue": round(rev, 2)
+        })
+
+    return {
+        "group_name": f"Group {group_id}",
+        "branch_count": len(hospitals),
+        "total_patients": total_patients,
+        "total_files": total_files,
+        "total_users": total_users,
+        "total_revenue": round(total_revenue, 2),
+        "branches": branch_stats
+    }
+
+@router.get("/global")
+def get_global_stats(
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+) -> Dict:
+    """Consolidated platform-wide metrics for SuperAdmins."""
+    if current_user.role != UserRole.SUPER_ADMIN:
+        raise HTTPException(status_code=403, detail="Not authorized for global metrics")
+
+    hospital_count = db.query(Hospital).count()
+    total_users = db.query(User).count()
+    total_files = db.query(PDFFile).count()
+    
+    # Active Users (last 15 mins)
+    fifteen_mins_ago = datetime.utcnow() - timedelta(minutes=15)
+    active_users = db.query(User).filter(User.last_active_at >= fifteen_mins_ago).count()
+
+    return {
+        "hospitals": hospital_count,
+        "total_users": total_users,
+        "active_users": active_users,
+        "total_files": total_files,
+        "system_status": "Optimal"
+    }

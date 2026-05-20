@@ -10,6 +10,7 @@ export const useTerminology = () => {
     });
     const [specialty, setSpecialty] = useState('General');
     const [enabledModules, setEnabledModules] = useState<string[]>(['core']);
+    const [pricingTier, setPricingTier] = useState<string>('C');
 
     useEffect(() => {
         try {
@@ -21,6 +22,11 @@ export const useTerminology = () => {
             const storedModules = localStorage.getItem('userModules');
             if (storedModules) {
                 setEnabledModules(JSON.parse(storedModules));
+            }
+
+            const storedTier = localStorage.getItem('userPricingTier');
+            if (storedTier) {
+                setPricingTier(storedTier);
             }
 
             const storedTerminology = localStorage.getItem('userTerminology');
@@ -45,11 +51,6 @@ export const useTerminology = () => {
                 defaultPatient = 'Batch / Product';
                 defaultDoctor = 'QA Head';
                 defaultMRD = 'Batch No';
-            } else if (spec === 'Corporate' || spec.toLowerCase().includes('corporate') || spec.toLowerCase().includes('cooperate') || spec.toLowerCase().includes('co opreate')) {
-                defaultHospital = 'Office';
-                defaultPatient = 'Employee';
-                defaultDoctor = 'Manager';
-                defaultMRD = 'Emp ID';
             } else if (spec === 'Legal') {
                 defaultHospital = 'Firm';
                 defaultPatient = 'Case';
@@ -68,6 +69,6 @@ export const useTerminology = () => {
         }
     }, []);
 
-    return { terms, specialty, enabledModules };
+    return { terms, specialty, enabledModules, pricingTier };
 };
 

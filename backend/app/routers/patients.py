@@ -3,7 +3,7 @@ import os
 import uuid
 from typing import List, Optional, Union
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, Response, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, Response, Request, Form
 from pydantic import BaseModel
 from sqlalchemy import or_, cast, Date
 from sqlalchemy.orm import Session, joinedload
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 from ..database import SessionLocal, get_db
 from ..models import BandwidthUsage, Patient, PDFFile, User, UserRole
 from ..routers.auth import get_current_user
-from ..services.compression import compress_pdf, compress_video_to_mp4
+from ..services.compression import CompressionService
 from ..services.ocr import extract_text_from_pdf, classify_document, extract_text_from_image
 from ..services.s3_handler import S3Manager
 from ..audit import log_audit
@@ -24,7 +24,7 @@ router = APIRouter(tags=["patients"])
 from ..services.encryption import encrypt_file, decrypt_data
 
 
-def process_upload_task(file_id: int, temp_path: str, original_filename: str, user_id: int, hospital_id: int):
+def process_upload_task(file_id: int, temp_path: str, original_filename: str, user_id: int, hospital_id: int, compression_level: str = "BALANCED"):
     """
     Background Task to Compress -> Encrypt -> Upload.
     Updates DB status for polling.
@@ -60,16 +60,12 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
         db.commit()
         
         try:
-            if ext == '.pdf':
-                with open(temp_path, 'rb') as f:
-                    content = f.read()
-                compressed = compress_pdf(content)
-                if compressed and len(compressed) < original_size:
-                    with open(temp_path, 'wb') as f:
-                        f.write(compressed)
-                    processed_path = temp_path
+            if ext == '.pdf' and compression_level not in ['NONE', 'OFF']:
+                # Use the path-based CompressionService
+                CompressionService.optimize_pdf(temp_path, temp_path, level=compression_level)
+                processed_path = temp_path
             elif ext in ['.mp4', '.mov', '.avi', '.mkv']:
-                processed_path = compress_video_to_mp4(temp_path) # Returns new path
+                processed_path = CompressionService.compress_video_to_mp4(temp_path)
         except Exception as e:
             print(f"Compression warning: {e}")
             # Continue with original if compression fails
@@ -95,7 +91,7 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
                 except Exception as pe:
                     print(f"⚠️ pypdf failed: {pe}, falling back to pdf2image")
                     try:
-                        from pdf2image.info import pdfinfo_from_path
+                        from pdf2image import pdfinfo_from_path
                         info = pdfinfo_from_path(processed_path)
                         if "Pages" in info:
                             db_file.page_count = int(info["Pages"])
@@ -275,7 +271,7 @@ def run_manual_ocr_task(file_id: int):
                     log_ocr(f"⚠️ pypdf failed during recalculation: {pe}")
                     try:
                         import tempfile, os
-                        from pdf2image.info import pdfinfo_from_path
+                        from pdf2image import pdfinfo_from_path
                         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                             tmp.write(decrypted_bytes)
                             tmp_path = tmp.name
@@ -531,7 +527,7 @@ class UpdateTagsRequest(BaseModel):
 @router.put("/{patient_id}", response_model=PatientDetailResponse)
 def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # 1. Authorization
-    db_patient = db.query(Patient).options(joinedload(Patient.files)).filter(Patient.record_id == patient_id).first()
+    db_patient = db.query(Patient).options(joinedload(Patient.files)).filter(Patient.record_id == patient_id, Patient.is_deleted == False).first()
     if not db_patient:
         raise HTTPException(status_code=404, detail="Patient not found")
         
@@ -580,7 +576,8 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
     # 1. Check for Duplicate MRD (Explicit Check for better error)
     existing_mrd = db.query(Patient).filter(
         Patient.hospital_id == hospital_id,
-        Patient.patient_u_id == patient.patient_u_id
+        Patient.patient_u_id == patient.patient_u_id,
+        Patient.is_deleted == False
     ).first()
     
     if existing_mrd:
@@ -645,6 +642,7 @@ async def upload_patient_file(
     patient_id: int, 
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...), 
+    compression_level: str = Form("BALANCED"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -653,7 +651,7 @@ async def upload_patient_file(
         
         # 0. Authorization
         is_platform = current_user.role in ["superadmin", "superadmin_staff"]
-        patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+        patient = db.query(Patient).filter(Patient.record_id == patient_id, Patient.is_deleted == False).first()
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
             
@@ -688,20 +686,14 @@ async def upload_patient_file(
 
             # --- COMPRESSION STEP ---
             file_size = os.path.getsize(tmp_path)
-            if ext == '.pdf' and file_size > 5 * 1024 * 1024: # > 5MB
+            if ext == '.pdf' and compression_level not in ['NONE', 'OFF'] and file_size > 5 * 1024 * 1024: # > 5MB
                 try:
-                    from ..services.compression import compress_pdf
-                    print(f"📉 Compress candidate: {file.filename} ({file_size/1024/1024:.2f} MB)")
+                    from ..services.compression import CompressionService
+                    print(f"📉 Compress candidate: {file.filename} ({file_size/1024/1024:.2f} MB) using level {compression_level}")
                     
-                    with open(tmp_path, "rb") as f:
-                        original_bytes = f.read()
-                        
-                    compressed_bytes = compress_pdf(original_bytes)
-                    
-                    if len(compressed_bytes) < file_size:
-                        with open(tmp_path, "wb") as f:
-                            f.write(compressed_bytes)
-                        print(f"✅ Replaced with compressed version: {len(compressed_bytes)/1024/1024:.2f} MB")
+                    # Use path-based optimization directly on the temp file
+                    CompressionService.optimize_pdf(tmp_path, tmp_path, level=compression_level)
+                    print(f"✅ Optimization check complete for: {file.filename}")
                 except Exception as comp_e:
                     print(f"⚠️ Compression skipped due to error: {comp_e}")
             # ------------------------
@@ -731,7 +723,7 @@ async def upload_patient_file(
         db.refresh(new_file)
         
         # 3. Trigger Background Task
-        background_tasks.add_task(process_upload_task, new_file.file_id, tmp_path, file.filename, current_user.user_id, current_user.hospital_id)
+        background_tasks.add_task(process_upload_task, new_file.file_id, tmp_path, file.filename, current_user.user_id, current_user.hospital_id, compression_level)
         
         # PROACTIVE FIX: We want it confirmed immediately.
         # The frontend expects a 'processing' status or 'success'
@@ -965,7 +957,7 @@ def get_patients(
 ):
     is_platform = current_user.role in ["superadmin", "superadmin_staff"]
     
-    query = db.query(Patient).options(joinedload(Patient.files), joinedload(Patient.box))
+    query = db.query(Patient).options(joinedload(Patient.files), joinedload(Patient.box)).filter(Patient.is_deleted == False)
     
     if unassigned_only:
         query = query.filter(Patient.physical_box_id == None)
@@ -1010,7 +1002,7 @@ def get_patients(
 def get_patient(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     is_platform = current_user.role in ["superadmin", "superadmin_staff"]
     
-    query = db.query(Patient).options(joinedload(Patient.files), joinedload(Patient.box)).filter(Patient.record_id == patient_id)
+    query = db.query(Patient).options(joinedload(Patient.files), joinedload(Patient.box)).filter(Patient.record_id == patient_id, Patient.is_deleted == False)
     if not is_platform:
         query = query.filter(Patient.hospital_id == current_user.hospital_id)
     
@@ -1054,7 +1046,7 @@ def check_uhid_exists(uhid_no: str, db: Session = Depends(get_db), current_user:
     # but for hospital staff, search their own DB first.
     
     # Finding ANY patient record with this UHID
-    patient = db.query(Patient).filter(Patient.uhid == uhid_no).order_by(Patient.created_at.desc()).first()
+    patient = db.query(Patient).filter(Patient.uhid == uhid_no, Patient.is_deleted == False).order_by(Patient.created_at.desc()).first()
     
     if patient:
         return {
@@ -1701,7 +1693,7 @@ async def delete_file(
         raise HTTPException(status_code=404, detail="File not found")
     
     # Authorization check
-    patient = db.query(Patient).filter(Patient.record_id == db_file.record_id).first()
+    patient = db.query(Patient).filter(Patient.record_id == db_file.record_id, Patient.is_deleted == False).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     
@@ -1787,7 +1779,7 @@ def delete_patient(
     is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
     
     # Eager load files to ensure we can clean them up
-    patient = db.query(Patient).options(joinedload(Patient.files)).filter(Patient.record_id == patient_id).first()
+    patient = db.query(Patient).options(joinedload(Patient.files)).filter(Patient.record_id == patient_id, Patient.is_deleted == False).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 

@@ -71,17 +71,26 @@ def test_get_optimization_status():
 def test_download_optimized_file(temp_job_dir):
     job_id, filename, opt_filename = temp_job_dir
     
-    # Delete original file to force fallback to the optimized file
+    # Delete original unencrypted files to simulate post-compression worker state
     storage = StorageService()
     job_dir = storage.get_job_dir(job_id)
     original_path = Path(job_dir) / filename
+    optimized_path = Path(job_dir) / opt_filename
     if original_path.exists():
         original_path.unlink()
+    if optimized_path.exists():
+        optimized_path.unlink()
         
-    # Test downloading original filename (which gets routed to optimized if it exists)
+    # Write a mock encrypted file using the actual encryption helper
+    from app.services.encryption import encrypt_data
+    enc_content = encrypt_data(b"%PDF-1.4 optimized and encrypted file")
+    enc_path = Path(job_dir) / f"optimized_{filename}.enc"
+    enc_path.write_bytes(enc_content)
+        
+    # Test downloading original filename (which gets routed to the decrypted in-memory stream)
     response = client.get(f"/optimization/download/{job_id}/{filename}")
     assert response.status_code == 200
-    assert response.content == b"%PDF-1.4 optimized file"
+    assert response.content == b"%PDF-1.4 optimized and encrypted file"
 
 def test_download_security_path_traversal():
     # Test that path traversal containing ".." fails with 403
@@ -116,3 +125,48 @@ def test_cleanup_temp_jobs(tmp_path):
     assert removed == 1
     assert not old_job.exists()
     assert new_job.exists()
+
+def test_cleanup_temp_jobs_unencrypted_sweep(tmp_path):
+    # Mock base temp dir path for CleanupService
+    temp_dir = tmp_path / "temp"
+    temp_dir.mkdir()
+    
+    active_job = temp_dir / "active-job"
+    active_job.mkdir()
+    
+    # Create an old PDF file (2 hours old)
+    old_pdf = active_job / "old_report.pdf"
+    old_pdf.write_bytes(b"old unencrypted content")
+    
+    # Create a new PDF file (10 minutes old)
+    new_pdf = active_job / "new_report.pdf"
+    new_pdf.write_bytes(b"new unencrypted content")
+    
+    # Create an old ENC file (2 hours old)
+    old_enc = active_job / "old_report.pdf.enc"
+    old_enc.write_bytes(b"old encrypted content")
+    
+    import time
+    now = time.time()
+    past_time = now - (2 * 3600) # 2 hours ago
+    recent_time = now - (10 * 60) # 10 minutes ago
+    
+    # Set modification times
+    os.utime(old_pdf, (past_time, past_time))
+    os.utime(new_pdf, (recent_time, recent_time))
+    os.utime(old_enc, (past_time, past_time))
+    
+    # Set directory modification time to recent so the directory itself is not deleted
+    os.utime(active_job, (recent_time, recent_time))
+    
+    removed = CleanupService.cleanup_temp_jobs(max_age_hours=24, temp_dir_path=str(temp_dir))
+    
+    # Verify that the directory itself was NOT removed (since it's recent)
+    assert removed == 0
+    assert active_job.exists()
+    
+    # Verify that old_pdf was proactively scrubbed, but new_pdf and old_enc remain
+    assert not old_pdf.exists()
+    assert new_pdf.exists()
+    assert old_enc.exists()
+

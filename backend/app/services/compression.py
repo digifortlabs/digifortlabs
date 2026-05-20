@@ -1,127 +1,107 @@
-import io
 import os
-import tempfile
 import sys
+import subprocess
+import logging
+import shutil
+from pathlib import Path
+from typing import Optional
+import pikepdf
+from app.core.config import settings
 
-# Try compression libs
-try:
-    from pdf2image import convert_from_bytes
-    from PIL import Image
-    HAS_IMG_TOOLS = True
-except ImportError:
-    HAS_IMG_TOOLS = False
-    print("Warning: PDF Compression Tools missing (pdf2image/Pillow). Using lossless only.")
+logger = logging.getLogger(__name__)
 
-from moviepy import VideoFileClip
-from pypdf import PdfReader, PdfWriter
-
-
-def compress_pdf(file_bytes: bytes) -> bytes:
-    """
-    Compress PDF using two strategies:
-    1. Strong: Convert to images, optimize JPEGs (Quality 60), Rebuild PDF. (Great for scans)
-    2. Mild: Lossless structure compression via pypdf.
-    """
-    original_size = len(file_bytes)
-    
-    # STRATEGY 1: Image Optimization (Aggressive)
-    # Optimization: Skip aggressive image-based compression for very large files (>20MB) 
-    # as it becomes extremely CPU/Memory intensive and can hang the server.
-    if HAS_IMG_TOOLS and 500 * 1024 < original_size < 20 * 1024 * 1024:
+class CompressionService:
+    @staticmethod
+    def compress_pdf(input_path: Path, output_path: Path, level: str = "BALANCED") -> bool:
+        """
+        Compresses a PDF file using the specified level/strategy.
+        Returns True if successful, False otherwise.
+        """
+        level = level.upper()
+        logger.info(f"Starting {level} compression for {input_path}")
+        
         try:
-            print(f"📉 Attempting Aggressive Image Compression for {original_size/1024/1024:.1f}MB file...")
-            # Convert to images
-            images = convert_from_bytes(file_bytes, dpi=150, fmt='jpeg', grayscale=False, size=(1600, None))
-            
-            output_pdf_stream = io.BytesIO()
-            
-            # Save first image as PDF and append others
-            if images:
-                first_image = images[0]
-                rest_images = images[1:]
-                
-                first_image.save(
-                    output_pdf_stream, 
-                    "PDF", 
-                    resolution=150.0, 
-                    save_all=True, 
-                    append_images=rest_images,
-                    optimize=True,
-                    quality=60 # Aggressive compression
-                )
-                
-                compressed_bytes = output_pdf_stream.getvalue()
-                compressed_size = len(compressed_bytes)
-                
-                if compressed_size < original_size:
-                     reduction = ((original_size - compressed_size) / original_size) * 100
-                     print(f"✅ Aggressive Compression Success: {original_size/1024:.1f}KB → {compressed_size/1024:.1f}KB (-{reduction:.1f}%)")
-                     return compressed_bytes
-                else:
-                    print(f"⚠️ Aggressive compression made file larger ({compressed_size/1024:.1f}KB). Discarding.")
+            if level == "FAST":
+                return CompressionService._compress_fast(input_path, output_path)
+            elif level == "BALANCED":
+                return CompressionService._compress_balanced(input_path, output_path)
+            elif level == "ULTRA":
+                return CompressionService._compress_ultra(input_path, output_path)
+            else:
+                logger.warning(f"Unknown compression level '{level}', falling back to BALANCED")
+                return CompressionService._compress_balanced(input_path, output_path)
         except Exception as e:
-            print(f"⚠️ Aggressive Compression Failed: {e}")
+            logger.error(f"Compression failed: {str(e)}")
+            # Fallback: Copy input to output if compression fails completely
+            if input_path != output_path:
+                shutil.copy2(input_path, output_path)
+            return False
 
-    # STRATEGY 2: Lossless (Fallback)
-    if original_size > 5 * 1024 * 1024:
-        print(f"⏩ Skipping Lossless Compression for {original_size/1024/1024:.1f}MB file to avoid thread blocks.")
-        return file_bytes
+    @staticmethod
+    def _compress_fast(input_path: Path, output_path: Path) -> bool:
+        """Uses pikepdf for metadata stripping and basic object optimization."""
+        try:
+            with pikepdf.open(input_path) as pdf:
+                pdf.save(output_path, object_stream_mode=pikepdf.ObjectStreamMode.generate)
+            return True
+        except Exception as e:
+            logger.error(f"Fast compression failed: {str(e)}")
+            return False
 
-    try:
-        reader = PdfReader(io.BytesIO(file_bytes))
-        writer = PdfWriter()
+    @staticmethod
+    def _compress_balanced(input_path: Path, output_path: Path) -> bool:
+        """Uses Ghostscript for downsampling images to 150 DPI."""
+        gs_cmd = settings.GHOSTSCRIPT_CMD
+        
+        args = [
+            gs_cmd,
+            "-sDEVICE=pdfwrite",
+            "-dCompatibilityLevel=1.4",
+            "-dPDFSETTINGS=/ebook",  # 150 DPI
+            "-dNOPAUSE",
+            "-dQUIET",
+            "-dBATCH",
+            f"-sOutputFile={output_path}",
+            str(input_path)
+        ]
+        
+        try:
+            result = subprocess.run(args, capture_output=True, text=True, check=True)
+            return True
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Ghostscript failed: {e.stderr}")
+            return False
 
-        for page in reader.pages:
-            new_page = writer.add_page(page)
-            # 1. Compress Content Streams
-            new_page.compress_content_streams()
+    @staticmethod
+    def _compress_ultra(input_path: Path, output_path: Path) -> bool:
+        """Uses OCRmyPDF for ultimate optimization (monochrome text, deskew)."""
+        python_exe = sys.executable if hasattr(sys, 'executable') else "python"
+        
+        # Check if pngquant is available for higher optimization levels
+        has_pngquant = shutil.which("pngquant") is not None
+        opt_level = "3" if has_pngquant else "1"
+        
+        if not has_pngquant:
+            logger.info("pngquant not found, using --optimize 1 for ULTRA strategy")
+        
+        args = [
+            python_exe, "-m", "ocrmypdf",
+            "--optimize", opt_level,
+            "--deskew",
+            "--skip-text", 
+            "--output-type", "pdf",
+            str(input_path),
+            str(output_path)
+        ]
+        
+        try:
+            subprocess.run(args, capture_output=True, text=True, check=True, timeout=300)
+            return True
+        except subprocess.CalledProcessError as e:
+            logger.error(f"OCRmyPDF failed: {e.stderr}")
+            return CompressionService._compress_balanced(input_path, output_path)
+        except Exception as e:
+            logger.error(f"Ultra compression error: {str(e)}")
+            return False
 
-        # 2. Clear Metadata
-        writer.add_metadata({})
-        
-        output_stream = io.BytesIO()
-        writer.write(output_stream)
-        lossless_bytes = output_stream.getvalue()
-        
-        if len(lossless_bytes) < original_size:
-             return lossless_bytes
-             
-        return file_bytes
-        
-    except Exception as e:
-        print(f"❌ Lossless Compression Failed: {e}")
-        return file_bytes
-
-def compress_video_to_mp4(file_path: str) -> str:
-    """
-    Compress video to 720p MP4 (H.264) using MoviePy.
-    Returns path to compressed file.
-    """
-    try:
-        temp_dir = tempfile.gettempdir()
-        filename = os.path.basename(file_path)
-        name, _ = os.path.splitext(filename)
-        output_path = os.path.join(temp_dir, f"{name}_compressed.mp4")
-
-        clip = VideoFileClip(file_path)
-        
-        # Resize if height > 720p
-        if clip.h > 720:
-             clip = clip.resized(height=720)
-        
-        # Write to file with compression settings
-        clip.write_videofile(
-            output_path, 
-            codec='libx264', 
-            audio_codec='aac', 
-            temp_audiofile=os.path.join(temp_dir, f"{name}_temp_audio.m4a"),
-            remove_temp=True,
-            preset='medium',
-            ffmpeg_params=["-crf", "23"] # Constant Rate Factor (18-28 is good range)
-        )
-        
-        clip.close()
-        return output_path
-    except Exception as e:
-        print(f"Video Compression Failed: {e}")
-        return file_path
+compression_service = CompressionService()

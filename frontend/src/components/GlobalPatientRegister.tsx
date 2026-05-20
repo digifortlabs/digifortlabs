@@ -122,6 +122,7 @@ export default function GlobalPatientRegister() {
             });
 
             if (res.ok) {
+                const data = await res.json().catch(() => payload);
                 alert("Patient registered successfully!");
                 handleClose();
                 // Optionally refresh current page data if possible

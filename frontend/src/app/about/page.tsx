@@ -1,4 +1,5 @@
-import Link from "next/link";
+import NextLink from "next/link";
+const Link = NextLink as any;
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Flag, Shield, Activity, Users } from "lucide-react";
@@ -9,7 +10,7 @@ export default function AboutPage() {
             <Navbar />
 
             {/* Header - Neo-Clean */}
-            <section className="relative pt-40 pb-20 overflow-hidden bg-slate-900 border-b border-slate-800">
+            <section className="relative pt-32 pb-20 overflow-hidden bg-slate-900 border-b border-slate-800">
                 <div className="absolute inset-0 z-0 opacity-10 bg-grid-white pointer-events-none" />
 
                 {/* Glows */}
