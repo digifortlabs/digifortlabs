@@ -61,6 +61,30 @@ export default function AccountSettings({
     // Per-file upload progress tracking
     const [uploadProgress, setUploadProgress] = useState<Record<string, 'pending' | 'uploading' | 'done' | 'error'>>({});
 
+    const getUploadBaseUrl = () => {
+        if (typeof window !== 'undefined') {
+            const hostname = window.location.hostname;
+            if (hostname.includes('digifortlabs.com')) {
+                return 'https://digifortlabs.com/api';
+            }
+        }
+        return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    };
+
+    const getLogoUrl = (logoPath: string) => {
+        if (!logoPath) return '';
+        if (logoPath.startsWith('http://') || logoPath.startsWith('https://')) {
+            return logoPath;
+        }
+        if (typeof window !== 'undefined') {
+            const hostname = window.location.hostname;
+            if (hostname.includes('digifortlabs.com')) {
+                return `https://digifortlabs.com${logoPath.startsWith('/') ? '' : '/'}${logoPath}`;
+            }
+        }
+        return `http://localhost:8000${logoPath.startsWith('/') ? '' : '/'}${logoPath}`;
+    };
+
     const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -74,7 +98,7 @@ export default function AccountSettings({
         setUploadingLogo(true);
         try {
             const token = localStorage.getItem('access_token');
-            const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+            const baseUrl = getUploadBaseUrl();
             const res = await fetch(`${baseUrl}/hospitals/${hospitalId}/logo`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` },
@@ -86,7 +110,7 @@ export default function AccountSettings({
             // update profile terminology logo_url
             setProfile({ ...profile, terminology: { ...profile.terminology, logo_url: data.logo_url } });
             // update localStorage so navbar updates
-            localStorage.setItem('hospitalLogo', `${baseUrl}${data.logo_url}`);
+            localStorage.setItem('hospitalLogo', getLogoUrl(data.logo_url));
             
             alert('Logo uploaded successfully');
         } catch (error) {
@@ -230,7 +254,7 @@ export default function AccountSettings({
 
         const uploadedDocs: any[] = [];
         const token = localStorage.getItem('access_token');
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const baseUrl = getUploadBaseUrl();
 
         for (const item of uploadQueue) {
             setUploadProgress(prev => ({ ...prev, [item.id]: 'uploading' }));
@@ -434,7 +458,7 @@ export default function AccountSettings({
                                 <div className="w-16 h-16 bg-white rounded-xl border border-slate-200 flex items-center justify-center relative overflow-hidden group shadow-xs shrink-0">
                                     {profile.terminology?.logo_url ? (
                                         <img 
-                                            src={(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000') + profile.terminology.logo_url} 
+                                            src={getLogoUrl(profile.terminology.logo_url)} 
                                             alt="Hospital Logo" 
                                             className="w-full h-full object-contain p-1.5" 
                                         />
