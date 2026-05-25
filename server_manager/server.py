@@ -104,7 +104,7 @@ def get_local_ip() -> str:
 
 # Helper: Get AWS EC2 Public IP dynamically, matching start_dev.ps1 logic
 def fetch_ec2_ip() -> str:
-    default_ip = "15.206.86.130"
+    default_ip = "digifortlabs.com"
     instance_id = "i-0c5834fb0e0fe22e6"
     region = "ap-south-1"
     
