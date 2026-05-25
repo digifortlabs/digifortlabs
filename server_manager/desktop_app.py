@@ -557,10 +557,13 @@ class DesktopApp:
             
             # Status Badge updates
             status = state["status"]
-            widgets["badge"].config(text=status.upper())
             
             if status == "running":
-                widgets["badge"].config(fg=COLORS["success"], bg=COLORS["border"])
+                health = state.get("health", "offline")
+                if health == "online":
+                    widgets["badge"].config(text="ONLINE", fg=COLORS["success"], bg=COLORS["border"])
+                else:
+                    widgets["badge"].config(text="OFFLINE", fg=COLORS["danger"], bg=COLORS["border"])
                 widgets["accent_bar"].config(bg=widgets["color"])
                 
                 # Uptime calculate

@@ -241,8 +241,18 @@ function updateCardUI(key, svc) {
     
     // Status badges colors
     if (badge) {
-        badge.innerText = svc.status;
-        badge.className = `status-badge ${svc.status}`;
+        if (svc.status === "running") {
+            if (svc.health === "online") {
+                badge.innerText = "online";
+                badge.className = "status-badge running";
+            } else {
+                badge.innerText = "offline";
+                badge.className = "status-badge error";
+            }
+        } else {
+            badge.innerText = svc.status;
+            badge.className = `status-badge ${svc.status}`;
+        }
     }
     
     // PID

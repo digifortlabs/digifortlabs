@@ -42,7 +42,8 @@ services_state: Dict[str, Dict] = {
         "port": 5433,
         "process": None,
         "start_time": None,
-        "command": ""
+        "command": "",
+        "health": "offline"
     },
     "backend": {
         "name": "FastAPI Backend",
@@ -51,7 +52,8 @@ services_state: Dict[str, Dict] = {
         "port": 8000,
         "process": None,
         "start_time": None,
-        "command": ""
+        "command": "",
+        "health": "offline"
     },
     "frontend": {
         "name": "Next.js Frontend",
@@ -60,7 +62,8 @@ services_state: Dict[str, Dict] = {
         "port": 3000,
         "process": None,
         "start_time": None,
-        "command": ""
+        "command": "",
+        "health": "offline"
     },
     "live": {
         "name": "AWS Live Server",
@@ -69,7 +72,8 @@ services_state: Dict[str, Dict] = {
         "port": None,
         "process": None,
         "start_time": None,
-        "command": ""
+        "command": "",
+        "health": "offline"
     }
 }
 
@@ -431,6 +435,65 @@ async def stop_service(service: str) -> bool:
     await broadcast_log_entry(service, f">>> Service '{state['name']}' stopped successfully.\n")
     return True
 
+def health_checker_worker():
+    import time
+    import socket
+    import urllib.request
+
+    while True:
+        # 1. Check SSH Tunnel (local port 5433 open?)
+        ssh_health = "offline"
+        if services_state["ssh"]["status"] == "running":
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(0.5)
+                s.connect(("127.0.0.1", 5433))
+                s.close()
+                ssh_health = "online"
+            except Exception:
+                ssh_health = "offline"
+        
+        # 2. Check Backend (http://localhost:8000/health)
+        backend_health = "offline"
+        if services_state["backend"]["status"] == "running":
+            try:
+                req = urllib.request.Request("http://localhost:8000/health")
+                with urllib.request.urlopen(req, timeout=0.8) as response:
+                    if response.status == 200:
+                        backend_health = "online"
+            except Exception:
+                backend_health = "offline"
+
+        # 3. Check Frontend (http://localhost:3000)
+        frontend_health = "offline"
+        if services_state["frontend"]["status"] == "running":
+            try:
+                req = urllib.request.Request("http://localhost:3000")
+                with urllib.request.urlopen(req, timeout=0.8) as response:
+                    if response.status == 200:
+                        frontend_health = "online"
+            except Exception:
+                frontend_health = "offline"
+
+        # 4. Check AWS Live Server (https://digifortlabs.com/api/platform/health)
+        live_health = "offline"
+        if services_state["live"]["status"] == "running":
+            try:
+                req = urllib.request.Request("https://digifortlabs.com/api/platform/health")
+                with urllib.request.urlopen(req, timeout=1.5) as response:
+                    if response.status == 200:
+                        live_health = "online"
+            except Exception:
+                live_health = "offline"
+
+        # Update health states in real-time
+        services_state["ssh"]["health"] = ssh_health
+        services_state["backend"]["health"] = backend_health
+        services_state["frontend"]["health"] = frontend_health
+        services_state["live"]["health"] = live_health
+
+        time.sleep(3)
+
 # API Endpoints
 @app.get("/api/status")
 async def get_status():
@@ -444,6 +507,7 @@ async def get_status():
             "port": v["port"],
             "start_time": v["start_time"],
             "command": v["command"],
+            "health": v.get("health", "offline"),
             "local_url": f"http://localhost:{v['port']}" if k != "ssh" else "N/A",
             "lan_url": f"http://{local_ip}:{v['port']}" if k != "ssh" else "N/A"
         }
@@ -548,6 +612,9 @@ async def on_startup():
     print("Digifort Server Manager Started!")
     print(f"Access Dashboard at: http://localhost:8050")
     print(f"Network Access URL: http://{get_local_ip()}:8050")
+    
+    # Start background health checker thread
+    threading.Thread(target=health_checker_worker, daemon=True).start()
 
 # Shutdown cleanup
 @app.on_event("shutdown")
