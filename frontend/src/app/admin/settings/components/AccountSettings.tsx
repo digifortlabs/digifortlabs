@@ -110,6 +110,7 @@ export default function AccountSettings({
 
             const res = await fetch(`${baseUrl}/hospitals/${hospitalId}/logo`, {
                 method: 'POST',
+                credentials: 'include',
                 headers: headers,
                 body: formData
             });
@@ -286,6 +287,7 @@ export default function AccountSettings({
                     `${baseUrl}/hospitals/${hospitalId}/documents/upload`,
                     {
                         method: 'POST',
+                        credentials: 'include',
                         headers: headers,
                         body: formData,
                     }
