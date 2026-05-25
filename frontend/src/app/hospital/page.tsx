@@ -32,6 +32,7 @@ export default function HospitalPage() {
     const router = useRouter();
     const [userRole, setUserRole] = useState('');
     const [userEmail, setUserEmail] = useState('');
+    const [userFullName, setUserFullName] = useState('');
     const [stats, setStats] = useState<any>(null);
     const [currentTime, setCurrentTime] = useState('');
     const [sessionDuration, setSessionDuration] = useState('00:00:00');
@@ -40,6 +41,7 @@ export default function HospitalPage() {
         const role = localStorage.getItem('userRole') || '';
         setUserRole(role);
         setUserEmail(localStorage.getItem('userEmail') || '');
+        setUserFullName(localStorage.getItem('userFullName') || '');
 
         const fetchStats = async () => {
             try {
@@ -78,7 +80,7 @@ export default function HospitalPage() {
 
     const isAdmin = userRole === 'hospital_admin';
     const visibleActions = QUICK_ACTIONS.filter(a => !a.adminOnly || isAdmin);
-    const firstName = userEmail.split('@')[0]?.split('.')[0] || 'User';
+    const firstName = userFullName || userEmail.split('@')[0]?.split('.')[0] || 'User';
 
     return (
         <div className="space-y-8">
