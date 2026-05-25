@@ -7,7 +7,7 @@ import {
     Mail, Phone, MapPinned, FileCheck, Save, RefreshCw, Eye, Lock, Unlock, 
     Download, X, Tag, FileUp, Info
 } from 'lucide-react';
-import { apiFetch } from '@/config/api';
+import { apiFetch, getCsrfToken } from '@/config/api';
 
 interface AccountSettingsProps {
     userRole: string;
@@ -98,10 +98,19 @@ export default function AccountSettings({
         setUploadingLogo(true);
         try {
             const token = localStorage.getItem('access_token');
+            const csrfToken = await getCsrfToken();
             const baseUrl = getUploadBaseUrl();
+            
+            const headers: Record<string, string> = {
+                'Authorization': `Bearer ${token}`
+            };
+            if (csrfToken) {
+                headers['X-CSRF-Token'] = csrfToken;
+            }
+
             const res = await fetch(`${baseUrl}/hospitals/${hospitalId}/logo`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
+                headers: headers,
                 body: formData
             });
             if (!res.ok) throw new Error("Failed to upload logo");
@@ -254,6 +263,7 @@ export default function AccountSettings({
 
         const uploadedDocs: any[] = [];
         const token = localStorage.getItem('access_token');
+        const csrfToken = await getCsrfToken();
         const baseUrl = getUploadBaseUrl();
 
         for (const item of uploadQueue) {
@@ -265,11 +275,18 @@ export default function AccountSettings({
                 formData.append('custom_name', item.customName);
                 formData.append('tag', item.tag);
 
+                const headers: Record<string, string> = {
+                    'Authorization': `Bearer ${token}`
+                };
+                if (csrfToken) {
+                    headers['X-CSRF-Token'] = csrfToken;
+                }
+
                 const res = await fetch(
                     `${baseUrl}/hospitals/${hospitalId}/documents/upload`,
                     {
                         method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` },
+                        headers: headers,
                         body: formData,
                     }
                 );
