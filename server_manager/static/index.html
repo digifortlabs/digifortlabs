@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digifort Localhost Server Manager</title>
+    <!-- Modern Premium Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="mesh-background"></div>
+    <div class="app-container">
+        <!-- HEADER -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="glow-icon"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                </div>
+                <div class="brand-text">
+                    <h1>DIGIFORT LABS</h1>
+                    <span class="sub">DEV COMMAND CENTER</span>
+                </div>
+            </div>
+            
+            <div class="header-status">
+                <div class="network-badge">
+                    <span class="pulse-dot"></span>
+                    <span id="local-ip-text">LAN IP: Fetching...</span>
+                </div>
+                <div class="header-info">
+                    <span id="system-time">00:00:00</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- LAN SHARE FOOTNOTE -->
+        <div class="lan-banner">
+            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="info-svg"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <p><strong>LAN Network Sharing Enabled:</strong> Share this URL with other devices on your local network to let them connect to the website or test mobile views: <code id="lan-link-clipboard">http://192.168.x.x:8050</code></p>
+            <button class="copy-btn-small" onclick="copyLanUrl()">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy
+            </button>
+        </div>
+
+        <main class="dashboard-grid">
+            <!-- SERVICE CONTROLLER CARDS -->
+            <section class="cards-section">
+                <h2 class="section-title">Development Stack Control Panel</h2>
+                <div class="services-grid">
+                    <!-- SSH CARD -->
+                    <div class="service-card" id="card-ssh">
+                        <div class="card-header">
+                            <div class="service-meta">
+                                <span class="service-icon sh-icon">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                                </span>
+                                <div>
+                                    <h3>SSH Tunnel</h3>
+                                    <p class="card-detail">DB Port: 5433 → 5432</p>
+                                </div>
+                            </div>
+                            <span class="status-badge stopped" id="badge-ssh">Stopped</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="info-row">
+                                <span class="label">PID:</span>
+                                <span class="value" id="pid-ssh">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Active:</span>
+                                <span class="value" id="uptime-ssh">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Target:</span>
+                                <span class="value" id="target-ssh">15.206.86.130</span>
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn btn-start" onclick="controlService('ssh', 'start')" id="btn-start-ssh">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                Start
+                            </button>
+                            <button class="btn btn-stop" onclick="controlService('ssh', 'stop')" id="btn-stop-ssh" disabled>
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/></svg>
+                                Stop
+                            </button>
+                            <button class="btn btn-restart" onclick="controlService('ssh', 'restart')" id="btn-restart-ssh" disabled>
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                                Restart
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- BACKEND CARD -->
+                    <div class="service-card" id="card-backend">
+                        <div class="card-header">
+                            <div class="service-meta">
+                                <span class="service-icon be-icon">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                </span>
+                                <div>
+                                    <h3>FastAPI Backend</h3>
+                                    <p class="card-detail">Uvicorn API Server</p>
+                                </div>
+                            </div>
+                            <span class="status-badge stopped" id="badge-backend">Stopped</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="info-row">
+                                <span class="label">PID:</span>
+                                <span class="value" id="pid-backend">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Active:</span>
+                                <span class="value" id="uptime-backend">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">LAN URL:</span>
+                                <span class="value link-value"><a href="#" id="lan-link-backend" target="_blank">Fetching...</a></span>
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn btn-start" onclick="controlService('backend', 'start')" id="btn-start-backend">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                Start
+                            </button>
+                            <button class="btn btn-stop" onclick="controlService('backend', 'stop')" id="btn-stop-backend" disabled>
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/></svg>
+                                Stop
+                            </button>
+                            <button class="btn btn-restart" onclick="controlService('backend', 'restart')" id="btn-restart-backend" disabled>
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                                Restart
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- FRONTEND CARD -->
+                    <div class="service-card" id="card-frontend">
+                        <div class="card-header">
+                            <div class="service-meta">
+                                <span class="service-icon fe-icon">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                                </span>
+                                <div>
+                                    <h3>Next.js Frontend</h3>
+                                    <p class="card-detail">React Dev WebApp</p>
+                                </div>
+                            </div>
+                            <span class="status-badge stopped" id="badge-frontend">Stopped</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="info-row">
+                                <span class="label">PID:</span>
+                                <span class="value" id="pid-frontend">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Active:</span>
+                                <span class="value" id="uptime-frontend">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">LAN URL:</span>
+                                <span class="value link-value"><a href="#" id="lan-link-frontend" target="_blank">Fetching...</a></span>
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn btn-start" onclick="controlService('frontend', 'start')" id="btn-start-frontend">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                Start
+                            </button>
+                            <button class="btn btn-stop" onclick="controlService('frontend', 'stop')" id="btn-stop-frontend" disabled>
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/></svg>
+                                Stop
+                            </button>
+                            <button class="btn btn-restart" onclick="controlService('frontend', 'restart')" id="btn-restart-frontend" disabled>
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                                Restart
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- LIVE CARD -->
+                    <div class="service-card" id="card-live">
+                        <div class="card-header">
+                            <div class="service-meta">
+                                <span class="service-icon live-icon">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><circle cx="12" cy="20" r="2"></circle></svg>
+                                </span>
+                                <div>
+                                    <h3>AWS Live Server</h3>
+                                    <p class="card-detail">Production PM2 Logs (digifortlabs.com)</p>
+                                </div>
+                            </div>
+                            <span class="status-badge stopped" id="badge-live">Stopped</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="info-row">
+                                <span class="label">PID:</span>
+                                <span class="value" id="pid-live">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Active:</span>
+                                <span class="value" id="uptime-live">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Target:</span>
+                                <span class="value" id="target-live">15.206.86.130</span>
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn btn-start" onclick="controlService('live', 'start')" id="btn-start-live">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                Stream Logs
+                            </button>
+                            <button class="btn btn-stop" onclick="controlService('live', 'stop')" id="btn-stop-live" disabled>
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/></svg>
+                                Stop
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SIDEBAR DETAILS & ENV PANEL -->
+            <section class="sidebar-section">
+                <h2 class="section-title">Environment Variables</h2>
+                <div class="env-card glass-panel">
+                    <div id="env-list">
+                        <div class="loading-small">Fetching environmental attributes...</div>
+                    </div>
+                </div>
+
+                <div class="shortcuts-card glass-panel">
+                    <h3>Quick Operations</h3>
+                    <div class="shortcuts-grid">
+                        <a href="http://localhost:3000" id="btn-launch-fe" target="_blank" class="shortcut-btn secondary-btn disabled-link">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                            Launch Frontend
+                        </a>
+                        <a href="http://localhost:8000/docs" id="btn-launch-be" target="_blank" class="shortcut-btn secondary-btn disabled-link">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                            Swagger Docs
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- MONOSPACE TERMINAL PANEL -->
+            <section class="terminal-section">
+                <div class="terminal-wrapper glass-panel">
+                    <!-- Title Bar simulating OS terminal -->
+                    <div class="terminal-titlebar">
+                        <div class="window-buttons">
+                            <span class="window-dot red"></span>
+                            <span class="window-dot yellow"></span>
+                            <span class="window-dot green"></span>
+                        </div>
+                        <div class="terminal-title">bash - log_streamer - digifort_monorepo</div>
+                        <div class="terminal-status" id="ws-status">Connecting...</div>
+                    </div>
+                    
+                    <!-- Tab Triggers -->
+                    <div class="terminal-tabs">
+                        <button class="tab-btn active" onclick="switchTab('all')" id="tab-all">All Output</button>
+                        <button class="tab-btn" onclick="switchTab('ssh')" id="tab-ssh">SSH Tunnel</button>
+                        <button class="tab-btn" onclick="switchTab('backend')" id="tab-backend">Backend API</button>
+                        <button class="tab-btn" onclick="switchTab('frontend')" id="tab-frontend">Frontend Web</button>
+                        <button class="tab-btn" onclick="switchTab('live')" id="tab-live">Live Server</button>
+                    </div>
+
+                    <!-- Log Filters & Toolbar -->
+                    <div class="terminal-toolbar">
+                        <span class="log-line-counter" id="log-line-count">0 lines</span>
+                        <div class="search-box">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input type="text" id="log-search-input" placeholder="Search and filter log entries..." onkeyup="filterLogs()">
+                        </div>
+
+                        <div class="toolbar-actions">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="auto-scroll-toggle" checked>
+                                <span class="slider"></span>
+                                <span class="toggle-label">Auto-scroll</span>
+                            </label>
+
+                            <button class="toolbar-btn" onclick="clearConsoleLogs()" title="Clear logs screen">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                                Clear
+                            </button>
+
+                            <button class="toolbar-btn" onclick="downloadSessionLogs()" title="Download current session logs">
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Export
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Log Output Stream Viewport -->
+                    <div class="terminal-body" id="terminal-body-container">
+                        <pre class="console-view"><code id="console-log-lines"></code></pre>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Script Injection -->
+    <script src="app.js"></script>
+</body>
+</html>

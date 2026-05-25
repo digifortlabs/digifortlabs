@@ -14,6 +14,7 @@ class UserRole(str, enum.Enum):
     NURSE_IPD = "nurse_ipd"
     DOCTOR_IPD = "doctor_ipd"
     DOCTOR_OPD = "doctor_opd"
+    DOCTOR_BOTH = "doctor_both"
 
 class Permission(str, enum.Enum):
     # Platform
@@ -81,5 +82,9 @@ ROLE_PERMISSIONS = {
     ],
     UserRole.DOCTOR_OPD: [
         Permission.MANAGE_PATIENTS, Permission.VIEW_RECORDS, Permission.UPLOAD_RECORDS
+    ],
+    UserRole.DOCTOR_BOTH: [
+        Permission.MANAGE_PATIENTS, Permission.VIEW_RECORDS, Permission.UPLOAD_RECORDS,
+        Permission.MANAGE_ADMISSIONS, Permission.MANAGE_WARDS_BEDS
     ]
 }

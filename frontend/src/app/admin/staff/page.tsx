@@ -202,7 +202,10 @@ export default function StaffManagement() {
                         <h3 className="font-bold text-lg text-slate-900 truncate">{user.email}</h3>
                         <div className="flex items-center gap-2 mt-2 text-sm text-slate-500 font-medium bg-slate-50 w-fit px-3 py-1 rounded-full border border-slate-100">
                             <Shield size={12} className="text-indigo-500" />
-                            {user.role === 'doctor_ipd' || user.role === 'doctor_opd' ? 'Doctor (IPD & OPD Access)' : user.role.replace('_', ' ').toUpperCase()}
+                            {user.role === 'doctor_both' ? 'Doctor (IPD & OPD Access)' :
+                             user.role === 'doctor_ipd' ? 'Doctor (IPD Only)' :
+                             user.role === 'doctor_opd' ? 'Doctor (OPD Only)' :
+                             user.role.replace('_', ' ').toUpperCase()}
                         </div>
 
                         {user.plain_password && (
@@ -256,13 +259,15 @@ export default function StaffManagement() {
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Role</label>
                                 <select
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition font-medium"
-                                    value={isEditing ? (editStaff.role === 'doctor_opd' ? 'doctor_ipd' : editStaff.role) : (newStaff.role === 'doctor_opd' ? 'doctor_ipd' : newStaff.role)}
+                                    value={isEditing ? editStaff.role : newStaff.role}
                                     onChange={(e) => isEditing ? setEditStaff({ ...editStaff, role: e.target.value }) : setNewStaff({ ...newStaff, role: e.target.value })}
                                 >
                                     <option value="mrd_staff">MRD Staff (Warehouse Only)</option>
                                     <option value="account_staff">Account Staff (Billing & Invoices)</option>
                                     <option value="nurse_ipd">Nurse IPD (Ward & Bed Manager)</option>
-                                    <option value="doctor_ipd">Doctor (IPD & OPD Access)</option>
+                                    <option value="doctor_ipd">Doctor (IPD Only)</option>
+                                    <option value="doctor_opd">Doctor (OPD Only)</option>
+                                    <option value="doctor_both">Doctor (IPD & OPD Access)</option>
                                     <option value="reception_staff">Receptionist (Registration & Intake)</option>
                                     <option value="hospital_admin">Client Admin (Full Access)</option>
                                 </select>
