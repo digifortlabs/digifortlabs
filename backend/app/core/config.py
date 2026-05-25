@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 import os
 import json
 import shutil
@@ -80,7 +82,7 @@ class Settings:
         if self.ENVIRONMENT == "production":
             if self.IS_UNSAFE_SECRET_KEY:
                 # We log a critical error but don't crash yet to allow the user to see the logs
-                print("[CRITICAL] SECURITY ALERT: Running in production with default SECRET_KEY!")
+                logger.info("[CRITICAL] SECURITY ALERT: Running in production with default SECRET_KEY!")
                 # In a real environment, you might raise a ValueError here to prevent startup
                 # raise ValueError("Insecure SECRET_KEY in production environment")
 

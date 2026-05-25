@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 """
 Script: fix_file_sizes.py
 Calculates and updates `file_size_mb` for all existing PDFFile records.
@@ -22,7 +24,7 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 
 def fix_file_sizes():
-    print("🔧 Starting File Size (MB) Backfill...")
+    logger.info("[FIX] Starting File Size (MB) Backfill...")
     db = SessionLocal()
     try:
         # Fetch all files where file_size_mb is 0 or NULL
@@ -30,7 +32,7 @@ def fix_file_sizes():
             (PDFFile.file_size_mb == 0) | (PDFFile.file_size_mb == None)
         ).all()
         
-        print(f"📊 Found {len(files)} files needing update.")
+        logger.info(f"[STATS] Found {len(files)} files needing update.")
         
         updated_count = 0
         for f in files:
@@ -38,18 +40,18 @@ def fix_file_sizes():
                 old_mb = f.file_size_mb
                 f.file_size_mb = f.file_size / (1024 * 1024)
                 updated_count += 1
-                print(f"   updated {f.file_id}: {old_mb} -> {f.file_size_mb:.2f} MB")
+                logger.info(f"   updated {f.file_id}: {old_mb} -> {f.file_size_mb:.2f} MB")
             else:
-                print(f"   ⚠️ Skipping {f.file_id}: file_size is 0 or invalid.")
+                logger.info(f"   [WARN] Skipping {f.file_id}: file_size is 0 or invalid.")
         
         if updated_count > 0:
             db.commit()
-            print(f"✅ Successfully updated {updated_count} records.")
+            logger.info(f"[OK] Successfully updated {updated_count} records.")
         else:
-            print("✨ No updates needed.")
+            logger.info("[NEW] No updates needed.")
             
     except Exception as e:
-        print(f"❌ Error during update: {e}")
+        logger.info(f"[ERROR] Error during update: {e}")
         db.rollback()
     finally:
         db.close()

@@ -6,16 +6,6 @@ const nextConfig = {
     // which then hits FastAPI's "/hospitals/" route and triggers a 307 to an absolute
     // localhost:8000 URL — a cross-origin redirect that drops auth cookies.
     skipTrailingSlashRedirect: true,
-    async rewrites() {
-        return [
-            {
-                source: '/api/:path*',
-                destination: 'http://localhost:8000/:path*', // Proxy to Backend
-            },
-        ];
-    },
 };
 
 export default nextConfig;
-
-

@@ -79,10 +79,10 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
         // Cleanup function to stop tracks BEFORE the next mount
         return () => {
             if (webcamRef.current && webcamRef.current.stream) {
-                console.log("[Scanner] Stopping tracks on unmount/change...");
+                // console.log("[Scanner] Stopping tracks on unmount/change...");
                 webcamRef.current.stream.getTracks().forEach(track => {
                     track.stop();
-                    console.log(`[Scanner] Stopped track: ${track.label}`);
+                    // console.log(`[Scanner] Stopped track: ${track.label}`);
                 });
             }
         };
@@ -606,7 +606,7 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
                                                 await track.applyConstraints(constraints);
                                             }
 
-                                            console.log("Applied focus constraints:", constraints);
+                                            // console.log("Applied focus constraints:", constraints);
                                         } catch (e) {
                                             console.error("Focus failed", e);
                                         }

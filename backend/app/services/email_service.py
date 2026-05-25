@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -56,7 +58,7 @@ class EmailService:
             
             return True
         except Exception as e:
-            print(f"[EMAIL SERVICE] Error sending email to {recipient}: {str(e)}")
+            logger.info(f"[EMAIL SERVICE] Error sending email to {recipient}: {str(e)}")
             return False
 
     @staticmethod
@@ -138,11 +140,11 @@ class EmailService:
             server.sendmail(SENDER_EMAIL, [email, "info@digifortlabs.com"], msg.as_string())
             server.quit()
             
-            print(f"[EMAIL SERVICE] Account Locked email sent to {email}")
+            logger.info(f"[EMAIL SERVICE] Account Locked email sent to {email}")
             return True
 
         except Exception as e:
-            print(f"[EMAIL SERVICE] Failed to send account locked email to {email}: {str(e)}")
+            logger.info(f"[EMAIL SERVICE] Failed to send account locked email to {email}: {str(e)}")
             return False
 
     @staticmethod
@@ -232,8 +234,8 @@ class EmailService:
             
             return True
         except Exception as e:
-            print(f"[EMAIL SERVICE] Failed to send MFA OTP to {email}: {str(e)}")
-            print("\n" + "="*60 + f"\n📧 [FALLBACK MFA OTP] {email} -> {otp_code}\n" + "="*60 + "\n")
+            logger.info(f"[EMAIL SERVICE] Failed to send MFA OTP to {email}: {str(e)}")
+            logger.info("\n" + "="*60 + f"\n[EMAIL] [FALLBACK MFA OTP] {email} -> {otp_code}\n" + "="*60 + "\n")
             return False
 
     @staticmethod
@@ -286,7 +288,7 @@ class EmailService:
             <body>
                 <div class="container">
                     <div class="header">
-                        <h2 style="margin:0; font-size: 24px;">Welcome on Board! 🚀</h2>
+                        <h2 style="margin:0; font-size: 24px;">Welcome on Board! [START]</h2>
                     </div>
                     <div class="content">
                         <p style="font-size: 16px;">Hello <strong>{name}</strong>,</p>
@@ -324,11 +326,11 @@ class EmailService:
             server.sendmail(SENDER_EMAIL, email, text)
             server.quit()
             
-            print(f"[EMAIL SERVICE] Welcome Email sent to {email}")
+            logger.info(f"[EMAIL SERVICE] Welcome Email sent to {email}")
             return True
 
         except Exception as e:
-            print(f"[EMAIL SERVICE] Failed to send welcome email to {email}: {str(e)}")
+            logger.info(f"[EMAIL SERVICE] Failed to send welcome email to {email}: {str(e)}")
             return False
 
     @staticmethod
@@ -356,7 +358,7 @@ class EmailService:
             admin_msg = MIMEMultipart()
             admin_msg['From'] = SENDER_EMAIL
             admin_msg['To'] = "info@digifortlabs.com"
-            admin_msg['Subject'] = f"🔥 New Inquiry: {name}"
+            admin_msg['Subject'] = f"? New Inquiry: {name}"
 
             admin_body = f"""
             <!DOCTYPE html>
@@ -473,11 +475,11 @@ class EmailService:
             
             server.quit()
             
-            print(f"✅ [EMAIL SERVICE] Inquiry processed. Notification sent to Admin and Confirmation sent to {email}")
+            logger.info(f"[OK] [EMAIL SERVICE] Inquiry processed. Notification sent to Admin and Confirmation sent to {email}")
             return True
 
         except Exception as e:
-            print(f"❌ [EMAIL SERVICE] Failed to process contact form: {str(e)}")
+            logger.info(f"[ERROR] [EMAIL SERVICE] Failed to process contact form: {str(e)}")
             return False
 
     @staticmethod
@@ -535,13 +537,13 @@ class EmailService:
                         
                         <div class="card">
                             <div class="label">Box Label</div>
-                            <div class="value">📦 {box_label}</div>
+                            <div class="value">? {box_label}</div>
                             
                             <div class="label">Requested By</div>
-                            <div class="value">👤 {requester}</div>
+                            <div class="value">? {requester}</div>
                             
                             <div class="label">Timestamp</div>
-                            <div class="value">🕒 {timestamp}</div>
+                            <div class="value">? {timestamp}</div>
                         </div>
                         
                         <p style="margin-top: 20px; font-size: 14px; color: #64748b;">
@@ -565,11 +567,11 @@ class EmailService:
             server.sendmail(SENDER_EMAIL, to_email, text)
             server.quit()
             
-            print(f"[EMAIL SERVICE] File Request Notification sent to {to_email}")
+            logger.info(f"[EMAIL SERVICE] File Request Notification sent to {to_email}")
             return True
 
         except Exception as e:
-            print(f"[EMAIL SERVICE] Failed to send notification to {to_email}: {str(e)}")
+            logger.info(f"[EMAIL SERVICE] Failed to send notification to {to_email}: {str(e)}")
             return False
 
     @staticmethod
@@ -818,11 +820,11 @@ class EmailService:
             server.sendmail(SENDER_EMAIL, recipient_email, text)
             server.quit()
             
-            print(f"✅ [EMAIL SERVICE] Professional Invoice {invoice_number} sent to {recipient_email}")
+            logger.info(f"[OK] [EMAIL SERVICE] Professional Invoice {invoice_number} sent to {recipient_email}")
             return True
 
         except Exception as e:
-            print(f"❌ [EMAIL SERVICE] Failed to send invoice to {recipient_email}: {str(e)}")
+            logger.info(f"[ERROR] [EMAIL SERVICE] Failed to send invoice to {recipient_email}: {str(e)}")
             import traceback
             traceback.print_exc()
             return False
@@ -898,11 +900,11 @@ class EmailService:
             server.sendmail(SENDER_EMAIL, recipient_email, msg.as_string())
             server.quit()
             
-            print(f"✅ [EMAIL SERVICE] Retrieved file sent to {recipient_email}")
+            logger.info(f"[OK] [EMAIL SERVICE] Retrieved file sent to {recipient_email}")
             return True
 
         except Exception as e:
-            print(f"❌ [EMAIL SERVICE] Failed to send retrieved file to {recipient_email}: {str(e)}")
+            logger.info(f"[ERROR] [EMAIL SERVICE] Failed to send retrieved file to {recipient_email}: {str(e)}")
             return False
 
     @staticmethod
@@ -993,7 +995,7 @@ class EmailService:
 
         try:
             if not SMTP_SERVER or not SMTP_USERNAME:
-                print(f"⚠️ [EMAIL SERVICE] SMTP not configured. Mocking delivery to {recipient_email}")
+                logger.info(f"[WARN] [EMAIL SERVICE] SMTP not configured. Mocking delivery to {recipient_email}")
                 return True
 
             msg = MIMEMultipart()
@@ -1051,10 +1053,10 @@ class EmailService:
             server.sendmail(SMTP_USERNAME, recipients, msg.as_string())
             server.quit()
             
-            print(f"✅ [EMAIL SERVICE] File delivered to {recipient_email} (CC: {admin_email})")
+            logger.info(f"[OK] [EMAIL SERVICE] File delivered to {recipient_email} (CC: {admin_email})")
             return True
         except Exception as e:
-            print(f"❌ [EMAIL SERVICE] Delivery failed: {e}")
+            logger.info(f"[ERROR] [EMAIL SERVICE] Delivery failed: {e}")
             return False
 
     @staticmethod
@@ -1118,10 +1120,10 @@ class EmailService:
             server.sendmail(SENDER_EMAIL, [email], msg.as_string())
             server.quit()
             
-            print(f"✅ [EMAIL SERVICE] Retrieval initiated email sent to {email}")
+            logger.info(f"[OK] [EMAIL SERVICE] Retrieval initiated email sent to {email}")
             return True
         except Exception as e:
-            print(f"❌ [EMAIL SERVICE] Initiation notification failed: {e}")
+            logger.info(f"[ERROR] [EMAIL SERVICE] Initiation notification failed: {e}")
             return False
 
     @staticmethod
@@ -1186,10 +1188,10 @@ class EmailService:
             server.sendmail(SENDER_EMAIL, [recipient_email], msg.as_string())
             server.quit()
             
-            print(f"✅ [EMAIL SERVICE] Retrieval success email delivered to {recipient_email}")
+            logger.info(f"[OK] [EMAIL SERVICE] Retrieval success email delivered to {recipient_email}")
             return True
         except Exception as e:
-            print(f"❌ [EMAIL SERVICE] Success notification failed: {e}")
+            logger.info(f"[ERROR] [EMAIL SERVICE] Success notification failed: {e}")
             return False
 
     @staticmethod
@@ -1235,8 +1237,8 @@ class EmailService:
             server.sendmail(SENDER_EMAIL, [email], msg.as_string())
             server.quit()
             
-            print(f"[EMAIL] Successfully sent demo credentials to {email}")
+            logger.info(f"[EMAIL] Successfully sent demo credentials to {email}")
             return True
         except Exception as e:
-            print(f"[EMAIL] Demo credentials failed: {e}")
+            logger.info(f"[EMAIL] Demo credentials failed: {e}")
             return False

@@ -16,7 +16,8 @@ function getApiUrl(): string {
         return '/api';
     }
     // SERVER-SIDE RENDERING: window is undefined, talk to FastAPI directly.
-    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const isDev = process.env.ENVIRONMENT === 'development' || process.env.NODE_ENV === 'development';
+    return isDev ? 'http://localhost:8000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
 }
 
 // Export a stable constant for places that import API_URL for non-fetch purposes
@@ -24,7 +25,7 @@ function getApiUrl(): string {
 // the module initialises client-side after hydration.
 export const API_URL = typeof window !== 'undefined'
     ? (window.location.hostname.includes('digifortlabs.com') ? 'https://digifortlabs.com/api' : '/api')
-    : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
+    : ((process.env.ENVIRONMENT === 'development' || process.env.NODE_ENV === 'development') ? 'http://localhost:8000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'));
 
 
 // CSRF Token Management
@@ -66,17 +67,7 @@ export async function getCsrfToken(): Promise<string | null> {
  * 3. Standard JSON content-type
  * 4. Error response handling
  */
-export async function apiFetch(endpoint: string, options: any = {}) {
-    // Compute URL dynamically at call time so we always get the browser-side URL
-    const baseUrl = getApiUrl();
-
-    // Read token from localStorage — works across all subdomains (admin.localhost, etc.)
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-
-    // Ensure endpoint starts with /
-    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    const url = `${baseUrl}${path}`;
-
+async function doFetch(url: string, _path: string, options: any, token: string | null): Promise<Response> {
     const method = (options.method || 'GET').toUpperCase();
     const isMutative = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
 
@@ -87,7 +78,6 @@ export async function apiFetch(endpoint: string, options: any = {}) {
 
     const headers: any = {
         'Content-Type': 'application/json',
-        // Send token as Bearer so it works on all subdomains (cookies are domain-restricted)
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         ...options.headers,
     };
@@ -96,23 +86,46 @@ export async function apiFetch(endpoint: string, options: any = {}) {
         headers['X-CSRF-Token'] = currentCsrfToken;
     }
 
-    const response = await fetch(url, {
-        credentials: 'include', // Also send cookie as backup
+    // Auto-serialize plain object bodies to JSON
+    let body = options.body;
+    if (body && typeof body === 'object' && !(body instanceof URLSearchParams) && !(body instanceof FormData)) {
+        body = JSON.stringify(body);
+    }
+
+    return fetch(url, {
+        credentials: 'include',
         ...options,
+        body,
         headers,
     });
+}
+
+export async function apiFetch(endpoint: string, options: any = {}) {
+    const baseUrl = getApiUrl();
+    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${baseUrl}${path}`;
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+
+    let response = await doFetch(url, path, options, token);
+
+    // If 401 and we have no token yet (race condition during handoff), wait briefly and retry once
+    if (response.status === 401 && !token && typeof window !== 'undefined') {
+        await new Promise(r => setTimeout(r, 300));
+        const retryToken = localStorage.getItem('access_token');
+        if (retryToken) {
+            response = await doFetch(url, path, options, retryToken);
+        }
+    }
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
 
-        // On 401, handle session expiry
         if (response.status === 401 && typeof window !== 'undefined') {
-            // Check BEFORE removing so we know if user was previously logged in
-            const hadToken = !!localStorage.getItem('access_token');
-            if (hadToken) {
+            const isAuthCheck = path === '/users/me';
+            if (isAuthCheck) {
                 localStorage.removeItem('access_token');
                 localStorage.removeItem('userRole');
-                // Redirect to login with a message — only if there was a real session
                 if (!window.location.pathname.startsWith('/login')) {
                     setTimeout(() => {
                         window.location.href = '/login?reason=session_expired';
@@ -121,15 +134,47 @@ export async function apiFetch(endpoint: string, options: any = {}) {
             }
         }
 
-        const error = new Error(errorData.detail || errorData.message || `API Error: ${response.status}`);
+        let errorMessage = errorData.detail || errorData.message || `API Error: ${response.status}`;
+        
+        // Handle FastAPI validation errors which are arrays of objects
+        if (Array.isArray(errorMessage)) {
+            errorMessage = errorMessage.map((e: any) => {
+                if (e.msg && e.loc) {
+                    return `${e.loc[e.loc.length - 1]}: ${e.msg}`;
+                }
+                return JSON.stringify(e);
+            }).join(', ');
+        } else if (typeof errorMessage === 'object') {
+            errorMessage = JSON.stringify(errorMessage);
+        }
+
+        const error = new Error(errorMessage);
         (error as any).status = response.status;
         (error as any).data = errorData;
         throw error;
     }
 
-    // Return empty for 204 No Content
     if (response.status === 204) return null;
-
     return response.json();
+}
+
+const SESSION_KEYS = [
+    'access_token', 'userRole', 'userEmail', 'userSpecialty', 'userModules',
+    'userTerminology', 'loginTime', 'hospital_id', 'globalHospitalId',
+    'mrd_hospital_id', 'dental_hospital_id', 'ent_hospital_id', 'clinic_hospital_id', 'hms_hospital_id', 'inventory_hospital_id',
+    'userGroupId', 'sidebarCollapsed'
+];
+
+export async function logout(): Promise<void> {
+    try {
+        await apiFetch('/auth/logout', { method: 'POST' });
+    } catch (e) {
+        console.error('Logout API call failed:', e);
+    } finally {
+        SESSION_KEYS.forEach(k => localStorage.removeItem(k));
+        // Reset cached CSRF token so next login fetches a fresh one
+        csrfToken = null;
+        window.location.href = '/login';
+    }
 }
 

@@ -26,6 +26,12 @@ class UserRole(str, enum.Enum):
     HOSPITAL_STAFF = "hospital_staff"
     WEBSITE_ADMIN = "website_admin"
     GROUP_ADMIN = "group_admin"
+    ACCOUNT_STAFF = "account_staff"
+    MRD_STAFF = "mrd_staff"
+    NURSE_IPD = "nurse_ipd"
+    DOCTOR_IPD = "doctor_ipd"
+    DOCTOR_OPD = "doctor_opd"
+    RECEPTION_STAFF = "reception_staff"
 
 class Permission(str, enum.Enum):
     # Platform
@@ -44,6 +50,12 @@ class Permission(str, enum.Enum):
     VIEW_RECORDS = "view_records"
     DELETE_RECORDS = "delete_records"
     MANAGE_PHYSICAL_STORAGE = "manage_physical_storage"
+    
+    # HMS & Billing
+    MANAGE_ADMISSIONS = "manage_admissions"
+    MANAGE_WARDS_BEDS = "manage_wards_beds"
+    VIEW_BILLING = "view_billing"
+    MANAGE_BILLING = "manage_billing"
 
 ROLE_PERMISSIONS = {
     UserRole.SUPER_ADMIN: [p for p in Permission],
@@ -61,13 +73,37 @@ ROLE_PERMISSIONS = {
         Permission.MANAGE_HOSPITAL_USERS, Permission.MANAGE_HOSPITAL_SETTINGS,
         Permission.VIEW_HOSPITAL_REPORTS, Permission.MANAGE_PATIENTS,
         Permission.UPLOAD_RECORDS, Permission.VIEW_RECORDS, Permission.DELETE_RECORDS,
-        Permission.MANAGE_PHYSICAL_STORAGE
+        Permission.MANAGE_PHYSICAL_STORAGE,
+        Permission.MANAGE_ADMISSIONS, Permission.MANAGE_WARDS_BEDS,
+        Permission.VIEW_BILLING, Permission.MANAGE_BILLING
     ],
     UserRole.HOSPITAL_STAFF: [
         Permission.MANAGE_PATIENTS, Permission.UPLOAD_RECORDS, Permission.VIEW_RECORDS,
         Permission.MANAGE_PHYSICAL_STORAGE
     ],
-    UserRole.WEBSITE_ADMIN: []
+    UserRole.WEBSITE_ADMIN: [],
+    UserRole.ACCOUNT_STAFF: [
+        Permission.VIEW_RECORDS, Permission.VIEW_HOSPITAL_REPORTS,
+        Permission.VIEW_BILLING, Permission.MANAGE_BILLING
+    ],
+    UserRole.MRD_STAFF: [
+        Permission.MANAGE_PATIENTS, Permission.UPLOAD_RECORDS, Permission.VIEW_RECORDS,
+        Permission.MANAGE_PHYSICAL_STORAGE
+    ],
+    UserRole.NURSE_IPD: [
+        Permission.MANAGE_PATIENTS, Permission.VIEW_RECORDS,
+        Permission.MANAGE_ADMISSIONS, Permission.MANAGE_WARDS_BEDS
+    ],
+    UserRole.DOCTOR_IPD: [
+        Permission.MANAGE_PATIENTS, Permission.VIEW_RECORDS, Permission.UPLOAD_RECORDS,
+        Permission.MANAGE_ADMISSIONS, Permission.MANAGE_WARDS_BEDS
+    ],
+    UserRole.DOCTOR_OPD: [
+        Permission.MANAGE_PATIENTS, Permission.VIEW_RECORDS, Permission.UPLOAD_RECORDS
+    ],
+    UserRole.RECEPTION_STAFF: [
+        Permission.MANAGE_PATIENTS, Permission.VIEW_RECORDS
+    ]
 }
 
 class Hospital(Base):
@@ -131,6 +167,8 @@ class Hospital(Base):
     registration_fee = Column(Float, default=1000.0)
     is_reg_fee_paid = Column(Boolean, default=False)
     gst_number = Column(String, nullable=True)
+    certifications = Column(JSON, default=list)
+    important_documents = Column(JSON, default=list)
     
     # Banking Details
     bank_name = Column(String, nullable=True)
@@ -139,6 +177,11 @@ class Hospital(Base):
     
     pan_number = Column(String, nullable=True) 
     pending_updates = Column(Text, nullable=True) # JSON String for pending updates awaiting superadmin approval
+    
+    # Patient Billing customizations
+    billing_logo_path = Column(String, nullable=True)
+    billing_header = Column(Text, nullable=True)
+    billing_footer = Column(Text, nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
@@ -149,6 +192,7 @@ class Hospital(Base):
     inventory = relationship("PhysicalRack", back_populates="hospital")
     audit_logs = relationship("AuditLog", back_populates="hospital")
     invoices = relationship("Invoice", back_populates="hospital")
+    patient_invoices = relationship("PatientInvoice", back_populates="hospital")
 
 class User(Base):
     __tablename__ = "users"
@@ -182,6 +226,7 @@ class User(Base):
     hospital = relationship("Hospital", back_populates="users")
     audit_logs = relationship("AuditLog", back_populates="user")
     qa_entries = relationship("QAEntry", back_populates="reviewer")
+    patient_invoices_created = relationship("PatientInvoice", back_populates="creator")
 
 class Patient(Base):
     __tablename__ = "patients"
@@ -215,6 +260,9 @@ class Patient(Base):
     contact_number = Column(String, nullable=True)
     email_id = Column(String, nullable=True)
     aadhaar_number = Column(String, nullable=True)
+    abha_id = Column(String, nullable=True)
+    ayushman_id = Column(String, nullable=True)
+    maa_card = Column(String, nullable=True)
     dob = Column(DateTime, nullable=True)
     
     doctor_name = Column(String, nullable=True)
@@ -242,6 +290,7 @@ class Patient(Base):
     hospital = relationship("Hospital", back_populates="patients")
     box = relationship("PhysicalBox")
     files = relationship("PDFFile", back_populates="patient")
+    patient_invoices = relationship("PatientInvoice", back_populates="patient")
 
 
     @property
@@ -488,6 +537,60 @@ class AvailableInvoiceNumber(Base):
         UniqueConstraint('number', 'invoice_type', 'financial_year', name='uix_available_invoice'),
     )
 
+class PatientInvoice(Base):
+    __tablename__ = "patient_invoices"
+    invoice_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False, index=True)
+    invoice_number = Column(String, unique=True, index=True, nullable=False)
+    bill_date = Column(DateTime, server_default=func.now())
+    due_date = Column(DateTime, nullable=True)
+    payment_date = Column(DateTime, nullable=True)
+    
+    subtotal = Column(Float, default=0.0)
+    discount_amount = Column(Float, default=0.0)
+    gst_rate = Column(Float, default=18.0)
+    tax_amount = Column(Float, default=0.0)
+    total_amount = Column(Float, default=0.0)
+    
+    status = Column(String, default="PENDING") # PENDING, PAID, PARTIALLY_PAID, CANCELLED
+    payment_method = Column(String, nullable=True) # CASH, CARD, QR_CODE, VOUCHER, GOVT_SCHEME, MIXED
+    transaction_id = Column(String, nullable=True)
+    remarks = Column(Text, nullable=True)
+    pdf_path = Column(String, nullable=True)
+    
+    created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    hospital = relationship("Hospital", back_populates="patient_invoices")
+    patient = relationship("Patient", back_populates="patient_invoices")
+    creator = relationship("User", back_populates="patient_invoices_created")
+    items = relationship("PatientInvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
+    
+    # Linked items from clinical tables
+    opd_visits = relationship("OPDVisit", back_populates="patient_invoice")
+    dental_treatments = relationship("DentalTreatment", back_populates="patient_invoice")
+    ipd_admissions = relationship("IPDAdmission", back_populates="patient_invoice")
+
+
+class PatientInvoiceItem(Base):
+    __tablename__ = "patient_invoice_items"
+    item_id = Column(Integer, primary_key=True, index=True)
+    invoice_id = Column(Integer, ForeignKey("patient_invoices.invoice_id"), nullable=False)
+    
+    description = Column(String, nullable=False)
+    qty = Column(Integer, default=1)
+    unit_price = Column(Float, default=0.0)
+    discount = Column(Float, default=0.0) # item-level discount
+    amount = Column(Float, default=0.0) # net amount: qty * unit_price - discount
+    
+    charge_type = Column(String) # OPD_VISIT, IPD_ADMISSION, DENTAL_TREATMENT, ENT_SURGERY, MEDICINE, LAB_TEST, CUSTOM
+    reference_id = Column(Integer, nullable=True) # ID of original visit/procedure
+    
+    invoice = relationship("PatientInvoice", back_populates="items")
+
+
 class BandwidthUsage(Base):
     __tablename__ = "bandwidth_usage"
     id = Column(Integer, primary_key=True, index=True)
@@ -526,6 +629,7 @@ class QAIssue(Base):
 class InventoryItem(Base):
     __tablename__ = "inventory_items"
     item_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=True)
     name = Column(String, index=True, nullable=False)
     category = Column(String, default="Consumables")
     unit_price = Column(Float, default=0.0)
@@ -533,10 +637,13 @@ class InventoryItem(Base):
     unit = Column(String, default="units") # 'pcs', 'boxes', 'rolls'
     current_stock = Column(Integer, default=0)
     last_updated = Column(DateTime, onupdate=func.now())
+    
+    hospital = relationship("Hospital")
 
 class InventoryLog(Base):
     __tablename__ = "inventory_logs"
     id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=True)
     item_id = Column(Integer, ForeignKey("inventory_items.item_id"), nullable=False)
     change_type = Column(String, nullable=False) # 'IN', 'OUT', 'ADJUST'
     quantity = Column(Integer, nullable=False)
@@ -546,6 +653,7 @@ class InventoryLog(Base):
     
     item = relationship("InventoryItem")
     user = relationship("User")
+    hospital = relationship("Hospital")
 
 class ICD11Code(Base):
     __tablename__ = "icd11_codes"
@@ -739,8 +847,10 @@ class DentalTreatment(Base):
     date_performed = Column(DateTime(timezone=True), nullable=True)
 
     phase_id = Column(Integer, ForeignKey("dental_treatment_phases.phase_id"), nullable=True)
+    patient_invoice_id = Column(Integer, ForeignKey("patient_invoices.invoice_id"), nullable=True)
 
     phase = relationship("TreatmentPhase", back_populates="treatments")
+    patient_invoice = relationship("PatientInvoice", back_populates="dental_treatments")
 
 
 class Dental3DScan(Base):
@@ -1081,11 +1191,13 @@ class OPDVisit(Base):
     # Billing
     consultation_fee = Column(Float, default=0.0)
     is_paid = Column(Boolean, default=False)
+    patient_invoice_id = Column(Integer, ForeignKey("patient_invoices.invoice_id"), nullable=True)
     
     patient = relationship("Patient")
     doctor = relationship("User")
     opd_patient = relationship("OPDPatient", back_populates="visits")
     prescriptions = relationship("Prescription", back_populates="visit")
+    patient_invoice = relationship("PatientInvoice", back_populates="opd_visits")
 
 class Prescription(Base):
     __tablename__ = "prescriptions"
@@ -1125,6 +1237,7 @@ class Bed(Base):
     
     bed_number = Column(String, nullable=False)
     is_occupied = Column(Boolean, default=False)
+    status = Column(String, default="AVAILABLE") # AVAILABLE, OCCUPIED, MAINTENANCE, RESERVED
     
     ward = relationship("Ward", back_populates="beds")
 
@@ -1145,11 +1258,64 @@ class IPDAdmission(Base):
     treatment_plan = Column(Text, nullable=True)
     
     status = Column(String, default="admitted")
+    vitals_log = Column(JSON, default=list) # [{timestamp, bp, pulse, temp, spo2, respiratory_rate, notes, recorded_by}]
     
+    patient_invoice_id = Column(Integer, ForeignKey("patient_invoices.invoice_id"), nullable=True)
+
     patient = relationship("Patient")
     ward = relationship("Ward")
     bed = relationship("Bed")
     doctor = relationship("User")
+    patient_invoice = relationship("PatientInvoice", back_populates="ipd_admissions")
+
+class OperationTheater(Base):
+    __tablename__ = "operation_theaters"
+    ot_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    ot_name = Column(String, nullable=False)
+    ot_type = Column(String, default="General") # General, Cardiac, Neuro, Ortho
+    status = Column(String, default="AVAILABLE") # AVAILABLE, IN_USE, MAINTENANCE
+    
+    current_patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True)
+    current_doctor_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    scheduled_start = Column(DateTime, nullable=True)
+    scheduled_end = Column(DateTime, nullable=True)
+    
+    hospital = relationship("Hospital")
+    patient = relationship("Patient")
+    doctor = relationship("User")
+
+class MedicalEquipment(Base):
+    __tablename__ = "medical_equipments"
+    equipment_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    name = Column(String, nullable=False)
+    equipment_type = Column(String, nullable=False) # Ventilator, Monitor, Defibrillator, ECG, Infusion Pump
+    status = Column(String, default="AVAILABLE") # AVAILABLE, IN_USE, MAINTENANCE
+    
+    current_ward_id = Column(Integer, ForeignKey("wards.ward_id"), nullable=True)
+    current_bed_id = Column(Integer, ForeignKey("beds.bed_id"), nullable=True)
+    current_ot_id = Column(Integer, ForeignKey("operation_theaters.ot_id"), nullable=True)
+    current_patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True)
+    
+    hospital = relationship("Hospital")
+    ward = relationship("Ward")
+    bed = relationship("Bed")
+    ot = relationship("OperationTheater")
+    patient = relationship("Patient")
+
+class RFIDCard(Base):
+    __tablename__ = "rfid_cards"
+    rfid_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    card_number = Column(String, unique=True, index=True, nullable=False)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True, unique=True)
+    status = Column(String, default="ACTIVE") # ACTIVE, SUSPENDED, DEACTIVATED
+    issued_at = Column(DateTime, server_default=func.now())
+    last_scanned_at = Column(DateTime, nullable=True)
+    
+    hospital = relationship("Hospital")
+    patient = relationship("Patient")
 
 class SystemErrorLog(Base):
     __tablename__ = "system_error_logs"
@@ -1175,7 +1341,7 @@ class UserTrustedDevice(Base):
 
 class AccountingConfig(Base):
     __tablename__ = "accounting_config"
-    id = Column(Integer, primary_key=True)
+    id = Column("config_id", Integer, primary_key=True)
     current_fy = Column(String, default="2025-26")
     company_name = Column(String, default="Digifort Labs")
     company_phone = Column(String, nullable=True)
@@ -1220,14 +1386,14 @@ class AccountingExpense(Base):
     date = Column(DateTime, server_default=func.now())
     payment_method = Column(String, nullable=True)
     vendor_id = Column(Integer, ForeignKey("accounting_vendors.vendor_id"), nullable=True)
-    notes = Column(Text, nullable=True)
+    description = Column(String, nullable=True)
     
     vendor = relationship("AccountingVendor")
 
 class AccountingTransaction(Base):
     """General Ledger Entries"""
     __tablename__ = "accounting_transactions"
-    txn_id = Column(Integer, primary_key=True, index=True)
+    transaction_id = Column(Integer, primary_key=True, index=True)
     date = Column(DateTime, server_default=func.now())
     
     # Party details

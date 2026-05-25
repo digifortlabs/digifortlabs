@@ -21,6 +21,7 @@ export default function Navbar() {
                 src="/logo/longlogo.png"
                 alt="Digifort Labs Logo"
                 fill
+                sizes="192px"
                 className="object-contain p-1"
                 priority
               />

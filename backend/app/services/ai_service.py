@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 import os
 import json
 import google.generativeai as genai
@@ -14,7 +16,7 @@ class AIService:
         else:
             self.model = None
             self.flash_models = []
-            print("⚠️ WARNING: API Key not provided. AI Data Extraction disabled.")
+            logger.info("[WARN] WARNING: API Key not provided. AI Data Extraction disabled.")
 
     def extract_patient_details(self, ocr_text: str) -> Optional[Dict]:
         """
@@ -52,7 +54,7 @@ class AIService:
             clean_text = response.text.replace("```json", "").replace("```", "").strip()
             return json.loads(clean_text)
         except Exception as e:
-            print(f"❌ AI Extraction Error: {e}")
+            logger.info(f"[ERROR] AI Extraction Error: {e}")
             return None
 
     def extract_patient_details_from_image(self, image_bytes: bytes, mime_type: str = "image/jpeg") -> Optional[Dict]:
@@ -95,5 +97,5 @@ class AIService:
             clean_text = response.text.replace("```json", "").replace("```", "").strip()
             return json.loads(clean_text)
         except Exception as e:
-            print(f"❌ Gemini Vision Extraction Error: {e}")
+            logger.info(f"[ERROR] Gemini Vision Extraction Error: {e}")
             return None

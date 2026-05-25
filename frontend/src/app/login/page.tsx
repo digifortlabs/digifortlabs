@@ -1,5 +1,5 @@
 "use client";
-import { getDomainUrl } from '@/lib/utils';
+import { getDomainUrl, getRootUrl } from '@/lib/utils';
 
 // ... existing imports ...
 
@@ -7,8 +7,7 @@ import { getDomainUrl } from '@/lib/utils';
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
-import { API_URL } from '../../config/api';
-import { apiFetch } from '@/lib/api';
+import { apiFetch } from '@/config/api';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Mail, Lock, ArrowRight, ShieldCheck, Activity, Globe, Home } from 'lucide-react';
@@ -38,6 +37,12 @@ function LoginForm() {
     };
  
     useEffect(() => {
+        // Clear any stale auth tokens on login page load
+        ['access_token','userRole','userEmail','userSpecialty','userModules',
+         'userTerminology','loginTime','hospital_id','globalHospitalId',
+         'mrd_hospital_id', 'dental_hospital_id', 'ent_hospital_id', 'clinic_hospital_id', 'hms_hospital_id', 'inventory_hospital_id',
+         'userGroupId','sidebarCollapsed'].forEach(k => localStorage.removeItem(k));
+
         // Device ID Management
         let storedDeviceId = localStorage.getItem('device_id');
         if (!storedDeviceId) {
@@ -82,17 +87,11 @@ function LoginForm() {
         setError('');
  
         try {
-            const res = await apiFetch(`/auth/check-email`, {
+            const data = await apiFetch(`/auth/check-email`, {
                 method: 'POST',
                 body: { email } as any,
             });
- 
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.detail || 'Email address not registered.');
-            }
- 
-            const data = await res.json();
+
             const targetSubdomain = data.target_subdomain || 'dashboard';
             const currentSubdomain = getCurrentSubdomain();
  
@@ -109,7 +108,8 @@ function LoginForm() {
             }
         } catch (err: any) {
             console.error('[Email Check] Error:', err);
-            setError(err.message || 'Email address not found in our registry.');
+            const msg = typeof err?.message === 'string' ? err.message : (err?.data?.detail || 'Email address not found in our registry.');
+            setError(msg);
         } finally {
             setLoading(false);
         }
@@ -119,63 +119,53 @@ function LoginForm() {
         e.preventDefault();
         setLoading(true);
         setError('');
- 
+
         try {
             if (mfaRequired) {
-                // Submit OTP Verification
-                const res = await apiFetch(`/auth/mfa/verify-device`, {
+                const data = await apiFetch(`/auth/mfa/verify-device`, {
                     method: 'POST',
-                    body: {
-                        email,
-                        password,
-                        otp_code: otpCode,
-                        device_id: deviceId
-                    } as any,
+                    body: { email, password, otp_code: otpCode, device_id: deviceId } as any,
                 });
- 
-                if (!res.ok) {
-                    const errorData = await res.json();
-                    throw new Error(errorData.detail || 'Verification failed');
-                }
- 
-                const data = await res.json();
                 completeLogin(data);
                 return;
             }
- 
-            // Initial Password Submit
+
+            // Token endpoint requires form-encoded body — bypass apiFetch JSON defaults
+            const { getCsrfToken } = await import('@/config/api');
+            const csrf = await getCsrfToken();
             const formData = new URLSearchParams();
             formData.append('username', email);
             formData.append('password', password);
- 
-            const res = await apiFetch(`/auth/token`, {
+
+            const res = await fetch('/api/auth/token', {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
-                    'X-Device-Id': deviceId
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Device-Id': deviceId,
+                    ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
                 },
-                body: formData,
+                body: formData.toString(),
             });
- 
-            if (res.status === 202) {
-                const data = await res.json();
-                if (data.mfa_required) {
-                    setMfaRequired(true);
-                    setLoading(false);
-                    return;
-                }
-            }
- 
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.detail || 'Login failed');
-            }
- 
+
             const data = await res.json();
+
+            if (res.status === 202 && data.mfa_required) {
+                setMfaRequired(true);
+                setLoading(false);
+                return;
+            }
+
+            if (!res.ok) {
+                throw new Error(data.detail || 'Login failed');
+            }
+
             completeLogin(data);
- 
+
         } catch (err: any) {
             console.error('[Login] Error:', err);
-            setError(err.message || 'Invalid credentials or verification code.');
+            const msg = typeof err?.message === 'string' ? err.message : (err?.data?.detail || 'Invalid credentials or verification code.');
+            setError(msg);
         } finally {
             setLoading(false);
         }
@@ -197,31 +187,30 @@ function LoginForm() {
         if (data.terminology) localStorage.setItem('userTerminology', JSON.stringify(data.terminology));
         if (data.hospital_id) localStorage.setItem('hospital_id', data.hospital_id.toString());
 
-        // Determine target subdomain based on role and hospital_slug
-        let targetSubdomain = 'dashboard';
-        if (data.role && (data.role === 'superadmin' || data.role === 'superadmin_staff' || data.role === 'website_admin' || data.role === 'warehouse_manager')) {
+        // Determine target subdomain and path based on role
+        const isSuperAdmin = data.role === 'superadmin' || data.role === 'superadmin_staff' || data.role === 'website_admin' || data.role === 'warehouse_manager';
+        const isDoctor = data.role === 'doctor';
+        const isHospitalUser = data.role === 'hospital_admin' || data.role === 'hospital_staff' || data.role === 'mrd_staff' || data.role === 'account_staff' || data.role === 'nurse_ipd' || data.role === 'doctor_ipd' || data.role === 'doctor_opd';
+
+        // Robustly determine the hospital slug
+        const currentSubdomain = getCurrentSubdomain();
+        const slug = data.hospital_slug || (currentSubdomain !== 'dashboard' && currentSubdomain !== 'admin' ? currentSubdomain : null);
+
+        let targetSubdomain = slug || 'admin';
+        let targetPath = '/admin';
+
+        if (isSuperAdmin) {
             targetSubdomain = 'admin';
-        } else if (data.hospital_slug) {
-            targetSubdomain = data.hospital_slug;
+            targetPath = '/admin';
+        } else if (slug) {
+            targetSubdomain = slug;
+            targetPath = isDoctor ? '/doctor' : isHospitalUser ? '/hospital' : '/hospital';
         }
 
-        const targetUrl = getDomainUrl(targetSubdomain, '/dashboard');
+        // getDomainUrl already appends #_auth= hash for cross-subdomain handoff
+        const targetUrl = getDomainUrl(targetSubdomain, targetPath);
 
-        // Cross-subdomain handoff: localStorage is origin-scoped (admin.localhost ≠ localhost).
-        // Encode the auth payload in the URL hash so the target page can bootstrap itself.
-        // The hash is never sent to the server and is wiped immediately after consumption.
-        if (targetUrl.startsWith('http') && data.access_token) {
-            const handoff = btoa(JSON.stringify({
-                access_token: data.access_token,
-                userRole: data.role || '',
-                userEmail: email,
-                userSpecialty: data.specialty || '',
-                userModules: data.enabled_modules || [],
-                userTerminology: data.terminology || {},
-                loginTime: Math.floor(Date.now() / 1000),
-            }));
-            window.location.href = `${targetUrl}#_auth=${handoff}`;
-        } else if (targetUrl.startsWith('http')) {
+        if (targetUrl.startsWith('http')) {
             window.location.href = targetUrl;
         } else {
             router.push(targetUrl);
@@ -339,7 +328,7 @@ function LoginForm() {
                             <span className="text-sm font-medium text-slate-600">Remember me</span>
                         </label>
  
-                        <Link href="/forgot-password" className="text-sm font-bold text-indigo-600 hover:text-indigo-700">
+                        <Link href="/forgot-password" className={`text-sm font-bold text-indigo-600 hover:text-indigo-700 ${loading ? 'pointer-events-none opacity-50' : ''}`}>
                             Forgot Password?
                         </Link>
                     </div>
@@ -394,10 +383,10 @@ function LoginForm() {
                 </div>
  
                 <div className="flex gap-3">
-                    <Link href="/demo" className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all border border-indigo-200 shadow-sm hover:shadow-md hover:border-indigo-300">
+                    <Link href="/demo" className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all border border-indigo-200 shadow-sm hover:shadow-md hover:border-indigo-300 ${loading ? 'pointer-events-none opacity-50' : ''}`}>
                         Try Demo
                     </Link>
-                    <Link href="/contact" className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-white text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all border border-slate-200 shadow-sm hover:shadow-md">
+                    <Link href="/contact" className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-white text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all border border-slate-200 shadow-sm hover:shadow-md ${loading ? 'pointer-events-none opacity-50' : ''}`}>
                         Contact Sales
                     </Link>
                 </div>
@@ -461,7 +450,7 @@ export default function LoginPage() {
                 </div>
 
                 <div className="absolute top-8 right-8 z-10">
-                    <Link href="/" className="flex items-center py-2.5 px-5 gap-2 text-sm font-bold text-slate-600 hover:text-indigo-600 bg-white border border-slate-200 rounded-xl hover:border-indigo-200 hover:bg-indigo-50/50 shadow-sm hover:shadow-md transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 group">
+                    <Link href={getRootUrl('/')} className="flex items-center py-2.5 px-5 gap-2 text-sm font-bold text-slate-600 hover:text-indigo-600 bg-white border border-slate-200 rounded-xl hover:border-indigo-200 hover:bg-indigo-50/50 shadow-sm hover:shadow-md transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 group">
                         <Home size={18} className="text-slate-400 group-hover:text-indigo-600 transition-colors" /> Home
                     </Link>
                 </div>

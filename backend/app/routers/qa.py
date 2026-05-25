@@ -27,6 +27,7 @@ class QAReportRequest(BaseModel):
     details: str
     severity: str = "medium"
 
+@router.get("")
 @router.get("/", response_model=List[QAResponse])
 def get_qa_issues(
     status: Optional[str] = "open",
@@ -87,7 +88,7 @@ def resolve_qa_issue(
     if current_user.role == UserRole.HOSPITAL_ADMIN and issue.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Not authorized for this hospital")
 
-    issue.status = "resolved"
+    issue.status = "resolved"  # type: ignore
     db.commit()
     return {"status": "success", "message": "Issue marked as resolved"}
 
@@ -104,6 +105,6 @@ def ignore_qa_issue(
     if current_user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(status_code=403, detail="Only Super Admin can ignore issues")
 
-    issue.status = "ignored"
+    issue.status = "ignored"  # type: ignore
     db.commit()
     return {"status": "success", "message": "Issue minimized"}

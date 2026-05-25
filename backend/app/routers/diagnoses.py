@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 
 
 from typing import List, Optional
@@ -71,7 +73,7 @@ def search_diagnoses(q: str, db: Session = Depends(get_db), current_user: User =
         try:
             live_results = icd_service.search_codes(q)
         except Exception as e:
-            print(f"⚠️ WHO Search Failed: {e}")
+            logger.info(f"[WARN] WHO Search Failed: {e}")
         
         # Merge Results
         seen_codes = {r.code for r in local_results}
@@ -84,20 +86,23 @@ def search_diagnoses(q: str, db: Session = Depends(get_db), current_user: User =
                     merged.append(ICD11Response(**r))
                     seen_codes.add(r["code"])
                 except Exception as ve:
-                    print(f"⚠️ Validation error for {r}: {ve}")
+                    logger.info(f"[WARN] Validation error for {r}: {ve}")
                 
         return merged[:20]
     except Exception as ge:
-        print(f"❌ Global Search Error: {ge}")
+        logger.info(f"[ERROR] Global Search Error: {ge}")
         raise HTTPException(status_code=500, detail=f"Search failed: {str(ge)}")
 
 @router.get("/patients/{patient_id}/diagnoses", response_model=List[DiagnosisResponse])
 def get_patient_diagnoses(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get all diagnoses for a patient."""
     # Check access (simple check for now)
-    patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+    patient = db.query(Patient).filter(
+        Patient.record_id == patient_id,
+        Patient.hospital_id == current_user.hospital_id
+    ).first()
     if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+        raise HTTPException(status_code=404, detail="Patient record not found")
         
     diagnoses = db.query(PatientDiagnosis).filter(PatientDiagnosis.record_id == patient_id).all()
     
@@ -124,9 +129,12 @@ def add_patient_diagnosis(
     current_user: User = Depends(get_current_user)
 ):
     """Add a diagnosis to a patient."""
-    patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+    patient = db.query(Patient).filter(
+        Patient.record_id == patient_id,
+        Patient.hospital_id == current_user.hospital_id
+    ).first()
     if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+        raise HTTPException(status_code=404, detail="Patient record not found")
 
     # Validate code
     icd_code = db.query(ICD11Code).filter(ICD11Code.code == diagnosis.code).first()

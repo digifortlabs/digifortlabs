@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 """
 S3 Draft Cleanup Script
 Moves confirmed files from draft/ and draft_backup/ to final storage
@@ -68,7 +70,7 @@ def move_s3_object(source_key, dest_key):
         s3_client.delete_object(Bucket=BUCKET_NAME, Key=source_key)
         return True
     except Exception as e:
-        print(f"❌ Error moving {source_key}: {e}")
+        logger.info(f"[ERROR] Error moving {source_key}: {e}")
         return False
 
 def delete_s3_object(key):
@@ -77,7 +79,7 @@ def delete_s3_object(key):
         s3_client.delete_object(Bucket=BUCKET_NAME, Key=key)
         return True
     except Exception as e:
-        print(f"❌ Error deleting {key}: {e}")
+        logger.info(f"[ERROR] Error deleting {key}: {e}")
         return False
 
 
@@ -86,51 +88,51 @@ from app.services.storage_service import StorageService
 
 def force_confirm_pending_drafts():
     """Found all files stuck in 'draft' status in DB and move them to final storage."""
-    print("\\n🚀 FORCE CONFIRM: Checking for pending drafts in database...")
+    logger.info("\\n[START] FORCE CONFIRM: Checking for pending drafts in database...")
     db = SessionLocal()
     try:
         # Find all files marked as draft
         drafts = db.query(PDFFile).filter(PDFFile.upload_status == 'draft').all()
-        print(f"📄 Found {len(drafts)} files in 'draft' status.")
+        logger.info(f"? Found {len(drafts)} files in 'draft' status.")
         
         success_count = 0
         fail_count = 0
         
         for file in drafts:
-            print(f"   🔄 Migrating File ID {file.file_id} (Key: {file.s3_key})...")
+            logger.info(f"   [REFRESH] Migrating File ID {file.file_id} (Key: {file.s3_key})...")
             
             # Use StorageService to migrate
             # We use migrate_s3_draft_to_final which handles S3 move + DB update
             success, msg = StorageService.migrate_s3_draft_to_final(db, file.file_id)
             
             if success:
-                print(f"      ✅ Success: {msg}")
+                logger.info(f"      [OK] Success: {msg}")
                 success_count += 1
             else:
-                print(f"      ❌ Failed: {msg}")
+                logger.info(f"      [ERROR] Failed: {msg}")
                 # If it failed because "Not a draft file" but status is draft, 
                 # check if it already exists in final location or handle gracefully
                 fail_count += 1
                 
-        print(f"🏁 Force Confirm Complete: {success_count} migrated, {fail_count} failed.\\n")
+        logger.info(f"? Force Confirm Complete: {success_count} migrated, {fail_count} failed.\\n")
         
     except Exception as e:
-        print(f"❌ Error in force confirm: {e}")
+        logger.info(f"[ERROR] Error in force confirm: {e}")
     finally:
         db.close()
 
 def cleanup_drafts():
     """Main cleanup function."""
-    print("🔍 Starting S3 draft cleanup...")
-    print(f"📦 Bucket: {BUCKET_NAME}")
+    logger.info("[SEARCH] Starting S3 draft cleanup...")
+    logger.info(f"? Bucket: {BUCKET_NAME}")
     
     # 1. Force Confirm Pending Drafts
     force_confirm_pending_drafts()
     
     # Get confirmed files from database
-    print("\n📊 Fetching confirmed files from database...")
+    logger.info("\n[STATS] Fetching confirmed files from database...")
     confirmed_files = get_all_confirmed_file_ids()
-    print(f"✅ Found {len(confirmed_files)} confirmed files in database")
+    logger.info(f"[OK] Found {len(confirmed_files)} confirmed files in database")
     
     # Check draft folders (including nested variations)
     draft_folders = [
@@ -147,9 +149,9 @@ def cleanup_drafts():
     db = SessionLocal()
     try:
         for folder in draft_folders:
-            print(f"\n🔍 Checking {folder}...")
+            logger.info(f"\n[SEARCH] Checking {folder}...")
             objects = list_s3_objects(folder)
-            print(f"📁 Found {len(objects)} objects in {folder}")
+            logger.info(f"[FILE] Found {len(objects)} objects in {folder}")
             
             for obj in objects:
                 key = obj['Key']
@@ -185,20 +187,20 @@ def cleanup_drafts():
                         try:
                             s3_client.head_object(Bucket=BUCKET_NAME, Key=final_key)
                             # Final file exists, safe to delete draft
-                            print(f"🗑️  Deleting draft (exists in final): {key}")
+                            logger.info(f"[DELETE]  Deleting draft (exists in final): {key}")
                             if delete_s3_object(key):
                                 total_deleted += 1
                                 total_size_freed += size
                         except:
                             # Final file doesn't exist, move it
-                            print(f"📦 Moving to final storage: {key} -> {final_key}")
+                            logger.info(f"? Moving to final storage: {key} -> {final_key}")
                             if move_s3_object(key, final_key):
                                 total_moved += 1
                                 total_size_freed += size
                     else:
                         # Orphaned draft file (no database record)
                         # RECOVER IT regardless of age
-                        print(f"⚠️  Orphan found (No DB Record): {key}")
+                        logger.info(f"[WARN]  Orphan found (No DB Record): {key}")
                         
                         # Attempt to extract Hospital Name to give it a home
                         # Keys are usually: drafts_backup/drafts/Hospital_Name/...
@@ -220,25 +222,25 @@ def cleanup_drafts():
                         # Construct Recovery Path
                         recovery_key = f"{hospital_folder}/Recovered_Drafts/{filename}"
                         
-                        print(f"🚑 Recovering to: {recovery_key}")
+                        logger.info(f"? Recovering to: {recovery_key}")
                         if move_s3_object(key, recovery_key):
                              total_moved += 1
                              total_size_freed += size
                             
                 except Exception as inner_e:
-                    print(f"⚠️  Skipping {key}: {inner_e}")
+                    logger.info(f"[WARN]  Skipping {key}: {inner_e}")
                     
         # Final Summary
-        print("\n" + "="*60)
-        print("✅ CLEANUP & RECOVERY SUMMARY")
-        print("="*60)
-        print(f"📦 Files moved/recovered: {total_moved}")
-        print(f"🗑️  Files deleted: {total_deleted}")
-        print(f"💾 Space freed: {total_size_freed / (1024**3):.2f} GB")
-        print("="*60)
+        logger.info("\n" + "="*60)
+        logger.info("[OK] CLEANUP & RECOVERY SUMMARY")
+        logger.info("="*60)
+        logger.info(f"? Files moved/recovered: {total_moved}")
+        logger.info(f"[DELETE]  Files deleted: {total_deleted}")
+        logger.info(f"[SAVE] Space freed: {total_size_freed / (1024**3):.2f} GB")
+        logger.info("="*60)
         
     except Exception as e:
-        print(f"❌ Error in session cleanup: {e}")
+        logger.info(f"[ERROR] Error in session cleanup: {e}")
     finally:
         db.close()
 

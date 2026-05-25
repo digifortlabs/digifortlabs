@@ -591,15 +591,15 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
         detail="Could not validate credentials",
     )
     
-    # 1. Prefer Authorization header — used by admin subdomain (localStorage-based Bearer token).
+    # 1. Prefer Authorization header ? used by admin subdomain (localStorage-based Bearer token).
     #    This must take priority over the cookie so that fresh tokens from the header
     #    are not shadowed by a stale/expired HttpOnly cookie from a prior session.
     auth_header = request.headers.get("Authorization")
     token = None
     if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header  # Full "Bearer <token>" string — stripped below
+        token = auth_header  # Full "Bearer <token>" string ? stripped below
 
-    # 2. Fallback to HttpOnly Cookie — used by hospital subdomains (cookie-based auth).
+    # 2. Fallback to HttpOnly Cookie ? used by hospital subdomains (cookie-based auth).
     if not token:
         token = request.cookies.get("access_token")
             

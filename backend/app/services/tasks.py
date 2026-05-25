@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 import os
 from datetime import datetime
 
@@ -25,9 +27,9 @@ from ..database import SessionLocal
 #             if entry.local_path and os.path.exists(entry.local_path):
 #                 try:
 #                     os.remove(entry.local_path)
-#                     print(f"Deleted file: {entry.local_path}")
+#                     logger.info(f"Deleted file: {entry.local_path}")
 #                 except OSError as e:
-#                     print(f"Error deleting {entry.local_path}: {e}")
+#                     logger.info(f"Error deleting {entry.local_path}: {e}")
 #             
 #             db.delete(entry)
 #             deleted_count += 1
@@ -50,7 +52,7 @@ def reset_monthly_bandwidth():
         # However, we can use this task to send "Monthly Usage Reports" emails.
         
         current_month = datetime.utcnow().strftime("%Y-%m")
-        print(f"Monthly Reset Task ran for {current_month}. (Rows are auto-created on demand).")
+        logger.info(f"Monthly Reset Task ran for {current_month}. (Rows are auto-created on demand).")
         
         # Example Logic: Alert hospitals nearing quota from PREVIOUS month?
         pass

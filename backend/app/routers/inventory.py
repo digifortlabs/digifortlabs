@@ -11,7 +11,6 @@ from app.routers.auth import get_current_user
 from app.audit import log_audit
 
 router = APIRouter(
-    prefix="/inventory",
     tags=["Inventory"],
     responses={404: {"description": "Not found"}},
 )
@@ -41,11 +40,12 @@ class InventoryItemResponse(InventoryItemCreate):
 
 @router.get("/", response_model=List[InventoryItemResponse])
 def get_inventory(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return db.query(InventoryItem).all()
+    return db.query(InventoryItem).filter(InventoryItem.hospital_id == current_user.hospital_id).all()
 
 @router.post("/", response_model=InventoryItemResponse)
 def create_item(item: InventoryItemCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     new_item = InventoryItem(
+        hospital_id=current_user.hospital_id,
         name=item.name,
         category=item.category,
         unit_price=item.unit_price,
@@ -60,6 +60,7 @@ def create_item(item: InventoryItemCreate, db: Session = Depends(get_db), curren
     # Log initial stock if > 0
     if item.current_stock > 0:
         log = InventoryLog(
+            hospital_id=current_user.hospital_id,
             item_id=new_item.item_id,
             change_type="IN",
             quantity=item.current_stock,
@@ -72,10 +73,10 @@ def create_item(item: InventoryItemCreate, db: Session = Depends(get_db), curren
     # Log Audit
     log_audit(
         db, 
-        user_id=current_user.user_id, 
+        user_id=current_user.user_id, # type: ignore
         action="INVENTORY_ITEM_CREATED", 
         details=f"Created Item: {new_item.name} (Stock: {new_item.current_stock})",
-        hospital_id=current_user.hospital_id
+        hospital_id=current_user.hospital_id # type: ignore
     )      
         
     return new_item
@@ -87,18 +88,21 @@ def update_stock(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    item = db.query(InventoryItem).filter(InventoryItem.item_id == item_id).first()
+    item = db.query(InventoryItem).filter(
+        InventoryItem.item_id == item_id,
+        InventoryItem.hospital_id == current_user.hospital_id
+    ).first()
     if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise HTTPException(status_code=404, detail="Inventory item not found")
         
     if req.change_type == "OUT" and item.current_stock < req.quantity:
         raise HTTPException(status_code=400, detail="Insufficient stock")
         
     # Update Stock
     if req.change_type == "IN":
-        item.current_stock += req.quantity
+        item.current_stock += req.quantity # type: ignore
     elif req.change_type == "OUT":
-        item.current_stock -= req.quantity
+        item.current_stock -= req.quantity # type: ignore
     elif req.change_type == "ADJUST":
         # Adjust expects absolute value or logic? usually adjust sets to value or adds diff.
         # Let's assume ADJUST allows manual correction (+/-) but here we stick to simple logic
@@ -108,7 +112,7 @@ def update_stock(
         # If ADJUST, maybe it's just a correction logged.
         # Let's handle ADJUST as Set To:
         old_stock = item.current_stock
-        item.current_stock = req.quantity # Dangerous if concurrent.
+        item.current_stock = req.quantity # type: ignore # Dangerous if concurrent.
         # Better: ADJUST adds/removes to match result.
         pass 
     
@@ -116,12 +120,13 @@ def update_stock(
     # Re-reading: req.quantity is int. 
     # Let's implement ADJUST as: SET STOCK TO X
     if req.change_type == "ADJUST":
-         item.current_stock = req.quantity
+         item.current_stock = req.quantity # type: ignore
          
-    item.last_updated = datetime.now()
+    item.last_updated = datetime.now() # type: ignore
     
     # Log
     log = InventoryLog(
+        hospital_id=current_user.hospital_id,
         item_id=item.item_id,
         change_type=req.change_type,
         quantity=req.quantity,
@@ -134,22 +139,25 @@ def update_stock(
     # Log Audit
     log_audit(
         db, 
-        user_id=current_user.user_id, 
+        user_id=current_user.user_id, # type: ignore
         action="INVENTORY_STOCK_UPDATED", 
         details=f"Updated Stock for {item.name}: {req.change_type} {req.quantity} (New Balance: {item.current_stock})",
-        hospital_id=current_user.hospital_id
+        hospital_id=current_user.hospital_id # type: ignore
     )
     
     return {"message": "Stock updated", "current_stock": item.current_stock}
 
 @router.delete("/{item_id}")
 def delete_item(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != "superadmin":
+    if current_user.role not in ["superadmin", "hospital_admin"]:
          raise HTTPException(status_code=403, detail="Not authorized")
          
-    item = db.query(InventoryItem).filter(InventoryItem.item_id == item_id).first()
+    item = db.query(InventoryItem).filter(
+        InventoryItem.item_id == item_id,
+        InventoryItem.hospital_id == current_user.hospital_id
+    ).first()
     if not item:
-        raise HTTPException(status_code=404)
+        raise HTTPException(status_code=404, detail="Inventory item not found")
         
     db.delete(item)
     db.commit()
@@ -157,10 +165,10 @@ def delete_item(item_id: int, db: Session = Depends(get_db), current_user: User 
     # Log Audit
     log_audit(
         db, 
-        user_id=current_user.user_id, 
+        user_id=current_user.user_id, # type: ignore
         action="INVENTORY_ITEM_DELETED", 
         details=f"Deleted Item: {item.name}",
-        hospital_id=current_user.hospital_id
+        hospital_id=current_user.hospital_id # type: ignore
     )
 
     return {"message": "Item deleted"}

@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 from .pyimagesearch import transform
 from .pyimagesearch import imutils
 from scipy.spatial import distance as dist
@@ -13,7 +15,7 @@ try:
     HAS_LSD = True
 except ImportError:
     HAS_LSD = False
-    print("WARNING: pylsd not found. Scanner will fall back to standard contours (less accurate).")
+    logger.info("WARNING: pylsd not found. Scanner will fall back to standard contours (less accurate).")
 
 class DocScanner(object):
     """An image scanner"""
@@ -194,7 +196,7 @@ class DocScanner(object):
             new_w = int(w * scale)
             new_h = int(h * scale)
             image_array = cv2.resize(image_array, (new_w, new_h), interpolation=cv2.INTER_AREA)
-            print(f"📉 Scanner: Downscaled input from {w}x{h} to {new_w}x{new_h} for stability.")
+            logger.info(f"? Scanner: Downscaled input from {w}x{h} to {new_w}x{new_h} for stability.")
 
         RESCALED_HEIGHT = 500.0
         ratio = image_array.shape[0] / RESCALED_HEIGHT

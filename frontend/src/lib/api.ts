@@ -1,5 +1,4 @@
 import { API_URL as ConfigAPI_URL, getCsrfToken } from '@/config/api';
-const API_URL = ConfigAPI_URL;
 
 export async function apiFetch(endpoint: string, options: Omit<RequestInit, 'body'> & { body?: any } = {}) {
     // Automatically include cookies for HttpOnly JWT authentication
@@ -17,6 +16,14 @@ export async function apiFetch(endpoint: string, options: Omit<RequestInit, 'bod
         };
     }
 
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    if (token) {
+        fetchOptions.headers = {
+            ...fetchOptions.headers,
+            'Authorization': `Bearer ${token}`
+        };
+    }
+
     const method = (options.method || 'GET').toUpperCase();
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
         const token = await getCsrfToken();
@@ -28,7 +35,12 @@ export async function apiFetch(endpoint: string, options: Omit<RequestInit, 'bod
         }
     }
 
-    const res = await fetch(`${API_URL}${endpoint}`, fetchOptions);
+    // Resolve API URL dynamically at call time to prevent the SSR vs client caching issue
+    const currentApiUrl = typeof window !== 'undefined'
+        ? (window.location.hostname.includes('digifortlabs.com') ? 'https://digifortlabs.com/api' : '/api')
+        : ((process.env.ENVIRONMENT === 'development' || process.env.NODE_ENV === 'development') ? 'http://localhost:8000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'));
+
+    const res = await fetch(`${currentApiUrl}${endpoint}`, fetchOptions);
     return res;
 }
 
@@ -50,7 +62,7 @@ export async function uploadFile(file: File, patientId: number) {
 
 export async function checkHealth() {
     try {
-        const res = await fetch(`${API_URL}/health`);
+        const res = await fetch(`${ConfigAPI_URL}/health`);
         return res.ok;
     } catch (e) {
         return false;

@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 import io
 import sys
 
@@ -18,23 +20,23 @@ try:
     # 1. Tesseract Configuration
     if settings.TESSERACT_CMD:
         pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
-        print(f"[OK] OCR Config: Using Tesseract at {settings.TESSERACT_CMD}")
+        logger.info(f"[OK] OCR Config: Using Tesseract at {settings.TESSERACT_CMD}")
     else:
-        print("[WARN] OCR Config: Tesseract binary not found in settings or PATH.")
+        logger.info("[WARN] OCR Config: Tesseract binary not found in settings or PATH.")
 
     # 2. Poppler Configuration
     POPPLER_PATH = settings.POPPLER_PATH
     if POPPLER_PATH:
         # Add to PATH temporarily to ensure subprocesses find it
         os.environ["PATH"] = POPPLER_PATH + os.pathsep + os.environ["PATH"]
-        print(f"[OK] OCR Config: Using Poppler at {POPPLER_PATH}")
+        logger.info(f"[OK] OCR Config: Using Poppler at {POPPLER_PATH}")
     else:
         if not shutil.which("pdftoppm"):
-             print("[WARN] OCR Config: Poppler not found in settings or PATH. PDF processing may fail.")
+             logger.info("[WARN] OCR Config: Poppler not found in settings or PATH. PDF processing may fail.")
 
 except ImportError:
     HAS_OCR = False
-    print("Warning: OCR Dependencies missing. Falling back to text-only mode.")
+    logger.info("Warning: OCR Dependencies missing. Falling back to text-only mode.")
 
 
 from pypdf import PdfReader
@@ -60,7 +62,7 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
         
         # 2. OCR Fallback (if text is too short, likely a scan)
         if len(text) < 50 and HAS_OCR:
-            print("[INFO] Low text density detected. Attempting OCR...")
+            logger.info("[INFO] Low text density detected. Attempting OCR...")
             try:
                 # Get page count first
                 reader = PdfReader(io.BytesIO(file_bytes))
@@ -69,7 +71,7 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
                 ocr_text = ""
                 # Process one page at a time to save memory
                 for i in range(1, total_pages + 1):
-                    print(f"[INFO] OCR: Processing page {i}/{total_pages}...")
+                    logger.info(f"[INFO] OCR: Processing page {i}/{total_pages}...")
                     try:
                         page_images = convert_from_bytes(
                             file_bytes, 
@@ -83,17 +85,17 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
                             # Explicitly close image to free memory
                             page_images[0].close()
                     except Exception as pe:
-                        print(f"[WARN] Page {i} OCR failed: {pe}")
+                        logger.info(f"[WARN] Page {i} OCR failed: {pe}")
                 
                 # If OCR found significantly more text, append it
                 if len(ocr_text.strip()) > len(text):
                     text = (text + "\n" + ocr_text.strip()).strip()
-                    print(f"[OK] OCR Success. Extracted {len(ocr_text)} characters.")
+                    logger.info(f"[OK] OCR Success. Extracted {len(ocr_text)} characters.")
             except Exception as e:
-                print(f"[WARN] OCR Failed (Tesseract might be missing): {e}")
+                logger.info(f"[WARN] OCR Failed (Tesseract might be missing): {e}")
 
     except Exception as e:
-        print(f"[ERROR] Extraction Failed: {e}")
+        logger.info(f"[ERROR] Extraction Failed: {e}")
         return ""
 
     return text.strip()
@@ -126,7 +128,7 @@ def classify_document(text: str) -> list[str]:
             tags.append(category)
             
     if tags:
-        print(f"[INFO] Auto-Tagged: {tags} (Matches found in {len(text)} chars)")
+        logger.info(f"[INFO] Auto-Tagged: {tags} (Matches found in {len(text)} chars)")
 
     return tags
 
@@ -158,7 +160,7 @@ def extract_text_from_image(file_bytes: bytes) -> str:
     Extracts text from an image file (bytes) using Tesseract.
     """
     if not HAS_OCR:
-        print("[WARN] OCR disabled. Cannot extract text from image.")
+        logger.info("[WARN] OCR disabled. Cannot extract text from image.")
         return ""
         
     try:
@@ -168,6 +170,6 @@ def extract_text_from_image(file_bytes: bytes) -> str:
         image.close()
         return text.strip()
     except Exception as e:
-        print(f"[ERROR] Image OCR Failed: {e}")
+        logger.info(f"[ERROR] Image OCR Failed: {e}")
         return ""
 

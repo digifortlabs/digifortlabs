@@ -61,9 +61,14 @@ const SecurePDFViewer: React.FC<SecurePDFViewerProps> = ({ fileId, filename, onC
             setUserEmail(email);
 
             try {
-                const res = await fetch(`${API_URL}/patients/files/${fileId}/serve`, {
+                const proxyBase = typeof window !== 'undefined'
+                    ? (window.location.hostname.includes('digifortlabs.com') ? 'https://digifortlabs.com/api' : '/api')
+                    : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
+                const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+                const res = await fetch(`${proxyBase}/patients/files/${fileId}/serve`, {
                     method: 'GET',
-                    credentials: 'include'
+                    credentials: 'include',
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                 });
 
                 if (res.ok) {
@@ -71,8 +76,10 @@ const SecurePDFViewer: React.FC<SecurePDFViewerProps> = ({ fileId, filename, onC
                     const url = URL.createObjectURL(blob);
                     setPdfUrl(url);
                 } else {
-                    const errData = await res.json().catch(() => ({ detail: "Failed to load document" }));
-                    setError(errData.detail || "Access Denied");
+                    const errData = await res.json().catch(() => ({ detail: `Server error ${res.status}` }));
+                    const detail = errData.detail || "Access Denied";
+                    console.error(`[SecurePDFViewer] serve_file ${res.status}:`, detail);
+                    setError(detail);
                 }
             } catch (e) {
                 console.error(e);

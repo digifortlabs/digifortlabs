@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -32,7 +34,7 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User 
         from ..audit import log_audit
         log_audit(db, current_user.user_id, "USER_DELETED", f"Soft-deleted user: {target_user.email}", hospital_id=current_user.hospital_id)
     except Exception as e:
-        print(f"Audit Log Error: {e}")
+        logger.info(f"Audit Log Error: {e}")
 
     db.commit()
 
@@ -179,7 +181,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: U
         from ..audit import log_audit
         log_audit(db, current_user.user_id, "USER_CREATED", f"Created user: {new_user.email} ({new_user.role})", hospital_id=current_user.hospital_id)
     except Exception as e:
-        print(f"Audit Log Error: {e}")
+        logger.info(f"Audit Log Error: {e}")
     
     db.add(new_user)
     db.commit()
@@ -223,7 +225,7 @@ def update_user(user_id: int, data: UserUpdate, db: Session = Depends(get_db), c
             from ..audit import log_audit
             log_audit(db, current_user.user_id, "ROLE_CHANGED", f"Role changed for {target_user.email} from {old_role} to {data.role}", hospital_id=current_user.hospital_id)
         except Exception as e:
-            print(f"Audit Log Error: {e}")
+            logger.info(f"Audit Log Error: {e}")
             
         # Invalidate target user's session so they must re-login with new permissions
         import uuid
@@ -241,7 +243,7 @@ def update_user(user_id: int, data: UserUpdate, db: Session = Depends(get_db), c
         from ..audit import log_audit
         log_audit(db, current_user.user_id, "USER_UPDATED", f"Updated user: {target_user.email}", hospital_id=current_user.hospital_id)
     except Exception as e:
-        print(f"Audit Log Error: {e}")
+        logger.info(f"Audit Log Error: {e}")
 
     db.commit()
 

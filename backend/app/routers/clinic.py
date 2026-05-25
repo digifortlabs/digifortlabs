@@ -101,6 +101,14 @@ def create_visit(
     current_user: User = Depends(get_current_user)
 ):
     """Record OPD visit"""
+    # Verify Patient ownership
+    patient = db.query(Patient).filter(
+        Patient.record_id == visit.patient_id,
+        Patient.hospital_id == current_user.hospital_id
+    ).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient record not found")
+        
     opd_visit = OPDVisit(
         patient_id=visit.patient_id,
         hospital_id=current_user.hospital_id,
@@ -140,6 +148,14 @@ def add_prescription(
     current_user: User = Depends(get_current_user)
 ):
     """Add prescription to visit"""
+    # Verify Visit ownership
+    visit = db.query(OPDVisit).filter(
+        OPDVisit.visit_id == prescription.visit_id,
+        OPDVisit.hospital_id == current_user.hospital_id
+    ).first()
+    if not visit:
+        raise HTTPException(status_code=404, detail="OPD Visit record not found")
+        
     rx = Prescription(
         visit_id=prescription.visit_id,
         medicine_name=prescription.medicine_name,

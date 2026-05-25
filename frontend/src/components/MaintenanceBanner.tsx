@@ -34,7 +34,7 @@ export default function MaintenanceBanner() {
 
                         // Logout all users except Super Admins
                         if (role !== 'superadmin') {
-                            console.log('🔒 Maintenance mode detected - showing warning before logout');
+                            // console.log('🔒 Maintenance mode detected - showing warning before logout');
                             logoutScheduledRef.current = true; // Mark logout as scheduled
                             setShowMaintenanceWarning(true);
 

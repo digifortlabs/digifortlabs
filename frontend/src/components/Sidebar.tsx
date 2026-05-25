@@ -1,7 +1,7 @@
 "use client";
 import {
     Users, LayoutDashboard, Settings, UserCircle, LogOut, FileText, ChevronDown, Activity, Calendar as CalendarIcon, Package, ShoppingBag, BrainCircuit, Ear, Factory, BarChart3, ShieldCheck,
-    Building2, DollarSign, ClipboardList, Inbox, Archive, FolderOpen, Clock, Shield, ChevronLeft, ChevronRight
+    Building2, DollarSign, ClipboardList, Inbox, Archive, FolderOpen, Clock, Shield, ChevronLeft, ChevronRight, Wallet
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
@@ -30,16 +30,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
     }, []);
 
     const handleLogout = async () => {
-        try {
-            const { apiFetch } = await import('@/lib/api');
-            await apiFetch('/auth/logout', { method: 'POST' });
-        } catch (e) {
-            console.error('Logout failed:', e);
-        } finally {
-            localStorage.removeItem('userRole');
-            localStorage.removeItem('userEmail');
-            router.push('/login');
-        }
+        const { logout } = await import('@/config/api');
+        await logout();
     };
 
     const toggleCollapse = () => {
@@ -48,7 +40,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
         localStorage.setItem('sidebarCollapsed', String(nextState));
     };
 
-    const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/');
+    const isActive = (path: string) => pathname === path || (pathname?.startsWith(path + '/') ?? false);
 
     const isPlatformAdmin = ['superadmin', 'superadmin_staff', 'website_admin', 'warehouse_manager'].includes(userRole);
     const isGroupAdmin = userRole === 'group_admin';
@@ -94,8 +86,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                 {/* Global Overview (Always on Top) */}
                 <div className="space-y-1">
                     <Link
-                        href={getDomainUrl(dashboardSubdomain, '/') || '/'}
-                        className={`block rounded-xl transition-all duration-200 border relative group ${pathname === '/' || pathname === '/dashboard'
+                        href={getDomainUrl(dashboardSubdomain, '/admin') || '/admin'}
+                        className={`block rounded-xl transition-all duration-200 border relative group ${pathname === '/admin'
                             ? 'active bg-slate-800 text-white font-medium border-slate-700'
                             : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
                             } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
@@ -142,8 +134,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                         {!isCollapsed && <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Platform Control</p>}
                         
                         <Link
-                            href={getDomainUrl('admin', '/hospitals')}
-                            className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/hospitals')
+                            href={getDomainUrl('admin', '/admin/hospitals')}
+                            className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/admin/hospitals')
                                 ? 'active bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-900/50'
                                 : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
                                 } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
@@ -161,27 +153,27 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                         </Link>
                         
                         <Link
-                            href={getDomainUrl(dashboardSubdomain, '/accounting')}
-                            className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/accounting')
+                            href={getDomainUrl('admin', '/admin/platform-billing')}
+                            className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/admin/platform-billing')
                                 ? 'active bg-slate-800 text-white font-medium border-slate-700'
                                 : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
                                 } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                         >
-                            <div className="flex items-center gap-3 text-xs">
-                                <DollarSign className="w-4 h-4 text-indigo-400" />
-                                {!isCollapsed && <span>Global Billing</span>}
+                            <div className="flex items-center gap-3 text-xs font-semibold">
+                                <Wallet className="w-4 h-4" />
+                                {!isCollapsed && <span>Platform Billing</span>}
                             </div>
                             
                             {isCollapsed && (
                                 <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
-                                    Global Billing
+                                    Platform Billing
                                 </span>
                             )}
                         </Link>
                         
                         <Link
-                            href={getDomainUrl(dashboardSubdomain, '/audit')}
-                            className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/audit')
+                            href={getDomainUrl(dashboardSubdomain, '/admin/audit')}
+                            className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/admin/audit')
                                 ? 'active bg-slate-800 text-white font-medium border-slate-700'
                                 : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
                                 } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
@@ -199,8 +191,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                         </Link>
                         
                         <Link
-                            href={getDomainUrl('admin', '/qa')}
-                            className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/qa')
+                            href={getDomainUrl('admin', '/admin/qa')}
+                            className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/admin/qa')
                                 ? 'active bg-slate-800 text-white font-medium border-slate-700'
                                 : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
                                 } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
@@ -440,20 +432,20 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
 
                         {showWarehouse && (
                             <Link
-                                href={getDomainUrl('admin', '/storage')}
-                                className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/storage')
+                                href={getDomainUrl('admin', '/inventory')}
+                                className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/inventory')
                                     ? 'active bg-slate-800 text-white font-medium border border-slate-700'
                                     : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
                                     } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                             >
                                 <div className="flex items-center gap-3 text-xs">
                                     <Package className="w-4 h-4 text-slate-400" />
-                                    {!isCollapsed && <span>Warehouse</span>}
+                                    {!isCollapsed && <span>Inventory</span>}
                                 </div>
                                 
                                 {isCollapsed && (
                                     <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
-                                        Warehouse
+                                        Inventory
                                     </span>
                                 )}
                             </Link>

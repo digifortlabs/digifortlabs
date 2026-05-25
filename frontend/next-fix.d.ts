@@ -39,9 +39,11 @@ declare module 'next/server' {
         static redirect(url: string | URL, status?: number): NextResponse;
         static next(init?: any): NextResponse;
         static rewrite(url: string | URL, init?: any): NextResponse;
+        cookies: any;
     }
     export class NextRequest extends Request {
         nextUrl: URL;
+        cookies: any;
     }
 }
 
@@ -72,3 +74,10 @@ declare module 'next/types.js' {
     export type ResolvingViewport = any;
 }
 
+declare module 'next/server.js' {
+    export * from 'next/server';
+}
+
+declare module 'next/font/local' {
+    export default function localFont(options: any): any;
+}

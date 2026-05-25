@@ -37,3 +37,4 @@ ocrmypdf
 pikepdf
 pdfminer.six
 markdown
+reportlab

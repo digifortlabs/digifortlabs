@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -75,7 +77,7 @@ class BandwidthMiddleware(BaseHTTPMiddleware):
             
             return response
         except Exception as e:
-            print(f"Bandwidth Middleware Error: {e}")
+            logger.info(f"Bandwidth Middleware Error: {e}")
             return await call_next(request)
         finally:
             db.close()

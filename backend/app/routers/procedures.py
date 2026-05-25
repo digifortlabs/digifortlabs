@@ -1,5 +1,7 @@
+import logging
+logger = logging.getLogger(__name__)
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -72,7 +74,7 @@ def search_procedures(q: str, db: Session = Depends(get_db), current_user: User 
         try:
             live_results = icd_service.search_codes(q)
         except Exception as e:
-            print(f"⚠️ WHO Search Failed: {e}")
+            logger.info(f"[WARN] WHO Search Failed: {e}")
         
         # Merge Results
         seen_codes = {r.code for r in local_results}
@@ -84,11 +86,11 @@ def search_procedures(q: str, db: Session = Depends(get_db), current_user: User 
                     merged.append(ProcedureResponse(**r))
                     seen_codes.add(r["code"])
                 except Exception as ve:
-                    print(f"⚠️ Validation error for {r}: {ve}")
+                    logger.info(f"[WARN] Validation error for {r}: {ve}")
                     
         return merged[:20]
     except Exception as ge:
-        print(f"❌ Global Procedure Search Error: {ge}")
+        logger.info(f"[ERROR] Global Procedure Search Error: {ge}")
         raise HTTPException(status_code=500, detail=f"Search failed: {str(ge)}")
 
 @router.post("/patients/{patient_id}/procedures", response_model=PatientProcedureResponse)
@@ -101,9 +103,12 @@ def add_patient_procedure(
     """Add a procedure to a patient record."""
     
     # 1. Verify Patient
-    patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+    patient = db.query(Patient).filter(
+        Patient.record_id == patient_id,
+        Patient.hospital_id == current_user.hospital_id
+    ).first()
     if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+        raise HTTPException(status_code=404, detail="Patient record not found")
 
     # 2. Verify Procedure Code
     code_exists = db.query(ICD11ProcedureCode).filter(ICD11ProcedureCode.code == proc.code).first()
@@ -124,17 +129,23 @@ def add_patient_procedure(
     db.refresh(new_proc)
     
     return PatientProcedureResponse(
-        procedure_id=new_proc.procedure_id,
-        code=new_proc.code,
-        description=code_exists.description,
-        notes=new_proc.notes,
-        performed_at=new_proc.performed_at,
-        performed_by_name=current_user.full_name
+        procedure_id=cast(int, new_proc.procedure_id),
+        code=cast(str, new_proc.code),
+        description=cast(str, code_exists.description),
+        notes=cast(Optional[str], new_proc.notes),
+        performed_at=cast(datetime, new_proc.performed_at),
+        performed_by_name=cast(str, current_user.full_name)
     )
 
 @router.get("/patients/{patient_id}/procedures", response_model=List[PatientProcedureResponse])
 def get_patient_procedures(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get all procedures for a patient."""
+    patient = db.query(Patient).filter(
+        Patient.record_id == patient_id,
+        Patient.hospital_id == current_user.hospital_id
+    ).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient record not found")
     
     procs = db.query(PatientProcedure).filter(PatientProcedure.record_id == patient_id).order_by(PatientProcedure.performed_at.desc()).all()
     
@@ -146,12 +157,12 @@ def get_patient_procedures(patient_id: int, db: Session = Depends(get_db), curre
         doc_name = p.doctor.full_name if p.doctor else "Unknown"
         
         results.append(PatientProcedureResponse(
-            procedure_id=p.procedure_id,
-            code=p.code,
-            description=desc,
-            notes=p.notes,
-            performed_at=p.performed_at,
-            performed_by_name=doc_name
+            procedure_id=cast(int, p.procedure_id),
+            code=cast(str, p.code),
+            description=cast(str, desc),
+            notes=cast(Optional[str], p.notes),
+            performed_at=cast(datetime, p.performed_at),
+            performed_by_name=cast(str, doc_name)
         ))
         
     return results

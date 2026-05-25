@@ -50,7 +50,7 @@ class DentalPatientBase(BaseModel):
     prescriptions: Optional[List[dict]] = []
 
 class DentalPatientCreate(DentalPatientBase):
-    full_name: str
+    full_name: str # type: ignore
 
 class DentalPatientUpdate(DentalPatientBase):
     pass
@@ -430,13 +430,13 @@ def get_next_dental_ids(
     if latest_patient:
         # Extract UHID number
         if latest_patient.uhid:
-            uhid_match = re.search(r'(\d+)$', latest_patient.uhid)
+            uhid_match = re.search(r'(\d+)$', str(latest_patient.uhid))
             if uhid_match:
                 next_uhid_num = int(uhid_match.group(1)) + 1
         
         # Extract OPD number
         if latest_patient.opd_number:
-            opd_match = re.search(r'(\d+)$', latest_patient.opd_number)
+            opd_match = re.search(r'(\d+)$', str(latest_patient.opd_number))
             if opd_match:
                 next_opd_num = int(opd_match.group(1)) + 1
 
@@ -556,7 +556,7 @@ def create_patient(
             db.add(core_patient)
             db.flush() # Get record_id
             
-        db_patient = DentalPatient(**patient.dict(), hospital_id=hospital_id, main_patient_id=core_patient.record_id)
+        db_patient = DentalPatient(**patient.model_dump(), hospital_id=hospital_id, main_patient_id=core_patient.record_id)
         db.add(db_patient)
         db.commit()
         db.refresh(db_patient)
@@ -623,7 +623,7 @@ def update_patient(
         if existing:
             raise HTTPException(status_code=400, detail=f"Another patient with OPD number {patient_update.opd_number} already exists.")
     
-    for key, value in patient_update.dict(exclude_unset=True).items():
+    for key, value in patient_update.model_dump(exclude_unset=True).items():
         setattr(db_patient, key, value)
     
     db.commit()
@@ -690,7 +690,7 @@ def create_appointment(
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    db_appointment = Appointment(**appointment.dict())
+    db_appointment = Appointment(**appointment.model_dump())
     db.add(db_appointment)
     db.commit()
     db.refresh(db_appointment)
@@ -726,7 +726,9 @@ def create_treatment(
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    db_treatment = DentalTreatment(**treatment.dict())
+    treatment_data = treatment.model_dump()
+    treatment_data["dental_patient_id"] = treatment_data.pop("patient_id")
+    db_treatment = DentalTreatment(**treatment_data)
     db.add(db_treatment)
     db.commit()
     db.refresh(db_treatment)
@@ -748,7 +750,7 @@ def create_treatment_plan(
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
         
-    db_plan = TreatmentPlan(**plan.dict(), patient_id=patient_id)
+    db_plan = TreatmentPlan(**plan.model_dump(), patient_id=patient_id)
     db.add(db_plan)
     db.commit()
     db.refresh(db_plan)
@@ -782,10 +784,12 @@ def update_treatment_plan(
         
     # Check access via patient
     patient = db.query(DentalPatient).filter(DentalPatient.patient_id == db_plan.patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
         
-    update_data = plan_update.dict(exclude_unset=True)
+    update_data = plan_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_plan, key, value)
         
@@ -806,10 +810,12 @@ def create_treatment_phase(
         
     # Check access via patient
     patient = db.query(DentalPatient).filter(DentalPatient.patient_id == db_plan.patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
         
-    db_phase = TreatmentPhase(**phase.dict(), plan_id=plan_id)
+    db_phase = TreatmentPhase(**phase.model_dump(), plan_id=plan_id)
     db.add(db_phase)
     db.commit()
     db.refresh(db_phase)
@@ -828,11 +834,15 @@ def update_treatment_phase(
         
     # Check access via plan -> patient
     db_plan = db.query(TreatmentPlan).filter(TreatmentPlan.plan_id == db_phase.plan_id).first()
+    if not db_plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
     patient = db.query(DentalPatient).filter(DentalPatient.patient_id == db_plan.patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
         
-    update_data = phase_update.dict(exclude_unset=True)
+    update_data = phase_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_phase, key, value)
         
@@ -867,7 +877,7 @@ def create_periodontal_exam(
     db.flush() # Get exam_id
     
     for m in exam.measurements:
-        db_m = PeriodontalMeasurement(**m.dict(), exam_id=db_exam.exam_id)
+        db_m = PeriodontalMeasurement(**m.model_dump(), exam_id=db_exam.exam_id)
         db.add(db_m)
         
     db.commit()
@@ -901,6 +911,8 @@ def get_periodontal_exam(
         
     # Check access via patient
     patient = db.query(DentalPatient).filter(DentalPatient.patient_id == db_exam.patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
         
@@ -933,7 +945,7 @@ async def upload_scan(
     
     unique_id = str(int(now.timestamp()))
     # Simple sanitization of filename
-    ext = os.path.splitext(file.filename)[1]
+    ext = os.path.splitext(file.filename or "")[1]
     patient_identifier = sanitize_name(patient.uhid) if patient.uhid else f"Patient_{patient.patient_id}"
     
     s3_key = f"{hospital_name}/DentalScans/{year}/{month}/{patient_identifier}_{unique_id}{ext}"
@@ -1080,7 +1092,8 @@ def get_revenue_analytics(
         month_label = t.date_performed.strftime("%b %Y")
         if month_label not in trend_dict:
             trend_dict[month_label] = 0
-        trend_dict[month_label] += float(t.cost or 0)
+        cost_val = getattr(t, "cost", 0)
+        trend_dict[month_label] += float(cost_val if cost_val is not None else 0)
         
     monthly_trend = [{"month": k, "revenue": v} for k, v in list(trend_dict.items())[-6:]] # Get last 6 active months
     
@@ -1117,7 +1130,7 @@ def create_insurance_provider(
 ):
     if not current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Hospital ID required")
-    db_prov = InsuranceProvider(**provider.dict(), hospital_id=current_user.hospital_id)
+    db_prov = InsuranceProvider(**provider.model_dump(), hospital_id=current_user.hospital_id)
     db.add(db_prov)
     db.commit()
     db.refresh(db_prov)
@@ -1129,7 +1142,7 @@ def get_patient_claims(patient_id: int, db: Session = Depends(get_db), current_u
 
 @router.post("/patients/{patient_id}/insurance/claims", response_model=InsuranceClaimResponse)
 def create_patient_claim(patient_id: int, claim: InsuranceClaimCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    db_claim = InsuranceClaim(**claim.dict(), patient_id=patient_id)
+    db_claim = InsuranceClaim(**claim.model_dump(), patient_id=patient_id)
     db.add(db_claim)
     db.commit()
     db.refresh(db_claim)
@@ -1145,7 +1158,7 @@ def get_dental_labs(db: Session = Depends(get_db), current_user: User = Depends(
 @router.post("/labs", response_model=DentalLabResponse)
 def create_dental_lab(lab: DentalLabCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not current_user.hospital_id: raise HTTPException(status_code=403, detail="Hospital ID required")
-    db_lab = DentalLab(**lab.dict(), hospital_id=current_user.hospital_id)
+    db_lab = DentalLab(**lab.model_dump(), hospital_id=current_user.hospital_id)
     db.add(db_lab)
     db.commit()
     db.refresh(db_lab)
@@ -1157,7 +1170,7 @@ def get_patient_lab_orders(patient_id: int, db: Session = Depends(get_db), curre
 
 @router.post("/patients/{patient_id}/lab-orders", response_model=DentalLabOrderResponse)
 def create_patient_lab_order(patient_id: int, order: DentalLabOrderCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    db_order = DentalLabOrder(**order.dict(), patient_id=patient_id, dentist_id=current_user.user_id)
+    db_order = DentalLabOrder(**order.model_dump(), patient_id=patient_id, dentist_id=current_user.user_id)
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
@@ -1171,7 +1184,7 @@ def get_patient_ortho_records(patient_id: int, db: Session = Depends(get_db), cu
 
 @router.post("/patients/{patient_id}/ortho", response_model=OrthoRecordResponse)
 def create_patient_ortho_record(patient_id: int, rec: OrthoRecordCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    db_rec = OrthoRecord(**rec.dict(), patient_id=patient_id, dentist_id=current_user.user_id)
+    db_rec = OrthoRecord(**rec.model_dump(), patient_id=patient_id, dentist_id=current_user.user_id)
     db.add(db_rec)
     db.commit()
     db.refresh(db_rec)
@@ -1185,7 +1198,7 @@ def get_patient_communications(patient_id: int, db: Session = Depends(get_db), c
 
 @router.post("/patients/{patient_id}/communications", response_model=CommunicationLogResponse)
 def create_patient_communication(patient_id: int, comm: CommunicationLogCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    db_comm = CommunicationLog(**comm.dict(), patient_id=patient_id)
+    db_comm = CommunicationLog(**comm.model_dump(), patient_id=patient_id)
     db.add(db_comm)
     db.commit()
     db.refresh(db_comm)
@@ -1202,7 +1215,7 @@ def get_dental_inventory(db: Session = Depends(get_db), current_user: User = Dep
 @router.post("/inventory", response_model=DentalInventoryItemResponse)
 def create_dental_inventory_item(item: DentalInventoryItemCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not current_user.hospital_id: raise HTTPException(status_code=403, detail="Hospital ID required")
-    db_item = DentalInventoryItem(**item.dict(), hospital_id=current_user.hospital_id)
+    db_item = DentalInventoryItem(**item.model_dump(), hospital_id=current_user.hospital_id)
     db.add(db_item)
     db.commit()
     db.refresh(db_item)
@@ -1258,16 +1271,8 @@ async def upload_dental_scan(
     db.commit()
     db.refresh(db_scan)
 
-    return ScanResponse(
-        scan_id=db_scan.scan_id,
-        patient_id=db_scan.patient_id,
-        scan_type=db_scan.scan_type,
-        file_path=db_scan.file_path,
-        file_name=db_scan.file_name,
-        uploaded_at=db_scan.uploaded_at,
-        notes=db_scan.notes,
-        presigned_url=presigned_url
-    )
+    setattr(db_scan, "presigned_url", presigned_url)
+    return db_scan
 
 
 @router.get("/scans/patient/{patient_id}", response_model=List[ScanResponse])
@@ -1290,16 +1295,8 @@ def get_patient_scans(
     result = []
     for scan in scans:
         presigned_url = s3.generate_presigned_url(scan.file_path, expiration=3600)
-        result.append(ScanResponse(
-            scan_id=scan.scan_id,
-            patient_id=scan.patient_id,
-            scan_type=scan.scan_type,
-            file_path=scan.file_path,
-            file_name=scan.file_name,
-            uploaded_at=scan.uploaded_at,
-            notes=scan.notes,
-            presigned_url=presigned_url
-        ))
+        setattr(scan, "presigned_url", presigned_url)
+        result.append(scan)
     return result
 
 

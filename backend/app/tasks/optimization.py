@@ -15,7 +15,7 @@ def process_pdf_optimization(self, job_id: str, input_filename: str, settings_di
     Encrypts the file with AES-256 GCM immediately and deletes all raw unencrypted files.
     """
     self.update_state(state="PROGRESS", meta={"step": "Initializing", "percent": 10})
-    logger.info(f"🚀 [WORKER] Starting optimization for job {job_id}")
+    logger.info(f"[START] [WORKER] Starting optimization for job {job_id}")
     
     storage = StorageService()
     job_dir = storage.get_job_dir(job_id)
@@ -37,7 +37,7 @@ def process_pdf_optimization(self, job_id: str, input_filename: str, settings_di
     
     if success and os.path.exists(output_path):
         final_size = os.path.getsize(output_path)
-        logger.info(f"🔒 [WORKER] Encrypting optimized PDF for job {job_id}")
+        logger.info(f"[LOCK] [WORKER] Encrypting optimized PDF for job {job_id}")
         enc_path = encrypt_file(output_path)
         
         # Immediate secure deletion of unencrypted files
@@ -45,14 +45,14 @@ def process_pdf_optimization(self, job_id: str, input_filename: str, settings_di
             os.remove(output_path)
             if os.path.exists(input_path):
                 os.remove(input_path)
-            logger.info(f"🗑️ [WORKER] Intermediate unencrypted files scrubbed for job {job_id}")
+            logger.info(f"[DELETE] [WORKER] Intermediate unencrypted files scrubbed for job {job_id}")
         except Exception as e:
-            logger.warning(f"⚠️ [WORKER] Failed to remove some temp unencrypted files: {e}")
+            logger.warning(f"[WARN] [WORKER] Failed to remove some temp unencrypted files: {e}")
             
         output_file = f"{output_filename}.enc"
     else:
         # Fallback: Encrypt the original file if compression failed
-        logger.warning(f"⚠️ [WORKER] Compression failed or output missing for job {job_id}. Encrypting fallback original.")
+        logger.warning(f"[WARN] [WORKER] Compression failed or output missing for job {job_id}. Encrypting fallback original.")
         success = False
         final_size = input_size
         
@@ -60,9 +60,9 @@ def process_pdf_optimization(self, job_id: str, input_filename: str, settings_di
             enc_path = encrypt_file(input_path)
             try:
                 os.remove(input_path)
-                logger.info(f"🗑️ [WORKER] Fallback original unencrypted file scrubbed for job {job_id}")
+                logger.info(f"[DELETE] [WORKER] Fallback original unencrypted file scrubbed for job {job_id}")
             except Exception as e:
-                logger.warning(f"⚠️ [WORKER] Failed to remove temp fallback file: {e}")
+                logger.warning(f"[WARN] [WORKER] Failed to remove temp fallback file: {e}")
         
         output_file = f"{input_filename}.enc"
         
@@ -83,9 +83,9 @@ def process_pdf_optimization(self, job_id: str, input_filename: str, settings_di
     }
     
     if success:
-        logger.info(f"✅ [WORKER] Optimization complete for job {job_id}. Final size: {final_size}")
+        logger.info(f"[OK] [WORKER] Optimization complete for job {job_id}. Final size: {final_size}")
     else:
-        logger.error(f"❌ [WORKER] Optimization failed for job {job_id}")
+        logger.error(f"[ERROR] [WORKER] Optimization failed for job {job_id}")
     
     return {
         "status": "success" if success else "failure",

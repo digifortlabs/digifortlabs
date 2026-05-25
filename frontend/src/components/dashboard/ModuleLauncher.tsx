@@ -1,6 +1,5 @@
 import React from 'react';
 import { AppWindow, Database, Ear, Building2, Stethoscope, Settings, Package } from 'lucide-react';
-import { getDomainUrl } from '@/lib/utils';
 
 interface ModuleLauncherProps {
     enabledModules: string[];
@@ -10,68 +9,98 @@ interface ModuleLauncherProps {
 }
 
 const ModuleLauncher = ({ enabledModules, userRole, onLaunch, onUpsell }: ModuleLauncherProps) => {
-    const isSuperAdmin = userRole === 'superadmin';
+    const isPrivileged = ['superadmin', 'superadmin_staff', 'website_admin'].includes(userRole);
+
+    // Also read directly from localStorage in case the prop hasn't updated yet
+    const effectiveModules = React.useMemo(() => {
+        try {
+            const stored = typeof window !== 'undefined' ? localStorage.getItem('userModules') : null;
+            const fromStorage: string[] = stored ? JSON.parse(stored) : [];
+            const merged = Array.from(new Set([...enabledModules, ...fromStorage]));
+            return merged;
+        } catch {
+            return enabledModules;
+        }
+    }, [enabledModules]);
 
     const modules = [
-        { id: 'mrd', label: 'MRD', icon: <Database size={20} />, color: 'emerald', path: getDomainUrl('dashboard', '/records'), req: ['mrd', 'core'] },
-        { id: 'dental', label: 'Dental', icon: <AppWindow size={20} />, color: 'teal', path: getDomainUrl('dashboard', '/dental'), req: ['dental'] },
-        { id: 'ent', label: 'ENT', icon: <Ear size={20} />, color: 'rose', path: getDomainUrl('dashboard', '/ent'), req: ['ent'] },
-        { id: 'hms', label: 'HMS', icon: <Building2 size={20} />, color: 'blue', path: getDomainUrl('dashboard', '/hms'), req: ['hms'] },
-        { id: 'clinic', label: 'Clinic', icon: <Stethoscope size={20} />, color: 'orange', path: getDomainUrl('dashboard', '/clinic'), req: ['clinic'] },
-        { id: 'inventory', label: 'Inventory', icon: <Package size={20} />, color: 'indigo', path: getDomainUrl('dashboard', '/inventory'), req: ['inventory', 'core'] },
+        { id: 'mrd',       label: 'MRD',       icon: <Database size={20} />,    color: 'emerald', path: '/records',   req: ['mrd', 'core'] },
+        { id: 'dental',    label: 'Dental',     icon: <AppWindow size={20} />,   color: 'teal',    path: '/dental',     req: ['dental'] },
+        { id: 'ent',       label: 'ENT',        icon: <Ear size={20} />,         color: 'rose',    path: '/ent',        req: ['ent'] },
+        { id: 'hms',       label: 'HMS',        icon: <Building2 size={20} />,   color: 'blue',    path: '/hms',        req: ['hms'] },
+        { id: 'clinic',    label: 'Clinic',     icon: <Stethoscope size={20} />, color: 'orange',  path: '/clinic',     req: ['clinic'] },
+        { id: 'inventory', label: 'Inventory',  icon: <Package size={20} />,     color: 'indigo',  path: '/inventory',  req: ['inventory', 'core'] },
     ];
 
     return (
-        <div className="mb-6 p-5 sm:p-6 bg-white rounded-2xl shadow-sm border border-slate-200">
-            <h2 className="text-[11px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <AppWindow size={14} /> Module Launcher
+        <div className="relative mb-6 p-6 sm:p-8 bg-gradient-to-br from-white/60 via-white/80 to-slate-50/50 backdrop-blur-2xl rounded-[2.25rem] shadow-[0_8px_32px_rgba(99,102,241,0.02)] border border-white/80 overflow-hidden">
+            {/* Ambient neon blurs */}
+            <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/5 rounded-full blur-[90px] pointer-events-none -translate-y-1/2 translate-x-1/4"></div>
+            <div className="absolute bottom-0 left-0 w-80 h-80 bg-purple-500/5 rounded-full blur-[90px] pointer-events-none translate-y-1/2 -translate-x-1/4"></div>
+            
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-6 flex items-center gap-2 relative z-10">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                <AppWindow size={14} className="text-indigo-500" /> Module Command Center
             </h2>
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-4 relative z-10">
                 {modules.map((mod) => {
-                    const isEnabled = isSuperAdmin || mod.req.some(r => enabledModules.includes(r));
+                    const isEnabled = isPrivileged || mod.req.some(r => effectiveModules.includes(r));
                     
-                    // Direct Tailwind classes for reliability
                     const bgClass = isEnabled 
-                        ? (mod.color === 'emerald' ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-100' :
-                           mod.color === 'teal' ? 'bg-teal-50 hover:bg-teal-100 border-teal-100' :
-                           mod.color === 'rose' ? 'bg-rose-50 hover:bg-rose-100 border-rose-100' :
-                           mod.color === 'blue' ? 'bg-blue-50 hover:bg-blue-100 border-blue-100' :
-                           mod.color === 'orange' ? 'bg-orange-50 hover:bg-orange-100 border-orange-100' :
-                           'bg-indigo-50 hover:bg-indigo-100 border-indigo-100')
-                        : 'bg-slate-50 border-slate-100 opacity-70 hover:opacity-100';
+                        ? (mod.color === 'emerald' ? 'from-emerald-500/[0.08] to-emerald-500/[0.02] border-emerald-500/15 hover:border-emerald-500/40 hover:shadow-emerald-500/20' :
+                           mod.color === 'teal' ? 'from-teal-500/[0.08] to-teal-500/[0.02] border-teal-500/15 hover:border-teal-500/40 hover:shadow-teal-500/20' :
+                           mod.color === 'rose' ? 'from-rose-500/[0.08] to-rose-500/[0.02] border-rose-500/15 hover:border-rose-500/40 hover:shadow-rose-500/20' :
+                           mod.color === 'blue' ? 'from-blue-500/[0.08] to-blue-500/[0.02] border-blue-500/15 hover:border-blue-500/40 hover:shadow-blue-500/20' :
+                           mod.color === 'orange' ? 'from-orange-500/[0.08] to-orange-500/[0.02] border-orange-500/15 hover:border-orange-500/40 hover:shadow-orange-500/20' :
+                           'from-indigo-500/[0.08] to-indigo-500/[0.02] border-indigo-500/15 hover:border-indigo-500/40 hover:shadow-indigo-500/20')
+                        : 'from-slate-100/40 to-slate-50/20 border-slate-200/40 opacity-45 hover:opacity-80';
 
                     const iconColorClass = isEnabled 
-                        ? (mod.color === 'emerald' ? 'text-emerald-600' :
-                           mod.color === 'teal' ? 'text-teal-600' :
-                           mod.color === 'rose' ? 'text-rose-600' :
-                           mod.color === 'blue' ? 'text-blue-600' :
-                           mod.color === 'orange' ? 'text-orange-600' :
-                           'text-indigo-600')
-                        : 'text-slate-400';
+                        ? (mod.color === 'emerald' ? 'text-emerald-500 bg-emerald-500/10 group-hover:bg-emerald-500 group-hover:text-white group-hover:shadow-[0_8px_20px_rgba(16,185,129,0.35)]' :
+                           mod.color === 'teal' ? 'text-teal-500 bg-teal-500/10 group-hover:bg-teal-500 group-hover:text-white group-hover:shadow-[0_8px_20px_rgba(20,184,166,0.35)]' :
+                           mod.color === 'rose' ? 'text-rose-500 bg-rose-500/10 group-hover:bg-rose-500 group-hover:text-white group-hover:shadow-[0_8px_20px_rgba(244,63,94,0.35)]' :
+                           mod.color === 'blue' ? 'text-blue-500 bg-blue-500/10 group-hover:bg-blue-500 group-hover:text-white group-hover:shadow-[0_8px_20px_rgba(59,130,246,0.35)]' :
+                           mod.color === 'orange' ? 'text-orange-500 bg-orange-500/10 group-hover:bg-orange-500 group-hover:text-white group-hover:shadow-[0_8px_20px_rgba(249,115,22,0.35)]' :
+                           'text-indigo-500 bg-indigo-500/10 group-hover:bg-indigo-500 group-hover:text-white group-hover:shadow-[0_8px_20px_rgba(99,102,241,0.35)]')
+                        : 'text-slate-400 bg-slate-200/50';
 
                     return (
                         <button
                             key={mod.id}
-                            onClick={() => isEnabled ? onLaunch(mod.path) : onUpsell(mod.label)}
-                            className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl transition-all gap-2 group border ${bgClass}`}
+                            onClick={() => {
+                                if (isEnabled) {
+                                    if (mod.id === 'mrd') localStorage.removeItem('mrd_hospital_id');
+                                    else if (mod.id === 'dental') localStorage.removeItem('dental_hospital_id');
+                                    else if (mod.id === 'ent') localStorage.removeItem('ent_hospital_id');
+                                    else if (mod.id === 'clinic') localStorage.removeItem('clinic_hospital_id');
+                                    else if (mod.id === 'hms') localStorage.removeItem('hms_hospital_id');
+                                    else if (mod.id === 'inventory') localStorage.removeItem('inventory_hospital_id');
+                                    onLaunch(mod.path);
+                                } else {
+                                    onUpsell(mod.label);
+                                }
+                            }}
+                            className={`flex flex-col items-center justify-center p-6 rounded-[2rem] transition-all duration-500 gap-4 group border bg-gradient-to-br shadow-[0_8px_30px_rgb(0,0,0,0.015)] hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] relative overflow-hidden cursor-pointer ${bgClass}`}
                         >
-                            <div className={`w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform ${iconColorClass}`}>
-                                {mod.icon}
+                            <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500 ${iconColorClass}`}>
+                                {React.cloneElement(mod.icon as any, { size: 24, strokeWidth: 2.2 })}
                             </div>
-                            <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">{mod.label}</span>
+                            <span className="text-[11px] font-black text-slate-700 tracking-wider text-center uppercase group-hover:text-slate-950 transition-colors">{mod.label}</span>
                         </button>
                     );
                 })}
 
                 {/* Settings (Always enabled) */}
                 <button
-                    onClick={() => onLaunch(getDomainUrl('dashboard', '/settings'))}
-                    className="flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl transition-all gap-2 group border bg-slate-100 hover:bg-slate-200 border-slate-200"
+                    onClick={() => onLaunch('/settings')}
+                    className="flex flex-col items-center justify-center p-6 rounded-[2rem] transition-all duration-500 gap-4 group border bg-gradient-to-br from-slate-100/60 to-slate-50/40 border-slate-200/60 shadow-[0_8px_30px_rgb(0,0,0,0.01)] hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] hover:border-slate-400/30 hover:shadow-slate-500/10"
                 >
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center shadow-sm text-slate-700 group-hover:scale-110 transition-transform group-hover:rotate-45 duration-300">
-                        <Settings size={20} />
+                    <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+                    <div className="w-14 h-14 bg-slate-200/50 text-slate-500 rounded-2xl flex items-center justify-center transition-all duration-500 group-hover:scale-110 group-hover:bg-slate-850 group-hover:text-white group-hover:rotate-90 group-hover:shadow-[0_8px_20px_rgba(30,41,59,0.3)]">
+                        <Settings size={24} strokeWidth={2.2} />
                     </div>
-                    <span className="text-[10px] sm:text-[11px] font-bold text-slate-700 text-center uppercase">Settings</span>
+                    <span className="text-[11px] font-black text-slate-700 tracking-wider text-center uppercase group-hover:text-slate-950 transition-colors">Settings</span>
                 </button>
             </div>
         </div>

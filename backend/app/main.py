@@ -1,3 +1,11 @@
+import sys
+import io
+# Force UTF-8 stdout/stderr on Windows to prevent emoji encoding crashes
+if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+if sys.stderr.encoding and sys.stderr.encoding.lower() != 'utf-8':
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 from fastapi import FastAPI, HTTPException
 
 from .core.config import settings
@@ -9,6 +17,9 @@ from .core.logging_config import setup_logging
 # Initialize Logging
 setup_logging()
 
+import logging
+logger = logging.getLogger(__name__)
+
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
@@ -17,8 +28,6 @@ configure_mappers()
 
 # --- SECURITY CHECKS ---
 if settings.ENVIRONMENT == "production" and settings.IS_UNSAFE_SECRET_KEY:
-    import logging
-    logger = logging.getLogger(__name__)
     logger.critical("CRITICAL SECURITY WARNING")
     logger.critical("The application is running in PRODUCTION with the DEFAULT SECRET_KEY.")
     logger.critical("This is a massive security risk. Authentication tokens can be forged.")
@@ -37,7 +46,7 @@ class CsrfSettings(BaseModel):
     cookie_samesite: str = "lax"
     cookie_secure: bool = settings.ENVIRONMENT == "production" and not any(x in str(settings.BACKEND_CORS_ORIGINS) for x in ["localhost", "127.0.0.1", "100.", "192.", "10."])
 
-@CsrfProtect.load_config
+@CsrfProtect.load_config  # type: ignore
 def get_csrf_config():
     return CsrfSettings()
 
@@ -58,9 +67,42 @@ async def verify_csrf(request: Request, csrf_protect: CsrfProtect = Depends()):
     try:
         await csrf_protect.validate_csrf(request)
     except CsrfProtectError as e:
-        print(f"CSRF Validation Failed: {e.message}")
+        logger.info(f"CSRF Validation Failed: {e.message}")
         raise e
 
+
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start periodic background tasks
+    import asyncio
+    from .database import SessionLocal
+
+    async def retention_cleanup_loop():
+        loop = asyncio.get_event_loop()
+        def run_cleanup_task():
+            try:
+                db = SessionLocal()
+                from .services.cleanup_service import CleanupService
+                CleanupService.run_retention_policy(db)
+                CleanupService.cleanup_temp_jobs() # Added job cleanup
+                db.close()
+            except Exception as e:
+                logger.info(f"Retention Cleanup Error: {e}")
+
+        while True:
+            try:
+                # Run every 24 hours
+                await loop.run_in_executor(None, run_cleanup_task)
+            except Exception as e:
+                logger.info(f"Retention Cleanup Loop Error: {e}")
+            
+            await asyncio.sleep(86400) # 24 hours
+
+    task = asyncio.create_task(retention_cleanup_loop())
+    yield
+    task.cancel()
 
 app = FastAPI(
     title="THE DIGIFORT LABS - Hospital Archive",
@@ -68,12 +110,13 @@ app = FastAPI(
     version="1.0.0",
     docs_url=None if settings.ENVIRONMENT == "production" else "/docs",
     redoc_url=None if settings.ENVIRONMENT == "production" else "/redoc",
-    dependencies=[Depends(verify_csrf)]
+    dependencies=[Depends(verify_csrf)],
+    lifespan=lifespan
 )
 
 import time
-from datetime import datetime
-app.state.startup_time = datetime.utcnow()
+from datetime import datetime, timezone
+app.state.startup_time = datetime.now(timezone.utc)
 app.state.total_requests = 0
 app.state.total_latency = 0.0
 
@@ -122,7 +165,7 @@ async def csrf_protect_exception_handler(request: Request, exc: CsrfProtectError
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     # Log the detail for debugging
-    print(f"Global Exception: {type(exc).__name__}: {str(exc)}")
+    logger.info(f"Global Exception: {type(exc).__name__}: {str(exc)}")
     import traceback
     tb_str = traceback.format_exc()
     traceback.print_exc()
@@ -144,7 +187,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         db.close()
 
     except Exception as dbe:
-        print(f"WARNING: Failed to write to system_error_logs: {dbe}")
+        logger.info(f"WARNING: Failed to write to system_error_logs: {dbe}")
     
     status_code = 500
     if isinstance(exc, HTTPException): status_code = exc.status_code
@@ -167,7 +210,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.exception_handler(ResponseValidationError)
 async def validation_exception_handler(request: Request, exc: ResponseValidationError):
-    print(f"Response Validation Error: {exc.errors()}")
+    logger.info(f"Response Validation Error: {exc.errors()}")
     response = JSONResponse(
         status_code=500,
         content={"detail": "Data formatting error in server response.", "errors": exc.errors()}
@@ -240,8 +283,8 @@ app.include_router(ent.router)
 
 from .routers import clinic
 app.include_router(clinic.router)
-
-
+from .routers import patient_billing
+app.include_router(patient_billing.router)
 
 
 from .routers import hms
@@ -251,7 +294,7 @@ try:
     from .routers import scanner
     app.include_router(scanner.router) # Scanner Service
 except Exception as e:
-    print(f"WARNING: Failed to load scanner router. Error: {e}")
+    logger.info(f"WARNING: Failed to load scanner router. Error: {e}")
     # Continue running app even if scanner fails
     pass
 
@@ -271,36 +314,7 @@ app.mount("/local_storage", StaticFiles(directory=local_path), name="local_stora
 
 
 
-@app.on_event("startup")
-async def startup_event():
-    # Start periodic background tasks
-    import asyncio
-    from .services.storage_service import StorageService
-    from .database import SessionLocal
 
-    async def retention_cleanup_loop():
-        loop = asyncio.get_event_loop()
-        def run_cleanup_task():
-            try:
-                db = SessionLocal()
-                from .services.cleanup_service import CleanupService
-                CleanupService.run_retention_policy(db)
-                CleanupService.cleanup_temp_jobs() # Added job cleanup
-                db.close()
-            except Exception as e:
-                print(f"Retention Cleanup Error: {e}")
-
-        while True:
-            try:
-                # Run every 24 hours
-                await loop.run_in_executor(None, run_cleanup_task)
-            except Exception as e:
-                print(f"Retention Cleanup Loop Error: {e}")
-            
-            await asyncio.sleep(86400) # 24 hours
-
-
-    asyncio.create_task(retention_cleanup_loop())
 
 @app.get("/")
 def read_root():

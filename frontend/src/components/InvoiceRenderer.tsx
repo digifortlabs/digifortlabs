@@ -13,6 +13,58 @@ import {
     FileText
 } from 'lucide-react';
 
+const INDIAN_STATE_CODES: { [key: string]: string } = {
+    'ANDHRA PRADESH': '37',
+    'ARUNACHAL PRADESH': '12',
+    'ASSAM': '18',
+    'BIHAR': '10',
+    'CHHATTISGARH': '22',
+    'GOA': '30',
+    'GUJARAT': '24',
+    'HARYANA': '06',
+    'HIMACHAL PRADESH': '02',
+    'JHARKHAND': '20',
+    'KARNATAKA': '29',
+    'KERALA': '32',
+    'MADHYA PRADESH': '23',
+    'MAHARASHTRA': '27',
+    'MANIPUR': '14',
+    'MEGHALAYA': '17',
+    'MIZORAM': '15',
+    'NAGALAND': '13',
+    'ODISHA': '21',
+    'PUNJAB': '03',
+    'RAJASTHAN': '08',
+    'SIKKIM': '11',
+    'TAMIL NADU': '33',
+    'TELANGANA': '36',
+    'TRIPURA': '16',
+    'UTTAR PRADESH': '09',
+    'UTTARAKHAND': '05',
+    'WEST BENGAL': '19',
+    'ANDAMAN AND NICOBAR ISLANDS': '35',
+    'CHANDIGARH': '04',
+    'DADRA AND NAGAR HAVELI AND DAMAN AND DIU': '26',
+    'DELHI': '07',
+    'JAMMU AND KASHMIR': '01',
+    'LADAKH': '38',
+    'LAKSHADWEEP': '31',
+    'PUDUCHERRY': '34'
+};
+
+const formatDateSafe = (dateVal: any, formatStr: string = 'dd MMM yyyy'): string => {
+    if (!dateVal) return '-';
+    try {
+        const d = typeof dateVal === 'string' ? new Date(dateVal) : dateVal;
+        if (isNaN(d.getTime())) {
+            return '-';
+        }
+        return format(d, formatStr);
+    } catch (e) {
+        return '-';
+    }
+};
+
 interface InvoiceItem {
     item_id: number;
     file_id?: number;
@@ -61,12 +113,28 @@ interface InvoiceRendererProps {
 export default function InvoiceRenderer({ invoice, itemsPerPage = 25 }: InvoiceRendererProps) {
     if (!invoice) return null;
 
-    const subtotal = invoice.items.reduce((acc, item) => acc + item.amount, 0);
-    const taxTotal = invoice.tax_amount || (subtotal * (invoice.gst_rate / 100));
-    const grandTotal = subtotal + taxTotal;
+    const items = invoice.items || [];
+    const fileItems = items.filter(i => i.file_id);
+    const otherItems = items.filter(i => !i.file_id);
 
-    const fileItems = invoice.items.filter(i => i.file_id);
-    const otherItems = invoice.items.filter(i => !i.file_id);
+    // Math calculation matching backend post-discount logic
+    const grossAmount = items.reduce((acc, item) => acc + (item.amount || 0), 0);
+    const totalDiscount = items.reduce((acc, item) => acc + (item.discount || 0), 0);
+    const subtotal = grossAmount - totalDiscount;
+
+    const taxTotal = typeof invoice.tax_amount === 'number' ? invoice.tax_amount : (subtotal * (invoice.gst_rate / 100));
+    const grandTotal = subtotal + taxTotal;
+    const finalTotal = typeof invoice.total_amount === 'number' ? invoice.total_amount : Math.round(grandTotal);
+    const roundOff = finalTotal - grandTotal;
+
+    const hasAnyDiscount = totalDiscount > 0;
+
+    // Place of Supply & Inter-State GST Rules
+    const rawState = (invoice.hospital_state || 'GUJARAT').trim();
+    const hospitalStateUpper = rawState.toUpperCase();
+    const stateCode = INDIAN_STATE_CODES[hospitalStateUpper] || '24';
+    const placeOfSupply = `${hospitalStateUpper} (${stateCode})`;
+    const isInterState = hospitalStateUpper !== 'GUJARAT';
 
     // Grouping file items into chunks for multi-page annexure
     const chunks = [];
@@ -198,11 +266,11 @@ export default function InvoiceRenderer({ invoice, itemsPerPage = 25 }: InvoiceR
                             </div>
                             <div className="flex justify-between items-baseline">
                                 <span className="text-[9px] font-black text-slate-400 uppercase">Invoice Date</span>
-                                <span className="font-black text-slate-900">{format(new Date(invoice.bill_date || invoice.created_at), 'dd MMM yyyy')}</span>
+                                <span className="font-black text-slate-900">{formatDateSafe(invoice.bill_date || invoice.created_at)}</span>
                             </div>
                             <div className="flex justify-between items-baseline pt-4 border-t border-slate-200/50">
                                 <span className="text-[9px] font-black text-slate-400 uppercase">Place of Supply</span>
-                                <span className="font-black text-slate-900">GUJARAT (24)</span>
+                                <span className="font-black text-slate-900">{placeOfSupply}</span>
                             </div>
                             <div className="flex justify-between items-baseline">
                                 <span className="text-[9px] font-black text-slate-400 uppercase">Terms</span>
@@ -220,7 +288,13 @@ export default function InvoiceRenderer({ invoice, itemsPerPage = 25 }: InvoiceR
                                 <th className="py-2 text-left font-black uppercase text-[9px] text-slate-400 w-10">Sr.</th>
                                 <th className="py-2 text-left font-black uppercase text-[9px]">Description of Service</th>
                                 <th className="py-2 text-center font-black uppercase text-[9px] w-20">SAC Code</th>
-                                <th className="py-2 text-right font-black uppercase text-[9px] w-28">Amount (INR)</th>
+                                {hasAnyDiscount && (
+                                    <>
+                                        <th className="py-2 text-right font-black uppercase text-[9px] w-24 text-slate-400">Gross (INR)</th>
+                                        <th className="py-2 text-right font-black uppercase text-[9px] w-24 text-rose-500">Discount (INR)</th>
+                                    </>
+                                )}
+                                <th className="py-2 text-right font-black uppercase text-[9px] w-28">Net Amount (INR)</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -234,24 +308,51 @@ export default function InvoiceRenderer({ invoice, itemsPerPage = 25 }: InvoiceR
                                         </div>
                                     </td>
                                     <td className="py-3 text-center font-bold text-slate-400">998311</td>
+                                    {hasAnyDiscount && (
+                                        <>
+                                            <td className="py-3 text-right font-bold text-slate-500">
+                                                {fileItems.reduce((acc, item) => acc + (item.amount || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                            </td>
+                                            <td className="py-3 text-right font-bold text-slate-500 text-rose-600">
+                                                {fileItems.reduce((acc, item) => acc + (item.discount || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                            </td>
+                                        </>
+                                    )}
                                     <td className="py-3 text-right font-black text-base">
-                                        {fileItems.reduce((acc, item) => acc + item.amount, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                        {fileItems.reduce((acc, item) => acc + ((item.amount || 0) - (item.discount || 0)), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                     </td>
                                 </tr>
                             )}
 
-                            {otherItems.map((item, idx) => (
-                                <tr key={item.item_id}>
-                                    <td className="py-3 font-black text-slate-300">{(fileItems.length > 0 ? 2 : 1) + idx < 10 ? `0${(fileItems.length > 0 ? 2 : 1) + idx}` : (fileItems.length > 0 ? 2 : 1) + idx}</td>
-                                    <td className="py-3">
-                                        <div className="font-black text-slate-900 text-[13px]">{item.description}</div>
-                                    </td>
-                                    <td className="py-3 text-center font-bold text-slate-400">{item.hsn_code || '998311'}</td>
-                                    <td className="py-3 text-right font-black text-base">
-                                        {item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                    </td>
-                                </tr>
-                            ))}
+                            {otherItems.map((item, idx) => {
+                                const gross = item.amount || 0;
+                                const discount = item.discount || 0;
+                                const net = gross - discount;
+                                const srNo = (fileItems.length > 0 ? 2 : 1) + idx;
+                                const formattedSrNo = srNo < 10 ? `0${srNo}` : `${srNo}`;
+                                return (
+                                    <tr key={item.item_id}>
+                                        <td className="py-3 font-black text-slate-300">{formattedSrNo}</td>
+                                        <td className="py-3">
+                                            <div className="font-black text-slate-900 text-[13px]">{item.description}</div>
+                                        </td>
+                                        <td className="py-3 text-center font-bold text-slate-400">{item.hsn_code || '998311'}</td>
+                                        {hasAnyDiscount && (
+                                            <>
+                                                <td className="py-3 text-right font-bold text-slate-500">
+                                                    {gross.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                </td>
+                                                <td className="py-3 text-right font-bold text-slate-500 text-rose-600">
+                                                    {discount > 0 ? `- ${discount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '0.00'}
+                                                </td>
+                                            </>
+                                        )}
+                                        <td className="py-3 text-right font-black text-base">
+                                            {net.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
@@ -259,25 +360,53 @@ export default function InvoiceRenderer({ invoice, itemsPerPage = 25 }: InvoiceR
                 <div className="mt-6 pt-6 print:mt-4 print:pt-4 border-t-2 border-slate-100 break-inside-avoid">
                     <div className="flex justify-end">
                         <div className="w-72 space-y-2">
+                            {hasAnyDiscount && (
+                                <>
+                                    <div className="flex justify-between text-slate-400 font-medium uppercase text-[9px]">
+                                        <span>Total Gross</span>
+                                        <span className="text-slate-600 font-bold">₹ {grossAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex justify-between text-slate-400 font-medium uppercase text-[9px] text-rose-600">
+                                        <span>Total Discount</span>
+                                        <span>- ₹ {totalDiscount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="border-t border-slate-100 my-1"></div>
+                                </>
+                            )}
                             <div className="flex justify-between text-slate-500 font-bold uppercase text-[9px]">
-                                <span>{isGst ? 'Sub-Total' : 'Total Net Amount'}</span>
+                                <span>{isGst ? 'Taxable Sub-Total' : 'Total Net Amount'}</span>
                                 <span className="text-slate-900 font-black text-[11px]">₹ {subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                             </div>
                             {isGst && (
                                 <div className="space-y-1">
-                                    <div className="flex justify-between text-slate-400 font-medium text-[9px]">
-                                        <span>Central GST ({invoice.gst_rate / 2}%)</span>
-                                        <span className="text-slate-900 font-bold">₹ {(taxTotal / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                                    </div>
-                                    <div className="flex justify-between text-slate-400 font-medium text-[9px]">
-                                        <span>State GST ({invoice.gst_rate / 2}%)</span>
-                                        <span className="text-slate-900 font-bold">₹ {(taxTotal / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                                    </div>
+                                    {isInterState ? (
+                                        <div className="flex justify-between text-slate-400 font-medium text-[9px]">
+                                            <span>Integrated GST ({invoice.gst_rate}%)</span>
+                                            <span className="text-slate-900 font-bold">₹ {taxTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex justify-between text-slate-400 font-medium text-[9px]">
+                                                <span>Central GST ({invoice.gst_rate / 2}%)</span>
+                                                <span className="text-slate-900 font-bold">₹ {(taxTotal / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                            </div>
+                                            <div className="flex justify-between text-slate-400 font-medium text-[9px]">
+                                                <span>State GST ({invoice.gst_rate / 2}%)</span>
+                                                <span className="text-slate-900 font-bold">₹ {(taxTotal / 2).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                            {Math.abs(roundOff) > 0.001 && (
+                                <div className="flex justify-between text-slate-400 font-medium text-[9px] italic">
+                                    <span>Round Off</span>
+                                    <span className="text-slate-900 font-bold">₹ {roundOff > 0 ? '+' : ''}{roundOff.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                                 </div>
                             )}
                             <div className="flex justify-between items-center bg-slate-900 text-white p-3 rounded-xl mt-3">
                                 <span className="font-black uppercase text-[9px] tracking-widest">Total Payable</span>
-                                <span className="font-black text-lg">₹ {grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                <span className="font-black text-lg">₹ {finalTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                             </div>
                         </div>
                     </div>
@@ -367,7 +496,21 @@ export default function InvoiceRenderer({ invoice, itemsPerPage = 25 }: InvoiceR
                                             <div className="text-[8px] text-slate-400 font-mono">FILE_ID: {item.file_id}</div>
                                         </td>
                                         <td className="py-0.5 pr-2 text-right font-black text-slate-900">
-                                            {item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                            {item.discount > 0 ? (
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-slate-900">
+                                                        {((item.amount || 0) - (item.discount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                    </span>
+                                                    <span className="text-[8px] text-slate-400 font-normal line-through">
+                                                        ₹ {(item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                    </span>
+                                                    <span className="text-[8px] text-rose-500 font-bold">
+                                                        -₹ {(item.discount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                (item.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
@@ -376,7 +519,7 @@ export default function InvoiceRenderer({ invoice, itemsPerPage = 25 }: InvoiceR
                                 <tr className="bg-slate-50 font-black">
                                     <td colSpan={2} className="py-2 text-right text-[8px] uppercase tracking-widest pl-2">Annexure Page Total</td>
                                     <td className="py-2 text-right pr-2">
-                                        ₹ {chunk.reduce((acc, item) => acc + item.amount, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                        ₹ {chunk.reduce((acc, item) => acc + ((item.amount || 0) - (item.discount || 0)), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                     </td>
                                 </tr>
                             </tfoot>

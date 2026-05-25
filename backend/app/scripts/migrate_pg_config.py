@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 import sys
 import os
 
@@ -9,7 +11,7 @@ from app.database import SessionLocal, engine
 from app.models import AccountingConfig
 
 def run_migration():
-    print("Connecting to RDS database...")
+    logger.info("Connecting to RDS database...")
     db = SessionLocal()
     try:
         # Check if table exists (it might not have been created yet if it's new)
@@ -27,19 +29,19 @@ def run_migration():
 
         # First, ensure table exists
         AccountingConfig.__table__.create(bind=engine, checkfirst=True)
-        print("Ensured 'accounting_config' table exists.")
+        logger.info("Ensured 'accounting_config' table exists.")
 
         for col_name, col_type in columns_to_add:
             try:
-                print(f"Adding column {col_name}...")
+                logger.info(f"Adding column {col_name}...")
                 db.execute(text(f"ALTER TABLE accounting_config ADD COLUMN IF NOT EXISTS {col_name} {col_type}"))
                 db.commit()
-                print(f"Column {col_name} added or already exists.")
+                logger.info(f"Column {col_name} added or already exists.")
             except Exception as e:
-                print(f"Error adding {col_name}: {e}")
+                logger.info(f"Error adding {col_name}: {e}")
                 db.rollback()
 
-        print("Migration completed.")
+        logger.info("Migration completed.")
     finally:
         db.close()
 

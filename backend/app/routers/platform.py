@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, Request
 from datetime import datetime
 from pydantic import BaseModel
@@ -31,7 +33,7 @@ async def get_settings(db: Session = Depends(get_db)):
         # Filter out any unexpected None entries to prevent AttributeError
         return {s.key: s.value for s in settings if s}
     except Exception as e:
-        print(f"🔥 Settings Critical Error: {e}")
+        logger.info(f"? Settings Critical Error: {e}")
         # Return empty dict instead of 500 if possible, or at least log it
         import traceback
         traceback.print_exc()
@@ -53,7 +55,7 @@ async def update_setting(key: str, update: SettingUpdate, db: Session = Depends(
     try:
         log_audit(db, current_user.user_id, "SETTING_UPDATED", f"Updated system setting: {key} = {update.value}")
     except Exception as e:
-        print(f"Audit Log Error: {e}")
+        logger.info(f"Audit Log Error: {e}")
 
     return {"status": "success", "key": key, "value": update.value}
 
@@ -76,7 +78,7 @@ async def clear_system_cache(
     try:
         log_audit(db, current_user.user_id, "SYSTEM_CACHE_CLEARED", "User triggered a manual system cache clear")
     except Exception as e:
-        print(f"Audit Log Error: {e}")
+        logger.info(f"Audit Log Error: {e}")
 
     return {
         "status": "success",
@@ -123,7 +125,7 @@ async def run_bulk_ocr(
     try:
         log_audit(db, current_user.user_id, "BULK_OCR_TRIGGERED", f"Triggered OCR for {count} files")
     except Exception as e:
-        print(f"Audit Log Error: {e}")
+        logger.info(f"Audit Log Error: {e}")
     
     return {
         "status": "success", 
@@ -147,7 +149,7 @@ async def get_system_error_logs(
         logs = db.query(SystemErrorLog).order_by(SystemErrorLog.timestamp.desc()).limit(limit).all()
         return logs
     except Exception as e:
-        print(f"System Error Logs fetching error: {e}")
+        logger.info(f"System Error Logs fetching error: {e}")
         raise HTTPException(status_code=500, detail="Could not fetch system error logs")
 
 @router.get("/ocr-status")
@@ -182,7 +184,7 @@ async def get_ocr_status(
             "completed_ocr": completed
         }
     except Exception as e:
-        print(f"OCR Status Error: {e}")
+        logger.info(f"OCR Status Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/ocr-logs")
@@ -202,7 +204,7 @@ async def get_ocr_logs(current_user: User = Depends(get_current_user)):
         else:
              logs = ["Log file not found."]
     except Exception as e:
-        print(f"Error reading logs: {e}")
+        logger.info(f"Error reading logs: {e}")
         logs = [f"Error reading logs: {e}"]
         
     return {"logs": logs}

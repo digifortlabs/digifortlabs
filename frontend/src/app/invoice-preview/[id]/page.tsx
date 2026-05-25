@@ -21,7 +21,7 @@ import InvoiceRenderer from '@/components/InvoiceRenderer';
 export default function InvoicePreviewPage() {
     const params = useParams();
     const router = useRouter();
-    const invoiceId = params.id;
+    const invoiceId = params?.id;
 
     const [invoice, setInvoice] = useState<any>(null);
     const [loading, setLoading] = useState(true);

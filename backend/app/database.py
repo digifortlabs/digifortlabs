@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 import os
 
 from dotenv import load_dotenv
@@ -14,7 +16,7 @@ SQLALCHEMY_DATABASE_URL = os.getenv(
 )
 
 # DEBUG: Print the loaded URL (masking password)
-print(f"SQLAlchemy connecting to: {SQLALCHEMY_DATABASE_URL.split('@')[-1]}")
+logger.info(f"SQLAlchemy connecting to: {SQLALCHEMY_DATABASE_URL.split('@')[-1]}")
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, 

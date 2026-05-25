@@ -38,10 +38,10 @@ def seed_procedures():
             db.merge(code) # Use merge to avoid dupes and update existing
         
         db.commit()
-        logger.info("✅ Procedure update complete!")
+        logger.info("[OK] Procedure update complete!")
 
     except Exception as e:
-        logger.error(f"❌ Seed failed: {e}")
+        logger.error(f"[ERROR] Seed failed: {e}")
         db.rollback()
     finally:
         db.close()

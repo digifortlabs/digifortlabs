@@ -84,7 +84,7 @@ def create_receipt_voucher(
     Generic Receipt Voucher: Record money received from a party.
     Unlike 'receive-payment', this doesn't need to be tied to a specific invoice.
     """
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
          raise HTTPException(status_code=403, detail="Access denied")
 
     # Get Config
@@ -102,7 +102,7 @@ def create_receipt_voucher(
             fy=config.current_fy,
             number=config.next_receipt_number
         )
-        config.next_receipt_number += 1
+        config.next_receipt_number += 1  # type: ignore
 
     # Create Ledger Entry (Credit)
     ledger_entry = AccountingTransaction(
@@ -129,7 +129,7 @@ def get_ledger(
 ):
     """Retrieve full Statement of Account for a Hospital or Vendor."""
     # Restricted to Super Admin / Platform Staff
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Access denied")
 
     party_name = "Unknown"
@@ -168,7 +168,7 @@ def create_expense(
     current_user: User = Depends(get_current_user)
 ):
     """Log a business expense."""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
          raise HTTPException(status_code=403, detail="Access denied")
 
     # Get Config
@@ -186,7 +186,7 @@ def create_expense(
             fy=config.current_fy,
             number=config.next_expense_number
         )
-        config.next_expense_number += 1
+        config.next_expense_number += 1  # type: ignore
 
     new_expense = AccountingExpense(
         description=req.description,
@@ -239,7 +239,7 @@ def get_accounting_overview(
     current_user: User = Depends(get_current_user)
 ):
     """Professional Financial Dashboard Summary."""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
          raise HTTPException(status_code=403, detail="Access denied")
 
     # 1. Total Receivables (Balance from all Hospital Ledgers)
@@ -292,7 +292,7 @@ def create_vendor(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
          raise HTTPException(status_code=403, detail="Access denied")
 
     vendor = AccountingVendor(**req.dict())
@@ -303,7 +303,7 @@ def create_vendor(
 
 @router.get("/vendors")
 def list_vendors(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
          raise HTTPException(status_code=403, detail="Access denied")
     return db.query(AccountingVendor).all()
 
@@ -315,7 +315,7 @@ def update_expense(
     current_user: User = Depends(get_current_user)
 ):
     """Update an existing expense and its linked transactions."""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
          raise HTTPException(status_code=403, detail="Access denied")
 
     expense = db.query(AccountingExpense).filter(AccountingExpense.expense_id == expense_id).first()
@@ -323,11 +323,11 @@ def update_expense(
         raise HTTPException(status_code=404, detail="Expense not found")
 
     # Update Expense Record
-    expense.description = req.description
-    expense.amount = req.amount
-    expense.category = req.category
-    expense.payment_method = req.payment_method
-    expense.date = req.date or expense.date
+    expense.description = req.description  # type: ignore
+    expense.amount = req.amount  # type: ignore
+    expense.category = req.category  # type: ignore
+    expense.payment_method = req.payment_method  # type: ignore
+    expense.date = req.date or expense.date  # type: ignore
     
     # Update Related Ledger Entries (Reset amounts)
     internal_txn = db.query(AccountingTransaction).filter(
@@ -337,8 +337,8 @@ def update_expense(
     ).first()
     
     if internal_txn:
-        internal_txn.debit = req.amount + req.tax_amount
-        internal_txn.description = f"Expense: {req.description} ({req.category})"
+        internal_txn.debit = req.amount + (req.tax_amount or 0.0)  # type: ignore
+        internal_txn.description = f"Expense: {req.description} ({req.category})"  # type: ignore
         internal_txn.date = expense.date
 
     # If linked to vendor, update that too
@@ -349,8 +349,8 @@ def update_expense(
             AccountingTransaction.party_type == "VENDOR"
         ).first()
         if vendor_txn:
-            vendor_txn.credit = req.amount + req.tax_amount
-            vendor_txn.description = f"Purchase/Expense: {req.description}"
+            vendor_txn.credit = req.amount + (req.tax_amount or 0.0)  # type: ignore
+            vendor_txn.description = f"Purchase/Expense: {req.description}"  # type: ignore
             vendor_txn.date = expense.date
 
     db.commit()
@@ -363,7 +363,7 @@ def delete_expense(
     current_user: User = Depends(get_current_user)
 ):
     """Delete an expense and remove it from the ledger."""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
          raise HTTPException(status_code=403, detail="Access denied")
 
     expense = db.query(AccountingExpense).filter(AccountingExpense.expense_id == expense_id).first()

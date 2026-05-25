@@ -37,23 +37,38 @@ export default function DashboardPageShell({
 }: DashboardPageShellProps) {
     return (
         <div className="min-h-screen bg-slate-50/50 p-3 lg:p-4 pt-4">
-            {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                <div>
-                    <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-                        <Icon size={24} className="text-indigo-600" /> {title}
-                    </h1>
-                    {description && <p className="text-slate-500 mt-1 text-xs">{description}</p>}
+            {/* Unified Top Bar */}
+            <div className="flex items-center gap-3 mb-6 bg-white border border-slate-200/80 rounded-2xl px-4 py-3 shadow-sm">
+                {/* Icon + Title */}
+                <div className="flex items-center gap-2.5 shrink-0">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center">
+                        <Icon size={16} className="text-indigo-600" strokeWidth={2.5} />
+                    </div>
+                    <span className="font-black text-slate-900 text-sm tracking-tight hidden sm:inline">{title}</span>
                 </div>
-                <div className="flex items-center gap-3">
-                    {actions}
-                </div>
-            </div>
 
-            {/* Controls Bar */}
-            <div className="flex flex-col md:flex-row gap-3 items-center justify-between mb-6">
+                <div className="w-px h-6 bg-slate-200 shrink-0" />
+
+                {/* Search */}
+                {onSearchChange && (
+                    <div className="relative flex-1 max-w-md">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                        <input
+                            type="text"
+                            placeholder={searchPlaceholder}
+                            value={searchTerm}
+                            onChange={(e) => onSearchChange(e.target.value)}
+                            className="w-full pl-9 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 focus:bg-white font-medium transition-all text-sm placeholder:text-slate-400"
+                        />
+                        {isSearching && (
+                            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-indigo-500" size={14} />
+                        )}
+                    </div>
+                )}
+
+                {/* Tabs (if any) */}
                 {tabs && (
-                    <div className="flex bg-slate-200/50 p-1 rounded-xl w-fit">
+                    <div className="flex bg-slate-100 p-1 rounded-xl">
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}
@@ -71,21 +86,10 @@ export default function DashboardPageShell({
                     </div>
                 )}
 
-                {onSearchChange && (
-                    <div className="relative w-full md:w-96">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input
-                            type="text"
-                            placeholder={searchPlaceholder}
-                            value={searchTerm}
-                            onChange={(e) => onSearchChange(e.target.value)}
-                            className="w-full pl-10 pr-10 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 font-medium transition text-sm"
-                        />
-                        {isSearching && (
-                            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-indigo-500" size={16} />
-                        )}
-                    </div>
-                )}
+                {/* Actions pushed to right */}
+                <div className="flex items-center gap-3 ml-auto shrink-0">
+                    {actions}
+                </div>
             </div>
 
             {/* Main Content */}

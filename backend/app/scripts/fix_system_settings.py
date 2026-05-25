@@ -1,9 +1,11 @@
+import logging
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import text
 from app.database import engine
 
 def run_fix():
-    print("🛠️ Fixing system_settings table...")
+    logger.info("?? Fixing system_settings table...")
     with engine.connect() as conn:
         try:
             # 1. Backup existing settings (though it's just announcement usually)
@@ -20,7 +22,7 @@ def run_fix():
                     description VARCHAR
                 )
             """))
-            print("✅ Table recreated with SERIAL id.")
+            logger.info("[OK] Table recreated with SERIAL id.")
             
             # 3. Restore data
             for key, value in existing_data:
@@ -29,9 +31,9 @@ def run_fix():
                     {"key": key, "value": value}
                 )
             conn.commit()
-            print(f"✅ Restored {len(existing_data)} settings.")
+            logger.info(f"[OK] Restored {len(existing_data)} settings.")
         except Exception as e:
-            print(f"❌ Error: {e}")
+            logger.info(f"[ERROR] Error: {e}")
             conn.rollback()
 
 if __name__ == "__main__":

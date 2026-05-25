@@ -4,7 +4,9 @@ from pydantic import BaseModel
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func
+import io
+import csv
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
 from ..database import get_db
@@ -260,8 +262,8 @@ def mark_files_as_paid(
     files = db.query(PDFFile).filter(PDFFile.file_id.in_(payload.file_ids)).all()
     count = 0
     for f in files:
-        f.is_paid = payload.is_paid
-        f.payment_date = datetime.utcnow() if payload.is_paid else None
+        f.is_paid = payload.is_paid  # type: ignore
+        f.payment_date = datetime.utcnow() if payload.is_paid else None  # type: ignore
         count += 1
         
     db.commit()
@@ -278,7 +280,7 @@ def get_clinical_report(
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(PDFFile).join(Patient).options(
-        joinedload(PDFFile.patient).subqueryload(Patient.diagnoses)
+        joinedload(PDFFile.patient)
     )
     query = apply_hospital_filter(query, Patient, current_user, hospital_id)
     query = apply_date_filter(query, PDFFile.upload_date, start_date, end_date)
@@ -312,15 +314,17 @@ def get_clinical_report(
             "file_id": f.file_id,
             "filename": f.filename,
             "patient_name": f.patient.full_name if f.patient else "Unknown",
-            "patient_id": f.patient.record_id if f.patient else None,
+            "patient_id": f.patient.patient_u_id if f.patient else None,
             "tags": f.tags or "Unclassified",
-            "icd_codes": ", ".join([d.code for d in f.patient.diagnoses]) if f.patient and f.patient.diagnoses else "N/A",
-            "upload_date": f.upload_date.strftime("%d/%m/%Y") if f.upload_date else "N/A"
+            "icd_codes": f.patient.diagnosis if f.patient and f.patient.diagnosis else "N/A",
+            "upload_date": f.upload_date.strftime("%d/%m/%Y") if f.upload_date else "N/A",
+            "admission_date": f.patient.admission_date.strftime("%d/%m/%Y") if f.patient and f.patient.admission_date else None,
+            "discharge_date": f.patient.discharge_date.strftime("%d/%m/%Y") if f.patient and f.patient.discharge_date else None
         })
             
     if export_csv:
         output = io.StringIO()
-        fieldnames = ["file_id", "filename", "patient_name", "icd_codes", "tags", "upload_date"]
+        fieldnames = ["file_id", "filename", "patient_name", "patient_id", "icd_codes", "tags", "upload_date", "admission_date", "discharge_date"]
         writer = csv.DictWriter(output, fieldnames=fieldnames)
         if writer:
             writer.writeheader()

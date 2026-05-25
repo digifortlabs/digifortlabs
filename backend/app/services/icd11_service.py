@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 import os
 import requests
 import time
@@ -16,7 +18,7 @@ class WHOICDService:
         if self.token and time.time() < self.token_expiry:
             return self.token
 
-        print("🔑 Fetching new WHO ICD-11 Access Token...")
+        logger.info("[KEY] Fetching new WHO ICD-11 Access Token...")
         data = {
             "grant_type": "client_credentials",
             "client_id": self.client_id,
@@ -32,7 +34,7 @@ class WHOICDService:
             self.token_expiry = time.time() + res_data["expires_in"] - 60
             return self.token
         except Exception as e:
-            print(f"❌ WHO Token Error: {e}")
+            logger.info(f"[ERROR] WHO Token Error: {e}")
             return None
 
     def search_codes(self, query: str) -> List[Dict]:
@@ -40,7 +42,7 @@ class WHOICDService:
         if not token:
             return []
 
-        print(f"🔍 Searching WHO ICD-11 for: {query}")
+        logger.info(f"[SEARCH] Searching WHO ICD-11 for: {query}")
         headers = {
             "Authorization": f"Bearer {token}",
             "Accept": "application/json",
@@ -77,7 +79,7 @@ class WHOICDService:
             
             return formatted_results[:20] # Return top 20
         except Exception as e:
-            print(f"❌ WHO Search Error: {e}")
+            logger.info(f"[ERROR] WHO Search Error: {e}")
             return []
 
 # Singleton instance

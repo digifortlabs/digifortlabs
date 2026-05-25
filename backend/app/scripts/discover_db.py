@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 import psycopg2
 import os
 from dotenv import load_dotenv
@@ -18,7 +20,7 @@ options = [
 
 for opt in options:
     try:
-        print(f"Trying {opt['db']} on {opt['host']}:{opt['port']}...")
+        logger.info(f"Trying {opt['db']} on {opt['host']}:{opt['port']}...")
         conn = psycopg2.connect(
             dbname=opt['db'],
             user=user,
@@ -27,15 +29,15 @@ for opt in options:
             port=opt['port'],
             connect_timeout=3
         )
-        print(f"✅ SUCCESS! Connected to {opt['db']}")
+        logger.info(f"[OK] SUCCESS! Connected to {opt['db']}")
         
         cur = conn.cursor()
         cur.execute("SELECT email FROM users LIMIT 5;")
         users = cur.fetchall()
-        print(f"Found {len(users)} users: {users}")
+        logger.info(f"Found {len(users)} users: {users}")
         
         cur.close()
         conn.close()
         break
     except Exception as e:
-        print(f"❌ Failed: {e}")
+        logger.info(f"[ERROR] Failed: {e}")

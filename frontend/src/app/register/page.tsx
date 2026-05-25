@@ -553,7 +553,12 @@ export default function RegisterPage() {
                             {/* Navigation */}
                             <div className="flex gap-3 pt-2">
                                 {step > 1 && (
-                                    <button type="button" onClick={prevStep} className="flex items-center gap-2 px-6 py-4 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-[0.98]">
+                                    <button 
+                                        type="button" 
+                                        onClick={prevStep} 
+                                        disabled={loading}
+                                        className="flex items-center gap-2 px-6 py-4 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
                                         <ArrowLeft size={16} /> Back
                                     </button>
                                 )}

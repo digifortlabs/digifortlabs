@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 from datetime import datetime
 from typing import List, Optional
 
@@ -370,14 +372,14 @@ def bulk_assign_files(req: BulkAssignRequest, db: Session = Depends(get_db), cur
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.WAREHOUSE_MANAGER, UserRole.HOSPITAL_ADMIN, UserRole.PLATFORM_STAFF]:
         raise HTTPException(status_code=403, detail="Not authorized")
         
-    print(f"[DEBUG] Bulk Assign: box_id={req.box_id}, identifiers={req.identifiers}, user={current_user.email}")
+    logger.info(f"[DEBUG] Bulk Assign: box_id={req.box_id}, identifiers={req.identifiers}, user={current_user.email}")
     
     box = db.query(PhysicalBox).filter(PhysicalBox.box_id == req.box_id).first()
     if not box:
-        print(f"[DEBUG] Bulk Assign: Box {req.box_id} NOT FOUND")
+        logger.info(f"[DEBUG] Bulk Assign: Box {req.box_id} NOT FOUND")
         raise HTTPException(status_code=404, detail="Box not found")
         
-    print(f"[DEBUG] Bulk Assign: Box {box.box_id} found. is_open={box.is_open}, capacity={box.capacity}")
+    logger.info(f"[DEBUG] Bulk Assign: Box {box.box_id} found. is_open={box.is_open}, capacity={box.capacity}")
     if not box.is_open:
         raise HTTPException(status_code=400, detail="This box is CLOSED. Please open it first.")
 
@@ -987,7 +989,7 @@ def create_request(req: RequestCreate, db: Session = Depends(get_db), current_us
                 requester=current_user.email
              )
     except Exception as e:
-        print(f"Failed to send email notifications: {e}")
+        logger.info(f"Failed to send email notifications: {e}")
         
     return {"status": "success", "request_id": new_req.request_id}
 
@@ -1047,7 +1049,7 @@ def update_request_status(request_id: int, status: str, db: Session = Depends(ge
                 requester=req.requester_name
              )
     except Exception as e:
-        print(f"Failed to send email notifications: {e}")
+        logger.info(f"Failed to send email notifications: {e}")
 
     return {"status": "success", "message": f"Status updated to {status}"}
 

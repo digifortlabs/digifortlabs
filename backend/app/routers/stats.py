@@ -1,6 +1,8 @@
+import logging
+logger = logging.getLogger(__name__)
 import math
-from datetime import date, datetime, timedelta
-from typing import Dict, Optional
+from datetime import date, datetime, timedelta, timezone
+from typing import Dict, Optional, cast
 
 from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy import func
@@ -43,6 +45,12 @@ def get_dashboard_stats(
         target_hospital_id = current_user.hospital_id
         is_drilled_down = False
 
+    # Initialize trend times and queries outside try-except to prevent uninitialized errors
+    now = datetime.now(timezone.utc)
+    last_24h = now - timedelta(hours=24)
+    prev_24h = now - timedelta(hours=48)
+    q_patients = db.query(Patient)
+
     # 1. User Stats & Trend
     try:
         q_users = db.query(User)
@@ -52,14 +60,10 @@ def get_dashboard_stats(
         user_count = q_users.count()
         
         # Active Users (last 15 mins)
-        fifteen_mins_ago = datetime.utcnow() - timedelta(minutes=15)
+        fifteen_mins_ago = datetime.now(timezone.utc) - timedelta(minutes=15)
         active_users = q_users.filter(User.last_active_at >= fifteen_mins_ago).count()
     
         # Trend: Users joined in last 24h vs previous 24h
-        now = datetime.utcnow()
-        last_24h = now - timedelta(hours=24)
-        prev_24h = now - timedelta(hours=48)
-        
         new_users_24h = q_users.filter(User.created_at >= last_24h).count()
         old_users_24h = q_users.filter(User.created_at >= prev_24h, User.created_at < last_24h).count()
         
@@ -71,7 +75,7 @@ def get_dashboard_stats(
             user_trend = f"+{new_users_24h}"
     except Exception as e:
         db.rollback()
-        print(f"Stats Error (Users): {e}")
+        logger.info(f"Stats Error (Users): {e}")
         user_count = 0
         active_users = 0
         user_trend = "Error"
@@ -95,7 +99,7 @@ def get_dashboard_stats(
             patient_trend = f"+{new_patients_24h}"
     except Exception as e:
         db.rollback()
-        print(f"Stats Error (Patients): {e}")
+        logger.info(f"Stats Error (Patients): {e}")
         patient_count = 0
         patient_trend = "Error"
 
@@ -110,7 +114,7 @@ def get_dashboard_stats(
             warehouse_capacity_pct = 0
     except Exception as e:
         db.rollback()
-        print(f"Stats Error (Warehouse): {e}")
+        logger.info(f"Stats Error (Warehouse): {e}")
         box_count = 0
         warehouse_capacity_pct = 0
     
@@ -122,14 +126,14 @@ def get_dashboard_stats(
         pending_requests = q_reqs.count()
 
         # Calculate Today's Scans
-        today_start = datetime.combine(date.today(), datetime.min.time())
+        today_start = datetime.combine(date.today(), datetime.min.time()).replace(tzinfo=timezone.utc)
         q_todays_scans = db.query(PDFFile).filter(PDFFile.upload_date >= today_start)
         if target_hospital_id:
              q_todays_scans = q_todays_scans.join(Patient).filter(Patient.hospital_id == target_hospital_id)
         todays_scans_count = q_todays_scans.count()
     except Exception as e:
         db.rollback()
-        print(f"Stats Error (Requests): {e}")
+        logger.info(f"Stats Error (Requests): {e}")
         pending_requests = 0
         todays_scans_count = 0
     
@@ -150,7 +154,7 @@ def get_dashboard_stats(
         } for log in recent_audits]
     except Exception as e:
         db.rollback()
-        print(f"Stats Error (Audit): {e}")
+        logger.info(f"Stats Error (Audit): {e}")
 
     # 6. QA Issues (Real Data Only)
     qa_data = []
@@ -171,7 +175,7 @@ def get_dashboard_stats(
         } for i in qa_issues]
     except Exception as e:
         db.rollback()
-        print(f"Stats Error (QA): {e}")
+        logger.info(f"Stats Error (QA): {e}")
 
     # 7. Storage & Trends
     total_bytes = 0
@@ -190,7 +194,7 @@ def get_dashboard_stats(
             size_bytes = float(size_bytes)
             if size_bytes <= 0: return "0 B"
             units = ("B", "KB", "MB", "GB", "TB", "PB")
-            i = int(math.floor(math.log(size_bytes, 1024)))
+            i = math.floor(math.log(size_bytes, 1024))
             p = math.pow(1024, i)
             s = round(size_bytes / p, 2)
             return f"{s} {units[i]}"
@@ -207,7 +211,7 @@ def get_dashboard_stats(
         storage_capacity_pct = min(round((total_bytes / max_storage_bytes) * 100, 1), 100)
     except Exception as e:
         db.rollback()
-        print(f"Stats Error (Storage): {e}")
+        logger.info(f"Stats Error (Storage): {e}")
 
     # 8. Billing & Revenue (For Detailed Hospital View)
     billing_data = None
@@ -222,7 +226,7 @@ def get_dashboard_stats(
                 # In a real system, this would consider page counts
                 q_total_files = q_patients.join(PDFFile).filter(PDFFile.upload_status == 'confirmed')
                 total_files = q_total_files.count()
-                estimated_revenue = total_files * hospital.price_per_file
+                estimated_revenue = total_files * cast(float, hospital.price_per_file)
                 billing_data = {
                     "subscription_tier": hospital.subscription_tier,
                     "price_per_file": hospital.price_per_file,
@@ -232,7 +236,7 @@ def get_dashboard_stats(
                 }
     except Exception as e:
         db.rollback()
-        print(f"Stats Error (Billing): {e}")
+        logger.info(f"Stats Error (Billing): {e}")
 
     # 9. Open Boxes Count
     open_boxes_count = 0
@@ -243,7 +247,7 @@ def get_dashboard_stats(
         open_boxes_count = q_open_boxes.count()
     except Exception as e:
         db.rollback()
-        print(f"Stats Error (Boxes): {e}")
+        logger.info(f"Stats Error (Boxes): {e}")
     
     # 10. Files Pending QA
     files_pending_qa = len(qa_data)
@@ -258,7 +262,7 @@ def get_dashboard_stats(
                 category_breakdown.append({"name": category, "value": count})
     except Exception as e:
         db.rollback()
-        print(f"Stats Error (Categories): {e}")
+        logger.info(f"Stats Error (Categories): {e}")
     
     # 12. Activity Trend (last 7 days for line chart)
     activity_trend = []
@@ -281,7 +285,7 @@ def get_dashboard_stats(
             })
     except Exception as e:
         db.rollback()
-        print(f"Stats Error (Activity): {e}")
+        logger.info(f"Stats Error (Activity): {e}")
     
     # 13. Enhanced Recent Activity with Patient Names
     audit_data_enhanced = []
@@ -313,7 +317,7 @@ def get_dashboard_stats(
             })
     except Exception as e:
         db.rollback()
-        print(f"Stats Error (Recent Audits): {e}")
+        logger.info(f"Stats Error (Recent Audits): {e}")
 
     # 14. Recent Uploads (last 24 hours)
     recent_uploads_count = todays_scans_count
@@ -323,7 +327,7 @@ def get_dashboard_stats(
     if app_state.total_requests > 0:
         avg_latency = (app_state.total_latency / app_state.total_requests) * 1000
     
-    uptime_delta = datetime.utcnow() - getattr(app_state, 'startup_time', datetime.utcnow())
+    uptime_delta = datetime.now(timezone.utc) - getattr(app_state, 'startup_time', datetime.now(timezone.utc))
     # uptime_str = f"{uptime_delta.days}d {uptime_delta.seconds // 3600}h" if uptime_delta.days > 0 else f"{uptime_delta.seconds // 3600}h {(uptime_delta.seconds % 3600) // 60}m"
     
     # FETCH PREVIOUS LOGIN (Safe string format)
@@ -410,7 +414,7 @@ def get_group_stats(
     branch_stats = []
     for h in hospitals:
         branch_files = db.query(PDFFile).join(Patient).filter(Patient.hospital_id == h.hospital_id).count()
-        rev = branch_files * h.price_per_file
+        rev = branch_files * cast(float, h.price_per_file)
         total_revenue += rev
         branch_stats.append({
             "hospital_id": h.hospital_id,
@@ -444,7 +448,7 @@ def get_global_stats(
     total_files = db.query(PDFFile).count()
     
     # Active Users (last 15 mins)
-    fifteen_mins_ago = datetime.utcnow() - timedelta(minutes=15)
+    fifteen_mins_ago = datetime.now(timezone.utc) - timedelta(minutes=15)
     active_users = db.query(User).filter(User.last_active_at >= fifteen_mins_ago).count()
 
     return {

@@ -52,8 +52,8 @@ export default function GlobalHospitalSelector() {
             window.dispatchEvent(new CustomEvent('hospitalChanged', { detail: value }));
             
             // Navigate to overview with the selected hospital
-            const targetPath = `/dashboard/hospital-overview?hospital_id=${value}`;
-            if (pathname === '/dashboard/hospital-overview') {
+            const targetPath = `/hospital-overview?hospital_id=${value}`;
+            if (pathname === '/hospital-overview') {
                 router.replace(targetPath);
             } else {
                 router.push(targetPath);
@@ -62,10 +62,10 @@ export default function GlobalHospitalSelector() {
             localStorage.removeItem('globalHospitalId');
             window.dispatchEvent(new CustomEvent('hospitalChanged', { detail: '' }));
             
-            if (pathname === '/dashboard') {
-                router.replace(`/dashboard`);
+            if (pathname === '/') {
+                router.replace(`/`);
             } else {
-                router.push(`/dashboard`);
+                router.push(`/`);
             }
         }
     };

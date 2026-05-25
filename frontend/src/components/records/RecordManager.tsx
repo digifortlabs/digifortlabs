@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, FolderOpen, User, FileText, Loader2, RefreshCw, Building2, LayoutGrid, List, Activity, ArrowRight, ArrowUpDown, Pencil, ChevronRight } from 'lucide-react';
+import { Plus, Search, FolderOpen, User, FileText, Loader2, RefreshCw, Building2, LayoutGrid, List, Activity, ArrowRight, ArrowUpDown, Pencil, ChevronRight, X, ChevronUp, ChevronDown, Users } from 'lucide-react';
 import { useTerminology } from '@/hooks/useTerminology';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL, apiFetch } from '@/config/api';
@@ -10,10 +10,11 @@ import { formatDate } from '@/lib/dateFormatter';
 import DashboardPageShell from '@/components/DashboardPageShell';
 
 // Dynamic imports or standardized paths for components
-import CameraModal from '@/app/dashboard/records/components/CameraModal';
-import PatientDetailView from '@/app/dashboard/records/components/PatientDetailView';
-import DentalPatientDetail from '@/app/dashboard/dental/components/PatientDetail';
-import PatientCreateModal from '@/app/dashboard/records/components/PatientCreateModal';
+import CameraModal from '@/app/hospital/records/components/CameraModal';
+import PatientDetailView from '@/app/hospital/records/components/PatientDetailView';
+import DentalPatientDetail from '@/app/hospital/dental/components/PatientDetail';
+import PatientCreateModal from '@/app/hospital/records/components/PatientCreateModal';
+import HospitalSelectionPrompt from '@/components/HospitalSelectionPrompt';
 
 interface RecordManagerProps {
     mode: 'patients' | 'corporate';
@@ -33,7 +34,6 @@ interface PatientState {
     dob: string;
     admission_date: string;
     discharge_date: string;
-    mother_record_id: string | number;
     doctor_name: string;
     weight: string;
     mediclaim: string;
@@ -76,6 +76,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
     const [globalSearchResults, setGlobalSearchResults] = useState<any[]>([]);
     const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
     const [userProfile, setUserProfile] = useState<any>(null);
+    const [userRole, setUserRole] = useState<string>('');
     const [hospitals, setHospitals] = useState<any[]>([]);
     const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null);
     const [hospitalDoctors, setHospitalDoctors] = useState<string[]>([]);
@@ -98,11 +99,12 @@ export default function RecordManager({ mode }: RecordManagerProps) {
     const monthRange = getMonthRange();
     const [startDate, setStartDate] = useState(monthRange.start);
     const [endDate, setEndDate] = useState(monthRange.end);
+    const [showAllDates, setShowAllDates] = useState(false);
 
     const [newPatient, setNewPatient] = useState<PatientState>({
         full_name: '', patient_u_id: '', uhid: '', age: '', gender: '', address: '', contact_number: '', email_id: '',
         aadhaar_number: '', patient_category: config.category, dob: '', admission_date: '', discharge_date: '',
-        mother_record_id: '', doctor_name: '', weight: '', mediclaim: '', diagnosis: ''
+        doctor_name: '', weight: '', mediclaim: '', diagnosis: ''
     });
 
     // --- Helpers ---
@@ -110,7 +112,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
         setNewPatient({
             full_name: '', patient_u_id: '', uhid: '', age: '', gender: '', address: '', contact_number: '', email_id: '',
             aadhaar_number: '', patient_category: specialty === 'Dental' ? 'OPD' : config.category, dob: '', admission_date: '', discharge_date: '',
-            mother_record_id: '', doctor_name: '', weight: '', mediclaim: '', diagnosis: ''
+            doctor_name: '', weight: '', mediclaim: '', diagnosis: ''
         });
         setIsExistingPatient(false);
         setIsMRDDuplicate(false);
@@ -129,10 +131,21 @@ export default function RecordManager({ mode }: RecordManagerProps) {
 
     // --- API Interactions ---
     const fetchUserProfile = async () => {
-        try {
+        // Retry once after a short delay to handle auth token race condition on page load
+        const attempt = async () => {
             const data = await apiFetch(`users/me`);
             if (data) setUserProfile(data);
-        } catch (e) { console.error(e); }
+        };
+        try {
+            await attempt();
+        } catch (e: any) {
+            if (e?.status === 401) {
+                await new Promise(r => setTimeout(r, 500));
+                try { await attempt(); } catch (e2) { console.error('Auth failed after retry', e2); }
+            } else {
+                console.error(e);
+            }
+        }
     };
 
     const fetchHospitals = async () => {
@@ -145,12 +158,12 @@ export default function RecordManager({ mode }: RecordManagerProps) {
     const fetchPatients = async () => {
         setLoading(true);
         try {
-            let url = `patients/?start_date=${startDate}&end_date=${endDate}`;
-            if (mode === 'corporate') url += `&module=corporate`;
+            let url = showAllDates ? `patients/?` : `patients/?start_date=${startDate}&end_date=${endDate}&`;
+            if (mode === 'corporate') url += `module=corporate&`;
             if (specialty === 'Dental') url = `dental/patients?skip=0&limit=100`;
 
             if (selectedHospitalId && ['superadmin', 'superadmin_staff', 'website_admin', 'website_staff'].includes(userProfile?.role)) {
-                url += `&hospital_id=${selectedHospitalId}`;
+                url += `hospital_id=${selectedHospitalId}`;
             }
 
             const data = await apiFetch(url);
@@ -186,11 +199,19 @@ export default function RecordManager({ mode }: RecordManagerProps) {
 
     // --- Lifecycle ---
     useEffect(() => {
+        setUserRole(localStorage.getItem('userRole') || '');
         fetchUserProfile();
-        const saved = localStorage.getItem('globalHospitalId');
+        const saved = localStorage.getItem('mrd_hospital_id');
         if (saved) setSelectedHospitalId(Number(saved));
 
-        const handleHospitalChanged = (e: any) => setSelectedHospitalId(e.detail ? Number(e.detail) : null);
+        const handleHospitalChanged = (e: any) => {
+            if (e.detail?.storageKey === 'mrd_hospital_id') {
+                setSelectedHospitalId(e.detail.hospitalId ? Number(e.detail.hospitalId) : null);
+            } else if (typeof e.detail === 'string' || typeof e.detail === 'number') {
+                // Backward compatibility
+                setSelectedHospitalId(e.detail ? Number(e.detail) : null);
+            }
+        };
         window.addEventListener('hospitalChanged', handleHospitalChanged);
         return () => window.removeEventListener('hospitalChanged', handleHospitalChanged);
     }, []);
@@ -199,7 +220,13 @@ export default function RecordManager({ mode }: RecordManagerProps) {
         if (userProfile) {
             if (['website_admin', 'website_staff', 'superadmin', 'superadmin_staff'].includes(userProfile.role)) {
                 fetchHospitals();
-                if (hospitalIdParam) setSelectedHospitalId(parseInt(hospitalIdParam));
+                if (hospitalIdParam) {
+                    setSelectedHospitalId(parseInt(hospitalIdParam));
+                } else {
+                    // Use already-set mrd_hospital_id from localStorage (set on mount above)
+                    const saved = localStorage.getItem('mrd_hospital_id');
+                    if (!saved) setLoading(false); // no hospital selected yet — show picker
+                }
             } else {
                 if (userProfile.hospital_id) setSelectedHospitalId(userProfile.hospital_id);
                 fetchPatients();
@@ -207,12 +234,20 @@ export default function RecordManager({ mode }: RecordManagerProps) {
         }
     }, [userProfile]);
 
+    // Fallback: if userProfile never loads, stop the spinner after 5s
+    useEffect(() => {
+        const timeout = setTimeout(() => {
+            if (loading) setLoading(false);
+        }, 5000);
+        return () => clearTimeout(timeout);
+    }, []);
+
     useEffect(() => {
         if (selectedHospitalId || (userProfile && !['superadmin', 'superadmin_staff', 'website_admin', 'website_staff'].includes(userProfile.role))) {
             fetchPatients();
             fetchDoctors();
         }
-    }, [selectedHospitalId, startDate, endDate]);
+    }, [selectedHospitalId, startDate, endDate, showAllDates]);
 
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => {
@@ -245,19 +280,33 @@ export default function RecordManager({ mode }: RecordManagerProps) {
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            if (!newPatient.full_name || !newPatient.patient_u_id || !newPatient.age || !newPatient.gender || !newPatient.contact_number) {
-                alert("Please fill all required fields (*).");
+            const missing = [];
+            if (!newPatient.full_name) missing.push('Full Name');
+            if (!newPatient.patient_u_id) missing.push('MRD Number');
+            if (!newPatient.age) missing.push('Age');
+            if (!newPatient.gender) missing.push('Gender');
+            if (!newPatient.contact_number) missing.push('Contact Number');
+            if (missing.length > 0) {
+                setActiveTab('identity');
+                alert(`Please fill required fields in Identity tab:\n• ${missing.join('\n• ')}`);
                 return;
             }
 
             const body: any = { ...newPatient, age: `${newPatient.age} ${ageUnit}` };
             if (selectedHospitalId) body.hospital_id = selectedHospitalId;
 
+            // Clean up empty strings to null for optional fields to pass backend validation
+            for (const key in body) {
+                if (body[key] === '') {
+                    body[key] = null;
+                }
+            }
+
             let data;
             if (isEditing && selectedPatientId) {
-                data = await apiFetch(`patients/${selectedPatientId}`, { method: 'PUT', body: JSON.stringify(body) });
+                data = await apiFetch(`patients/${selectedPatientId}`, { method: 'PUT', body });
             } else {
-                data = await apiFetch(`patients/`, { method: 'POST', body: JSON.stringify(body) });
+                data = await apiFetch(`patients/`, { method: 'POST', body });
             }
 
             if (data) {
@@ -268,7 +317,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
                     resetForm();
                 } else {
                     setPatients([data, ...patients]);
-                    router.push(`/dashboard/records/view?id=${data.record_id}`);
+                    router.push(`${window.location.pathname}/view?id=${data.record_id}`);
                 }
             }
         } catch (err: any) {
@@ -314,22 +363,12 @@ export default function RecordManager({ mode }: RecordManagerProps) {
         fetchNextMRD();
     };
 
-    const onMRDChange = async (val: string) => {
+    const onMRDChange = (val: string) => {
         const uppercaseVal = toUpperCaseMRD(val);
         setNewPatient(prev => ({ ...prev, patient_u_id: uppercaseVal }));
         if (uppercaseVal.length > 2) {
-            const existsLocally = patients.some(p => p.patient_u_id?.toUpperCase() === uppercaseVal);
-            if (existsLocally) {
-                setIsMRDDuplicate(true);
-                return;
-            }
-            try {
-                const res = await apiFetch(`/patients/check-mrd?mrd=${encodeURIComponent(uppercaseVal)}`);
-                setIsMRDDuplicate(res?.exists || false);
-            } catch (e) {
-                console.error(e);
-                setIsMRDDuplicate(false);
-            }
+            const exists = patients.some(p => p.patient_u_id?.toUpperCase() === uppercaseVal);
+            setIsMRDDuplicate(exists);
         } else {
             setIsMRDDuplicate(false);
         }
@@ -350,8 +389,8 @@ export default function RecordManager({ mode }: RecordManagerProps) {
                         uhid: normalized
                     });
                 }
-            } catch (e) {
-                console.error(e);
+            } catch (e: any) {
+                console.error('UHID check failed:', e?.message || e);
             }
         }
     };
@@ -365,14 +404,13 @@ export default function RecordManager({ mode }: RecordManagerProps) {
         if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
             age--;
         }
-        setNewPatient(prev => ({ 
-            ...prev, 
-            dob: dobString, 
-            age: age >= 0 ? age.toString() : '0' 
+        setNewPatient(prev => ({
+            ...prev,
+            dob: dobString,
+            age: age >= 0 ? age.toString() : '0'
         }));
         setAgeUnit('Years');
     };
-
 
     const filteredPatients = useMemo(() => {
         let filtered = patients.filter(p => {
@@ -407,140 +445,304 @@ export default function RecordManager({ mode }: RecordManagerProps) {
             onSearchChange={(val) => { setGlobalSearchTerm(val); setSearchTerm(val); }}
             isSearching={isSearchingGlobal}
             actions={
-                <div className="flex gap-2 items-center">
-                    {['superadmin', 'superadmin_staff', 'website_admin', 'website_staff'].includes(userProfile?.role) && (
-                        <div className="bg-white border border-slate-200 px-3 py-2 rounded-xl shadow-sm flex items-center gap-2">
-                            <Building2 size={16} className="text-indigo-600" />
-                            <select
-                                className="bg-transparent font-bold text-xs text-slate-700 outline-none"
-                                value={selectedHospitalId || ''}
-                                onChange={(e) => setSelectedHospitalId(e.target.value ? parseInt(e.target.value) : null)}
+                <div className="flex gap-3 items-center">
+                    {['superadmin', 'superadmin_staff', 'website_admin', 'website_staff'].includes(userRole) && selectedHospitalId && (
+                        <div className="bg-white/80 backdrop-blur border border-slate-200 px-4 py-2.5 rounded-2xl shadow-sm flex items-center gap-3">
+                            <div className="w-6 h-6 rounded-lg bg-indigo-50 flex items-center justify-center">
+                                <Building2 size={12} className="text-indigo-600" />
+                            </div>
+                            <span className="font-black text-[11px] text-slate-700 uppercase tracking-widest">
+                                {hospitals.find(h => h.hospital_id === selectedHospitalId)?.legal_name}
+                            </span>
+                            <button
+                                onClick={() => {
+                                    setSelectedHospitalId(null);
+                                    localStorage.removeItem('mrd_hospital_id');
+                                }}
+                                className="ml-2 w-5 h-5 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-red-500 hover:text-white transition-all duration-300"
+                                title="Change Client"
                             >
-                                <option value="">Select Client</option>
-                                {hospitals.map(h => <option key={h.hospital_id} value={h.hospital_id}>{h.legal_name}</option>)}
-                            </select>
+                                <X size={12} strokeWidth={3} />
+                            </button>
                         </div>
                     )}
-                    <button
-                        onClick={() => { resetForm(); setShowCreateModal(true); }}
-                        className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-black text-xs flex items-center gap-2 hover:bg-indigo-500 shadow-lg shadow-indigo-900/20 active:scale-95 transition-all"
-                    >
-                        <Plus size={16} /> New {mode === 'patients' ? terms.patient : 'Document'}
-                    </button>
+                    {(!['superadmin', 'superadmin_staff', 'website_admin', 'website_staff'].includes(userRole) || selectedHospitalId) && (
+                        <button
+                            onClick={() => { resetForm(); setShowCreateModal(true); }}
+                            className="bg-indigo-600 text-white px-5 py-2.5 rounded-2xl font-black text-xs flex items-center gap-2 hover:bg-indigo-500 shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/50 active:scale-95 hover:-translate-y-0.5 transition-all duration-300"
+                        >
+                            <Plus size={16} strokeWidth={3} /> New {mode === 'patients' ? terms.patient : 'Document'}
+                        </button>
+                    )}
                 </div>
             }
         >
-            {/* Filters Bar */}
-            <div className="flex flex-wrap items-center gap-3 mb-6">
-                {config.showCategories && (
-                    <div className="flex bg-slate-100 p-1 rounded-xl">
-                        {['', 'IPD', 'OPD', 'MLC', 'BRT'].map(cat => (
-                            <button
-                                key={cat}
-                                onClick={() => setCategoryFilter(cat)}
-                                className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${categoryFilter === cat ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                            >
-                                {cat || 'All'}
-                            </button>
-                        ))}
-                    </div>
-                )}
-                
-                <div className="flex gap-2 bg-white border border-slate-200 p-1 rounded-xl ml-auto">
-                    <input type="date" className="bg-transparent text-[10px] font-black text-slate-500 outline-none px-2" value={startDate} onChange={e => setStartDate(e.target.value)} />
-                    <div className="w-[1px] bg-slate-200"></div>
-                    <input type="date" className="bg-transparent text-[10px] font-black text-slate-500 outline-none px-2" value={endDate} onChange={e => setEndDate(e.target.value)} />
+            {/* No hospital selected — prompt superadmin to pick one */}
+            {!selectedHospitalId && ['website_admin', 'website_staff', 'superadmin', 'superadmin_staff'].includes(userRole) ? (
+                <div className="mt-2 pb-20">
+                    <HospitalSelectionPrompt 
+                        requiredModule={mode === 'corporate' ? 'corporate' : 'core'} 
+                        storageKey="mrd_hospital_id"
+                        onSelect={setSelectedHospitalId} 
+                    />
                 </div>
+            ) : (
+                <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+                    {/* Filters Bar */}
+                    <div className="flex flex-wrap items-center gap-3 bg-white border border-slate-200/80 p-2 rounded-2xl shadow-sm">
+                        {config.showCategories && (
+                            <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto gap-0.5">
+                                {['', 'IPD', 'OPD', 'MLC', 'BRT'].map(cat => (
+                                    <button
+                                        key={cat}
+                                        onClick={() => setCategoryFilter(cat)}
+                                        className={`px-4 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all duration-200 whitespace-nowrap ${categoryFilter === cat ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        {cat || 'All'}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
 
-                <div className="flex bg-white border border-slate-200 p-1 rounded-xl">
-                    <button onClick={() => setViewMode('card')} className={`p-1.5 rounded-lg ${viewMode === 'card' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400'}`}><LayoutGrid size={16} /></button>
-                    <button onClick={() => setViewMode('table')} className={`p-1.5 rounded-lg ${viewMode === 'table' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400'}`}><List size={16} /></button>
-                </div>
-            </div>
-
-            {/* List Content */}
-            <div className="flex gap-4 items-start">
-                <div className={`${selectedPatientId ? 'hidden lg:block lg:w-[350px]' : 'w-full'} transition-all`}>
-                    {viewMode === 'card' ? (
-                        <div className={`grid gap-4 ${selectedPatientId ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} pb-20`}>
-                            {filteredPatients.map((p, i) => (
-                                <div
-                                    key={p.record_id || i}
-                                    onClick={() => setSelectedPatientId(p.record_id)}
-                                    className={`bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group ${selectedPatientId === p.record_id ? 'ring-2 ring-indigo-600' : ''}`}
-                                >
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-black text-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                            {p.full_name?.[0]}
-                                        </div>
-                                        <span className="text-[10px] font-black uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded-lg">{p.patient_category}</span>
-                                    </div>
-                                    <h3 className="font-black text-slate-900 line-clamp-1 mb-1">{p.full_name}</h3>
-                                    <p className="text-xs text-slate-500 font-bold mb-4">{p.patient_u_id} • {p.age}</p>
-                                    <div className="pt-4 border-t border-slate-50 flex items-center justify-between">
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{formatDate(p.admission_date)}</span>
-                                        <div className="flex items-center gap-1 text-indigo-600 font-black text-[10px]">
-                                            {p.files?.length || 0} FILES <ArrowRight size={12} />
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
+                        {/* Record count */}
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl">
+                            <Users size={12} className="text-slate-400" />
+                            <span className="text-[11px] font-black text-slate-600">{filteredPatients.length}</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">records</span>
                         </div>
-                    ) : (
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                            <table className="w-full text-left">
-                                <thead className="bg-slate-50 border-b border-slate-100">
-                                    <tr>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Identify</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Reference</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-50">
-                                    {filteredPatients.map((p, i) => (
-                                        <tr key={i} onClick={() => setSelectedPatientId(p.record_id)} className="hover:bg-slate-50 cursor-pointer group transition-colors">
-                                            <td className="p-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center font-black text-xs text-slate-500">{p.full_name?.[0]}</div>
-                                                    <div>
-                                                        <p className="font-bold text-slate-900 text-sm">{p.full_name}</p>
-                                                        <p className="text-[10px] text-slate-400 font-black uppercase">{p.gender} • {p.age}</p>
+
+                        <div className="flex items-center gap-2 ml-auto">
+                            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                                <button
+                                    onClick={() => setShowAllDates(v => !v)}
+                                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all duration-200 whitespace-nowrap ${showAllDates ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    All
+                                </button>
+                                <div className={`flex items-center bg-white rounded-lg px-3 py-1.5 shadow-sm gap-2 transition-opacity ${showAllDates ? 'opacity-30 pointer-events-none' : ''}`}>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline">From</span>
+                                    <input type="date" className="bg-transparent text-[11px] font-bold text-slate-700 outline-none w-[110px] cursor-pointer" value={startDate} onChange={e => { setShowAllDates(false); setStartDate(e.target.value); }} />
+                                </div>
+                                <div className={`flex items-center bg-white rounded-lg px-3 py-1.5 shadow-sm gap-2 transition-opacity ${showAllDates ? 'opacity-30 pointer-events-none' : ''}`}>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline">To</span>
+                                    <input type="date" className="bg-transparent text-[11px] font-bold text-slate-700 outline-none w-[110px] cursor-pointer" value={endDate} onChange={e => { setShowAllDates(false); setEndDate(e.target.value); }} />
+                                </div>
+                            </div>
+
+                            <div className="flex bg-slate-100 p-1 rounded-xl">
+                                <button onClick={() => setViewMode('card')} className={`p-1.5 rounded-lg transition-all duration-200 ${viewMode === 'card' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={15} strokeWidth={2.5} /></button>
+                                <button onClick={() => setViewMode('table')} className={`p-1.5 rounded-lg transition-all duration-200 ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><List size={15} strokeWidth={2.5} /></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-4 items-start h-[calc(100vh-220px)]">
+                        <div className={`${selectedPatientId ? 'hidden lg:flex lg:w-[350px] lg:flex-col' : 'w-full'} transition-all h-full overflow-y-auto`}>
+                            {viewMode === 'card' ? (
+                                <div className={`grid gap-4 ${selectedPatientId ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} pb-4`}>
+                                    {filteredPatients.map((p, i) => {
+                                        const visitCount = patients.filter(x => x.uhid && x.uhid === p.uhid).length;
+                                        const avatarColor = p.gender?.toLowerCase().startsWith('f')
+                                            ? 'bg-pink-50 text-pink-600 group-hover:bg-pink-500 group-hover:text-white'
+                                            : 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white';
+                                        return (
+                                            <div
+                                                key={p.record_id || i}
+                                                onClick={() => setSelectedPatientId(p.record_id)}
+                                                className={`bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all cursor-pointer group ${selectedPatientId === p.record_id ? 'ring-2 ring-indigo-500 border-indigo-200' : 'hover:border-slate-300'}`}
+                                            >
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg transition-colors ${avatarColor}`}>
+                                                        {p.full_name?.[0]}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        {visitCount > 1 && (
+                                                            <span className="text-[9px] font-black uppercase bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-md">{visitCount}V</span>
+                                                        )}
+                                                        <span className="text-[10px] font-black uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded-lg">{p.patient_category}</span>
                                                     </div>
                                                 </div>
-                                            </td>
-                                            <td className="p-4">
-                                                <p className="font-mono text-xs font-bold text-slate-600">{p.patient_u_id}</p>
-                                                <p className="text-[10px] text-indigo-500 font-black uppercase tracking-tighter">{p.uhid || 'NO UHID'}</p>
-                                            </td>
-                                            <td className="p-4">
-                                                <p className="text-xs font-bold text-slate-700">{formatDate(p.admission_date)}</p>
-                                                <p className="text-[10px] text-slate-400 font-black uppercase">Admission</p>
-                                            </td>
-                                            <td className="p-4 text-right">
-                                                <button onClick={(e) => { e.stopPropagation(); setIsEditing(true); setSelectedPatientId(p.record_id); setShowCreateModal(true); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
-                                                    <Pencil size={14} />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
+                                                <h3 className="font-black text-slate-900 line-clamp-1 mb-1 text-sm">{p.full_name}</h3>
+                                                <p className="text-xs text-slate-500 font-bold mb-4">{p.patient_u_id} • {p.age}</p>
+                                                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{formatDate(p.admission_date)}</span>
+                                                    <div className="flex items-center gap-1 text-indigo-600 font-black text-[10px]">
+                                                        {p.files?.length || 0} FILES <ArrowRight size={12} />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
+                                    <table className="w-full text-left min-w-[900px]">
+                                        <thead className="bg-slate-50/80 border-b border-slate-100">
+                                            <tr>
+                                                {[
+                                                    { key: 'record_id', label: 'RID' },
+                                                    { key: 'uhid', label: 'UHID' },
+                                                    { key: 'full_name', label: 'Name' },
+                                                    { key: 'patient_u_id', label: 'MRD (IPD)' },
+                                                    { key: 'admission_date', label: 'Admission Date' },
+                                                    { key: 'discharge_date', label: 'Disch. Date' },
+                                                    { key: 'doctor_name', label: 'Doctor' },
+                                                    { key: 'status', label: 'Status' },
+                                                ].map(col => (
+                                                    <th
+                                                        key={col.key}
+                                                        onClick={() => handleSort(col.key)}
+                                                        className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest cursor-pointer hover:text-slate-700 select-none group whitespace-nowrap"
+                                                    >
+                                                        <div className="flex items-center gap-1">
+                                                            {col.label}
+                                                            {sortConfig?.key === col.key
+                                                                ? (sortConfig.direction === 'asc' ? <ChevronUp size={11} className="text-indigo-500" /> : <ChevronDown size={11} className="text-indigo-500" />)
+                                                                : <ArrowUpDown size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />}
+                                                        </div>
+                                                    </th>
+                                                ))}
+                                                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {filteredPatients.map((p, i) => {
+                                                const visitCount = patients.filter(x => x.uhid && x.uhid === p.uhid).length;
+                                                const isFemale = p.gender?.toLowerCase().startsWith('f');
+                                                const avatarBg = isFemale ? 'bg-pink-50 text-pink-600' : 'bg-indigo-50 text-indigo-600';
+                                                const catColors: Record<string, string> = {
+                                                    IPD: 'bg-blue-50 text-blue-700 border-blue-100',
+                                                    OPD: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+                                                    MLC: 'bg-red-50 text-red-700 border-red-100',
+                                                    BRT: 'bg-purple-50 text-purple-700 border-purple-100',
+                                                };
+                                                const catStyle = catColors[p.patient_category] || 'bg-slate-100 text-slate-500 border-slate-200';
+                                                const fileCount = p.files?.length || 0;
+                                                return (
+                                                    <tr
+                                                        key={p.record_id || i}
+                                                        onClick={() => setSelectedPatientId(p.record_id)}
+                                                        className={`cursor-pointer group transition-colors ${selectedPatientId === p.record_id ? 'bg-indigo-50/60' : 'hover:bg-slate-50/80'}`}
+                                                    >
+                                                        {/* RID */}
+                                                        <td className="px-4 py-3">
+                                                            <span className="text-[11px] font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-lg">#{p.record_id}</span>
+                                                        </td>
 
-                {selectedPatientId && (
-                    <div className="flex-1 min-w-0 bg-white rounded-2xl border border-slate-200 shadow-2xl h-[calc(100vh-280px)] overflow-hidden flex flex-col animate-in slide-in-from-right-10 duration-500">
-                        <PatientDetailView
-                            patientId={selectedPatientId}
-                            onBack={() => setSelectedPatientId(null)}
-                            onDeleteSuccess={() => { setSelectedPatientId(null); fetchPatients(); }}
-                            onFileUpdate={fetchPatients}
-                        />
+                                                        {/* UHID */}
+                                                        <td className="px-4 py-3">
+                                                            <span className="font-mono text-xs font-bold text-slate-500">{p.uhid || '—'}</span>
+                                                            {visitCount > 1 && (
+                                                                <span className="ml-1.5 text-[9px] font-black bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-md">{visitCount}V</span>
+                                                            )}
+                                                        </td>
+
+                                                        {/* Name */}
+                                                        <td className="px-4 py-3">
+                                                            <div className="flex items-center gap-2.5">
+                                                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs shrink-0 ${avatarBg}`}>
+                                                                    {p.full_name?.[0]}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-bold text-slate-900 text-sm leading-tight whitespace-nowrap max-w-[180px] truncate">{p.full_name}</p>
+                                                                    <p className="text-[10px] text-slate-400 font-semibold">{isFemale ? 'Female' : 'Male'} · {p.age}</p>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+
+                                                        {/* MRD (IPD) */}
+                                                        <td className="px-4 py-3">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="font-mono text-xs font-bold text-slate-700">{p.patient_u_id}</span>
+                                                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${catStyle}`}>{p.patient_category}</span>
+                                                            </div>
+                                                        </td>
+
+                                                        {/* Admission Date */}
+                                                        <td className="px-4 py-3">
+                                                            <p className="text-sm font-bold text-slate-700 whitespace-nowrap">{formatDate(p.admission_date) || '—'}</p>
+                                                        </td>
+
+                                                        {/* Discharge Date */}
+                                                        <td className="px-4 py-3">
+                                                            <p className="text-sm font-bold text-slate-500 whitespace-nowrap">{p.discharge_date ? formatDate(p.discharge_date) : <span className="text-slate-300">—</span>}</p>
+                                                        </td>
+
+                                                        {/* Doctor */}
+                                                        <td className="px-4 py-3">
+                                                            {p.doctor_name
+                                                                ? <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg whitespace-nowrap">Dr. {p.doctor_name}</span>
+                                                                : <span className="text-slate-300 text-xs">—</span>}
+                                                        </td>
+
+                                                        {/* Status */}
+                                                        <td className="px-4 py-3">
+                                                            {fileCount > 0
+                                                                ? <span className="text-[10px] font-black text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg whitespace-nowrap">DIGITAL ({fileCount})</span>
+                                                                : <span className="text-[10px] font-black text-slate-400 bg-slate-100 border border-slate-200 px-2 py-1 rounded-lg">PENDING</span>}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    const { val, unit } = parseAgeString(p.age);
+                                                                    setNewPatient({
+                                                                        full_name: p.full_name || '',
+                                                                        patient_u_id: p.patient_u_id || '',
+                                                                        uhid: p.uhid || '',
+                                                                        age: val,
+                                                                        gender: p.gender || '',
+                                                                        address: p.address || '',
+                                                                        contact_number: p.contact_number || '',
+                                                                        email_id: p.email_id || '',
+                                                                        aadhaar_number: p.aadhaar_number || '',
+                                                                        patient_category: p.patient_category || 'IPD',
+                                                                        dob: p.dob ? new Date(p.dob).toISOString().split('T')[0] : '',
+                                                                        admission_date: p.admission_date ? new Date(p.admission_date).toISOString().split('T')[0] : '',
+                                                                        discharge_date: p.discharge_date ? new Date(p.discharge_date).toISOString().split('T')[0] : '',
+                                                                        doctor_name: p.doctor_name || '',
+                                                                        weight: p.weight || '',
+                                                                        mediclaim: p.mediclaim || '',
+                                                                        diagnosis: p.diagnosis || '',
+                                                                    });
+                                                                    setAgeUnit(unit);
+                                                                    setIsEditing(true);
+                                                                    setSelectedPatientId(p.record_id);
+                                                                    setShowCreateModal(true);
+                                                                }}
+                                                                className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                                            >
+                                                                <Pencil size={13} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                    {filteredPatients.length === 0 && (
+                                        <div className="py-16 text-center text-slate-400">
+                                            <User size={32} className="mx-auto mb-3 opacity-30" />
+                                            <p className="text-sm font-bold">No records found</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {selectedPatientId && (
+                            <div className="flex-1 min-w-0 bg-white rounded-2xl border border-slate-200 shadow-2xl h-full overflow-hidden flex flex-col animate-in slide-in-from-right-10 duration-500">
+                                <PatientDetailView
+                                    patientId={selectedPatientId}
+                                    onBack={() => setSelectedPatientId(null)}
+                                    onDeleteSuccess={() => { setSelectedPatientId(null); fetchPatients(); }}
+                                    onFileUpdate={fetchPatients}
+                                />
+                            </div>
+                        )}
                     </div>
-                )}
-            </div>
+                </div>
+            )}
 
             {/* Modals */}
             <PatientCreateModal
@@ -552,7 +754,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
                 activeTab={activeTab}
                 setActiveTab={(val) => setActiveTab(val as 'identity' | 'admission' | 'clinical')}
                 isExtracting={isExtracting}
-                onAIExtraction={(file) => console.log('AI Extraction', file)}
+                onAIExtraction={(file) => {}}
                 onOpenCamera={() => setShowCameraModal(true)}
                 onReset={resetForm}
                 onSubmit={handleCreate}
@@ -579,7 +781,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
             <CameraModal
                 isOpen={showCameraModal}
                 onClose={() => setShowCameraModal(false)}
-                onCapture={(file) => console.log('Capture', file)}
+                onCapture={(file) => {}}
             />
         </DashboardPageShell>
     );

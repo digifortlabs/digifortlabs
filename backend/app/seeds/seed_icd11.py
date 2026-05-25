@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 
 import json
 import os
@@ -16,13 +18,13 @@ def seed_icd11():
     json_path = os.path.join(os.path.dirname(__file__), 'icd11_sample.json')
     
     if not os.path.exists(json_path):
-        print(f"File not found: {json_path}")
+        logger.info(f"File not found: {json_path}")
         return
 
     with open(json_path, 'r') as f:
         data = json.load(f)
         
-    print(f"Updating/Seeding {len(data)} ICD-11 codes...")
+    logger.info(f"Updating/Seeding {len(data)} ICD-11 codes...")
     
     for item in data:
         code = ICD11Code(
@@ -34,9 +36,9 @@ def seed_icd11():
     
     try:
         db.commit()
-        print("✅ Diagnosis update complete!")
+        logger.info("[OK] Diagnosis update complete!")
     except Exception as e:
-        print(f"Error seeding: {e}")
+        logger.info(f"Error seeding: {e}")
         db.rollback()
     finally:
         db.close()

@@ -50,36 +50,36 @@ export default function SiteMapPage() {
                 {
                     subtitle: "Core Modules",
                     links: [
-                        { name: "Dashboard Overview", href: "/dashboard" },
-                        { name: "Records Management", href: "/dashboard/records" },
-                        { name: "Client Management", href: "/dashboard/hospitals" },
-                        { name: "User Management (Orphan)", href: "/dashboard/user_mgmt" },
-                        { name: "Staff Management (Orphan)", href: "/dashboard/staff" },
+                        { name: "Dashboard Overview", href: "/" },
+                        { name: "Records Management", href: "/records" },
+                        { name: "Client Management", href: "/hospitals" },
+                        { name: "User Management (Orphan)", href: "/user_mgmt" },
+                        { name: "Staff Management (Orphan)", href: "/staff" },
                     ]
                 },
                 {
                     subtitle: "Operations & Storage",
                     links: [
-                        { name: "Physical Storage", href: "/dashboard/storage" },
-                        { name: "Storage Requests (Orphan)", href: "/dashboard/storage/requests" },
-                        { name: "Digitization Requests (Orphan)", href: "/dashboard/requests" },
-                        { name: "Drafts / Pending", href: "/dashboard/drafts" },
-                        { name: "Downloads (Orphan)", href: "/dashboard/downloads" },
+                        { name: "Physical Storage", href: "/storage" },
+                        { name: "Storage Requests (Orphan)", href: "/storage/requests" },
+                        { name: "Digitization Requests (Orphan)", href: "/requests" },
+                        { name: "Drafts / Pending", href: "/drafts" },
+                        { name: "Downloads (Orphan)", href: "/downloads" },
                     ]
                 },
                 {
                     subtitle: "Finance & Compliance",
                     links: [
-                        { name: "Accounting / Invoices", href: "/dashboard/accounting" },
-                        { name: "Audit Logs", href: "/dashboard/audit" },
-                        { name: "Reports (Orphan)", href: "/dashboard/reports" },
+                        { name: "Accounting / Invoices", href: "/accounting" },
+                        { name: "Audit Logs", href: "/audit" },
+                        { name: "Reports (Orphan)", href: "/reports" },
                     ]
                 },
                 {
                     subtitle: "System",
                     links: [
-                        { name: "Server Manager (Orphan)", href: "/dashboard/server-manager" },
-                        { name: "Platform Settings", href: "/dashboard/settings" },
+                        { name: "Server Manager (Orphan)", href: "/server-manager" },
+                        { name: "Platform Settings", href: "/settings" },
                     ]
                 }
             ]

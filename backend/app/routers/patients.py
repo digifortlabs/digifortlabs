@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 import datetime
 import os
 import uuid
@@ -35,14 +37,14 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
         # Retrieve File Record
         db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
         if not db_file:
-            print(f"❌ Process Task Failed: File {file_id} not found in DB")
+            logger.info(f"[ERROR] Process Task Failed: File {file_id} not found in DB")
             return
 
         # Check Cancellation
         if db_file.processing_stage == 'cancelled':
             return
 
-        print(f"⚙️ Processing Task Started: {file_id}")
+        logger.info(f"[START] Processing Task Started: {file_id}")
         
         # 1. COMPRESSION
         db_file.processing_stage = 'compressing'
@@ -67,7 +69,7 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
             elif ext in ['.mp4', '.mov', '.avi', '.mkv']:
                 processed_path = CompressionService.compress_video_to_mp4(temp_path)
         except Exception as e:
-            print(f"Compression warning: {e}")
+            logger.info(f"Compression warning: {e}")
             # Continue with original if compression fails
             
         db_file.processing_progress = 50
@@ -87,20 +89,20 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
                     reader = PdfReader(processed_path)
                     db_file.page_count = len(reader.pages)
                     db.commit() 
-                    print(f"📄 Page Count (pypdf): {db_file.page_count}")
+                    logger.info(f"[INFO] Page Count (pypdf): {db_file.page_count}")
                 except Exception as pe:
-                    print(f"⚠️ pypdf failed: {pe}, falling back to pdf2image")
+                    logger.info(f"[WARN] pypdf failed: {pe}, falling back to pdf2image")
                     try:
                         from pdf2image import pdfinfo_from_path
                         info = pdfinfo_from_path(processed_path)
                         if "Pages" in info:
                             db_file.page_count = int(info["Pages"])
                             db.commit()
-                            print(f"📄 Page Count (pdf2image): {db_file.page_count}")
+                            logger.info(f"[INFO] Page Count (pdf2image): {db_file.page_count}")
                         else:
-                            print("⚠️ Pages not found in pdfinfo")
+                            logger.info("[WARN] Pages not found in pdfinfo")
                     except Exception as fallback_e:
-                        print(f"⚠️ pdf2image fallback failed: {fallback_e}")
+                        logger.info(f"[WARN] pdf2image fallback failed: {fallback_e}")
                         # --- EXTREME FALLBACK: RAW REGEX ---
                         try:
                             import re
@@ -110,11 +112,11 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
                             if matches:
                                 db_file.page_count = max([int(m) for m in matches])
                                 db.commit()
-                                print(f"📄 Page Count (Raw Regex): {db_file.page_count}")
+                                logger.info(f"[INFO] Page Count (Raw Regex): {db_file.page_count}")
                         except Exception as e3:
-                            print(f"⚠️ Raw Regex failed: {e3}")
+                            logger.info(f"[WARN] Raw Regex failed: {e3}")
             except Exception as e:
-                print(f"⚠️ PageCount Warning: {e}")
+                logger.info(f"[WARN] PageCount Warning: {e}")
             db.commit()
         
         # 2. ENCRYPTION
@@ -129,7 +131,7 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
                 os.remove(processed_path) # Remove intermediate compressed file
             processed_path = encrypted_path
         except Exception as e:
-            print(f"Encryption failed: {e}")
+            logger.info(f"Encryption failed: {e}")
             db_file.processing_stage = 'failed' 
             db_file.processing_progress = 0
             db.commit()
@@ -192,13 +194,13 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
             log_audit(db, user_id, "FILE_UPLOADED", f"Uploaded: {original_filename}", hospital_id=hospital_id)
             db.commit() 
         except Exception as e:
-            print(f"Background Audit Error: {e}")
+            logger.info(f"Background Audit Error: {e}")
         
         # Cleanup
         if os.path.exists(temp_path): os.remove(temp_path)
         if os.path.exists(processed_path) and processed_path != temp_path: os.remove(processed_path)
         
-        print(f"✅ Processing Complete: {file_id}")
+        logger.info(f"[OK] Processing Complete: {file_id}")
 
     except Exception as e:
         db.rollback()
@@ -209,7 +211,7 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
         log_path = os.path.join(tempfile.gettempdir(), "custom_trace.log")
         with open(log_path, "a") as errFile:
             errFile.write(f"\n--- UPLOAD CRASH ---\nFile ID: {file_id}\n{error_msg}\n")
-        print(f"❌ Background Task Error for {file_id}:\n{error_msg}")
+        logger.info(f"[ERROR] Background Task Error for {file_id}:\n{error_msg}")
         try:
             db_file.processing_stage = 'failed'
             db.commit()
@@ -218,7 +220,7 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
         db.close()
 
 def log_ocr(msg: str):
-    print(msg)
+    logger.info(msg)
     try:
         with open("backend/logs/ocr_debug.log", "a", encoding="utf-8") as f:
             f.write(f"{msg}\n")
@@ -236,7 +238,7 @@ def run_manual_ocr_task(file_id: int):
         if not db_file:
             return
 
-        log_ocr(f"🔍 Manual OCR Started: {file_id}")
+        log_ocr(f"[SEARCH] Manual OCR Started: {file_id}")
         db_file.processing_stage = 'analyzing'
         db_file.processing_progress = 10
         db.commit()
@@ -245,7 +247,7 @@ def run_manual_ocr_task(file_id: int):
         try:
             encrypted_bytes = s3_manager.get_file_bytes(db_file.s3_key)
             if not encrypted_bytes:
-                log_ocr(f"❌ Physical file not found for OCR: {db_file.s3_key}")
+                log_ocr(f"[ERROR] Physical file not found for OCR: {db_file.s3_key}")
                 db_file.processing_stage = 'failed'
                 db_file.processing_progress = 0
                 db.commit()
@@ -259,16 +261,16 @@ def run_manual_ocr_task(file_id: int):
             
             # --- START PAGE COUNT FIX ---
             if not db_file.page_count:
-                log_ocr(f"📄 Recalculating missing page count for: {file_id}")
+                log_ocr(f"[INFO] Recalculating missing page count for: {file_id}")
                 try:
                     from pypdf import PdfReader
                     import io
                     reader = PdfReader(io.BytesIO(decrypted_bytes))
                     db_file.page_count = len(reader.pages)
                     db.commit()
-                    log_ocr(f"✅ Page count updated (pypdf): {db_file.page_count}")
+                    log_ocr(f"[OK] Page count updated (pypdf): {db_file.page_count}")
                 except Exception as pe:
-                    log_ocr(f"⚠️ pypdf failed during recalculation: {pe}")
+                    log_ocr(f"[WARN] pypdf failed during recalculation: {pe}")
                     try:
                         import tempfile, os
                         from pdf2image import pdfinfo_from_path
@@ -279,10 +281,10 @@ def run_manual_ocr_task(file_id: int):
                         if "Pages" in info:
                             db_file.page_count = int(info["Pages"])
                             db.commit()
-                            log_ocr(f"✅ Page count updated (pdf2image): {db_file.page_count}")
+                            log_ocr(f"[OK] Page count updated (pdf2image): {db_file.page_count}")
                         os.remove(tmp_path)
                     except Exception as fallback:
-                        log_ocr(f"⚠️ pdf2image fallback failed: {fallback}")
+                        log_ocr(f"[WARN] pdf2image fallback failed: {fallback}")
                         try: os.remove(tmp_path)
                         except: pass
                         # --- EXTREME FALLBACK: RAW REGEX ---
@@ -292,16 +294,16 @@ def run_manual_ocr_task(file_id: int):
                             if matches:
                                 db_file.page_count = max([int(m) for m in matches])
                                 db.commit()
-                                log_ocr(f"✅ Page count updated (Raw Regex): {db_file.page_count}")
+                                log_ocr(f"[OK] Page count updated (Raw Regex): {db_file.page_count}")
                         except Exception as e3:
-                            log_ocr(f"⚠️ Raw Regex failed: {e3}")
+                            log_ocr(f"[WARN] Raw Regex failed: {e3}")
             # --- END PAGE COUNT FIX ---
 
             db_file.processing_progress = 50
             db.commit()
             
             # Run OCR
-            log_ocr(f"📄 Extracting text for: {file_id}")
+            log_ocr(f"[INFO] Extracting text for: {file_id}")
             extracted_text = extract_text_from_pdf(decrypted_bytes)
             
             db_file.processing_progress = 75
@@ -339,7 +341,7 @@ def run_manual_ocr_task(file_id: int):
                     from ..services.ai_service import AIService
                     from ..models import AIExtraction
                     import json
-                    log_ocr(f"🤖 Running AI Analysis for: {file_id}")
+                    log_ocr(f"[INFO] Running AI Analysis for: {file_id}")
                     try:
                         ai_svc = AIService(api_key=api_key)
                         structured_data = ai_svc.extract_patient_details(extracted_text)
@@ -354,11 +356,11 @@ def run_manual_ocr_task(file_id: int):
                             )
                             db.add(extraction_record)
                     except Exception as ai_e:
-                        log_ocr(f"⚠️ AI Extraction failed but OCR saved: {ai_e}")
+                        log_ocr(f"[WARN] AI Extraction failed but OCR saved: {ai_e}")
                 
-                log_ocr(f"✅ Manual OCR Complete: {file_id}")
+                log_ocr(f"[OK] Manual OCR Complete: {file_id}")
             else:
-                log_ocr(f"ℹ️ No OCR text found for {file_id}")
+                log_ocr(f"[INFO] No OCR text found for {file_id}")
                 
             db_file.processing_stage = 'completed'
             db_file.processing_progress = 100
@@ -366,14 +368,14 @@ def run_manual_ocr_task(file_id: int):
             
         except Exception as e:
             db.rollback()
-            log_ocr(f"❌ Manual OCR Error during processing: {e}")
+            log_ocr(f"[ERROR] Manual OCR Error during processing: {e}")
             db_file.processing_stage = 'failed' 
             db_file.processing_progress = 0
             db.commit()
             
     except Exception as e:
         db.rollback()
-        log_ocr(f"❌ Manual OCR Task Error: {e}")
+        log_ocr(f"[ERROR] Manual OCR Task Error: {e}")
     finally:
         db.close()
 
@@ -394,7 +396,7 @@ def process_pdf_background_legacy(file_id: int, file_bytes: bytes):
                 # log_audit(db, system_user_id, "OCR_COMPLETED", ...) - Optional
     except Exception as e:
         db.rollback()
-        print(f"OCR Background Error: {e}")
+        logger.info(f"OCR Background Error: {e}")
     finally:
         db.close()
 
@@ -452,6 +454,9 @@ class PatientResponse(PatientMedicalBase):
     contact_number: Optional[str] = None
     email_id: Optional[str] = None
     aadhaar_number: Optional[str] = None
+    abha_id: Optional[str] = None
+    ayushman_id: Optional[str] = None
+    maa_card: Optional[str] = None
     patient_category: str = "STANDARD" # STANDARD, MLC, BIRTH, DEATH
     dob: Optional[datetime.datetime] = None
     admission_date: Optional[datetime.datetime] = None
@@ -490,6 +495,9 @@ class PatientCreate(PatientMedicalBase):
     contact_number: Optional[str] = None
     email_id: Optional[str] = None
     aadhaar_number: Optional[str] = None
+    abha_id: Optional[str] = None
+    ayushman_id: Optional[str] = None
+    maa_card: Optional[str] = None
     patient_category: str = "STANDARD" # STANDARD, MLC, BIRTH, DEATH
     dob: Optional[datetime.datetime] = None
     admission_date: Optional[datetime.datetime] = None
@@ -508,6 +516,9 @@ class PatientUpdate(PatientMedicalBase):
     contact_number: Optional[str] = None
     email_id: Optional[str] = None
     aadhaar_number: Optional[str] = None
+    abha_id: Optional[str] = None
+    ayushman_id: Optional[str] = None
+    maa_card: Optional[str] = None
     patient_category: str = "STANDARD" # STANDARD, MLC, BIRTH, DEATH
     dob: Optional[datetime.datetime] = None
     admission_date: Optional[datetime.datetime] = None
@@ -547,6 +558,52 @@ def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session =
         if effective_discharge < effective_admission:
              raise HTTPException(status_code=400, detail="Discharge Date cannot be before Admission Date.")
 
+    # 1.8 Check Duplication of MRD and UHID if updated
+    if patient_update.patient_u_id and patient_update.patient_u_id.strip() and patient_update.patient_u_id.strip() != db_patient.patient_u_id:
+        existing_mrd = db.query(Patient).filter(
+            Patient.hospital_id == db_patient.hospital_id,
+            Patient.patient_u_id == patient_update.patient_u_id.strip(),
+            Patient.is_deleted == False,
+            Patient.record_id != patient_id
+        ).first()
+        if existing_mrd:
+            raise HTTPException(status_code=400, detail=f"MRD Number '{patient_update.patient_u_id}' already exists.")
+
+    if patient_update.uhid and patient_update.uhid.strip() and patient_update.uhid.strip() != db_patient.uhid:
+        existing_uhid = db.query(Patient).filter(
+            Patient.hospital_id == db_patient.hospital_id,
+            Patient.uhid == patient_update.uhid.strip(),
+            Patient.is_deleted == False,
+            Patient.record_id != patient_id
+        ).first()
+        if existing_uhid:
+            raise HTTPException(status_code=400, detail=f"UHID '{patient_update.uhid}' already exists.")
+
+    # Check Duplication of Aadhaar if updated
+    if patient_update.aadhaar_number and patient_update.aadhaar_number.strip() and patient_update.aadhaar_number.strip() != db_patient.aadhaar_number:
+        existing_aadhaar = db.query(Patient).filter(
+            Patient.hospital_id == db_patient.hospital_id,
+            Patient.aadhaar_number == patient_update.aadhaar_number.strip(),
+            Patient.is_deleted == False,
+            Patient.record_id != patient_id
+        ).first()
+        if existing_aadhaar:
+            raise HTTPException(status_code=400, detail=f"Patient with Aadhaar Number '{patient_update.aadhaar_number}' is already registered.")
+
+    # Check Duplication of Name + Contact if updated
+    effective_name = patient_update.full_name or db_patient.full_name
+    effective_contact = patient_update.contact_number or db_patient.contact_number
+    if (patient_update.full_name or patient_update.contact_number):
+        existing_name_contact = db.query(Patient).filter(
+            Patient.hospital_id == db_patient.hospital_id,
+            Patient.full_name.ilike(effective_name.strip()),
+            Patient.contact_number == effective_contact.strip(),
+            Patient.is_deleted == False,
+            Patient.record_id != patient_id
+        ).first()
+        if existing_name_contact:
+            raise HTTPException(status_code=400, detail=f"Patient '{effective_name}' with Contact Number '{effective_contact}' is already registered.")
+
     # 2. Update Fields
     for var, value in vars(patient_update).items():
         if value is not None:
@@ -556,7 +613,7 @@ def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session =
         from ..audit import log_audit
         log_audit(db, current_user.user_id, "PATIENT_UPDATED", f"Updated patient: {db_patient.full_name} ({db_patient.patient_u_id})", hospital_id=db_patient.hospital_id)
     except Exception as e:
-        print(f"Audit Log Error: {e}")
+        logger.info(f"Audit Log Error: {e}")
 
     db.commit()
     db.refresh(db_patient)
@@ -583,6 +640,37 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
     if existing_mrd:
         raise HTTPException(status_code=400, detail=f"MRD Number '{patient.patient_u_id}' already exists.")
 
+    # 1.5 Check for Duplicate UHID
+    if patient.uhid and patient.uhid.strip():
+        existing_uhid = db.query(Patient).filter(
+            Patient.hospital_id == hospital_id,
+            Patient.uhid == patient.uhid.strip(),
+            Patient.is_deleted == False
+        ).first()
+        if existing_uhid:
+            raise HTTPException(status_code=400, detail=f"UHID '{patient.uhid}' already exists.")
+
+    # 1.6 Check for Duplicate Aadhaar Number (if provided)
+    if patient.aadhaar_number and patient.aadhaar_number.strip():
+        existing_aadhaar = db.query(Patient).filter(
+            Patient.hospital_id == hospital_id,
+            Patient.aadhaar_number == patient.aadhaar_number.strip(),
+            Patient.is_deleted == False
+        ).first()
+        if existing_aadhaar:
+            raise HTTPException(status_code=400, detail=f"Patient with Aadhaar Number '{patient.aadhaar_number}' is already registered.")
+
+    # 1.7 Check for Duplicate Name + Contact Number
+    if patient.full_name and patient.contact_number:
+        existing_name_contact = db.query(Patient).filter(
+            Patient.hospital_id == hospital_id,
+            Patient.full_name.ilike(patient.full_name.strip()),
+            Patient.contact_number == patient.contact_number.strip(),
+            Patient.is_deleted == False
+        ).first()
+        if existing_name_contact:
+            raise HTTPException(status_code=400, detail=f"Patient '{patient.full_name}' with Contact Number '{patient.contact_number}' is already registered.")
+
     # 2. Date Validation (Phase 2 Requirement)
     if patient.admission_date and patient.discharge_date:
         # Pydantic parses them as datetimes. We can compare directly.
@@ -601,6 +689,10 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
         contact_number=patient.contact_number,
         email_id=patient.email_id,
         aadhaar_number=patient.aadhaar_number,
+        abha_id=patient.abha_id,
+        ayushman_id=patient.ayushman_id,
+        maa_card=patient.maa_card,
+        patient_category=patient.patient_category,
         dob=patient.dob,
         admission_date=patient.admission_date,
         discharge_date=patient.discharge_date,
@@ -618,21 +710,21 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
         from ..audit import log_audit
         log_audit(db, current_user.user_id, "PATIENT_CREATED", f"Created patient: {db_patient.full_name} ({db_patient.patient_u_id})", hospital_id=hospital_id)
     except Exception as e:
-        print(f"Audit Log Error: {e}") 
+        logger.info(f"Audit Log Error: {e}") 
     
     try:
         db.add(db_patient)
         db.commit()
         db.refresh(db_patient)
     except Exception as e:
-        print(f"Audit Log Error: {e}") 
+        logger.info(f"Audit Log Error: {e}") 
 
     # --- Auto-Assign Storage ---
     # Disabled by user request (Manual Assignment Mode)
     # try:
     #     StorageService.auto_assign_patient(db, db_patient)
     # except Exception as e:
-    #     print(f"Auto-assign failed: {e}")
+    #     logger.info(f"Auto-assign failed: {e}")
     #     # We don't fail the request, just log it. Patient is created.
         
     return db_patient
@@ -647,7 +739,7 @@ async def upload_patient_file(
     current_user: User = Depends(get_current_user)
 ):
     try:
-        print(f"🔵 UPLOAD REQUEST: {file.filename}")
+        logger.info(f"[INFO] UPLOAD REQUEST: {file.filename}")
         
         # 0. Authorization
         is_platform = current_user.role in ["superadmin", "superadmin_staff"]
@@ -689,17 +781,17 @@ async def upload_patient_file(
             if ext == '.pdf' and compression_level not in ['NONE', 'OFF'] and file_size > 5 * 1024 * 1024: # > 5MB
                 try:
                     from ..services.compression import CompressionService
-                    print(f"📉 Compress candidate: {file.filename} ({file_size/1024/1024:.2f} MB) using level {compression_level}")
+                    logger.info(f"[INFO] Compress candidate: {file.filename} ({file_size/1024/1024:.2f} MB) using level {compression_level}")
                     
                     # Use path-based optimization directly on the temp file
                     CompressionService.optimize_pdf(tmp_path, tmp_path, level=compression_level)
-                    print(f"✅ Optimization check complete for: {file.filename}")
+                    logger.info(f"[OK] Optimization check complete for: {file.filename}")
                 except Exception as comp_e:
-                    print(f"⚠️ Compression skipped due to error: {comp_e}")
+                    logger.info(f"[WARN] Compression skipped due to error: {comp_e}")
             # ------------------------
                     
         except Exception as e:
-            print(f"Disk Write Error: {e}")
+            logger.info(f"Disk Write Error: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to save upload to server temp: {str(e)}")
 
         # 2. Create Initial DB Record
@@ -1194,7 +1286,7 @@ async def extract_patient_details_from_file(
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"❌ Extraction API Error: {e}")
+        logger.info(f"[ERROR] Extraction API Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/files/{file_id}/confirm")
@@ -1343,8 +1435,7 @@ def get_file_url(file_id: int, db: Session = Depends(get_db), current_user: User
 
 @router.get("/files/{file_id}/serve")
 def serve_file(
-    file_id: int, 
-    background_tasks: BackgroundTasks, # Added background_tasks
+    file_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -1370,7 +1461,7 @@ def serve_file(
         from ..audit import log_audit
         log_audit(db, current_user.user_id, "VIEW_DOCUMENT", f"Viewed file: {pdf_file.filename}", hospital_id=current_user.hospital_id)
     except Exception as e:
-        print(f"Audit log failed: {e}")
+        logger.info(f"Audit log failed: {e}")
 
     s3_manager = S3Manager()
     
@@ -1392,13 +1483,13 @@ def serve_file(
 
     try:
         # 1. Download to disk
-        print(f"📥 Downloading {pdf_file.s3_key} to temp disk...")
+        logger.info(f"[DOWNLOAD] Downloading {pdf_file.s3_key} to temp disk...")
         success = s3_manager.download_to_temp_cache(pdf_file.s3_key, encrypted_temp_path)
         if not success:
             raise HTTPException(status_code=404, detail="Physical file not found in storage")
 
         # 2. Decrypt from disk to disk
-        print(f"🔓 Decrypting {pdf_file.filename} (Disk-to-Disk)...")
+        logger.info(f"[DECRYPT] Decrypting {pdf_file.filename} (Disk-to-Disk)...")
         with open(encrypted_temp_path, 'rb') as f_enc:
             enc_data = f_enc.read()
             dec_data = decrypt_data(enc_data)
@@ -1409,28 +1500,36 @@ def serve_file(
         if os.path.exists(encrypted_temp_path):
             os.remove(encrypted_temp_path)
 
-        # 3. Serve via FileResponse
-        def cleanup():
+        # 3. Read into memory and stream ? avoids Windows FileResponse + background_tasks race
+        with open(decrypted_temp_path, 'rb') as f:
+            file_bytes = f.read()
+
+        # Cleanup both temp files immediately after reading
+        for p in [encrypted_temp_path, decrypted_temp_path]:
             try:
-                if os.path.exists(decrypted_temp_path):
-                    os.remove(decrypted_temp_path)
-            except: pass
+                if os.path.exists(p):
+                    os.remove(p)
+            except Exception:
+                pass
 
-        background_tasks.add_task(cleanup)
-
-        return FileResponse(
-            path=decrypted_temp_path,
-            filename=pdf_file.filename,
-            media_type="application/pdf" if ".pdf" in pdf_file.filename.lower() else "application/octet-stream"
+        from fastapi.responses import Response as FastAPIResponse
+        media_type = "application/pdf" if pdf_file.filename.lower().endswith(".pdf") else "application/octet-stream"
+        return FastAPIResponse(
+            content=file_bytes,
+            media_type=media_type,
+            headers={"Content-Disposition": f'inline; filename="{pdf_file.filename}"'}
         )
 
     except Exception as e:
         # Cleanup on failure
         for p in [encrypted_temp_path, decrypted_temp_path]:
-            if os.path.exists(p): 
+            if os.path.exists(p):
                 try: os.remove(p)
                 except: pass
-        print(f"❌ serve_file Error for {file_id}: {e}")
+        import traceback
+        err_detail = traceback.format_exc()
+        logger.info(f"[ERROR] serve_file Error for {file_id}: {e}")
+        logger.info(f"[ERROR] Traceback: {err_detail}")
         raise HTTPException(status_code=500, detail=f"Failed to serve file: {str(e)}")
 
 @router.get("/files/{file_id}/status")
@@ -1531,7 +1630,7 @@ def monitor_restoration_and_email(file_id: int, hospital_email: str):
             time.sleep(60)
     except Exception as e:
         db.rollback()
-        print(f"❌ monitor_restoration error: {e}")
+        logger.info(f"[ERROR] monitor_restoration error: {e}")
     finally:
         db.close()
 
@@ -1685,7 +1784,7 @@ async def delete_file(
     current_user: User = Depends(get_current_user)
 ):
     """Delete a file from database and storage"""
-    print(f"🗑️ DELETE request for file_id: {file_id}")
+    logger.info(f"[DELETE] DELETE request for file_id: {file_id}")
     
     # Get the file
     db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
@@ -1710,16 +1809,16 @@ async def delete_file(
         if location and os.path.isabs(location) and os.path.exists(location):
             try:
                 os.remove(location)
-                print(f"✅ Deleted legacy local file: {location}")
+                logger.info(f"[OK] Deleted legacy local file: {location}")
             except Exception as e:
-                print(f"⚠️ Failed to delete local file: {e}")
+                logger.info(f"[WARN] Failed to delete local file: {e}")
 
         # Always try S3 deletion if key exists (Normal flow)
         if db_file.s3_key:
              s3_manager.delete_file(db_file.s3_key)
 
     except Exception as e:
-        print(f"⚠️ Failed to delete from storage: {e}")
+        logger.info(f"[WARN] Failed to delete from storage: {e}")
     
     # Update storage usage
     file_size_mb = db_file.file_size_mb
@@ -1740,7 +1839,7 @@ async def delete_file(
     
     db.commit()
     
-    print(f"✅ File {file_id} deleted successfully")
+    logger.info(f"[OK] File {file_id} deleted successfully")
     
     return {"status": "success", "message": "File deleted successfully"}
 
@@ -1811,7 +1910,7 @@ def delete_patient(
                          except: pass
                     files_deleted_count += 1
         
-        print(f"🗑️ Patient Deletion: Removed {files_deleted_count} associated S3 files.")
+        logger.info(f"[DELETE] Patient Deletion: Removed {files_deleted_count} associated S3 files.")
 
         # 2. DB Deletion (Cascade will handle rows)
         db.delete(patient)
@@ -1826,7 +1925,7 @@ def delete_patient(
         db.commit()
     except Exception as e:
         db.rollback()
-        print(f"Delete Error: {e}")
+        logger.info(f"Delete Error: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete patient.")
 
     return {"status": "success", "message": "Patient deleted successfully"}
@@ -1899,7 +1998,7 @@ def request_file_download(
     try:
         decrypted_bytes = decrypt_data(encrypted_bytes)
     except Exception as e:
-        print(f"Decryption failed for delivery: {e}")
+        logger.info(f"Decryption failed for delivery: {e}")
         raise HTTPException(status_code=500, detail="Secure processing failed for document delivery")
 
     # Send Secure Email
@@ -1930,7 +2029,7 @@ def request_file_download(
         log_audit(db, current_user.user_id, "FILE_EMAILED", f"Emailed file {pdf_file.filename} to {current_user.email}", hospital_id=hospital.hospital_id)
         db.commit() # Ensure log is saved even if return happens
     except Exception as e:
-        print(f"Audit log error: {e}")
+        logger.info(f"Audit log error: {e}")
 
     return {
         "status": "email_delivered", 

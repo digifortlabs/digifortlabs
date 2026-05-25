@@ -36,6 +36,6 @@ def setup_logging():
     setup_logger('activity', os.path.join(base_dir, "activity.log"))
     
     # 3. System Logger (Startup, Errors, Config)
-    setup_logger('system', os.path.join(base_dir, "system.log"))
+    sys_logger = setup_logger('system', os.path.join(base_dir, "system.log"))
     
-    print(f"[OK] Logging initialized. Logs writing to: {base_dir}")
+    sys_logger.info(f"[OK] Logging initialized. Logs writing to: {base_dir}")

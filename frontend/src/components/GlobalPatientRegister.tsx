@@ -12,9 +12,37 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { apiFetch } from '@/lib/api';
+import { apiFetch } from '@/config/api';
 import { useTerminology } from '@/hooks/useTerminology';
 import { toTitleCase, toUpperCaseMRD } from '@/lib/formatters';
+
+const calculateAgeFromDob = (dobString: string) => {
+    if (!dobString) return null;
+    const dob = new Date(dobString);
+    const today = new Date();
+    if (isNaN(dob.getTime())) return null;
+
+    let diffTime = today.getTime() - dob.getTime();
+    if (diffTime < 0) return { age: '0', unit: 'Days' };
+
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays < 30) {
+        return { age: String(diffDays), unit: 'Days' };
+    }
+
+    const diffMonths = Math.floor(diffDays / 30.4375);
+    if (diffMonths < 12) {
+        return { age: String(diffMonths), unit: 'Months' };
+    }
+
+    // Years calculation
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDiff = today.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+        age--;
+    }
+    return { age: String(age), unit: 'Years' };
+};
 
 export default function GlobalPatientRegister() {
     const [isOpen, setIsOpen] = useState(false);
@@ -34,7 +62,10 @@ export default function GlobalPatientRegister() {
         address: '',
         email_id: '',
         aadhaar_number: '',
-        patient_category: 'STANDARD',
+        abha_id: '',
+        ayushman_id: '',
+        maa_card: '',
+        patient_category: 'IPD',
         admission_date: '',
         discharge_date: '',
         doctor_name: '',
@@ -46,13 +77,34 @@ export default function GlobalPatientRegister() {
         diagnosis: ''
     });
 
+    const autoGenerateIds = async () => {
+        let finalMRD = `MRD-${Math.floor(100000 + Math.random() * 900000)}`;
+        let finalUHID = `DF-${Math.floor(1000 + Math.random() * 9000)}`;
+        try {
+            const res = await apiFetch('/patients/next-id');
+            if (res && res.next_id) {
+                finalMRD = res.next_id;
+                const match = res.next_id.match(/(\d+)$/);
+                if (match) {
+                    const num = match[1];
+                    finalUHID = `DF-${num.padStart(4, '0')}`;
+                }
+            }
+        } catch (err) {
+            console.error("Failed to fetch next sequential IDs:", err);
+        }
+        return { finalMRD, finalUHID };
+    };
+
     useEffect(() => {
-        const handleOpen = () => {
+        const handleOpen = async () => {
             setIsOpen(true);
-            // Default dates if needed
             const today = new Date().toISOString().split('T')[0];
+            const { finalMRD, finalUHID } = await autoGenerateIds();
             setFormData(prev => ({
                 ...prev,
+                patient_u_id: finalMRD,
+                uhid: finalUHID,
                 admission_date: today,
                 discharge_date: today
             }));
@@ -66,11 +118,12 @@ export default function GlobalPatientRegister() {
         resetForm();
     };
 
-    const resetForm = () => {
+    const resetForm = async () => {
+        const { finalMRD, finalUHID } = await autoGenerateIds();
         setFormData({
             full_name: '',
-            uhid: '',
-            patient_u_id: '',
+            uhid: finalUHID,
+            patient_u_id: finalMRD,
             age: '',
             gender: '',
             dob: '',
@@ -78,7 +131,10 @@ export default function GlobalPatientRegister() {
             address: '',
             email_id: '',
             aadhaar_number: '',
-            patient_category: 'STANDARD',
+            abha_id: '',
+            ayushman_id: '',
+            maa_card: '',
+            patient_category: 'IPD',
             admission_date: '',
             discharge_date: '',
             doctor_name: '',
@@ -116,18 +172,14 @@ export default function GlobalPatientRegister() {
                 discharge_date: formData.discharge_date || null,
             };
 
-            const res = await apiFetch(endpoint, {
+            const data = await apiFetch(`/${endpoint}`, {
                 method: 'POST',
                 body: payload
             });
 
-            if (res.ok) {
-                const data = await res.json().catch(() => payload);
-                alert("Patient registered successfully!");
-                handleClose();
-                // Optionally refresh current page data if possible
-                window.dispatchEvent(new CustomEvent('patient-registered', { detail: data }));
-            }
+            alert("Patient registered successfully!");
+            handleClose();
+            window.dispatchEvent(new CustomEvent('patient-registered', { detail: data }));
         } catch (error: any) {
             console.error("Registration failed:", error);
             alert(error.message || "Failed to register patient.");
@@ -154,7 +206,8 @@ export default function GlobalPatientRegister() {
                     </div>
                     <button 
                         onClick={handleClose}
-                        className="w-10 h-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-colors"
+                        disabled={isSaving}
+                        className="w-10 h-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-colors disabled:opacity-40 disabled:pointer-events-none"
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -164,13 +217,13 @@ export default function GlobalPatientRegister() {
                 <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsList className="grid w-full grid-cols-3 mb-8 bg-slate-100 p-1 rounded-2xl">
-                            <TabsTrigger value="identity" className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm font-bold text-xs">
+                            <TabsTrigger value="identity" disabled={isSaving} className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm font-bold text-xs disabled:opacity-50">
                                 1. Identity
                             </TabsTrigger>
-                            <TabsTrigger value="clinical" className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm font-bold text-xs">
+                            <TabsTrigger value="clinical" disabled={isSaving} className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm font-bold text-xs disabled:opacity-50">
                                 2. Clinical
                             </TabsTrigger>
-                            <TabsTrigger value="admission" className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm font-bold text-xs">
+                            <TabsTrigger value="admission" disabled={isSaving} className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm font-bold text-xs disabled:opacity-50">
                                 3. Admission
                             </TabsTrigger>
                         </TabsList>
@@ -210,7 +263,29 @@ export default function GlobalPatientRegister() {
                                             />
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div className="space-y-2">
+                                            <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Date of Birth</Label>
+                                            <Input 
+                                                type="date"
+                                                className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500 font-medium"
+                                                value={formData.dob}
+                                                onChange={e => {
+                                                    const dobVal = e.target.value;
+                                                    const calculated = calculateAgeFromDob(dobVal);
+                                                    if (calculated) {
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            dob: dobVal,
+                                                            age: calculated.age
+                                                        }));
+                                                        setAgeUnit(calculated.unit as any);
+                                                    } else {
+                                                        setFormData(prev => ({ ...prev, dob: dobVal }));
+                                                    }
+                                                }}
+                                            />
+                                        </div>
                                         <div className="space-y-2">
                                             <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Age *</Label>
                                             <div className="flex gap-1">
@@ -236,7 +311,7 @@ export default function GlobalPatientRegister() {
                                         <div className="space-y-2">
                                             <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Gender *</Label>
                                             <select 
-                                                className="w-full h-11 border border-slate-200 rounded-xl bg-white text-sm px-3 outline-none focus:ring-2 focus:ring-indigo-500"
+                                                className="w-full h-11 border border-slate-200 rounded-xl bg-white text-sm px-3 outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
                                                 value={formData.gender}
                                                 onChange={e => setFormData({...formData, gender: e.target.value})}
                                                 required
@@ -259,6 +334,47 @@ export default function GlobalPatientRegister() {
                                             value={formData.address}
                                             onChange={e => setFormData({...formData, address: e.target.value})}
                                         />
+                                    </div>
+                                </div>
+                                <div className="mt-6 pt-4 border-t border-slate-100">
+                                    <h4 className="text-xs font-black uppercase tracking-widest text-indigo-600 mb-4">Government & Health IDs (Optional)</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Aadhaar Number</Label>
+                                            <Input 
+                                                placeholder="12-digit Aadhaar No"
+                                                className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500"
+                                                value={formData.aadhaar_number}
+                                                onChange={e => setFormData({...formData, aadhaar_number: e.target.value})}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-xs font-black uppercase tracking-widest text-slate-500">ABHA Health ID</Label>
+                                            <Input 
+                                                placeholder="ABHA ID (14 digits)"
+                                                className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500"
+                                                value={formData.abha_id}
+                                                onChange={e => setFormData({...formData, abha_id: e.target.value})}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Ayushman Bharat ID</Label>
+                                            <Input 
+                                                placeholder="Ayushman Card ID"
+                                                className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500"
+                                                value={formData.ayushman_id}
+                                                onChange={e => setFormData({...formData, ayushman_id: e.target.value})}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-xs font-black uppercase tracking-widest text-slate-500">MAA Card ID</Label>
+                                            <Input 
+                                                placeholder="Maa Vatsalya Card ID"
+                                                className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500"
+                                                value={formData.maa_card}
+                                                onChange={e => setFormData({...formData, maa_card: e.target.value})}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </TabsContent>
@@ -345,7 +461,6 @@ export default function GlobalPatientRegister() {
                                             value={formData.patient_category}
                                             onChange={e => setFormData({...formData, patient_category: e.target.value})}
                                         >
-                                            <option value="STANDARD">STANDARD</option>
                                             <option value="OPD">OPD</option>
                                             <option value="IPD">IPD</option>
                                             <option value="EMERGENCY">EMERGENCY</option>
@@ -382,10 +497,10 @@ export default function GlobalPatientRegister() {
                     <div className="flex gap-2">
                         {activeTab === 'identity' ? (
                             <>
-                                <Button variant="outline" onClick={handleClose} className="rounded-xl px-6">
+                                <Button variant="outline" onClick={handleClose} disabled={isSaving} className="rounded-xl px-6">
                                     Cancel
                                 </Button>
-                                <Button variant="ghost" onClick={resetForm} className="rounded-xl text-slate-500 hover:text-slate-900">
+                                <Button variant="ghost" onClick={resetForm} disabled={isSaving} className="rounded-xl text-slate-500 hover:text-slate-900">
                                     Reset Form
                                 </Button>
                             </>
@@ -396,6 +511,7 @@ export default function GlobalPatientRegister() {
                                     if (activeTab === 'clinical') setActiveTab('identity');
                                     else if (activeTab === 'admission') setActiveTab('clinical');
                                 }} 
+                                disabled={isSaving}
                                 className="rounded-xl px-6 flex items-center gap-2"
                             >
                                 <ChevronLeft className="w-4 h-4" />
@@ -429,6 +545,7 @@ export default function GlobalPatientRegister() {
                                 if (activeTab === 'identity') setActiveTab('clinical');
                                 else if (activeTab === 'clinical') setActiveTab('admission');
                             }}
+                            disabled={isSaving}
                             className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-8 h-11 font-bold shadow-lg shadow-indigo-500/20 gap-2"
                         >
                             Next Step

@@ -60,15 +60,20 @@ export function useInactivityLogout(config: InactivityConfig) {
         // Set logout timer
         const logoutTime = config.timeoutMinutes * 60 * 1000;
         timeoutRef.current = setTimeout(async () => {
-            console.log('🔒 Auto-logout due to inactivity');
+            // console.log('🔒 Auto-logout due to inactivity');
             try {
                 const { apiFetch } = await import('@/lib/api');
                 await apiFetch('/auth/logout', { method: 'POST' });
             } catch (e) {
                 console.error("Backend logout failed", e);
             } finally {
-                localStorage.removeItem('userRole');
-                localStorage.removeItem('userEmail');
+                const keysToRemove = [
+                    'access_token', 'userRole', 'userEmail', 'userSpecialty', 'userModules',
+                    'userTerminology', 'loginTime', 'hospital_id', 'globalHospitalId',
+                    'mrd_hospital_id', 'dental_hospital_id', 'ent_hospital_id', 'clinic_hospital_id', 'hms_hospital_id', 'inventory_hospital_id',
+                    'userGroupId', 'sidebarCollapsed'
+                ];
+                keysToRemove.forEach(key => localStorage.removeItem(key));
                 router.push('/login?reason=inactivity');
             }
         }, logoutTime);

@@ -4,7 +4,6 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Building2, Menu, X, Settings, LogOut, LayoutDashboard, Database, Archive, FileClock, Users as UsersIcon, Box, FileText, Receipt, Shield, HardDrive } from 'lucide-react';
 import { useTerminology } from '@/hooks/useTerminology';
-import GlobalHospitalSelector from './GlobalHospitalSelector';
 
 interface DashboardNavbarProps {
     userRole: string;
@@ -58,7 +57,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
         return () => window.removeEventListener('hospitalChanged', handleHospitalChange);
     }, []);
 
-    const dashboardPath = globalHospitalId ? `/dashboard/hospital-overview?hospital_id=${globalHospitalId}` : '/dashboard';
+    const dashboardPath = globalHospitalId ? `/hospital-overview?hospital_id=${globalHospitalId}` : '/';
 
     const handleLogout = async () => {
         setIsMenuOpen(false);
@@ -68,8 +67,13 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
         } catch (e) {
             console.error('Logout failed:', e);
         } finally {
-            localStorage.removeItem('userRole');
-            localStorage.removeItem('userEmail');
+            const keysToRemove = [
+                'access_token', 'userRole', 'userEmail', 'userSpecialty', 'userModules',
+                'userTerminology', 'loginTime', 'hospital_id', 'globalHospitalId',
+                'mrd_hospital_id', 'dental_hospital_id', 'ent_hospital_id', 'clinic_hospital_id', 'hms_hospital_id', 'inventory_hospital_id',
+                'userGroupId', 'sidebarCollapsed'
+            ];
+            keysToRemove.forEach(key => localStorage.removeItem(key));
             router.push('/login');
         }
     };
@@ -121,9 +125,6 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
                     {/* Right Side: Account & Profile */}
                     <div className="flex items-center gap-4">
-                        {/* Global Hospital Selector for Platform Admins */}
-                        {isPlatformStaff && <GlobalHospitalSelector />}
-
                         {/* Hospital Badge for Tenants & Group Admins */}
                         {hospitalName && !isPlatformStaff && (
                             <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full">
@@ -183,7 +184,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                     <div className="p-2 space-y-1">
                                         {(isHospitalAdmin || isGroupAdmin || isPlatformStaff) && (
                                             <Link
-                                                href="/dashboard/settings"
+                                                href="/settings"
                                                 onClick={() => setIsProfileOpen(false)}
                                                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
                                             >
@@ -193,7 +194,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
                                         {isSuperAdmin && (
                                             <Link
-                                                href="/dashboard/server-manager"
+                                                href="/server-manager"
                                                 onClick={() => setIsProfileOpen(false)}
                                                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-amber-500 hover:bg-slate-800 hover:text-amber-400 transition-colors"
                                             >
@@ -202,7 +203,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                         )}
 
                                         <Link
-                                            href="/dashboard/downloads"
+                                            href="/downloads"
                                             onClick={() => setIsProfileOpen(false)}
                                             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
                                         >
@@ -248,7 +249,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             <Link
                                 href={dashboardPath}
                                 onClick={() => setIsMenuOpen(false)}
-                                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${pathname === '/dashboard'
+                                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${pathname === '/' || pathname === '/hospital-overview'
                                     ? 'bg-slate-800 text-white'
                                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                     }`}
@@ -258,9 +259,9 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
                             {userRole === 'superadmin' && (
                                 <Link
-                                    href="/dashboard/hospitals"
+                                    href="/hospitals"
                                     onClick={() => setIsMenuOpen(false)}
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/hospitals')
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/hospitals')
                                         ? 'bg-indigo-600 text-white'
                                         : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                         }`}
@@ -271,9 +272,12 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
                             {(userRole === 'hospital_admin' || userRole === 'warehouse_manager' || userRole === 'superadmin' || userRole === 'group_admin') && (
                                 <Link
-                                    href="/dashboard/records"
-                                    onClick={() => setIsMenuOpen(false)}
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/records')
+                                    href="/records"
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        localStorage.removeItem('mrd_hospital_id');
+                                    }}
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/records')
                                         ? 'bg-slate-800 text-white'
                                         : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                         }`}
@@ -286,9 +290,9 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 <>
                                     {userRole === 'hospital_admin' && (
                                         <Link
-                                            href="/dashboard/user_mgmt"
+                                            href="/user_mgmt"
                                             onClick={() => setIsMenuOpen(false)}
-                                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/user_mgmt')
+                                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/user_mgmt')
                                                 ? 'bg-slate-800 text-white'
                                                 : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                                 }`}
@@ -298,9 +302,9 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                     )}
 
                                     <Link
-                                        href="/dashboard/requests"
+                                        href="/requests"
                                         onClick={() => setIsMenuOpen(false)}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/requests')
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/requests')
                                             ? 'bg-slate-800 text-white'
                                             : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                             }`}
@@ -309,9 +313,9 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                     </Link>
 
                                     <Link
-                                        href="/dashboard/archive"
+                                        href="/archive"
                                         onClick={() => setIsMenuOpen(false)}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/archive')
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/archive')
                                             ? 'bg-slate-800 text-white'
                                             : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                             }`}
@@ -325,9 +329,9 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             {(userRole === 'superadmin' || userRole === 'group_admin') && (
                                 <>
                                     <Link
-                                        href="/dashboard/reports"
+                                        href="/reports"
                                         onClick={() => setIsMenuOpen(false)}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/reports')
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/reports')
                                             ? 'bg-slate-800 text-white'
                                             : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                             }`}
@@ -335,9 +339,9 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                         <FileText size={18} /> Reports
                                     </Link>
                                     <Link
-                                        href="/dashboard/accounting"
+                                        href="/accounting"
                                         onClick={() => setIsMenuOpen(false)}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/accounting')
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/accounting')
                                             ? 'bg-slate-800 text-white'
                                             : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                             }`}
@@ -349,9 +353,9 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
                             {isSuperAdmin && (
                                 <Link
-                                    href="/dashboard/audit"
+                                    href="/audit"
                                     onClick={() => setIsMenuOpen(false)}
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/audit')
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/audit')
                                         ? 'bg-slate-800 text-white'
                                         : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                         }`}
@@ -362,27 +366,27 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
                             {(userRole === 'superadmin' || userRole === 'warehouse_manager') && (
                                 <Link
-                                    href="/dashboard/storage"
+                                    href="/inventory"
                                     onClick={() => setIsMenuOpen(false)}
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/storage') && !isActive('/dashboard/storage/requests')
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/inventory') && !isActive('/inventory/requests')
                                         ? 'bg-slate-800 text-white'
                                         : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                                         }`}
                                 >
-                                    <Box size={18} /> Warehouse
+                                    <Box size={18} /> Inventory
                                 </Link>
                             )}
 
                             <div className="pt-4 mt-4 border-t border-slate-800">
                                 {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'superadmin_staff' || userRole === 'group_admin') && (
-                                    <Link
-                                        href="/dashboard/settings"
-                                        onClick={() => setIsMenuOpen(false)}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/dashboard/settings')
-                                            ? 'bg-slate-800 text-white'
-                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                                            }`}
-                                    >
+                                <Link
+                                    href="/settings"
+                                    onClick={() => setIsMenuOpen(false)}
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/settings')
+                                        ? 'bg-slate-800 text-white'
+                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        }`}
+                                >
                                         <Settings size={18} /> Settings
                                     </Link>
                                 )}

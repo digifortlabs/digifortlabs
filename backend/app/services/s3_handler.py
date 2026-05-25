@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 import os
 import shutil
 
@@ -29,11 +31,11 @@ class S3Manager:
                 self.s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
                 self.s3_client.list_buckets()
             
-            print(f"[INFO] S3 Manager initialized for bucket: {self.bucket_name} (Region: {settings.AWS_REGION})")
+            logger.info(f"[INFO] S3 Manager initialized for bucket: {self.bucket_name} (Region: {settings.AWS_REGION})")
             self.mode = "s3"
         except Exception as e:
             self.mode = "local"
-            print(f"[WARN] S3 Manager falling back to LOCAL MODE (Error: {str(e)[:50]}...). Storage: {self.local_root}")
+            logger.info(f"[WARN] S3 Manager falling back to LOCAL MODE (Error: {str(e)[:50]}...). Storage: {self.local_root}")
 
     def upload_file(self, file_content, object_name, content_type=None):
         """
@@ -51,7 +53,7 @@ class S3Manager:
                     
                 return True, full_path
             except Exception as e:
-                print(f"[ERROR] Local Upload Error: {e}")
+                logger.info(f"[ERROR] Local Upload Error: {e}")
                 return False, str(e)
         
         try:
@@ -69,10 +71,10 @@ class S3Manager:
             )
             return True, f"s3://{self.bucket_name}/{object_name}"
         except ClientError as e:
-            print(f"[ERROR] S3 Upload Error: {e}")
+            logger.info(f"[ERROR] S3 Upload Error: {e}")
             return False, str(e)
         except Exception as e:
-            print(f"[ERROR] Unexpected Upload Error: {e}")
+            logger.info(f"[ERROR] Unexpected Upload Error: {e}")
             return False, str(e)
 
     def generate_presigned_url(self, object_name, expiration=3600):
@@ -104,7 +106,7 @@ class S3Manager:
             )
             return response
         except ClientError as e:
-            print(f"[ERROR] Presign Error: {e}")
+            logger.info(f"[ERROR] Presign Error: {e}")
             return None
 
     def _clean_key(self, object_name: str) -> str:
@@ -130,7 +132,7 @@ class S3Manager:
                 shutil.copy2(source_path, local_path)
                 return True
             except Exception as e:
-                print(f"[ERROR] Local Download Error: {e}")
+                logger.info(f"[ERROR] Local Download Error: {e}")
                 return False
 
         try:
@@ -142,10 +144,10 @@ class S3Manager:
             self.s3_client.download_file(self.bucket_name, object_name, local_path)
             return True
         except ClientError as e:
-            print(f"[ERROR] Download Error: {e}")
+            logger.info(f"[ERROR] Download Error: {e}")
             return False
         except Exception as e:
-            print(f"[ERROR] Unexpected Download Error: {e}")
+            logger.info(f"[ERROR] Unexpected Download Error: {e}")
             return False
 
     def get_file_bytes(self, object_name: str) -> bytes:
@@ -164,7 +166,7 @@ class S3Manager:
                 response = self.s3_client.get_object(Bucket=self.bucket_name, Key=object_name)
                 return response['Body'].read()
             except Exception as e:
-                print(f"[ERROR] S3 Retrieval Error: {e}")
+                logger.info(f"[ERROR] S3 Retrieval Error: {e}")
                 return None
         
         return None
@@ -181,9 +183,9 @@ class S3Manager:
             full_path = os.path.join(self.local_root, object_name) if object_name else ""
             if full_path and os.path.exists(full_path):
                 os.remove(full_path)
-                print(f"[INFO] Deleted local file: {full_path}")
+                logger.info(f"[INFO] Deleted local file: {full_path}")
         except Exception as e:
-            print(f"[WARN] Local Delete Warning: {e}")
+            logger.info(f"[WARN] Local Delete Warning: {e}")
             if self.mode == "local":
                 success = False
 
@@ -191,7 +193,7 @@ class S3Manager:
             try:
                 self.s3_client.delete_object(Bucket=self.bucket_name, Key=object_name)
             except ClientError as e:
-                print(f"[ERROR] S3 Delete Error: {e}")
+                logger.info(f"[ERROR] S3 Delete Error: {e}")
                 # If it's a 404 from S3, that's fine, we treat as deleted.
                 # But for other errors we might want to flag? 
                 # For now, return True so DB deletion proceeds (consistency).
@@ -215,7 +217,7 @@ class S3Manager:
                 "IsGlacier": response.get('StorageClass') in ['GLACIER', 'DEEP_ARCHIVE']
             }
         except Exception as e:
-            print(f"[ERROR] Head Object Error: {e}")
+            logger.info(f"[ERROR] Head Object Error: {e}")
             return None
 
     def initiate_restoration(self, object_name: str, days: int = 1, tier: str = 'Standard'):

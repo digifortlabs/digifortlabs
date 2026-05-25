@@ -143,6 +143,14 @@ def add_audiometry_test(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # Verify Patient ownership
+    patient = db.query(Patient).filter(
+        Patient.record_id == patient_id,
+        Patient.hospital_id == current_user.hospital_id
+    ).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient record not found")
+        
     new_test = AudiometryTest(
         patient_id=patient_id,
         hospital_id=current_user.hospital_id,
@@ -163,6 +171,14 @@ def add_ent_examination(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # Verify Patient ownership
+    patient = db.query(Patient).filter(
+        Patient.record_id == exam.patient_id,
+        Patient.hospital_id == current_user.hospital_id
+    ).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient record not found")
+        
     new_exam = ENTExamination(
         patient_id=exam.patient_id,
         hospital_id=current_user.hospital_id,
@@ -181,8 +197,16 @@ def schedule_surgery(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    import dateutil.parser
+    import dateutil.parser  # type: ignore
     
+    # Verify Patient ownership
+    patient = db.query(Patient).filter(
+        Patient.record_id == surgery.patient_id,
+        Patient.hospital_id == current_user.hospital_id
+    ).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient record not found")
+        
     parsed_date = None
     if surgery.scheduled_date:
         parsed_date = dateutil.parser.isoparse(surgery.scheduled_date)

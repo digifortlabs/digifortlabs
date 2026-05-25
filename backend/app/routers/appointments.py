@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
@@ -177,6 +177,6 @@ async def update_appointment_status(
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
         
-    appointment.status = status
+    setattr(appointment, "status", status)
     db.commit()
     return {"message": "Status updated successfully", "status": status}

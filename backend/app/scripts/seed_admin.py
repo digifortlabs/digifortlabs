@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import os
@@ -19,7 +21,7 @@ def seed():
     email = "admin@digifortlabs.com"
     existing = db.query(User).filter(User.email == email).first()
     if existing:
-        print(f"User {email} already exists.")
+        logger.info(f"User {email} already exists.")
         return
 
     # Create Hospital for Super Admin (usually null or platform hospital)
@@ -35,7 +37,7 @@ def seed():
     )
     db.add(admin)
     db.commit()
-    print(f"Super Admin {email} created successfully.")
+    logger.info(f"Super Admin {email} created successfully.")
 
 if __name__ == "__main__":
     seed()

@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
@@ -46,6 +48,8 @@ class InvoiceResponse(BaseModel):
     payment_date: Optional[datetime] = None
     payment_method: Optional[str] = None
     transaction_id: Optional[str] = None
+    tds_amount: Optional[float] = 0.0
+    received_amount: Optional[float] = None
     
     # Hospital Details for Bill Preview
     hospital_gst: Optional[str] = None
@@ -97,6 +101,8 @@ class ReceivePaymentRequest(BaseModel):
     transaction_id: str
     payment_method: str
     payment_date: Optional[datetime] = None
+    tds_amount: Optional[float] = 0.0
+    received_amount: Optional[float] = None
 
 class UpdateInvoiceItem(BaseModel):
     item_id: Optional[int] = None
@@ -117,7 +123,7 @@ class UpdateInvoiceRequest(BaseModel):
 
 @router.get("/config")
 def get_accounting_config(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Access denied")
     
     config = db.query(AccountingConfig).first()
@@ -159,7 +165,7 @@ def update_accounting_config(
     current_user: User = Depends(get_current_user)
 ):
     """Update accounting settings."""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Access denied")
     
     config = db.query(AccountingConfig).first()
@@ -167,7 +173,7 @@ def update_accounting_config(
         config = AccountingConfig()
         db.add(config)
     
-    for key, value in req.dict(exclude_unset=True).items():
+    for key, value in req.model_dump(exclude_unset=True).items():
         setattr(config, key, value)
     
     db.commit()
@@ -179,17 +185,17 @@ def reset_invoice_counters(
     current_user: User = Depends(get_current_user)
 ):
     """Reset all invoice/receipt/expense counters to 1. Use with caution!"""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Access denied")
     
     config = db.query(AccountingConfig).first()
     if not config:
         raise HTTPException(status_code=404, detail="Accounting config not found")
     
-    config.next_invoice_number = 1
-    config.next_invoice_number_nongst = 1
-    config.next_receipt_number = 1
-    config.next_expense_number = 1
+    config.next_invoice_number = 1  # type: ignore
+    config.next_invoice_number_nongst = 1  # type: ignore
+    config.next_receipt_number = 1  # type: ignore
+    config.next_expense_number = 1  # type: ignore
     
     db.commit()
     return {
@@ -201,6 +207,7 @@ def reset_invoice_counters(
 
 # --- Endpoints ---
 
+@router.get("", response_model=List[InvoiceResponse])
 @router.get("/", response_model=List[InvoiceResponse])
 def get_invoices(
     hospital_id: Optional[int] = None,
@@ -212,7 +219,7 @@ def get_invoices(
     query = db.query(Invoice).join(Hospital)
     
     # Restricted to Super Admin / Platform Staff
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Access denied")
         
     if hospital_id:
@@ -232,7 +239,25 @@ def get_invoices(
         res.bank_name = inv.hospital.bank_name if inv.hospital else None
         res.bank_account_no = inv.hospital.bank_account_no if inv.hospital else None
         res.bank_ifsc = inv.hospital.bank_ifsc if inv.hospital else None
-        res.is_gst_bill = (inv.gst_rate or 0) > 0
+        res.is_gst_bill = (inv.gst_rate or 0) > 0  # type: ignore
+        
+        # Populate TDS and Received Amount for PAID invoices
+        if inv.status == "PAID":
+            tds_txn = db.query(AccountingTransaction).filter(
+                AccountingTransaction.voucher_type == "TDS",
+                AccountingTransaction.voucher_id == inv.invoice_id
+            ).first()
+            res.tds_amount = tds_txn.credit if tds_txn else 0.0  # type: ignore
+
+            rcpt_txn = db.query(AccountingTransaction).filter(
+                AccountingTransaction.voucher_type == "RECEIPT",
+                AccountingTransaction.voucher_id == inv.invoice_id
+            ).first()
+            res.received_amount = rcpt_txn.credit if rcpt_txn else inv.total_amount  # type: ignore
+        else:
+            res.tds_amount = 0.0
+            res.received_amount = None
+            
         results.append(res)
         
     return results
@@ -248,7 +273,7 @@ def get_invoice_details(
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
         
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Access denied")
         
     res = InvoiceResponse.model_validate(invoice)
@@ -263,25 +288,42 @@ def get_invoice_details(
     res.hospital_pincode = getattr(invoice.hospital, 'pincode', None) if invoice.hospital else None
     res.hospital_pan = getattr(invoice.hospital, 'pan_number', None) if invoice.hospital else None
     res.amount_in_words = number_to_words(invoice.total_amount)
-    res.is_gst_bill = (invoice.gst_rate or 0) > 0
+    res.is_gst_bill = (invoice.gst_rate or 0) > 0  # type: ignore
     
     # Add Company Details from Config
     config = db.query(AccountingConfig).first()
     if config:
-        res.company_name = config.company_name
-        res.company_address = config.company_address
-        res.company_gst = config.company_gst
-        res.company_email = config.company_email
-        res.company_website = config.company_website
-        res.company_bank_name = config.company_bank_name
-        res.company_bank_acc = config.company_bank_acc
-        res.company_bank_ifsc = config.company_bank_ifsc
-        res.company_bank_branch = config.company_bank_branch
-        res.company_phone = config.company_phone
-        res.company_pan = config.company_pan
+        res.company_name = config.company_name  # type: ignore
+        res.company_address = config.company_address  # type: ignore
+        res.company_gst = config.company_gst  # type: ignore
+        res.company_email = config.company_email  # type: ignore
+        res.company_website = config.company_website  # type: ignore
+        res.company_bank_name = config.company_bank_name  # type: ignore
+        res.company_bank_acc = config.company_bank_acc  # type: ignore
+        res.company_bank_ifsc = config.company_bank_ifsc  # type: ignore
+        res.company_bank_branch = config.company_bank_branch  # type: ignore
+        res.company_phone = config.company_phone  # type: ignore
+        res.company_pan = config.company_pan  # type: ignore
     else:
         res.company_gst = "24AAFCD9999A1ZP" # Fallback
     
+    # Populate TDS and Received Amount for PAID invoices
+    if invoice.status == "PAID":
+        tds_txn = db.query(AccountingTransaction).filter(
+            AccountingTransaction.voucher_type == "TDS",
+            AccountingTransaction.voucher_id == invoice.invoice_id
+        ).first()
+        res.tds_amount = tds_txn.credit if tds_txn else 0.0  # type: ignore
+
+        rcpt_txn = db.query(AccountingTransaction).filter(
+            AccountingTransaction.voucher_type == "RECEIPT",
+            AccountingTransaction.voucher_id == invoice.invoice_id
+        ).first()
+        res.received_amount = rcpt_txn.credit if rcpt_txn else invoice.total_amount  # type: ignore
+    else:
+        res.tds_amount = 0.0
+        res.received_amount = None
+
     # Populate items
     res.items = []
     for item in invoice.items:
@@ -306,7 +348,7 @@ def update_invoice(
     current_user: User = Depends(get_current_user)
 ):
     """Update metadata, items, and taxes for an existing invoice."""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Only Super Admins can update invoices")
         
     invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
@@ -319,17 +361,17 @@ def update_invoice(
     try:
         # 1. Update Basic Meta
         if req.invoice_number:
-            invoice.invoice_number = req.invoice_number
+            invoice.invoice_number = req.invoice_number  # type: ignore
         if req.bill_date:
-            invoice.bill_date = req.bill_date
+            invoice.bill_date = req.bill_date  # type: ignore
         if req.due_date:
-            invoice.due_date = req.due_date
+            invoice.due_date = req.due_date  # type: ignore
         if req.status:
-            invoice.status = req.status
+            invoice.status = req.status  # type: ignore
             
         # 2. Update GST state if provided
         if req.is_gst_bill is not None:
-            invoice.gst_rate = 18.0 if req.is_gst_bill else 0.0
+            invoice.gst_rate = 18.0 if req.is_gst_bill else 0.0  # type: ignore
 
         # 3. Update Items (Complete Replacement for simplicity/safety)
         if req.items is not None:
@@ -358,10 +400,10 @@ def update_invoice(
             # Recalculate Totals
             rate = invoice.gst_rate or 0.0
             tax = (subtotal * rate) / 100
-            grand = round(subtotal + tax)
+            grand = round(subtotal + tax)  # type: ignore
             
             invoice.total_amount = grand
-            invoice.tax_amount = tax
+            invoice.tax_amount = tax  # type: ignore
             
         elif req.is_gst_bill is not None:
             # Case where only GST flag was toggled but items stayed same
@@ -371,10 +413,10 @@ def update_invoice(
             
             rate = invoice.gst_rate or 0.0
             tax = (subtotal * rate) / 100
-            grand = round(subtotal + tax)
+            grand = round(subtotal + tax)  # type: ignore
             
             invoice.total_amount = grand
-            invoice.tax_amount = tax
+            invoice.tax_amount = tax  # type: ignore
 
         db.commit()
         db.refresh(invoice)
@@ -394,10 +436,10 @@ def update_invoice(
         # Log Audit
         log_audit(
             db, 
-            user_id=current_user.user_id, 
+            user_id=current_user.user_id,  # type: ignore
             action="INVOICE_UPDATED", 
             details=f"Updated Invoice #{invoice.invoice_number} (New Total: {invoice.total_amount})",
-            hospital_id=invoice.hospital_id
+            hospital_id=invoice.hospital_id  # type: ignore
         )
             
         return get_invoice_details(invoice_id, db, current_user)
@@ -413,7 +455,7 @@ def delete_invoice_item(
     current_user: User = Depends(get_current_user)
 ):
     """Remove a single item from an invoice and recalculate totals."""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Only Super Admins can edit invoices")
         
     item = db.query(InvoiceItem).filter(InvoiceItem.item_id == item_id).first()
@@ -426,7 +468,7 @@ def delete_invoice_item(
         
     # Mark file as unpaid if applicable
     if item.pdf_file:
-        item.pdf_file.is_paid = False
+        item.pdf_file.is_paid = False  # type: ignore
         
     # Reset reg fee status if it was a reg fee item
     if item.description == "One-time Registration Fee" and invoice.hospital:
@@ -438,8 +480,8 @@ def delete_invoice_item(
     
     # Recalculate Totals
     new_subtotal = sum((i.amount - i.discount) for i in invoice.items)
-    invoice.tax_amount = (new_subtotal * invoice.gst_rate) / 100
-    invoice.total_amount = round(new_subtotal + invoice.tax_amount)
+    invoice.tax_amount = (new_subtotal * invoice.gst_rate) / 100  # type: ignore
+    invoice.total_amount = round(new_subtotal + invoice.tax_amount)  # type: ignore
     
     db.commit()
 
@@ -456,7 +498,7 @@ def delete_invoice_item(
     # Log Audit
     log_audit(
         db, 
-        user_id=current_user.user_id, 
+        user_id=current_user.user_id,  # type: ignore
         action="INVOICE_ITEM_DELETED", 
         details=f"Deleted item from Invoice #{invoice.invoice_number} (New Total: {invoice.total_amount})",
         hospital_id=invoice.hospital_id
@@ -495,7 +537,7 @@ def generate_invoice(
 ):
     """Generate a new invoice for a set of files."""
     try:
-        if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+        if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
             raise HTTPException(status_code=403, detail="Only Super Admins can generate invoices")
             
         hospital = db.query(Hospital).filter(Hospital.hospital_id == req.hospital_id).first()
@@ -552,9 +594,9 @@ def generate_invoice(
                 next_number = current_counter
                 # Increment counter
                 if req.is_gst_bill:
-                    config.next_invoice_number += 1
+                    config.next_invoice_number += 1  # type: ignore
                 else:
-                    config.next_invoice_number_nongst = (config.next_invoice_number_nongst or 1) + 1
+                    config.next_invoice_number_nongst = (config.next_invoice_number_nongst or 1) + 1  # type: ignore
             
             # Generate the invoice number
             invoice_number = config.number_format.format(
@@ -591,7 +633,7 @@ def generate_invoice(
                 "description": "One-time Registration Fee",
                 "hsn_code": "998311"
             })
-            hospital.is_reg_fee_paid = True 
+            hospital.is_reg_fee_paid = True  # type: ignore
 
         for f in files:
             # Calculate cost logic
@@ -616,7 +658,7 @@ def generate_invoice(
                     "pages": f.page_count
                 })
                 
-            invoice_items.append({
+            invoice_items.append({  # type: ignore
                 "file_id": f.file_id,
                 "amount": file_cost,
                 "discount": 0.0,
@@ -639,7 +681,7 @@ def generate_invoice(
         # Calculate GST (18% if GST Bill, else 0%)
         gst_rate = 18.0 if req.is_gst_bill else 0.0
         tax_amount = (total_amount * gst_rate) / 100
-        grand_total = round(total_amount + tax_amount)
+        grand_total = round(total_amount + tax_amount)  # type: ignore
 
         # Create Invoice
         new_invoice = Invoice(
@@ -685,8 +727,8 @@ def generate_invoice(
         
         # Send Email automatically with detailed info
         EmailService.send_invoice_email(
-            recipient_email=hospital.email,
-            hospital_name=hospital.legal_name,
+            recipient_email=hospital.email,  # type: ignore
+            hospital_name=hospital.legal_name,  # type: ignore
             invoice_number=invoice_number,
             amount=grand_total,
             items=[{
@@ -708,35 +750,35 @@ def generate_invoice(
         )
         
         res = InvoiceResponse.model_validate(new_invoice)
-        res.hospital_name = hospital.legal_name
-        res.hospital_gst = hospital.gst_number
-        res.bank_name = hospital.bank_name
-        res.bank_account_no = hospital.bank_account_no
-        res.bank_ifsc = hospital.bank_ifsc
+        res.hospital_name = hospital.legal_name  # type: ignore
+        res.hospital_gst = hospital.gst_number  # type: ignore
+        res.bank_name = hospital.bank_name  # type: ignore
+        res.bank_account_no = hospital.bank_account_no  # type: ignore
+        res.bank_ifsc = hospital.bank_ifsc  # type: ignore
         res.amount_in_words = number_to_words(grand_total)
         res.is_gst_bill = req.is_gst_bill
 
         # Add Company Details from Config
         if config:
-            res.company_name = config.company_name
-            res.company_address = config.company_address
-            res.company_gst = config.company_gst
-            res.company_email = config.company_email
-            res.company_website = config.company_website
-            res.company_bank_name = config.company_bank_name
-            res.company_bank_acc = config.company_bank_acc
-            res.company_bank_ifsc = config.company_bank_ifsc
-            res.company_bank_branch = config.company_bank_branch
-            res.company_phone = config.company_phone
-            res.company_pan = config.company_pan
+            res.company_name = config.company_name  # type: ignore
+            res.company_address = config.company_address  # type: ignore
+            res.company_gst = config.company_gst  # type: ignore
+            res.company_email = config.company_email  # type: ignore
+            res.company_website = config.company_website  # type: ignore
+            res.company_bank_name = config.company_bank_name  # type: ignore
+            res.company_bank_acc = config.company_bank_acc  # type: ignore
+            res.company_bank_ifsc = config.company_bank_ifsc  # type: ignore
+            res.company_bank_branch = config.company_bank_branch  # type: ignore
+            res.company_phone = config.company_phone  # type: ignore
+            res.company_pan = config.company_pan  # type: ignore
         
         # Log Audit
         log_audit(
             db, 
-            user_id=current_user.user_id, 
+            user_id=current_user.user_id,  # type: ignore
             action="INVOICE_GENERATED", 
             details=f"Generated Invoice #{invoice_number} for {hospital.legal_name} (Amount: {grand_total})",
-            hospital_id=hospital.hospital_id
+            hospital_id=hospital.hospital_id  # type: ignore
         )
         
         return res
@@ -744,8 +786,8 @@ def generate_invoice(
     except Exception as e:
         db.rollback()
         error_msg = f"ERROR in generate_invoice: {type(e).__name__}: {str(e)}"
-        print(f"--- FAILED TO GENERATE INVOICE ---")
-        print(error_msg)
+        logger.info(f"--- FAILED TO GENERATE INVOICE ---")
+        logger.info(error_msg)
         import traceback
         traceback.print_exc()
         # Check for integrity errors (unique constraints)
@@ -765,20 +807,28 @@ def receive_payment(
     current_user: User = Depends(get_current_user)
 ):
     """Record payment for an invoice."""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Only Super Admins can process payments")
         
     invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
         
-    if invoice.status == "PAID":
-        raise HTTPException(status_code=400, detail="Invoice is already paid")
+    is_edit_payment = (invoice.status == "PAID")
+    
+    if is_edit_payment:
+        # Clear existing RECEIPT and TDS ledger entries for this invoice to prevent double-entry duplication
+        db.query(AccountingTransaction).filter(
+            AccountingTransaction.party_type == "HOSPITAL",
+            AccountingTransaction.party_id == invoice.hospital_id,
+            AccountingTransaction.voucher_id == invoice.invoice_id,
+            AccountingTransaction.voucher_type.in_(["RECEIPT", "TDS"])
+        ).delete(synchronize_session=False)
         
-    invoice.status = "PAID"
-    invoice.transaction_id = req.transaction_id
-    invoice.payment_method = req.payment_method
-    invoice.payment_date = req.payment_date or datetime.now()
+    invoice.status = "PAID"  # type: ignore
+    invoice.transaction_id = req.transaction_id  # type: ignore
+    invoice.payment_method = req.payment_method  # type: ignore
+    invoice.payment_date = req.payment_date or datetime.now()  # type: ignore
     
     # Mark all associated files as PAID
     items = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).all()
@@ -789,31 +839,122 @@ def receive_payment(
         "payment_date": datetime.now()
     }, synchronize_session=False)
 
-    # Create Ledger Entry (Credit)
-    ledger_entry = AccountingTransaction(
-        party_type="HOSPITAL",
-        party_id=invoice.hospital_id,
-        voucher_type="RECEIPT",
-        voucher_id=invoice.invoice_id,
-        voucher_number=invoice.invoice_number,
-        debit=0.0,
-        credit=invoice.total_amount,
-        description=f"Payment received via {req.payment_method}. Ref: {req.transaction_id}"
-    )
-    db.add(ledger_entry)
+    tds_val = req.tds_amount or 0.0
+    received_val = req.received_amount if req.received_amount is not None else (invoice.total_amount - tds_val)
+
+    if tds_val > 0:
+        # 1. actual received payment ledger entry
+        ledger_entry = AccountingTransaction(
+            party_type="HOSPITAL",
+            party_id=invoice.hospital_id,
+            voucher_type="RECEIPT",
+            voucher_id=invoice.invoice_id,
+            voucher_number=invoice.invoice_number,
+            debit=0.0,
+            credit=received_val,
+            description=f"Cheque/Bank Payment received. Ref: {req.transaction_id}"
+        )
+        db.add(ledger_entry)
+
+        # 2. TDS deduction ledger entry
+        tds_entry = AccountingTransaction(
+            party_type="HOSPITAL",
+            party_id=invoice.hospital_id,
+            voucher_type="TDS",
+            voucher_id=invoice.invoice_id,
+            voucher_number=invoice.invoice_number,
+            debit=0.0,
+            credit=tds_val,
+            description="TDS (Tax Deducted at Source) - 10% Withholding"
+        )
+        db.add(tds_entry)
+    else:
+        # Standard payment ledger entry
+        ledger_entry = AccountingTransaction(
+            party_type="HOSPITAL",
+            party_id=invoice.hospital_id,
+            voucher_type="RECEIPT",
+            voucher_id=invoice.invoice_id,
+            voucher_number=invoice.invoice_number,
+            debit=0.0,
+            credit=invoice.total_amount,
+            description=f"Payment received via {req.payment_method}. Ref: {req.transaction_id}"
+        )
+        db.add(ledger_entry)
     
     db.commit()
 
     # Log Audit
+    audit_action = "PAYMENT_EDITED" if is_edit_payment else "PAYMENT_RECEIVED"
+    audit_details = (
+        f"Updated Payment details of {invoice.total_amount} (Received: {received_val}, TDS: {tds_val}) for Invoice #{invoice.invoice_number} via {req.payment_method}"
+        if is_edit_payment else
+        f"Received Payment of {invoice.total_amount} (Received: {received_val}, TDS: {tds_val}) for Invoice #{invoice.invoice_number} via {req.payment_method}"
+    )
     log_audit(
         db, 
-        user_id=current_user.user_id, 
-        action="PAYMENT_RECEIVED", 
-        details=f"Received Payment of {invoice.total_amount} for Invoice #{invoice.invoice_number} via {req.payment_method}",
+        user_id=current_user.user_id,  # type: ignore
+        action=audit_action, 
+        details=audit_details,
+        hospital_id=invoice.hospital_id  # type: ignore
+    )
+    
+    msg = "Payment details updated successfully" if is_edit_payment else "Payment recorded successfully"
+    return {"message": msg, "invoice_number": invoice.invoice_number}
+
+@router.post("/{invoice_id}/delete-payment")
+def delete_payment(
+    invoice_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete the payment record for an invoice and reset its status to PENDING."""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
+        raise HTTPException(status_code=403, detail="Only Super Admins can delete payments")
+        
+    invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+        
+    if invoice.status != "PAID":
+        raise HTTPException(status_code=400, detail="Invoice is not marked as PAID")
+        
+    # Reset status
+    invoice.status = "PENDING"  # type: ignore
+    invoice.transaction_id = None  # type: ignore
+    invoice.payment_method = None  # type: ignore
+    invoice.payment_date = None  # type: ignore
+    
+    # Mark all associated files as UNPAID
+    items = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).all()
+    file_ids = [item.file_id for item in items if item.file_id is not None]
+    
+    if file_ids:
+        db.query(PDFFile).filter(PDFFile.file_id.in_(file_ids)).update({
+            "is_paid": False,
+            "payment_date": None
+        }, synchronize_session=False)
+        
+    # Delete associated RECEIPT and TDS ledger entries
+    db.query(AccountingTransaction).filter(
+        AccountingTransaction.party_type == "HOSPITAL",
+        AccountingTransaction.party_id == invoice.hospital_id,
+        AccountingTransaction.voucher_id == invoice.invoice_id,
+        AccountingTransaction.voucher_type.in_(["RECEIPT", "TDS"])
+    ).delete(synchronize_session=False)
+    
+    db.commit()
+    
+    # Log Audit
+    log_audit(
+        db, 
+        user_id=current_user.user_id,  # type: ignore
+        action="PAYMENT_DELETED", 
+        details=f"Deleted payment received for Invoice #{invoice.invoice_number}",
         hospital_id=invoice.hospital_id
     )
     
-    return {"message": "Payment recorded successfully", "invoice_number": invoice.invoice_number}
+    return {"message": "Payment record deleted successfully, invoice reset to PENDING"}
 
 @router.get("/unbilled/{hospital_id}")
 async def get_unbilled_files(hospital_id: int, db: Session = Depends(get_db)):
@@ -824,7 +965,7 @@ async def get_unbilled_files(hospital_id: int, db: Session = Depends(get_db)):
     pfiles = db.query(PDFFile).join(Patient).filter(
         Patient.hospital_id == hospital_id,
         PDFFile.upload_status == 'confirmed',  # Only confirmed files (not drafts)
-        not_(PDFFile.file_id.in_(billed_file_ids))
+        not_(PDFFile.file_id.in_(billed_file_ids))  # type: ignore
     ).all()
     
     results = []
@@ -857,7 +998,7 @@ def send_invoice_email(
     current_user: User = Depends(get_current_user)
 ):
     """Send the invoice details to the hospital admin via email."""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Only Super Admins can send invoice emails")
     invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
     if not invoice:
@@ -871,8 +1012,8 @@ def send_invoice_email(
     success = EmailService.send_invoice_email(
         recipient_email=invoice.hospital.email,
         hospital_name=invoice.hospital.legal_name,
-        invoice_number=invoice.invoice_number,
-        amount=invoice.total_amount,
+        invoice_number=invoice.invoice_number,  # type: ignore
+        amount=invoice.total_amount,  # type: ignore
         items=[{
             "description": item.description or f"File #{item.file_id}",
             "amount": item.amount,
@@ -898,7 +1039,7 @@ def delete_invoice(
     current_user: User = Depends(get_current_user)
 ):
     """Delete an invoice and reset associated files to 'unpaid'."""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Only Super Admins can delete invoices")
         
     invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
@@ -911,7 +1052,7 @@ def delete_invoice(
     # Reset Reg Fee if applicable
     if any(item.description == "One-time Registration Fee" for item in invoice.items):
         if invoice.hospital:
-            invoice.hospital.is_reg_fee_paid = False
+            invoice.hospital.is_reg_fee_paid = False  # type: ignore
 
     # Delete associated Ledger Entry
     db.query(AccountingTransaction).filter(
@@ -931,6 +1072,7 @@ def delete_invoice(
 
     # --- GAP FILLING LOGIC ---
     # Recycle the invoice number for reuse
+    config = None
     try:
         config = db.query(AccountingConfig).first()
         if config and invoice.invoice_number:
@@ -962,7 +1104,7 @@ def delete_invoice(
                     db.add(pool_entry)
                     db.commit()
     except Exception as e:
-        print(f"Non-critical error recycling invoice number: {e}")
+        logger.info(f"Non-critical error recycling invoice number: {e}")
     # -------------------------
 
     # Delete Invoice (Cascade will delete items)
@@ -972,8 +1114,8 @@ def delete_invoice(
     # Check if table is empty, if so, reset pool and counters
     if db.query(Invoice).count() == 0:
         if config:
-            config.next_invoice_number = 1
-            config.next_invoice_number_nongst = 1
+            config.next_invoice_number = 1  # type: ignore
+            config.next_invoice_number_nongst = 1  # type: ignore
             
             from ..models import AvailableInvoiceNumber
             db.query(AvailableInvoiceNumber).delete() # Clear pool

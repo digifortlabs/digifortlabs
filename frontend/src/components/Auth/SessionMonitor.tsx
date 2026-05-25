@@ -1,92 +1,83 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
+
+const PUBLIC_PREFIXES = [
+    '/login',
+    '/register',
+    '/privacy',
+    '/terms',
+    '/pricing',
+    '/demo',
+    '/legal',
+    '/forgot-password',
+    '/site-map',
+    '/invoice-preview',
+    '/about',
+    '/contact',
+    '/services',
+];
+
+function isPublicPath(pathname: string): boolean {
+    if (pathname === '/') return true;
+    return PUBLIC_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'));
+}
 
 export default function SessionMonitor() {
     const [isExpired, setIsExpired] = useState(false);
-    const router = useRouter();
     const pathname = usePathname();
 
+    // Reset expired state when navigating to a public page
     useEffect(() => {
+        if (pathname && isPublicPath(pathname)) {
+            setIsExpired(false);
+        }
+    }, [pathname]);
+
+    useEffect(() => {
+        // Don't monitor public pages at all
+        if (!pathname || isPublicPath(pathname)) return;
+
         let lastActivity = Date.now();
-        const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 Minutes
+        const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
-        // List of routes that don't require an active session
-        const PUBLIC_ROUTES = [
-            '/',
-            '/about',
-            '/contact',
-            '/services',
-            '/login',
-            '/register',
-            '/privacy',
-            '/terms'
-        ];
-
-        const updateActivity = () => {
-            lastActivity = Date.now();
-        };
-
-        // Activity listeners
+        const updateActivity = () => { lastActivity = Date.now(); };
         window.addEventListener('mousemove', updateActivity);
         window.addEventListener('keydown', updateActivity);
         window.addEventListener('click', updateActivity);
         window.addEventListener('scroll', updateActivity);
 
         const checkSession = async () => {
-            // 1. Skip check if on a public page
-            if (PUBLIC_ROUTES.includes(pathname)) return;
-
-            // 2. We don't check localStorage here because subdomains have separate localStorage.
-            // We rely on the HttpOnly cookie and the /users/me ping.
-
-            // 3. Check Idle Time
             if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
-                // If idle, explicitly logout to clear cookie
-                try {
-                    const { apiFetch } = await import('@/lib/api');
-                    await apiFetch('/auth/logout', { method: 'POST' });
-                } catch (e) { }
-                localStorage.removeItem('userRole');
-                localStorage.removeItem('userEmail');
-                router.push('/login?error=Session timed out due to inactivity.');
+                const { logout } = await import('@/config/api');
+                await logout();
                 return;
             }
 
-            // 4. Ping backend to verify if HttpOnly cookie session is still alive
             try {
-                const { apiFetch } = await import('@/lib/api');
-                const res = await apiFetch('/users/me');
-
-                // If 401, the HttpOnly cookie is gone or invalid
-                if (res.status === 401) {
+                const { apiFetch } = await import('@/config/api');
+                await apiFetch('/users/me');
+            } catch (e: any) {
+                // Only show expired modal if server explicitly says 401
+                if (e?.status === 401) {
                     setIsExpired(true);
-                    localStorage.removeItem('userRole');
-                    localStorage.removeItem('userEmail');
                 }
-            } catch (e) {
-                // IMPORTANT: If the server is just down (network error), don't show "Session Expired"
-                // Only show it if the server explicitly says 401.
-                console.error("Session monitor ping failed (server might be down)", e);
             }
         };
 
-        // Check every 5 minutes (300000 ms) instead of every second
-        // Less intrusive now that we rely on backend state
         const interval = setInterval(checkSession, 300000);
-
-        // Initial check deferred briefly to let main page load
-        setTimeout(checkSession, 5000);
+        const timer = setTimeout(checkSession, 5000);
 
         return () => {
             clearInterval(interval);
+            clearTimeout(timer);
             window.removeEventListener('mousemove', updateActivity);
             window.removeEventListener('keydown', updateActivity);
             window.removeEventListener('click', updateActivity);
             window.removeEventListener('scroll', updateActivity);
         };
-    }, [router, pathname]);
+    }, [pathname]);
 
     if (!isExpired) return null;
 
@@ -101,7 +92,7 @@ export default function SessionMonitor() {
                 <h3 className="text-xl font-black text-slate-800 mb-2">Session Expired</h3>
                 <p className="text-sm text-slate-500 mb-6 font-medium">Your session has expired or your permissions have changed. Please log in again to continue.</p>
                 <button
-                    onClick={() => router.push('/login')}
+                    onClick={async () => { const { logout } = await import('@/config/api'); await logout(); }}
                     className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition duration-200 shadow-lg shadow-indigo-200"
                 >
                     Return to Login

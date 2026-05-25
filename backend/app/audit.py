@@ -36,6 +36,6 @@ def log_audit(db: Session, user_id: Optional[int], action: str, details: str, ho
             system_logger.info(log_msg)
             
     except Exception as e:
-        print(f"File Logging Error: {e}")
+        logger.info(f"File Logging Error: {e}")
 
     # db.commit() # Caller must commit to reduce transaction overhead

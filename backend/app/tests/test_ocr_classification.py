@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 from app.services.ocr import classify_document
 
 def test_classification():
@@ -28,12 +30,12 @@ def test_classification():
         }
     ]
 
-    print("--- Running OCR Classification Tests ---")
+    logger.info("--- Running OCR Classification Tests ---")
     for i, case in enumerate(test_cases):
         tags = classify_document(case["text"])
         success = set(tags) == set(case["expected"])
-        status = "✅ PASS" if success else f"❌ FAIL (Got: {tags}, Expected: {case['expected']})"
-        print(f"Test {i+1}: {status}")
+        status = "[OK] PASS" if success else f"[ERROR] FAIL (Got: {tags}, Expected: {case['expected']})"
+        logger.info(f"Test {i+1}: {status}")
 
 if __name__ == "__main__":
     test_classification()

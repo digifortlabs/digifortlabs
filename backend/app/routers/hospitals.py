@@ -1,7 +1,9 @@
-from typing import List, Optional
-from datetime import datetime
+import logging
+logger = logging.getLogger(__name__)
+from typing import List, Optional, cast
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, EmailStr, validator
 from sqlalchemy import func, text, bindparam
 from sqlalchemy.orm import Session
@@ -108,6 +110,9 @@ class HospitalResponse(BaseModel):
     is_active: bool = True
     is_deleted: bool = False
     pending_updates: Optional[str] = None # JSON String
+    
+    certifications: Optional[list] = []
+    important_documents: Optional[list] = []
 
     @validator('hospital_slug', always=True, pre=False)
     def compute_slug(cls, v, values):
@@ -140,6 +145,9 @@ class HospitalUpdate(BaseModel):
     terminology: Optional[dict] = None
     enabled_modules: Optional[list] = None
     is_active: Optional[bool] = None
+    
+    certifications: Optional[list] = None
+    important_documents: Optional[list] = None
 
     price_per_file: Optional[float] = None
     included_pages: Optional[int] = None
@@ -153,6 +161,231 @@ class AdminCreate(BaseModel):
     password: str
     legal_name: str # For convenience, to confirm context
 
+@router.get("/check-domain")
+def check_domain_availability(slug: str, db: Session = Depends(get_db)):
+    import re
+    clean_slug = re.sub(r'[^a-z0-9-]', '', slug.lower().strip())
+    if not clean_slug:
+        return {"available": False, "message": "Invalid slug"}
+    
+    conflict = db.query(Hospital).filter(Hospital.hospital_slug == clean_slug).first()
+    if conflict:
+        return {"available": False, "message": "Subdomain is already taken"}
+    return {"available": True, "message": "Subdomain is available"}
+
+@router.post("/{hospital_id}/logo")
+async def upload_hospital_logo(
+    hospital_id: int, 
+    file: UploadFile = File(...), 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    import os
+    import shutil
+    import uuid
+
+    if current_user.role != UserRole.SUPER_ADMIN and current_user.hospital_id != hospital_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    if not db_hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+        
+    ext = os.path.splitext(file.filename)[1].lower() if file.filename else ""
+    if ext not in ['.png', '.jpg', '.jpeg', '.svg', '.webp']:
+        raise HTTPException(status_code=400, detail="Invalid image format")
+        
+    os.makedirs("uploads/logos", exist_ok=True)
+    filename = f"{uuid.uuid4().hex}{ext}"
+    filepath = os.path.join("uploads/logos", filename)
+    
+    with open(filepath, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    # Public URL path (assuming static files are served at /uploads or similar, but for now we just use a relative path)
+    logo_url = f"/api/hospitals/logos/{filename}"
+    
+    # Save into terminology JSON to avoid schema changes
+    current_term = db_hospital.terminology or {}
+    current_term['logo_url'] = logo_url
+    
+    # We must explicitly flag the dictionary as modified for SQLAlchemy JSON type
+    from sqlalchemy.orm.attributes import flag_modified
+    db_hospital.terminology = current_term  # type: ignore[assignment]
+    flag_modified(db_hospital, "terminology")
+    
+    db.commit()
+    return {"message": "Logo uploaded successfully", "logo_url": logo_url}
+
+@router.get("/logos/{filename}")
+def get_hospital_logo(filename: str):
+    import os
+    from fastapi.responses import FileResponse
+    filepath = os.path.join("uploads/logos", filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Logo not found")
+    return FileResponse(filepath)
+
+
+# ─────────────────────────────────────────────
+#  DOCUMENT VAULT — S3-backed endpoints
+# ─────────────────────────────────────────────
+
+def _hospital_s3_folder(hospital: Hospital) -> str:
+    """
+    Derives the S3 folder name from the hospital's legal name.
+    e.g. 'DIXIT HOSPITAL' → 'DIXIT_HOSPITAL'
+    """
+    import re
+    name = (hospital.legal_name or "unknown").strip().upper()
+    return re.sub(r'[^A-Z0-9]+', '_', name).strip('_')
+
+
+@router.post("/{hospital_id}/documents/upload")
+async def upload_hospital_document(
+    hospital_id: int,
+    file: UploadFile = File(...),
+    vault: str = "certifications",
+    custom_name: str = "",
+    tag: str = "General",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Upload a document to S3 under:
+      {HOSPITAL_FOLDER}/{YEAR}/{vault}/{uuid}_{original_filename}
+    Persist metadata into the hospital's certifications / important_documents JSON column.
+    """
+    import uuid as _uuid
+    from datetime import datetime
+    from sqlalchemy.orm.attributes import flag_modified
+    from ..services.s3_handler import S3Manager
+
+    # Auth
+    if current_user.role not in (UserRole.SUPER_ADMIN,) and current_user.hospital_id != hospital_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    if not db_hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+
+    # Validate vault
+    if vault not in ("certifications", "important_documents"):
+        raise HTTPException(status_code=400, detail="Invalid vault. Use 'certifications' or 'important_documents'.")
+
+    # Validate file size ≤ 50 MB
+    MAX_SIZE = 50 * 1024 * 1024
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_SIZE:
+        raise HTTPException(status_code=413, detail="File too large. Maximum allowed is 50 MB.")
+
+    # Build S3 key
+    folder = _hospital_s3_folder(db_hospital)
+    year = str(datetime.now(timezone.utc).year)
+    safe_filename = file.filename or "document"
+    s3_key = f"{folder}/{year}/{vault}/{_uuid.uuid4().hex}_{safe_filename}"
+
+    # Upload to S3
+    s3 = S3Manager()
+    import io
+    success, result = s3.upload_file(io.BytesIO(file_bytes), s3_key, content_type=file.content_type)
+    if not success:
+        logger.error(f"[S3 Upload] Failed for hospital {hospital_id}: {result}")
+        raise HTTPException(status_code=500, detail=f"S3 upload failed: {result}")
+
+    # Generate 24-hour presigned URL
+    presigned_url = s3.generate_presigned_url(s3_key, expiration=86400)
+
+    # Persist metadata into hospital JSON column
+    doc_meta = {
+        "name": custom_name or safe_filename,
+        "originalName": safe_filename,
+        "s3_key": s3_key,
+        "tag": tag,
+        "uploadedAt": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "size": len(file_bytes),
+    }
+
+    current_list = list(getattr(db_hospital, vault) or [])
+    current_list.append(doc_meta)
+    setattr(db_hospital, vault, current_list)
+    flag_modified(db_hospital, vault)
+    db.commit()
+
+    logger.info(f"[DocVault] Uploaded {s3_key} for hospital {hospital_id} into vault '{vault}'")
+    return {**doc_meta, "presigned_url": presigned_url}
+
+
+class DocumentDeleteRequest(BaseModel):
+    vault: str
+    s3_key: str
+
+
+@router.delete("/{hospital_id}/documents")
+async def delete_hospital_document(
+    hospital_id: int,
+    payload: DocumentDeleteRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Delete a hospital document from S3 and remove its entry from the DB JSON column.
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+    from ..services.s3_handler import S3Manager
+
+    if current_user.role not in (UserRole.SUPER_ADMIN,) and current_user.hospital_id != hospital_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    if not db_hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+
+    if payload.vault not in ("certifications", "important_documents"):
+        raise HTTPException(status_code=400, detail="Invalid vault.")
+
+    # Remove from S3
+    s3 = S3Manager()
+    s3.delete_file(payload.s3_key)
+
+    # Remove from DB JSON list
+    current_list = list(getattr(db_hospital, payload.vault) or [])
+    updated_list = [d for d in current_list if d.get("s3_key") != payload.s3_key]
+    setattr(db_hospital, payload.vault, updated_list)
+    flag_modified(db_hospital, payload.vault)
+    db.commit()
+
+    logger.info(f"[DocVault] Deleted {payload.s3_key} from hospital {hospital_id} vault '{payload.vault}'")
+    return {"deleted": True, "s3_key": payload.s3_key}
+
+
+@router.get("/{hospital_id}/documents/presign")
+def get_document_presigned_url(
+    hospital_id: int,
+    s3_key: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generate a fresh 24-hour presigned URL for a stored document.
+    """
+    from ..services.s3_handler import S3Manager
+
+    if current_user.role not in (UserRole.SUPER_ADMIN,) and current_user.hospital_id != hospital_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    if not db_hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+
+    s3 = S3Manager()
+    url = s3.generate_presigned_url(s3_key, expiration=86400)
+    if not url:
+        raise HTTPException(status_code=500, detail="Could not generate presigned URL")
+
+    return {"url": url, "expires_in": 86400}
+
+
 @router.get("/stats/platform")
 def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
     # RBAC handles authorization instead of hardcoded SUPER_ADMIN check
@@ -162,7 +395,7 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
     
     # Active Users (distinct user sessions active in AuditLog or User.last_active_at in last 5 minutes)
     from datetime import datetime, timedelta
-    five_mins_ago = datetime.utcnow() - timedelta(minutes=5)
+    five_mins_ago = datetime.now(timezone.utc) - timedelta(minutes=5)
     
     # 1. Count from AuditLog
     live_users_audit = db.query(AuditLog.user_id).filter(
@@ -222,7 +455,7 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
     projected_revenue = 0.0
     active_clients_list = db.query(Hospital).filter(Hospital.is_active == True, Hospital.is_deleted == False).all()
     for h in active_clients_list:
-        base = base_fees.get(h.subscription_tier, 500.0)
+        base = base_fees.get(str(h.subscription_tier), 500.0)
         # Variable usage-based metric: Price per Patient MRD File * expected volume
         # Default volume estimate: 100 files
         volume = h.expected_monthly_volume if (h.expected_monthly_volume and h.expected_monthly_volume > 0) else 100
@@ -239,7 +472,7 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
         "total_files": total_files,
         "total_gb": round(total_gigabytes, 2),
         "top_consumers": usage_list,
-        "projected_revenue": round(projected_revenue, 2)
+        "projected_revenue": round(cast(float, projected_revenue), 2)
     }
 
 @router.post("", response_model=HospitalResponse, include_in_schema=False)
@@ -312,7 +545,7 @@ def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), cur
             force_password_change=False # User set their own password
         )
         db.add(new_admin)
-        log_audit(db, current_user.user_id, "ADMIN_CREATED", f"Created admin {hospital.admin_full_name} for {hospital.legal_name}")
+        log_audit(db, cast(int, current_user.user_id), "ADMIN_CREATED", f"Created admin {hospital.admin_full_name} for {hospital.legal_name}")
         
         # Send Welcome Email
         EmailService.send_welcome_email(
@@ -321,7 +554,7 @@ def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), cur
             password="[As specified by you]" 
         )
 
-    log_audit(db, current_user.user_id, "HOSPITAL_ONBOARDED", f"Hospital {hospital.legal_name} added to platform.")
+    log_audit(db, cast(int, current_user.user_id), "HOSPITAL_ONBOARDED", f"Hospital {hospital.legal_name} added to platform.")
     
     db.commit() # Commit everything (Hospital + User + Audit Logs)
     db.refresh(db_hospital)
@@ -414,7 +647,7 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Sessi
     if not (is_super or is_owner):
         raise HTTPException(status_code=403, detail="Not authorized to edit this hospital")
 
-    update_data = hospital_update.dict(exclude_unset=True)
+    update_data = hospital_update.model_dump(exclude_unset=True)
 
     # Validate slug uniqueness if being changed
     if 'hospital_slug' in update_data and update_data['hospital_slug']:
@@ -430,8 +663,8 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Sessi
     # 3. Apply Logic
     if is_super:
         # Super Admin: Apply Immediately
-        old_email = db_hospital.email
-        new_email = update_data.get("email")
+        old_email = cast(str, db_hospital.email)
+        new_email = cast(str, update_data.get("email"))
 
         for key, value in update_data.items():
             if key in ["gst_number", "organization_type"] and value:
@@ -447,34 +680,72 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Sessi
              ).first()
              
              if admin_user:
-                 admin_user.email = new_email
+                 admin_user.email = new_email  # type: ignore[assignment]
                  # Send Notification to Old and New Email
                  EmailService.send_email_update_notification(
                     old_email=old_email,
                     new_email=new_email,
-                    name=db_hospital.legal_name
+                    name=str(db_hospital.legal_name)
                  )
                  
                  # Optional: Log this sync
-                 log_audit(db, current_user.user_id, "ADMIN_EMAIL_SYNC", f"Updated admin email from {old_email} to {new_email}")
+                 log_audit(db, cast(int, current_user.user_id), "ADMIN_EMAIL_SYNC", f"Updated admin email from {old_email} to {new_email}")
 
         # Explicit handling for fields that might be reset or set to 0
         if hospital_update.max_users is not None:
-             db_hospital.max_users = hospital_update.max_users
+             db_hospital.max_users = hospital_update.max_users  # type: ignore[assignment]
         if hospital_update.per_user_price is not None:
-             db_hospital.per_user_price = hospital_update.per_user_price
+             db_hospital.per_user_price = hospital_update.per_user_price  # type: ignore[assignment]
 
         # Also clear pending updates if any, as super overrides
-        db_hospital.pending_updates = None
+        db_hospital.pending_updates = None  # type: ignore[assignment]
+    elif is_owner:
+        # Hospital Admin: Apply profile/metadata immediately, sensitive fields go to pending
+        owner_editable_fields = {
+            "legal_name", "director_name", "registration_number", "address", "city", "state", "pincode",
+            "phone", "email", "gst_number", "certifications", "important_documents", 
+            "terminology", "ai_settings"
+        }
+        
+        immediate_updates = {}
+        pending_updates = {}
+        for key, value in update_data.items():
+            if key in owner_editable_fields:
+                immediate_updates[key] = value
+            else:
+                pending_updates[key] = value
+                
+        # Apply immediate fields
+        old_email = cast(str, db_hospital.email)
+        new_email = cast(str, immediate_updates.get("email"))
+        
+        for key, value in immediate_updates.items():
+            if key in ["gst_number"] and value:
+                value = value.upper()
+            setattr(db_hospital, key, value)
+            
+        # Sync Email to Admin User if changed
+        if new_email and new_email != old_email:
+             admin_user = db.query(User).filter(
+                 User.hospital_id == hospital_id, 
+                 User.email == old_email,
+                 User.role == UserRole.HOSPITAL_ADMIN
+             ).first()
+             
+             if admin_user:
+                 admin_user.email = new_email  # type: ignore[assignment]
+                 log_audit(db, cast(int, current_user.user_id), "ADMIN_EMAIL_SYNC", f"Updated admin email from {old_email} to {new_email}")
+                 
+        if pending_updates:
+            import json
+            db_hospital.pending_updates = json.dumps(pending_updates)  # type: ignore[assignment]
     else:
-        # Hospital Admin: Save to Pending
-        import json
-        db_hospital.pending_updates = json.dumps(update_data)
+        raise HTTPException(status_code=403, detail="Not authorized to edit this hospital")
 
     try:
-        log_audit(db, current_user.user_id, "HOSPITAL_UPDATED", f"Updated hospital details for {db_hospital.legal_name}")
+        log_audit(db, cast(int, current_user.user_id), "HOSPITAL_UPDATED", f"Updated hospital details for {db_hospital.legal_name}")
     except Exception as e:
-        print(f"Audit Log Error: {e}")
+        logger.info(f"Audit Log Error: {e}")
 
     db.commit()
     db.refresh(db_hospital)
@@ -488,7 +759,7 @@ def approve_update(hospital_id: int, db: Session = Depends(get_db), current_user
         raise HTTPException(status_code=404, detail="No pending updates found")
 
     import json
-    updates = json.loads(db_hospital.pending_updates)
+    updates = json.loads(str(db_hospital.pending_updates))
     
     for key, value in updates.items():
         if hasattr(db_hospital, key):
@@ -496,10 +767,10 @@ def approve_update(hospital_id: int, db: Session = Depends(get_db), current_user
                 value = value.upper()
             setattr(db_hospital, key, value)
     
-    db_hospital.pending_updates = None
+    db_hospital.pending_updates = None  # type: ignore[assignment]
     db.commit()
     
-    log_audit(db, current_user.user_id, "UPDATE_APPROVED", f"Approved changes for {db_hospital.legal_name}")
+    log_audit(db, cast(int, current_user.user_id), "UPDATE_APPROVED", f"Approved changes for {db_hospital.legal_name}")
     
     return {"message": "Updates approved and applied"}
 
@@ -509,10 +780,10 @@ def reject_update(hospital_id: int, db: Session = Depends(get_db), current_user:
     if not db_hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
         
-    db_hospital.pending_updates = None
+    db_hospital.pending_updates = None  # type: ignore[assignment]
     db.commit()
     
-    log_audit(db, current_user.user_id, "UPDATE_REJECTED", f"Rejected changes for {db_hospital.legal_name}")
+    log_audit(db, cast(int, current_user.user_id), "UPDATE_REJECTED", f"Rejected changes for {db_hospital.legal_name}")
     
     return {"message": "Updates rejected"}
 
@@ -582,8 +853,8 @@ def delete_hospital(hospital_id: int, db: Session = Depends(get_db), current_use
         raise HTTPException(status_code=404, detail="Hospital not found")
     
     # Soft Delete Implementation
-    db_hospital.is_deleted = True
-    db_hospital.is_active = False
+    db_hospital.is_deleted = True  # type: ignore[assignment]
+    db_hospital.is_active = False  # type: ignore[assignment]
     
     # Also soft-delete all users of this hospital
     db.query(User).filter(User.hospital_id == hospital_id).update({"is_deleted": True, "is_active": False}, synchronize_session=False)
@@ -592,7 +863,7 @@ def delete_hospital(hospital_id: int, db: Session = Depends(get_db), current_use
     db.query(Patient).filter(Patient.hospital_id == hospital_id).update({"is_deleted": True}, synchronize_session=False)
 
     try:
-        log_audit(db, current_user.user_id, "HOSPITAL_DELETED", f"Soft-deleted hospital: {db_hospital.legal_name}")
+        log_audit(db, cast(int, current_user.user_id), "HOSPITAL_DELETED", f"Soft-deleted hospital: {db_hospital.legal_name}")
     except:
         pass
         
@@ -608,8 +879,8 @@ def restore_hospital(hospital_id: int, db: Session = Depends(get_db), current_us
         raise HTTPException(status_code=404, detail="Hospital not found")
     
     # Reset Soft Delete
-    db_hospital.is_deleted = False
-    db_hospital.is_active = True
+    db_hospital.is_deleted = False  # type: ignore[assignment]
+    db_hospital.is_active = True  # type: ignore[assignment]
     
     # Also restore all users of this hospital
     db.query(User).filter(User.hospital_id == hospital_id).update({"is_deleted": False, "is_active": True}, synchronize_session=False)
@@ -618,7 +889,7 @@ def restore_hospital(hospital_id: int, db: Session = Depends(get_db), current_us
     db.query(Patient).filter(Patient.hospital_id == hospital_id).update({"is_deleted": False}, synchronize_session=False)
 
     try:
-        log_audit(db, current_user.user_id, "HOSPITAL_RESTORED", f"Restored soft-deleted hospital: {db_hospital.legal_name}")
+        log_audit(db, cast(int, current_user.user_id), "HOSPITAL_RESTORED", f"Restored soft-deleted hospital: {db_hospital.legal_name}")
     except:
         pass
         
@@ -634,7 +905,7 @@ def _purge_hospital_cascade(db: Session, hospital_id: int) -> dict:
     Reads the live FK graph from information_schema so it stays correct as the
     schema evolves (no hand-maintained table list to rot). Runs inside the
     caller's transaction: the caller commits on success or rolls back on error,
-    so a purge is atomic — it never leaves a hospital half-deleted.
+    so a purge is atomic ? it never leaves a hospital half-deleted.
     """
     IN = lambda name: bindparam(name, expanding=True)
 
@@ -682,7 +953,7 @@ def _purge_hospital_cascade(db: Session, hospital_id: int) -> dict:
             child_pk = pk_of.get(ct)
             if child_pk is None:
                 # Fail loud inside the transaction rather than silently skipping
-                # rows — the caller rolls back, so no partial purge happens.
+                # rows ? the caller rolls back, so no partial purge happens.
                 raise HTTPException(
                     status_code=500,
                     detail=f"Cannot safely purge: table '{ct}' has no single-column primary key."
@@ -727,7 +998,7 @@ def _purge_hospital_cascade(db: Session, hospital_id: int) -> dict:
             referenced_by[pt] -= 1
             if referenced_by[pt] == 0:
                 ready.append(pt)
-    # Any leftover (cyclic among involved) — append; retry loop below resolves it.
+    # Any leftover (cyclic among involved) ? append; retry loop below resolves it.
     for t in involved:
         if t not in order:
             order.append(t)
@@ -745,7 +1016,7 @@ def _purge_hospital_cascade(db: Session, hospital_id: int) -> dict:
                 text(f'DELETE FROM "{t}" WHERE "{pk}" IN :v').bindparams(IN("v")),
                 {"v": chunk}
             )
-            total += res.rowcount or 0
+            total += getattr(res, 'rowcount', 0) or 0
         if total:
             deleted_counts[t] = total
 
@@ -781,7 +1052,7 @@ def permanently_delete_hospital(
         # purged subtree and survives the commit.
         log_audit(
             db,
-            current_user.user_id,
+            current_user.user_id,  # type: ignore[arg-type]
             "HOSPITAL_PURGED",
             f"Permanently deleted hospital '{hospital_name}' (id={hospital_id}). "
             f"Rows removed: {deleted_counts}",

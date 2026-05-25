@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 from datetime import datetime
 
 from sqlalchemy.orm import Session, joinedload
@@ -104,7 +106,7 @@ class StorageService:
             # A. Find Rack Slot
             slot = StorageService.find_open_rack_slot(db, patient.hospital_id)
             if not slot:
-                print("No API Racks Available! Creating fallback unassigned box.")
+                logger.info("No API Racks Available! Creating fallback unassigned box.")
                 # Fallback: create box without rack (or fail? User wants automation)
                 # We'll create a box with no rack for now so process continues
                 rack_id, r, c, loc_code = None, None, None, "UNASSIGNED"
@@ -133,7 +135,7 @@ class StorageService:
         # 3. Assign
         patient.physical_box_id = selected_box.box_id
         db.commit()
-        print(f"✅ Auto-Assigned Patient {patient.full_name} to Box {selected_box.label}")
+        logger.info(f"[OK] Auto-Assigned Patient {patient.full_name} to Box {selected_box.label}")
         return selected_box
     @staticmethod
     def migrate_s3_draft_to_final(db: Session, file_id: int):
