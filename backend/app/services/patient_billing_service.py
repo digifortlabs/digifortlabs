@@ -64,10 +64,10 @@ class PatientBillingService:
         discount_amount: float = 0.0,
         gst_rate: float = 18.0,
         payment_method: str = "CASH",
-        transaction_id: str | None = None,
-        remarks: str | None = None,
-        created_by: int | None = None,
-        due_date: datetime | None = None
+        transaction_id: Optional[str] = None,
+        remarks: Optional[str] = None,
+        created_by: Optional[int] = None,
+        due_date: Optional[datetime] = None
     ) -> PatientInvoice:
         """
         Manually compiles and creates a patient invoice.
