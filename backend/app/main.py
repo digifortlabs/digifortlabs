@@ -62,9 +62,9 @@ async def verify_csrf(request: Request, csrf_protect: CsrfProtect = Depends()):
     if request.method in ["GET", "HEAD", "OPTIONS"]:
         return
 
-    # 2.5. Skip CSRF check for Bearer Token authenticated requests (e.g. from Native Desktop Scanner App or API integrations)
+    # 2.5. Skip CSRF check for API integrations (Bearer tokens or Worker API keys)
     auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
+    if (auth_header and auth_header.startswith("Bearer ")) or request.headers.get("WORKER-API-KEY"):
         return
 
     # 3. Validate

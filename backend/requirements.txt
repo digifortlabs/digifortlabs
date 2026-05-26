@@ -24,7 +24,7 @@ ruff
 numpy
 opencv-python-headless
 pytesseract
-pdf2image
+PyMuPDF
 Pillow
 google-generativeai
 pylsd-nova

@@ -9,7 +9,7 @@ import shutil
 # Try imports for OCR
 try:
     import pytesseract
-    from pdf2image import convert_from_bytes
+    import fitz # PyMuPDF
     from PIL import Image
     from app.core.config import settings
     
@@ -23,16 +23,6 @@ try:
         logger.info(f"[OK] OCR Config: Using Tesseract at {settings.TESSERACT_CMD}")
     else:
         logger.info("[WARN] OCR Config: Tesseract binary not found in settings or PATH.")
-
-    # 2. Poppler Configuration
-    POPPLER_PATH = settings.POPPLER_PATH
-    if POPPLER_PATH:
-        # Add to PATH temporarily to ensure subprocesses find it
-        os.environ["PATH"] = POPPLER_PATH + os.pathsep + os.environ["PATH"]
-        logger.info(f"[OK] OCR Config: Using Poppler at {POPPLER_PATH}")
-    else:
-        if not shutil.which("pdftoppm"):
-             logger.info("[WARN] OCR Config: Poppler not found in settings or PATH. PDF processing may fail.")
 
 except ImportError:
     HAS_OCR = False
@@ -64,28 +54,29 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
         if len(text) < 50 and HAS_OCR:
             logger.info("[INFO] Low text density detected. Attempting OCR...")
             try:
-                # Get page count first
-                reader = PdfReader(io.BytesIO(file_bytes))
-                total_pages = len(reader.pages)
+                doc = fitz.open("pdf", file_bytes)
+                total_pages = len(doc)
                 
                 ocr_text = ""
                 # Process one page at a time to save memory
-                for i in range(1, total_pages + 1):
-                    logger.info(f"[INFO] OCR: Processing page {i}/{total_pages}...")
+                for i in range(total_pages):
+                    logger.info(f"[INFO] OCR: Processing page {i + 1}/{total_pages}...")
                     try:
-                        page_images = convert_from_bytes(
-                            file_bytes, 
-                            first_page=i, 
-                            last_page=i, 
-                            size=(1600, None),
-                            poppler_path=POPPLER_PATH # Use configured path
-                        )
-                        if page_images:
-                            ocr_text += pytesseract.image_to_string(page_images[0]) + "\n"
-                            # Explicitly close image to free memory
-                            page_images[0].close()
+                        page = doc[i]
+                        # 150 DPI is a good balance of speed and OCR accuracy
+                        pix = page.get_pixmap(dpi=150)
+                        img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+                        
+                        page_text = str(pytesseract.image_to_string(img))
+                        if page_text:
+                            ocr_text += page_text + "\n"
+                            
+                        # Explicitly clear objects
+                        img.close()
                     except Exception as pe:
-                        logger.info(f"[WARN] Page {i} OCR failed: {pe}")
+                        logger.info(f"[WARN] Page {i + 1} OCR failed: {pe}")
+                
+                doc.close()
                 
                 # If OCR found significantly more text, append it
                 if len(ocr_text.strip()) > len(text):
@@ -166,7 +157,7 @@ def extract_text_from_image(file_bytes: bytes) -> str:
     try:
         from PIL import Image
         image = Image.open(io.BytesIO(file_bytes))
-        text = pytesseract.image_to_string(image)
+        text = str(pytesseract.image_to_string(image))
         image.close()
         return text.strip()
     except Exception as e:
