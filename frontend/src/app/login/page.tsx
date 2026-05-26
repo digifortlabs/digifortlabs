@@ -101,11 +101,13 @@ function LoginForm() {
             } else {
                 // Redirect to matching subdomain
                 const targetUrl = getDomainUrl(targetSubdomain, `/login?email=${encodeURIComponent(email)}`);
-                if (targetUrl.startsWith('http')) {
-                    window.location.href = targetUrl;
-                } else {
-                    router.push(targetUrl);
-                }
+                setTimeout(() => {
+                    if (targetUrl.startsWith('http')) {
+                        window.location.href = targetUrl;
+                    } else {
+                        router.push(targetUrl);
+                    }
+                }, 100);
             }
         } catch (err: any) {
             console.error('[Email Check] Error:', err);
@@ -209,11 +211,13 @@ function LoginForm() {
         // getDomainUrl already appends #_auth= hash for cross-subdomain handoff
         const targetUrl = getDomainUrl(targetSubdomain, targetPath);
 
-        if (targetUrl.startsWith('http')) {
-            window.location.href = targetUrl;
-        } else {
-            router.push(targetUrl);
-        }
+        setTimeout(() => {
+            if (targetUrl.startsWith('http')) {
+                window.location.href = targetUrl;
+            } else {
+                router.push(targetUrl);
+            }
+        }, 100);
     }
  
     const handleSubmit = (e: React.FormEvent) => {
