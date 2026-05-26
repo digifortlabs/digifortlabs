@@ -74,6 +74,16 @@ services_state: Dict[str, Dict] = {
         "start_time": None,
         "command": "",
         "health": "offline"
+    },
+    "ocr_worker": {
+        "name": "Distributed OCR Worker",
+        "status": "stopped",
+        "pid": None,
+        "port": None,
+        "process": None,
+        "start_time": None,
+        "command": "",
+        "health": "offline"
     }
 }
 
@@ -83,6 +93,7 @@ log_buffers = {
     "backend": deque(maxlen=5000),
     "frontend": deque(maxlen=5000),
     "live": deque(maxlen=5000),
+    "ocr_worker": deque(maxlen=5000),
     "all": deque(maxlen=20000)
 }
 
@@ -146,8 +157,7 @@ def load_env_variables() -> Dict[str, str]:
                     env_vars[key] = val
     return env_vars
 
-# Broadcast logs to websocket clients
-async def broadcast_log_entry(service: str, line: str):
+def sync_broadcast_log_entry(service: str, line: str):
     log_entry = {
         "service": service,
         "timestamp": datetime.now().strftime("%H:%M:%S"),
@@ -166,6 +176,14 @@ async def broadcast_log_entry(service: str, line: str):
             f.write(f"[{log_entry['timestamp']}] [{service.upper()}] {clean}")
     except Exception:
         pass
+    return log_entry
+
+async def broadcast_log_entry(service: str, line: str):
+    log_entry = sync_broadcast_log_entry(service, line)
+    await broadcast_websockets_only(log_entry)
+
+# Broadcast logs to websocket clients
+async def broadcast_websockets_only(log_entry: dict):
     
     # Broadcast log entry + running counts to live WebSockets
     count_update = {
@@ -198,11 +216,15 @@ def log_reader_thread(process: subprocess.Popen, service: str, pipe):
                 line = raw_line.decode("latin-1", errors="replace")
             decoded_line = line.replace("\r", "")
             if decoded_line.strip():
+                log_entry = sync_broadcast_log_entry(service, decoded_line)
                 if main_loop:
-                    asyncio.run_coroutine_threadsafe(
-                        broadcast_log_entry(service, decoded_line),
-                        main_loop
-                    )
+                    try:
+                        asyncio.run_coroutine_threadsafe(
+                            broadcast_websockets_only(log_entry),
+                            main_loop
+                        )
+                    except Exception:
+                        pass
     except Exception as e:
         import traceback
         err_msg = f"Log reader thread for {service} encountered exception:\n{traceback.format_exc()}"
@@ -403,6 +425,34 @@ async def start_service(service: str) -> bool:
             t.start()
 
             await broadcast_log_entry("live", f">>> Streaming Live Server PM2 logs from {target_ip}...\n")
+        elif service == "ocr_worker":
+            worker_script = os.path.join(BACKEND_DIR, "local_ocr_worker.py")
+            python_bin = os.path.join(BACKEND_DIR, ".venv", "Scripts", "python.exe") if os.name == 'nt' else os.path.join(BACKEND_DIR, ".venv", "bin", "python")
+            cmd_args = [python_bin, worker_script]
+            state["command"] = " ".join(cmd_args)
+            
+            # Smart Desktop App: Force OCR to be active if started manually from the UI
+            env = load_env_variables()
+            env["OCR_FORCE_ACTIVE"] = "1"
+            
+            p = subprocess.Popen(
+                cmd_args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                bufsize=0,
+                cwd=BACKEND_DIR,
+                env=env,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            state["process"] = p
+            state["pid"] = p.pid
+            state["status"] = "running"
+            state["start_time"] = datetime.now().isoformat()
+            
+            t = threading.Thread(target=log_reader_thread, args=(p, "ocr_worker", p.stdout), daemon=True)
+            t.start()
+            
+            await broadcast_log_entry("ocr_worker", f">>> Starting Distributed OCR Worker (PID {p.pid})...\n")
         
         return True
     except Exception as e:
@@ -620,7 +670,7 @@ async def on_startup():
 @app.on_event("shutdown")
 async def on_shutdown():
     print("Cleaning up active services before exit...")
-    for s in ["ssh", "backend", "frontend", "live"]:
+    for s in ["ssh", "backend", "frontend", "live", "ocr_worker"]:
         pid = services_state[s]["pid"]
         if pid:
             print(f"Stopping {s} process (PID: {pid})...")

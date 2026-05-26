@@ -31,6 +31,7 @@ interface QAIssueNormalized {
     status: string;
     timestamp: string;
     hospital_name?: string;
+    record_id?: number;
 }
 
 export default function QAMonitorPage() {
@@ -71,7 +72,8 @@ export default function QAMonitorPage() {
                     details: item.details ?? 'No details provided.',
                     severity: item.severity ?? 'medium',
                     status: item.status ?? 'open',
-                    timestamp: item.created_at ?? item.timestamp ?? 'N/A'
+                    timestamp: item.created_at ?? item.timestamp ?? 'N/A',
+                    record_id: item.record_id
                 }));
                 setIssues(normalized);
             } else {
@@ -404,9 +406,21 @@ export default function QAMonitorPage() {
                                         #{issue.id}
                                     </td>
                                     <td className="p-6">
-                                        <div className="font-bold text-slate-900 truncate max-w-[280px]">
-                                            {issue.file}
-                                        </div>
+                                        {issue.record_id ? (
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    router.push(`/admin/records/view?id=${issue.record_id}`);
+                                                }}
+                                                className="font-bold text-indigo-600 hover:text-indigo-800 hover:underline truncate max-w-[280px] text-left block"
+                                            >
+                                                {issue.file}
+                                            </button>
+                                        ) : (
+                                            <div className="font-bold text-slate-900 truncate max-w-[280px]">
+                                                {issue.file}
+                                            </div>
+                                        )}
                                         <div className="text-[10px] text-slate-400 font-semibold uppercase mt-0.5 tracking-wide flex items-center gap-1">
                                             <Building2 size={10} className="text-slate-300" />
                                             {issue.hospital_name ?? 'Digifort Client Branch'}

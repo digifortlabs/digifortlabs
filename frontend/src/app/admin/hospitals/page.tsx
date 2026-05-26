@@ -128,6 +128,10 @@ export default function ManageClientsPage() {
     const [editingHospital, setEditingHospital] = useState<Hospital | null>(null);
     const [editTab, setEditTab] = useState<'profile' | 'modules' | 'billing'>('profile');
 
+    // Review Pending Updates State
+    const [reviewHospital, setReviewHospital] = useState<Hospital | null>(null);
+    const [reviewingUpdates, setReviewingUpdates] = useState<boolean>(false);
+
     // Permanent Delete (purge) confirmation state
     const [purgeTarget, setPurgeTarget] = useState<Hospital | null>(null);
     const [purgeConfirmText, setPurgeConfirmText] = useState<string>('');
@@ -430,6 +434,44 @@ export default function ManageClientsPage() {
             setPurgeBusy(false);
         }
     };
+
+    // Review Pending Updates Handlers
+    const handleApproveUpdate = async (hospitalId: number) => {
+        setReviewingUpdates(true);
+        try {
+            const res = await apiFetch(`/hospitals/${hospitalId}/approve`, { method: 'POST' });
+            if (res.ok) {
+                setReviewHospital(null);
+                fetchData();
+            } else {
+                alert("Failed to approve updates.");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Network error.");
+        } finally {
+            setReviewingUpdates(false);
+        }
+    };
+
+    const handleRejectUpdate = async (hospitalId: number) => {
+        setReviewingUpdates(true);
+        try {
+            const res = await apiFetch(`/hospitals/${hospitalId}/reject`, { method: 'POST' });
+            if (res.ok) {
+                setReviewHospital(null);
+                fetchData();
+            } else {
+                alert("Failed to reject updates.");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Network error.");
+        } finally {
+            setReviewingUpdates(false);
+        }
+    };
+
 
     // Filtering & Searching Logic
     const filteredHospitals = hospitals.filter(h => {
@@ -773,6 +815,15 @@ export default function ManageClientsPage() {
                                                         </>
                                                     ) : (
                                                         <>
+                                                            {hospital.pending_updates && (
+                                                                <button
+                                                                    onClick={() => setReviewHospital(hospital)}
+                                                                    className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl transition-colors text-[10px] font-black uppercase tracking-wider border border-amber-200"
+                                                                >
+                                                                    Review
+                                                                </button>
+                                                            )}
+                                                            
                                                             <button
                                                                 onClick={() => {
                                                                     setEditingHospital(hospital);
@@ -1542,6 +1593,70 @@ export default function ManageClientsPage() {
                                 className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-md flex items-center gap-1.5"
                             >
                                 Save Configurations
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Review Pending Updates Modal */}
+            {reviewHospital && reviewHospital.pending_updates && (
+                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+                    <div className="bg-white border border-slate-200 w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-amber-50/50">
+                            <div>
+                                <h3 className="text-lg font-black text-amber-950 tracking-tight flex items-center gap-2">
+                                    <BadgeAlert className="w-5 h-5 text-amber-600" />
+                                    Review Pending Updates
+                                </h3>
+                                <p className="text-[11px] text-amber-700/70 mt-0.5">Requested by {reviewHospital.legal_name}</p>
+                            </div>
+                            <button 
+                                onClick={() => setReviewHospital(null)}
+                                className="p-2 hover:bg-amber-100 text-amber-600 rounded-xl transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto flex-1 space-y-4 text-sm text-slate-700">
+                            <p className="text-xs text-slate-500 font-semibold mb-2">
+                                The client has requested to modify protected configurations. Please review these changes before applying them.
+                            </p>
+                            
+                            <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden">
+                                {Object.entries(JSON.parse(reviewHospital.pending_updates)).map(([key, value]) => (
+                                    <div key={key} className="p-3.5 border-b border-slate-100 last:border-b-0 flex justify-between items-start">
+                                        <div className="font-bold text-xs uppercase text-slate-400 tracking-wide mt-0.5 w-1/3">
+                                            {key.replace(/_/g, ' ')}
+                                        </div>
+                                        <div className="font-black text-slate-900 w-2/3 break-words bg-white p-2 rounded-xl border border-slate-100 shadow-sm text-xs">
+                                            {Array.isArray(value) ? value.join(', ') : String(value)}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="p-6 border-t border-slate-100 flex gap-3 bg-slate-50/50">
+                            <button
+                                onClick={() => handleRejectUpdate(reviewHospital.hospital_id)}
+                                disabled={reviewingUpdates}
+                                className="flex-1 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors disabled:opacity-50"
+                            >
+                                Reject
+                            </button>
+                            <button
+                                onClick={() => handleApproveUpdate(reviewHospital.hospital_id)}
+                                disabled={reviewingUpdates}
+                                className="flex-1 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-emerald-600 text-white hover:bg-emerald-500 shadow-md transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {reviewingUpdates ? 'Processing...' : (
+                                    <>
+                                        <Check className="w-4 h-4" />
+                                        Approve Updates
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>

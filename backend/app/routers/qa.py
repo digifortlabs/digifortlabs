@@ -11,6 +11,8 @@ router = APIRouter(tags=["qa"])
 class QAResponse(BaseModel):
     issue_id: int
     hospital_id: int
+    file_id: Optional[int] = None
+    record_id: Optional[int] = None
     filename: str
     issue_type: str
     details: str
@@ -61,6 +63,8 @@ def report_qa_issue(
 
     new_issue = QAIssue(
         hospital_id=db_file.patient.hospital_id,
+        file_id=request.file_id,
+        record_id=db_file.record_id,
         filename=db_file.filename or f"File_{request.file_id}",
         issue_type=request.issue_type,
         details=request.details,

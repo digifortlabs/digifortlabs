@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from fastapi.responses import FileResponse, StreamingResponse
 from celery.result import AsyncResult
 import uuid
@@ -10,7 +10,17 @@ from app.core.celery_app import celery_app
 from app.tasks.optimization import process_pdf_optimization
 from app.services.storage import StorageService
 from app.core.config import settings
-from app.services.encryption import decrypt_file
+from app.services.encryption import decrypt_file, decrypt_data
+from app.database import get_db
+from sqlalchemy.orm import Session
+from sqlalchemy import or_
+from app.models import PDFFile, Patient, SystemSetting, AIExtraction
+from app.services.s3_handler import S3Manager
+from app.services.ocr import classify_document
+from app.services.ai_service import AIService
+from fastapi import Header, Body
+from pydantic import BaseModel
+import json
 
 router = APIRouter()
 storage = StorageService()
@@ -24,14 +34,15 @@ async def trigger_optimization(
     Upload a PDF and trigger an asynchronous optimization task.
     Returns a job_id for status polling.
     """
-    if not file.filename.lower().endswith(".pdf"):
+    file_name = file.filename or "unnamed.pdf"
+    if not file_name.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
 
     job_id = str(uuid.uuid4())
     job_dir = storage.get_job_dir(job_id)
     
     # Save uploaded file
-    file_path = os.path.join(job_dir, file.filename)
+    file_path = os.path.join(job_dir, file_name)
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
@@ -39,7 +50,7 @@ async def trigger_optimization(
     # Note: Using .delay() which is a shortcut for apply_async()
     task = process_pdf_optimization.delay(
         job_id=job_id,
-        input_filename=file.filename,
+        input_filename=file_name,
         settings_dict={"level": level}
     )
     
@@ -48,7 +59,7 @@ async def trigger_optimization(
         "task_id": task.id,
         "status": "queued",
         "level": level,
-        "input_file": file.filename
+        "input_file": file_name
     }
 
 @router.get("/status/{task_id}")
@@ -121,10 +132,130 @@ async def download_optimized_file(job_id: str, filename: str):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to decrypt file: {str(e)}")
             
-    # Fallback for unencrypted legacy files
     return FileResponse(
         path=target_path,
         filename=filename,
         media_type="application/pdf"
     )
+
+
+# ==========================================
+# DISTRIBUTED OCR WORKER ENDPOINTS
+# ==========================================
+
+def verify_worker_api_key(worker_api_key: str = Header(None)):
+    expected_key = os.getenv("WORKER_API_KEY")
+    if not expected_key or worker_api_key != expected_key:
+        raise HTTPException(status_code=403, detail="Invalid WORKER_API_KEY")
+    return True
+
+class PendingJobResponse(BaseModel):
+    file_id: int
+    filename: str
+    hospital_id: int
+
+class OCRResultRequest(BaseModel):
+    ocr_text: str
+
+@router.get("/ocr/pending", response_model=list[PendingJobResponse])
+def get_pending_ocr_jobs(db: Session = Depends(get_db), authenticated: bool = Depends(verify_worker_api_key)):
+    """
+    Fetch up to 20 files that are uploaded but missing OCR.
+    """
+    pending_files = db.query(PDFFile).join(Patient).filter(
+        PDFFile.is_searchable == False,
+        PDFFile.processing_stage == 'completed',
+        PDFFile.upload_status == 'confirmed',
+        or_(PDFFile.ocr_text == None, PDFFile.ocr_text == '')
+    ).order_by(PDFFile.file_id.asc()).limit(20).all()
+
+    results = []
+    for f in pending_files:
+        results.append({
+            "file_id": f.file_id,
+            "filename": f.filename,
+            "hospital_id": f.patient.hospital_id
+        })
+    return results
+
+@router.get("/ocr/{file_id}/download")
+def download_file_for_ocr(file_id: int, db: Session = Depends(get_db), authenticated: bool = Depends(verify_worker_api_key)):
+    """
+    Streams the decrypted file bytes to the worker for OCR processing.
+    """
+    db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+    if not db_file or not db_file.s3_key:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    s3_manager = S3Manager()
+    encrypted_bytes = s3_manager.get_file_bytes(str(db_file.s3_key))
+    if not encrypted_bytes:
+        raise HTTPException(status_code=404, detail="Physical file not found in storage")
+        
+    try:
+        decrypted_bytes = decrypt_data(encrypted_bytes)
+        return StreamingResponse(io.BytesIO(decrypted_bytes), media_type="application/pdf")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Decryption failed")
+
+@router.post("/ocr/{file_id}/result")
+def submit_ocr_result(
+    file_id: int, 
+    request: OCRResultRequest = Body(...), 
+    db: Session = Depends(get_db), 
+    authenticated: bool = Depends(verify_worker_api_key)
+):
+    """
+    Receives OCR text from worker, updates DB, and attempts AI extraction.
+    """
+    db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    extracted_text = request.ocr_text.strip()
+    if extracted_text:
+        db_file.ocr_text = extracted_text  # type: ignore
+        db_file.is_searchable = True  # type: ignore
+        
+        # 1. Tags
+        auto_tags = classify_document(extracted_text)
+        if auto_tags:
+            db_file.tags = ", ".join(auto_tags)  # type: ignore
+            
+        # 2. Structured Extraction
+        hospital = db_file.patient.hospital if db_file.patient else None
+        ai_config = hospital.ai_settings if hospital and hospital.ai_settings else {}
+        api_key = ai_config.get("api_key")
+        is_enabled = ai_config.get("enabled", False)
+        
+        if not is_enabled or not api_key:
+            platform_ai = db.query(SystemSetting).filter(SystemSetting.key == "platform_ai_settings").first()
+            if platform_ai and platform_ai.value:
+                try:
+                    plat_cfg = json.loads(str(platform_ai.value))
+                    if plat_cfg.get("enabled"):
+                        api_key = plat_cfg.get("api_key")
+                        is_enabled = True
+                except:
+                    pass
+                
+        if is_enabled and api_key:
+            try:
+                ai_svc = AIService(api_key=api_key)
+                structured_data = ai_svc.extract_patient_details(extracted_text)
+                if structured_data:
+                    extraction_record = AIExtraction(
+                        file_id=file_id,
+                        raw_json=json.dumps(structured_data, indent=2),
+                        extracted_text=extracted_text,
+                        visit_type=structured_data.get('patient_category') or "OPD",
+                        doctor_name=structured_data.get('doctor_name'),
+                        summary=structured_data.get('diagnosis')
+                    )
+                    db.add(extraction_record)
+            except Exception:
+                pass
+                
+    db.commit()
+    return {"status": "success", "file_id": file_id}
 

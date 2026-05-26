@@ -222,6 +222,51 @@
                             </button>
                         </div>
                     </div>
+
+
+                    <!-- OCR WORKER CARD -->
+                    <div class="service-card" id="card-ocr_worker">
+                        <div class="card-header">
+                            <div class="service-meta">
+                                <span class="service-icon ocr-icon">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                                </span>
+                                <div>
+                                    <h3>OCR Worker</h3>
+                                    <p class="card-detail">Local Tesseract Processing</p>
+                                </div>
+                            </div>
+                            <span class="status-badge stopped" id="badge-ocr_worker">Stopped</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="info-row">
+                                <span class="label">PID:</span>
+                                <span class="value" id="pid-ocr_worker">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Active:</span>
+                                <span class="value" id="uptime-ocr_worker">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">Target:</span>
+                                <span class="value" id="target-ocr_worker">Live Server Job Queue</span>
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn btn-start" onclick="controlService('ocr_worker', 'start')" id="btn-start-ocr_worker">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                Start
+                            </button>
+                            <button class="btn btn-stop" onclick="controlService('ocr_worker', 'stop')" id="btn-stop-ocr_worker" disabled>
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/></svg>
+                                Stop
+                            </button>
+                            <button class="btn btn-restart" onclick="controlService('ocr_worker', 'restart')" id="btn-restart-ocr_worker" disabled>
+                                <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                                Restart
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -270,6 +315,7 @@
                         <button class="tab-btn" onclick="switchTab('backend')" id="tab-backend">Backend API</button>
                         <button class="tab-btn" onclick="switchTab('frontend')" id="tab-frontend">Frontend Web</button>
                         <button class="tab-btn" onclick="switchTab('live')" id="tab-live">Live Server</button>
+                        <button class="tab-btn" onclick="switchTab('ocr_worker')" id="tab-ocr_worker">OCR Worker</button>
                     </div>
 
                     <!-- Log Filters & Toolbar -->

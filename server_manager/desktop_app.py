@@ -57,14 +57,16 @@ COLORS = {
     "success": "#10b981",       # Emerald
     "danger": "#ef4444",        # Crimson
     "warning": "#f59e0b",       # Amber
-    "info": "#3b82f6"           # Royal Blue
+    "info": "#3b82f6",          # Royal Blue
+    "ocr_worker": "#10b981",    # Emerald
+    "ocr_worker_bg": "#064e3b"  # Deep Emerald
 }
 
 class DesktopApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Digifort Dev Command Center")
-        self.root.geometry("1300x850")
+        self.root.geometry("1300x950")
         self.root.configure(bg=COLORS["bg"])
         self.tray_icon = None
         
@@ -80,7 +82,7 @@ class DesktopApp:
 
         # State Variables
         self.current_tab = "all"
-        self.rendered_counts = {"all": 0, "ssh": 0, "backend": 0, "frontend": 0, "live": 0}
+        self.rendered_counts = {"all": 0, "ssh": 0, "backend": 0, "frontend": 0, "live": 0, "ocr_worker": 0}
         self.search_query = ""
         
         # 1. Start FastAPI server in a background thread
@@ -100,7 +102,8 @@ class DesktopApp:
         # 4. Synchronize periodic status & logs trackers
         self.root.after(100, self.update_clock)
         self.root.after(500, self.poll_services_status)
-        self.root.after(100, self.poll_realtime_logs)
+        self.poll_timer = None
+        self.poll_timer = self.root.after(100, self.poll_realtime_logs)
         
         # 5. AUTO-START LOCAL DEV SERVICES delay sequences to prevent port locks
         self.root.after(1200, self.auto_start_stack_services)
@@ -175,7 +178,8 @@ class DesktopApp:
             ("ssh", "SSH Tunnel", "Database Tunnel (Port 5433)", COLORS["ssh"], False),
             ("backend", "FastAPI Backend", "Uvicorn Server (Port 8000)", COLORS["backend"], False),
             ("frontend", "Next.js Frontend", "React Web Server (Port 3000)", COLORS["frontend"], False),
-            ("live", "AWS Live Server", "Production PM2 Logs (digifortlabs.com)", COLORS["warning"], True)
+            ("live", "AWS Live Server", "Production PM2 Logs (digifortlabs.com)", COLORS["warning"], True),
+            ("ocr_worker", "OCR Worker", "Distributed Tesseract Node", COLORS["ocr_worker"], False)
         ]
         
         for key, name, desc, color, is_live_service in services_list:
@@ -344,7 +348,8 @@ class DesktopApp:
             ("ssh", "SSH Tunnel"),
             ("backend", "Backend API"),
             ("frontend", "Frontend Web"),
-            ("live", "Live Server")
+            ("live", "Live Server"),
+            ("ocr_worker", "OCR Worker")
         ]
         
         for tag, label in tab_configs:
@@ -409,6 +414,7 @@ class DesktopApp:
         self.console.tag_config('backend', foreground=COLORS["backend"])
         self.console.tag_config('frontend', foreground=COLORS["frontend"])
         self.console.tag_config('live', foreground=COLORS["warning"])
+        self.console.tag_config('ocr_worker', foreground=COLORS["ocr_worker"])
         self.console.tag_config('info', foreground="#34d399") # green
         self.console.tag_config('warn', foreground="#fbbf24") # yellow
         self.console.tag_config('error', foreground="#f87171") # red
@@ -421,6 +427,7 @@ class DesktopApp:
         self.console.tag_config('ch_backend', background=COLORS["backend_bg"], foreground=COLORS["backend"], font=("Consolas", 8, "bold"))
         self.console.tag_config('ch_frontend', background=COLORS["frontend_bg"], foreground=COLORS["frontend"], font=("Consolas", 8, "bold"))
         self.console.tag_config('ch_live', background="#78350f", foreground=COLORS["warning"], font=("Consolas", 8, "bold"))
+        self.console.tag_config('ch_ocr_worker', background=COLORS["ocr_worker_bg"], foreground=COLORS["ocr_worker"], font=("Consolas", 8, "bold"))
         
         # Search highlight
         self.console.tag_config('search', background="#eab308", foreground="#000000")
@@ -633,6 +640,8 @@ class DesktopApp:
         self.console.config(state=tk.DISABLED)
         
         # Instantly poll log redraw
+        if hasattr(self, 'poll_timer') and self.poll_timer:
+            self.root.after_cancel(self.poll_timer)
         self.poll_realtime_logs()
 
     def on_search_keypress(self, event):
@@ -643,6 +652,8 @@ class DesktopApp:
         self.console.delete("1.0", tk.END)
         self.console.config(state=tk.DISABLED)
         
+        if hasattr(self, 'poll_timer') and self.poll_timer:
+            self.root.after_cancel(self.poll_timer)
         self.poll_realtime_logs()
 
     def poll_realtime_logs(self):
@@ -674,7 +685,9 @@ class DesktopApp:
                 self.console.see(tk.END)
                 
         # Fast 100ms real-time loop updates
-        self.root.after(100, self.poll_realtime_logs)
+        if hasattr(self, 'poll_timer') and self.poll_timer:
+            self.root.after_cancel(self.poll_timer)
+        self.poll_timer = self.root.after(100, self.poll_realtime_logs)
 
     def insert_log_line_with_ansi(self, service: str, timestamp: str, line: str):
         # Monospace prefixing

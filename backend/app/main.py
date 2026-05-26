@@ -55,8 +55,7 @@ async def verify_csrf(request: Request, csrf_protect: CsrfProtect = Depends()):
     Global dependency to validate CSRF tokens on all state-changing requests.
     Excludes public endpoints and health checks.
     """
-    # 1. Skip if specifically disabled or public
-    if request.url.path in ["/health", "/docs", "/redoc", "/openapi.json", "/auth/csrf-token", "/auth/token", "/optimization/trigger"]:
+    if request.url.path in ["/health", "/docs", "/redoc", "/openapi.json", "/auth/csrf-token", "/auth/token", "/optimization/trigger", "/optimization/ocr/result"]:
         return
         
     # 2. Skip for non-mutating methods (GET, HEAD, OPTIONS)

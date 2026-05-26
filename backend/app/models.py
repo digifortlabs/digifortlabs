@@ -622,6 +622,8 @@ class QAIssue(Base):
     __tablename__ = "qa_issues"
     issue_id = Column(Integer, primary_key=True, index=True)
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    file_id = Column(Integer, ForeignKey("pdf_files.file_id"), nullable=True)
+    record_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True)
     filename = Column(String, nullable=True)
     issue_type = Column(String, nullable=False) # 'data_error', 'image_blur', etc.
     details = Column(Text, nullable=True)

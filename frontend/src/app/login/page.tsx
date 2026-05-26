@@ -97,6 +97,7 @@ function LoginForm() {
  
             if (currentSubdomain === targetSubdomain) {
                 setStep('password');
+                setLoading(false);
             } else {
                 // Redirect to matching subdomain
                 const targetUrl = getDomainUrl(targetSubdomain, `/login?email=${encodeURIComponent(email)}`);
@@ -110,7 +111,6 @@ function LoginForm() {
             console.error('[Email Check] Error:', err);
             const msg = typeof err?.message === 'string' ? err.message : (err?.data?.detail || 'Email address not found in our registry.');
             setError(msg);
-        } finally {
             setLoading(false);
         }
     };
@@ -166,7 +166,6 @@ function LoginForm() {
             console.error('[Login] Error:', err);
             const msg = typeof err?.message === 'string' ? err.message : (err?.data?.detail || 'Invalid credentials or verification code.');
             setError(msg);
-        } finally {
             setLoading(false);
         }
     };
