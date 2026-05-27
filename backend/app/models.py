@@ -1267,6 +1267,10 @@ class IPDAdmission(Base):
     status = Column(String, default="admitted")
     vitals_log = Column(JSON, default=list) # [{timestamp, bp, pulse, temp, spo2, respiratory_rate, notes, recorded_by}]
     
+    medication_orders = Column(JSON, default=list) # [{id, medicine_name, dosage, frequency, start_date, end_date, prescribed_by, notes}]
+    medication_log = Column(JSON, default=list) # [{timestamp, order_id, medicine_name, administered_by, notes}]
+    doctor_notes = Column(JSON, default=list) # [{timestamp, doctor_id, doctor_name, note_type, content}]
+    
     patient_invoice_id = Column(Integer, ForeignKey("patient_invoices.invoice_id"), nullable=True)
 
     patient = relationship("Patient")

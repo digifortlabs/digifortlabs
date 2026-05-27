@@ -161,6 +161,25 @@ def get_unbilled_records(
             "date": adm.admission_date.isoformat()
         })
 
+        # Process any medication administrations logged under this admission
+        med_logs = adm.medication_log or []
+        for log in med_logs:
+            log_date = log.get("timestamp", datetime.now().isoformat())
+            med_name = log.get("medicine_name", "Unknown Medicine")
+            notes = log.get("notes")
+            desc = f"Medication Administered: {med_name}"
+            if notes:
+                desc += f" ({notes})"
+            items.append({
+                "description": desc,
+                "qty": 1,
+                "unit_price": 150.0, # Standard default medication charge
+                "discount": 0.0,
+                "charge_type": "MEDICINE",
+                "reference_id": adm.admission_id, # Link back to the admission
+                "date": log_date
+            })
+
     return {
         "patient": {
             "name": patient.full_name,

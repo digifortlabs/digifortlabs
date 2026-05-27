@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Bed, ChevronLeft, RefreshCw, UserPlus, AlertCircle } from 'lucide-react';
+import { Bed, ChevronLeft, RefreshCw, UserPlus, AlertCircle, Activity, FileText, Pill, Stethoscope, Cpu, Syringe, Plus, Info, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/config/api';
 
@@ -16,17 +17,40 @@ export default function HMSBedsPage() {
     const router = useRouter();
     const [wards, setWards] = useState<any[]>([]);
     const [beds, setBeds] = useState<any[]>([]);
+    const [equipments, setEquipments] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedWard, setSelectedWard] = useState<any>(null);
-    const [selectedBed, setSelectedBed] = useState<any>(null);
+    const [userRole, setUserRole] = useState<string>('');
+    const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null);
+
+    // Modals
     const [isAdmitOpen, setIsAdmitOpen] = useState(false);
+    const [isConsoleOpen, setIsConsoleOpen] = useState(false);
+    
+    // State for Bed selection
+    const [selectedBed, setSelectedBed] = useState<any>(null);
+    const [activeAdmission, setActiveAdmission] = useState<any>(null);
+    
+    // Forms
     const [admitForm, setAdmitForm] = useState({ patient_name: '', age: '', gender: 'Male', diagnosis: '', doctor_name: '', contact_phone: '' });
     const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [searching, setSearching] = useState(false);
 
-    useEffect(() => { loadData(); }, []);
+    // Console Forms
+    const [alerts, setAlerts] = useState<any[]>([]);
+    const [orderForm, setOrderForm] = useState({ medicine_name: '', dosage: '', frequency: '', frequency_hours: '12', notes: '' });
+    const [medLogForm, setMedLogForm] = useState({ order_id: '', medicine_name: '', notes: '' });
+    const [noteForm, setNoteForm] = useState({ note_type: 'Ward Round', content: '' });
+
+    useEffect(() => {
+        const role = localStorage.getItem('userRole') || '';
+        setUserRole(role);
+        const saved = localStorage.getItem('hms_hospital_id');
+        if (saved) setSelectedHospitalId(Number(saved));
+        loadData(saved ? Number(saved) : null);
+    }, []);
 
     useEffect(() => {
         if (!searchQuery.trim()) {
@@ -51,17 +75,29 @@ export default function HMSBedsPage() {
         }
     };
 
-    const loadData = async () => {
+    const loadData = async (hId: number | null = selectedHospitalId) => {
         setLoading(true);
         try {
-            const [w, b] = await Promise.all([
-                apiFetch('hms/wards').catch(() => []),
-                apiFetch('hms/beds').catch(() => []),
+            let suffix = hId ? `?hospital_id=${hId}` : '';
+            const [w, b, e, a] = await Promise.all([
+                apiFetch(`hms/wards${suffix}`).catch(() => []),
+                apiFetch(`hms/beds${suffix}`).catch(() => []),
+                apiFetch(`hms/equipment${suffix}`).catch(() => []),
+                apiFetch(`hms/admissions/alerts${suffix}`).catch(() => []),
             ]);
             const wardList = w || [];
             setWards(wardList);
             setBeds(b || []);
-            if (wardList.length > 0 && !selectedWard) setSelectedWard(wardList[0]);
+            setEquipments(e || []);
+            setAlerts(a || []);
+            
+            if (wardList.length > 0 && !selectedWard) {
+                setSelectedWard(wardList[0]);
+            } else if (selectedWard) {
+                // Keep the current ward selected but update its reference if needed
+                const updatedWard = wardList.find((ward: any) => ward.ward_id === selectedWard.ward_id);
+                if (updatedWard) setSelectedWard(updatedWard);
+            }
         } finally { setLoading(false); }
     };
 
@@ -106,37 +142,99 @@ export default function HMSBedsPage() {
         setSearchQuery('');
     };
 
+    const handleBedClick = async (bed: any) => {
+        setSelectedBed(bed);
+        if (bed.status === 'available') {
+            setIsAdmitOpen(true);
+        } else if (bed.status === 'occupied') {
+            // Load admission details
+            if (bed.admission_id) {
+                try {
+                    const data = await apiFetch(`hms/admissions/${bed.admission_id}`);
+                    setActiveAdmission(data.admission);
+                    setIsConsoleOpen(true);
+                } catch (e) {
+                    alert("Could not load patient details.");
+                }
+            } else {
+                alert("Bed is occupied but no active admission record found.");
+            }
+        }
+    };
+
+    const refreshAdmission = async () => {
+        if (!activeAdmission?.admission_id) return;
+        try {
+            const data = await apiFetch(`hms/admissions/${activeAdmission.admission_id}`);
+            setActiveAdmission(data.admission);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const handleAddOrder = async () => {
+        if (!activeAdmission) return;
+        try {
+            await apiFetch(`hms/admissions/${activeAdmission.admission_id}/orders`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    ...orderForm,
+                    frequency_hours: parseInt(orderForm.frequency_hours) || 12
+                })
+            });
+            setOrderForm({ medicine_name: '', dosage: '', frequency: '', frequency_hours: '12', notes: '' });
+            refreshAdmission();
+        } catch (e: any) { alert(e.message || "Failed to add order"); }
+    };
+
+    const handleLogMedication = async () => {
+        if (!activeAdmission || !medLogForm.order_id) return;
+        try {
+            await apiFetch(`hms/admissions/${activeAdmission.admission_id}/medication`, {
+                method: 'POST',
+                body: JSON.stringify(medLogForm)
+            });
+            setMedLogForm({ order_id: '', medicine_name: '', notes: '' });
+            refreshAdmission();
+        } catch (e: any) { alert(e.message || "Failed to log medication"); }
+    };
+
+    const handleAddNote = async () => {
+        if (!activeAdmission) return;
+        try {
+            await apiFetch(`hms/admissions/${activeAdmission.admission_id}/notes`, {
+                method: 'POST',
+                body: JSON.stringify(noteForm)
+            });
+            setNoteForm({ note_type: 'Ward Round', content: '' });
+            refreshAdmission();
+        } catch (e: any) { alert(e.message || "Failed to add note"); }
+    };
+
     const wardBeds = beds.filter(b => selectedWard && b.ward_id === selectedWard.ward_id);
     const occupiedCount = wardBeds.filter(b => b.status === 'occupied').length;
     const availableCount = wardBeds.filter(b => b.status === 'available').length;
 
-    const BED_COLORS: Record<string, string> = {
-        available: 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 cursor-pointer',
-        occupied: 'bg-rose-50 border-rose-200 text-rose-700 cursor-not-allowed opacity-80',
-        maintenance: 'bg-amber-50 border-amber-200 text-amber-700 cursor-not-allowed opacity-80',
-        reserved: 'bg-blue-50 border-blue-200 text-blue-700 cursor-not-allowed opacity-80',
-    };
-
     return (
-        <div className="p-6 space-y-6 max-w-7xl mx-auto pb-24">
+        <div className="p-6 space-y-6 max-w-[1600px] mx-auto pb-24">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="icon" onClick={() => router.push('/hospital/hms')} className="rounded-full bg-white shadow-sm border">
                         <ChevronLeft className="w-5 h-5" />
                     </Button>
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><Bed className="w-6 h-6 text-blue-600" /> Bed Status</h1>
-                        <p className="text-slate-500 text-sm">Real-time bed occupancy across all wards.</p>
+                        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><Bed className="w-6 h-6 text-blue-600" /> Graphic Bed Console</h1>
+                        <p className="text-slate-500 text-sm">Real-time graphic monitoring and clinical orders.</p>
                     </div>
                 </div>
-                <Button variant="outline" onClick={loadData} className="gap-2"><RefreshCw className="w-4 h-4" /> Refresh</Button>
+                <Button variant="outline" onClick={() => loadData(selectedHospitalId)} className="gap-2"><RefreshCw className="w-4 h-4" /> Refresh</Button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {/* Ward Selector */}
-                <div className="space-y-2">
+            <div className="flex flex-col lg:flex-row gap-6">
+                {/* Ward Sidebar */}
+                <div className="lg:w-72 space-y-2 flex-shrink-0">
                     <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Wards</h2>
-                    {loading ? <div className="text-slate-500 text-sm">Loading...</div>
+                    {loading && wards.length === 0 ? <div className="text-slate-500 text-sm">Loading...</div>
                         : wards.map(ward => {
                             const wBeds = beds.filter(b => b.ward_id === ward.ward_id);
                             const occupied = wBeds.filter(b => b.status === 'occupied').length;
@@ -145,7 +243,7 @@ export default function HMSBedsPage() {
                             return (
                                 <button key={ward.ward_id}
                                     onClick={() => setSelectedWard(ward)}
-                                    className={cn('w-full text-left p-4 rounded-xl border-2 transition-all', selectedWard?.ward_id === ward.ward_id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-blue-300')}>
+                                    className={cn('w-full text-left p-4 rounded-xl border-2 transition-all', selectedWard?.ward_id === ward.ward_id ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white hover:border-blue-300')}>
                                     <p className="font-semibold text-slate-900 text-sm">{ward.ward_name}</p>
                                     <p className="text-xs text-slate-500 mt-0.5">{ward.ward_type} • Floor {ward.floor_number || 1}</p>
                                     <div className="flex items-center gap-2 mt-2">
@@ -160,42 +258,104 @@ export default function HMSBedsPage() {
                         })}
                 </div>
 
-                {/* Bed Grid */}
-                <div className="lg:col-span-3">
+                {/* Main Graphic Console */}
+                <div className="flex-1">
                     {selectedWard ? (
-                        <Card className="border-slate-200/60 shadow-sm">
-                            <CardHeader className="border-b">
+                        <Card className="border-slate-200/60 shadow-sm min-h-[600px] bg-slate-50">
+                            <CardHeader className="border-b bg-white rounded-t-xl">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <CardTitle className="text-lg">{selectedWard.ward_name}</CardTitle>
-                                        <p className="text-sm text-slate-500 mt-0.5">{occupiedCount} occupied • {availableCount} available</p>
+                                        <CardTitle className="text-xl">{selectedWard.ward_name} Console</CardTitle>
+                                        <p className="text-sm text-slate-500 mt-1">Interactive visual map of patients and beds</p>
                                     </div>
-                                    <div className="flex items-center gap-3 text-xs">
-                                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-200 inline-block" /> Available</span>
-                                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-rose-200 inline-block" /> Occupied</span>
-                                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-200 inline-block" /> Maintenance</span>
+                                    <div className="flex items-center gap-4 text-xs font-medium bg-slate-100 px-4 py-2 rounded-lg">
+                                        <span className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-emerald-100 border-2 border-emerald-400" /> Available</span>
+                                        <span className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-rose-100 border-2 border-rose-400" /> Occupied</span>
+                                        <span className="flex items-center gap-2"><div className="w-4 h-4 rounded-full bg-amber-100 border-2 border-amber-400" /> Maintenance</span>
                                     </div>
                                 </div>
                             </CardHeader>
-                            <CardContent className="p-6">
+                            <CardContent className="p-8">
                                 {wardBeds.length === 0 ? (
-                                    <div className="p-8 text-center text-slate-400">
-                                        <Bed className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                                        <p className="text-sm">No beds configured for this ward.</p>
-                                        <p className="text-xs mt-1">Beds are auto-generated based on ward capacity.</p>
+                                    <div className="py-20 text-center text-slate-400">
+                                        <Bed className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                                        <p className="text-lg font-medium">No beds configured for this ward.</p>
+                                        <p className="text-sm mt-1">Beds are auto-generated based on ward capacity.</p>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-3">
-                                        {wardBeds.map(bed => (
-                                            <button key={bed.bed_id}
-                                                disabled={bed.status !== 'available'}
-                                                onClick={() => { setSelectedBed(bed); setIsAdmitOpen(true); }}
-                                                className={cn('p-3 rounded-xl border-2 transition-all text-center', BED_COLORS[bed.status] || 'bg-slate-50 border-slate-200')}>
-                                                <Bed className="w-5 h-5 mx-auto mb-1" />
-                                                <span className="text-xs font-bold">{bed.bed_number}</span>
-                                                {bed.patient_name && <p className="text-[9px] mt-0.5 truncate max-w-[60px]">{bed.patient_name}</p>}
-                                            </button>
-                                        ))}
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-6">
+                                        {wardBeds.map(bed => {
+                                            const isOccupied = bed.status?.toLowerCase() === 'occupied';
+                                            const isMaintenance = bed.status?.toLowerCase() === 'maintenance';
+                                            
+                                                                            // Find equipment attached to this bed
+                                            const bedEquipments = equipments.filter(e => e.bed_id === bed.bed_id && e.status === 'in_use');
+                                            const bedAlerts = alerts.filter(a => a.admission_id === bed.admission_id);
+                                            const hasAlert = bedAlerts.length > 0;
+                                            
+                                            return (
+                                                <div key={bed.bed_id} 
+                                                    onClick={() => handleBedClick(bed)}
+                                                    className={cn(
+                                                        'group relative flex flex-col p-4 rounded-2xl border-[3px] transition-all cursor-pointer hover:shadow-lg overflow-hidden',
+                                                        isOccupied ? 'bg-white border-rose-300 hover:border-rose-400' :
+                                                        isMaintenance ? 'bg-amber-50 border-amber-200' :
+                                                        'bg-white border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50'
+                                                    )}
+                                                    style={{ minHeight: '160px' }}
+                                                >
+                                                    {/* Top Bar: Bed Number & Status */}
+                                                    <div className="flex justify-between items-start mb-4">
+                                                        <span className="text-lg font-black text-slate-700 tracking-tight">{bed.bed_number}</span>
+                                                        <div className="flex items-center gap-1.5">
+                                                            {isOccupied && hasAlert && (
+                                                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 animate-bounce shadow-[0_0_8px_rgba(245,158,11,0.6)]" title="Medication Due Now!">
+                                                                    <Pill className="w-3 h-3 text-white animate-pulse" />
+                                                                </span>
+                                                            )}
+                                                            {isOccupied && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.6)]" />}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Center Graphic */}
+                                                    <div className="flex-1 flex flex-col items-center justify-center relative">
+                                                        {isOccupied ? (
+                                                            <>
+                                                                {/* Patient lying in bed graphic */}
+                                                                <div className="w-full flex items-end justify-center relative h-12">
+                                                                    <div className="w-20 h-4 bg-slate-200 rounded-full absolute bottom-0" />
+                                                                    <div className="w-6 h-6 bg-rose-200 rounded-full absolute left-1/2 -translate-x-[40px] bottom-1 z-10 flex items-center justify-center border border-rose-300">
+                                                                        <Users className="w-3 h-3 text-rose-600" />
+                                                                    </div>
+                                                                    <div className="w-14 h-3 bg-rose-100 rounded-full absolute left-1/2 -translate-x-[10px] bottom-1 border border-rose-200" />
+                                                                </div>
+                                                                <div className="mt-4 text-center w-full">
+                                                                    <p className="text-sm font-bold text-slate-900 truncate px-1" title={bed.patient_name}>{bed.patient_name}</p>
+                                                                    <p className="text-[10px] font-medium text-rose-600 bg-rose-50 rounded inline-block px-1.5 py-0.5 mt-1 border border-rose-100">Admitted</p>
+                                                                </div>
+                                                            </>
+                                                        ) : isMaintenance ? (
+                                                            <div className="text-center opacity-60">
+                                                                <AlertCircle className="w-10 h-10 mx-auto text-amber-500 mb-2" />
+                                                                <p className="text-xs font-bold text-amber-700">Maintenance</p>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-center opacity-40 group-hover:opacity-100 transition-opacity">
+                                                                <Bed className="w-10 h-10 mx-auto text-emerald-500 mb-2" />
+                                                                <p className="text-xs font-bold text-emerald-700">Available</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Equipment Indicators */}
+                                                    {isOccupied && bedEquipments.length > 0 && (
+                                                        <div className="absolute top-3 right-3 flex gap-1">
+                                                            <Cpu className="w-4 h-4 text-indigo-500" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </CardContent>
@@ -322,6 +482,272 @@ export default function HMSBedsPage() {
                         <Button variant="outline" onClick={() => setIsAdmitOpen(false)}>Cancel</Button>
                         <Button onClick={handleAdmit} disabled={!admitForm.patient_name} className="bg-blue-600">Admit Patient</Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Patient Console Modal */}
+            <Dialog open={isConsoleOpen} onOpenChange={setIsConsoleOpen}>
+                <DialogContent className="max-w-4xl w-[95vw] p-0 overflow-hidden bg-slate-50 h-[85vh] flex flex-col">
+                    {/* Header */}
+                    <div className="bg-slate-900 text-white p-6 flex-shrink-0">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <div className="flex items-center gap-3 mb-1">
+                                    <h2 className="text-2xl font-black">{selectedBed?.patient_name}</h2>
+                                    <Badge className="bg-rose-500 text-white hover:bg-rose-600 border-none font-bold">IPD</Badge>
+                                </div>
+                                <div className="flex items-center gap-4 text-slate-400 text-sm">
+                                    <span className="font-mono">Bed: {selectedBed?.bed_number} ({selectedWard?.ward_name})</span>
+                                    <span>•</span>
+                                    <span>{activeAdmission?.diagnosis || 'No diagnosis logged'}</span>
+                                    <span>•</span>
+                                    <span>Admitted: {new Date(activeAdmission?.admission_date).toLocaleDateString()}</span>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-xs font-black uppercase text-slate-400 tracking-wider mb-1">Attending Doctor</div>
+                                <div className="font-medium text-slate-200">{activeAdmission?.doctor_name || 'Unassigned'}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 overflow-hidden flex flex-col p-6">
+                        <Tabs defaultValue="orders" className="flex-1 flex flex-col">
+                            <TabsList className="grid grid-cols-4 bg-slate-200/50 p-1 rounded-xl w-full">
+                                <TabsTrigger value="orders" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-indigo-600 font-bold"><Stethoscope className="w-4 h-4 mr-2" /> Doctor Orders</TabsTrigger>
+                                <TabsTrigger value="medication" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-rose-600 font-bold"><Syringe className="w-4 h-4 mr-2" /> Nurse Log</TabsTrigger>
+                                <TabsTrigger value="vitals" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-amber-600 font-bold"><Activity className="w-4 h-4 mr-2" /> Vitals & Notes</TabsTrigger>
+                                <TabsTrigger value="equipment" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-teal-600 font-bold"><Cpu className="w-4 h-4 mr-2" /> Equipment</TabsTrigger>
+                            </TabsList>
+
+                            <div className="flex-1 mt-6 overflow-y-auto pr-2">
+                                 {/* Doctor Orders Tab */}
+                                                                <TabsContent value="orders" className="m-0 space-y-6 h-full">
+                                                                    {['doctor', 'doctor_ipd', 'doctor_both', 'superadmin', 'superadmin_staff', 'website_admin', 'hospital_admin'].includes(userRole) ? (
+                                                                        <Card className="border-indigo-100 shadow-sm overflow-hidden">
+                                                                            <div className="bg-indigo-50/50 px-4 py-3 border-b border-indigo-100 flex items-center justify-between">
+                                                                                <h3 className="font-bold text-indigo-900 flex items-center gap-2"><Plus className="w-4 h-4" /> New Medication Order</h3>
+                                                                            </div>
+                                                                            <CardContent className="p-4 bg-white">
+                                                                                <div className="grid grid-cols-12 gap-3 items-end">
+                                                                                    <div className="col-span-12 md:col-span-3">
+                                                                                        <Label className="text-xs mb-1">Medicine Name</Label>
+                                                                                        <Input placeholder="e.g., Paracetamol" value={orderForm.medicine_name} onChange={e => setOrderForm({...orderForm, medicine_name: e.target.value})} />
+                                                                                    </div>
+                                                                                    <div className="col-span-6 md:col-span-2">
+                                                                                        <Label className="text-xs mb-1">Dosage</Label>
+                                                                                        <Input placeholder="500mg" value={orderForm.dosage} onChange={e => setOrderForm({...orderForm, dosage: e.target.value})} />
+                                                                                    </div>
+                                                                                    <div className="col-span-6 md:col-span-2">
+                                                                                        <Label className="text-xs mb-1">Frequency</Label>
+                                                                                        <Input placeholder="BID / TDS" value={orderForm.frequency} onChange={e => setOrderForm({...orderForm, frequency: e.target.value})} />
+                                                                                    </div>
+                                                                                    <div className="col-span-6 md:col-span-2">
+                                                                                        <Label className="text-xs mb-1">Hours Interval</Label>
+                                                                                        <Input placeholder="12" type="number" value={orderForm.frequency_hours} onChange={e => setOrderForm({...orderForm, frequency_hours: e.target.value})} />
+                                                                                    </div>
+                                                                                    <div className="col-span-12 md:col-span-2">
+                                                                                        <Label className="text-xs mb-1">Notes</Label>
+                                                                                        <Input placeholder="After meals" value={orderForm.notes} onChange={e => setOrderForm({...orderForm, notes: e.target.value})} />
+                                                                                    </div>
+                                                                                    <div className="col-span-12 md:col-span-1">
+                                                                                        <Button onClick={handleAddOrder} disabled={!orderForm.medicine_name || !orderForm.dosage} className="w-full bg-indigo-600 hover:bg-indigo-700 h-10"><Plus className="w-4 h-4" /></Button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </CardContent>
+                                                                        </Card>
+                                                                    ) : (
+                                                                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm font-semibold flex items-center gap-2">
+                                                                            <AlertCircle className="w-5 h-5 text-amber-600" /> Only Doctors can write or prescribe new medication orders.
+                                                                        </div>
+                                                                    )}
+
+                                    <div className="space-y-3">
+                                        <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Active Orders</h3>
+                                        {(activeAdmission?.medication_orders || []).length === 0 ? (
+                                            <div className="p-8 text-center bg-slate-100/50 rounded-xl border border-dashed border-slate-300">
+                                                <FileText className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                                                <p className="text-sm text-slate-500">No active medication orders.</p>
+                                            </div>
+                                        ) : (
+                                            (activeAdmission?.medication_orders || []).map((order: any, idx: number) => (
+                                                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 flex justify-between items-center shadow-sm">
+                                                    <div className="flex items-start gap-4">
+                                                        <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0 text-indigo-600">
+                                                            <Pill className="w-5 h-5" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-bold text-slate-900 text-lg leading-tight">{order.medicine_name} <span className="text-indigo-600 font-mono text-sm ml-2 bg-indigo-50 px-2 py-0.5 rounded">{order.dosage}</span></h4>
+                                                            <p className="text-sm font-medium text-slate-600 mt-1">Frequency: {order.frequency}</p>
+                                                            {order.notes && <p className="text-xs text-slate-500 mt-1 bg-slate-50 px-2 py-1 rounded inline-block border border-slate-100">Note: {order.notes}</p>}
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right flex flex-col justify-between h-full items-end gap-2">
+                                                        <Badge variant="outline" className="text-[10px] font-mono bg-slate-50">{new Date(order.start_date).toLocaleString()}</Badge>
+                                                        <span className="text-xs font-bold text-slate-400">Dr. {order.prescribed_by}</span>
+                                                    </div>
+                                                </div>
+                                            )).reverse()
+                                        )}
+                                    </div>
+                                </TabsContent>
+
+                                {/* Nurse Log Tab */}
+                                <TabsContent value="medication" className="m-0 space-y-6 h-full">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {/* Administration Panel */}
+                                        <div className="space-y-4">
+                                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Administer Medication</h3>
+                                            <Card className="border-rose-100 shadow-sm">
+                                                <CardContent className="p-4 space-y-4 bg-white">
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs">Select Ordered Medicine</Label>
+                                                        <select 
+                                                            className="w-full border-2 border-slate-200 focus:border-rose-500 rounded-lg p-2.5 text-sm font-medium bg-slate-50"
+                                                            value={medLogForm.order_id}
+                                                            onChange={e => {
+                                                                const order = (activeAdmission?.medication_orders || []).find((o: any) => o.id === e.target.value);
+                                                                setMedLogForm({ 
+                                                                    ...medLogForm, 
+                                                                    order_id: e.target.value,
+                                                                    medicine_name: order ? order.medicine_name : ''
+                                                                });
+                                                            }}
+                                                        >
+                                                            <option value="">-- Select Order --</option>
+                                                            {(activeAdmission?.medication_orders || []).map((o: any) => (
+                                                                <option key={o.id} value={o.id}>{o.medicine_name} ({o.dosage}) - {o.frequency}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs">Nurse Notes (Optional)</Label>
+                                                        <Input placeholder="Given orally, patient reacted well..." value={medLogForm.notes} onChange={e => setMedLogForm({...medLogForm, notes: e.target.value})} className="bg-slate-50" />
+                                                    </div>
+                                                    <Button onClick={handleLogMedication} disabled={!medLogForm.order_id} className="w-full bg-rose-600 hover:bg-rose-700 h-10 font-bold"><Syringe className="w-4 h-4 mr-2" /> Log Administration</Button>
+                                                </CardContent>
+                                            </Card>
+                                            
+                                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+                                                <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                                                <p className="text-sm text-blue-800">Logging a medication automatically creates a billing hook in the background to charge the patient if pharmacy integration is enabled.</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Administration History */}
+                                        <div className="space-y-4">
+                                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Administration Log</h3>
+                                            <div className="space-y-2 h-[400px] overflow-y-auto pr-2">
+                                                {(activeAdmission?.medication_log || []).length === 0 ? (
+                                                    <div className="p-8 text-center bg-slate-100/50 rounded-xl border border-dashed border-slate-300">
+                                                        <p className="text-sm text-slate-500">No medication administered yet.</p>
+                                                    </div>
+                                                ) : (
+                                                    (activeAdmission?.medication_log || []).map((log: any, idx: number) => (
+                                                        <div key={idx} className="bg-white border-l-4 border-l-rose-500 border-y border-r border-slate-200 rounded-r-xl p-3 shadow-sm">
+                                                            <div className="flex justify-between items-start mb-1">
+                                                                <h5 className="font-bold text-slate-900">{log.medicine_name}</h5>
+                                                                <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                                                            </div>
+                                                            <p className="text-xs text-slate-600 mb-2">Administered by: <span className="font-semibold text-rose-700">{log.administered_by}</span></p>
+                                                            {log.notes && <p className="text-xs italic text-slate-500">"{log.notes}"</p>}
+                                                        </div>
+                                                    )).reverse()
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </TabsContent>
+
+                                {/* Vitals & Notes */}
+                                <TabsContent value="vitals" className="m-0 space-y-6 h-full">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-4">
+                                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Add Doctor Note</h3>
+                                            <Card className="border-amber-100 shadow-sm">
+                                                <CardContent className="p-4 space-y-4 bg-white">
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs">Note Type</Label>
+                                                        <select className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm font-medium bg-slate-50"
+                                                            value={noteForm.note_type} onChange={e => setNoteForm({...noteForm, note_type: e.target.value})}>
+                                                            <option>Ward Round</option>
+                                                            <option>Progress Note</option>
+                                                            <option>Consultation</option>
+                                                            <option>Nursing Note</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs">Content</Label>
+                                                        <textarea 
+                                                            className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm bg-slate-50 min-h-[100px] resize-y"
+                                                            placeholder="Observations, patient condition..."
+                                                            value={noteForm.content}
+                                                            onChange={e => setNoteForm({...noteForm, content: e.target.value})}
+                                                        />
+                                                    </div>
+                                                    <Button onClick={handleAddNote} disabled={!noteForm.content} className="w-full bg-amber-500 hover:bg-amber-600 h-10 text-white font-bold">Add Note</Button>
+                                                </CardContent>
+                                            </Card>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Clinical Notes</h3>
+                                            <div className="space-y-3 h-[400px] overflow-y-auto pr-2">
+                                                {(activeAdmission?.doctor_notes || []).length === 0 ? (
+                                                    <div className="p-8 text-center bg-slate-100/50 rounded-xl border border-dashed border-slate-300">
+                                                        <p className="text-sm text-slate-500">No notes recorded.</p>
+                                                    </div>
+                                                ) : (
+                                                    (activeAdmission?.doctor_notes || []).map((note: any, idx: number) => (
+                                                        <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                                                            <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
+                                                                <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-100">{note.note_type}</Badge>
+                                                                <span className="text-[10px] text-slate-400 font-mono">{new Date(note.timestamp).toLocaleString()}</span>
+                                                            </div>
+                                                            <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{note.content}</p>
+                                                            <div className="mt-3 text-right">
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Dr. {note.doctor_name}</span>
+                                                            </div>
+                                                        </div>
+                                                    )).reverse()
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </TabsContent>
+
+                                {/* Equipment */}
+                                <TabsContent value="equipment" className="m-0 h-full">
+                                    <div className="space-y-4">
+                                        <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Assigned Machinery</h3>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                            {equipments.filter(e => e.bed_id === selectedBed?.bed_id && e.status === 'in_use').length === 0 ? (
+                                                <div className="col-span-full p-12 text-center bg-slate-100/50 rounded-xl border border-dashed border-slate-300">
+                                                    <Cpu className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                                                    <p className="text-slate-500 font-medium">No medical equipment assigned to this bed.</p>
+                                                    <Button variant="link" onClick={() => router.push('/hospital/hms/equipment')} className="text-teal-600 mt-2">Manage Equipment</Button>
+                                                </div>
+                                            ) : (
+                                                equipments.filter(e => e.bed_id === selectedBed?.bed_id && e.status === 'in_use').map(eq => (
+                                                    <div key={eq.equipment_id} className="bg-gradient-to-br from-teal-50 to-emerald-50 border border-teal-200 rounded-xl p-5 relative overflow-hidden shadow-sm">
+                                                        <div className="absolute -right-4 -top-4 text-teal-100/50">
+                                                            <Cpu className="w-24 h-24" />
+                                                        </div>
+                                                        <div className="relative z-10">
+                                                            <Badge className="bg-teal-500 mb-2 border-none">Active</Badge>
+                                                            <h4 className="font-black text-slate-900 text-xl">{eq.name}</h4>
+                                                            <p className="text-teal-700 font-medium text-sm mt-1">{eq.equipment_type}</p>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                </TabsContent>
+                            </div>
+                        </Tabs>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

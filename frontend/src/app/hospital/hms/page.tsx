@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Building2, Bed, Users, Activity, Plus, Search, ChevronRight, UserPlus, LogOut, AlertCircle, Cpu, CreditCard } from 'lucide-react';
+import { Building2, Bed, Users, Activity, Plus, Search, ChevronRight, UserPlus, LogOut, AlertCircle, Cpu, CreditCard, MoreVertical, Edit, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/config/api';
@@ -20,7 +21,7 @@ export default function HMSDashboard() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [isAddWardOpen, setIsAddWardOpen] = useState(false);
-    const [wardForm, setWardForm] = useState({ ward_name: '', ward_type: 'General', total_beds: '', floor_number: '' });
+    const [wardForm, setWardForm] = useState({ ward_id: null as number | null, ward_name: '', ward_type: 'General', total_beds: '', floor_number: '' });
     const [userRole, setUserRole] = useState<string>('');
     const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null);
 
@@ -65,11 +66,55 @@ export default function HMSDashboard() {
     const handleAddWard = async () => {
         try {
             let suffix = selectedHospitalId ? `?hospital_id=${selectedHospitalId}` : '';
-            await apiFetch(`hms/wards${suffix}`, { method: 'POST', body: JSON.stringify({ ...wardForm, total_beds: parseInt(wardForm.total_beds) || 0, floor_number: parseInt(wardForm.floor_number) || 1 }) });
+            if (wardForm.ward_id) {
+                // Update
+                await apiFetch(`hms/wards/${wardForm.ward_id}${suffix}`, { 
+                    method: 'PUT', 
+                    body: JSON.stringify({ 
+                        ward_name: wardForm.ward_name, 
+                        ward_type: wardForm.ward_type, 
+                        floor_number: parseInt(wardForm.floor_number) || 1 
+                    }) 
+                });
+            } else {
+                // Create
+                await apiFetch(`hms/wards${suffix}`, { 
+                    method: 'POST', 
+                    body: JSON.stringify({ 
+                        ...wardForm, 
+                        total_beds: parseInt(wardForm.total_beds) || 0, 
+                        floor_number: parseInt(wardForm.floor_number) || 1 
+                    }) 
+                });
+            }
             setIsAddWardOpen(false);
-            setWardForm({ ward_name: '', ward_type: 'General', total_beds: '', floor_number: '' });
+            setWardForm({ ward_id: null, ward_name: '', ward_type: 'General', total_beds: '', floor_number: '' });
             loadData();
         } catch (e: any) { alert(e.message || 'Failed'); }
+    };
+
+    const handleDeleteWard = async (wardId: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm("Are you sure you want to delete this ward? This is only possible if all beds are empty.")) return;
+        try {
+            let suffix = selectedHospitalId ? `?hospital_id=${selectedHospitalId}` : '';
+            await apiFetch(`hms/wards/${wardId}${suffix}`, { method: 'DELETE' });
+            loadData();
+        } catch (error: any) {
+            alert(error.message || "Failed to delete ward.");
+        }
+    };
+
+    const handleEditClick = (ward: any, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setWardForm({
+            ward_id: ward.ward_id,
+            ward_name: ward.ward_name,
+            ward_type: ward.ward_type || 'General',
+            total_beds: ward.total_beds.toString(),
+            floor_number: (ward.floor_number || 1).toString()
+        });
+        setIsAddWardOpen(true);
     };
 
     const totalBeds = wards.reduce((s, w) => s + (w.total_beds || 0), 0);
@@ -206,10 +251,25 @@ export default function HMSDashboard() {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <Badge className={cn('text-xs border-none', wardTypeColors[ward.ward_type] || 'bg-slate-100 text-slate-600')}>
+                                                    <Badge className={cn('text-xs border-none mr-2', wardTypeColors[ward.ward_type] || 'bg-slate-100 text-slate-600')}>
                                                         {ward.ward_type || 'General'}
                                                     </Badge>
-                                                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500" />
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-700">
+                                                                <MoreVertical className="h-4 w-4" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end" onClick={e => e.stopPropagation()}>
+                                                            <DropdownMenuItem onClick={(e) => handleEditClick(ward, e)}>
+                                                                <Edit className="w-4 h-4 mr-2" /> Edit Ward
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem className="text-red-600" onClick={(e) => handleDeleteWard(ward.ward_id, e)}>
+                                                                <Trash2 className="w-4 h-4 mr-2" /> Delete Ward
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 hidden sm:block" />
                                                 </div>
                                             </div>
                                         );
@@ -270,9 +330,12 @@ export default function HMSDashboard() {
                 </div>
             </div>
 
-            <Dialog open={isAddWardOpen} onOpenChange={setIsAddWardOpen}>
+            <Dialog open={isAddWardOpen} onOpenChange={(open) => {
+                setIsAddWardOpen(open);
+                if (!open) setWardForm({ ward_id: null, ward_name: '', ward_type: 'General', total_beds: '', floor_number: '' });
+            }}>
                 <DialogContent className="max-w-md">
-                    <DialogHeader><DialogTitle>Add New Ward</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle>{wardForm.ward_id ? 'Edit Ward' : 'Add New Ward'}</DialogTitle></DialogHeader>
                     <div className="space-y-3 py-2">
                         <div className="space-y-2"><Label>Ward Name *</Label>
                             <Input placeholder="e.g., General Ward A" value={wardForm.ward_name} onChange={e => setWardForm({ ...wardForm, ward_name: e.target.value })} /></div>
@@ -283,15 +346,15 @@ export default function HMSDashboard() {
                                     <option>General</option><option>ICU</option><option>Emergency</option>
                                     <option>Maternity</option><option>Pediatric</option><option>Private</option>
                                 </select></div>
-                            <div className="space-y-2"><Label>Total Beds</Label>
-                                <Input placeholder="e.g., 20" type="number" value={wardForm.total_beds} onChange={e => setWardForm({ ...wardForm, total_beds: e.target.value })} /></div>
+                            <div className="space-y-2"><Label>Total Beds {wardForm.ward_id ? "(Cannot change)" : ""}</Label>
+                                <Input placeholder="e.g., 20" type="number" value={wardForm.total_beds} onChange={e => setWardForm({ ...wardForm, total_beds: e.target.value })} disabled={wardForm.ward_id !== null} /></div>
                         </div>
                         <div className="space-y-2"><Label>Floor Number</Label>
                             <Input placeholder="e.g., 2" type="number" value={wardForm.floor_number} onChange={e => setWardForm({ ...wardForm, floor_number: e.target.value })} /></div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsAddWardOpen(false)}>Cancel</Button>
-                        <Button onClick={handleAddWard} disabled={!wardForm.ward_name} className="bg-blue-600">Add Ward</Button>
+                        <Button onClick={handleAddWard} disabled={!wardForm.ward_name} className="bg-blue-600">{wardForm.ward_id ? 'Save Changes' : 'Add Ward'}</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

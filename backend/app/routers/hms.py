@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from typing import List, Optional
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pydantic import BaseModel
 
 from ..database import get_db
@@ -46,6 +46,49 @@ class DischargeUpdate(BaseModel):
     discharge_date: Optional[datetime] = None
     discharge_summary: Optional[str] = None
     discharge_notes: Optional[str] = None
+
+class MedicationOrder(BaseModel):
+    medicine_name: str
+    dosage: str
+    frequency: str
+    frequency_hours: Optional[int] = 12
+    notes: Optional[str] = None
+
+class MedicationLogRecord(BaseModel):
+    order_id: str
+    medicine_name: str
+    notes: Optional[str] = None
+
+class DoctorNote(BaseModel):
+    note_type: str
+    content: str
+
+def check_doctor_role(user: User):
+    allowed = ["superadmin", "superadmin_staff", "website_admin", "doctor_ipd", "doctor_both", "hospital_admin"]
+    if user.role not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Only Doctors or Admins can perform this action."
+        )
+
+def check_nurse_or_doctor_role(user: User):
+    allowed = ["superadmin", "superadmin_staff", "website_admin", "doctor_ipd", "doctor_both", "nurse_ipd", "hospital_staff", "hospital_admin"]
+    if user.role not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Only Nurses, Doctors or Admins can perform this action."
+        )
+
+class BedTransfer(BaseModel):
+    new_bed_id: int
+
+class BedStatusUpdate(BaseModel):
+    status: str
+
+class WardUpdate(BaseModel):
+    ward_name: Optional[str] = None
+    ward_type: Optional[str] = None
+    floor_number: Optional[int] = None
 
 class VitalsRecord(BaseModel):
     temp: Optional[str] = None
@@ -176,6 +219,51 @@ def get_ward_detail(
         "beds": beds
     }
 
+@router.put("/wards/{ward_id}")
+def update_ward(
+    ward_id: int,
+    ward_update: WardUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update ward details"""
+    ward = db.query(Ward).filter(Ward.ward_id == ward_id, Ward.hospital_id == current_user.hospital_id).first()
+    if not ward:
+        raise HTTPException(status_code=404, detail="Ward not found")
+        
+    if ward_update.ward_name is not None:
+        ward.ward_name = ward_update.ward_name  # type: ignore
+    if ward_update.ward_type is not None:
+        ward.ward_type = ward_update.ward_type  # type: ignore
+    if ward_update.floor_number is not None:
+        ward.floor_number = ward_update.floor_number  # type: ignore
+        
+    db.commit()
+    db.refresh(ward)
+    return ward
+
+@router.delete("/wards/{ward_id}")
+def delete_ward(
+    ward_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete ward if empty"""
+    ward = db.query(Ward).filter(Ward.ward_id == ward_id, Ward.hospital_id == current_user.hospital_id).first()
+    if not ward:
+        raise HTTPException(status_code=404, detail="Ward not found")
+        
+    # Check if any beds are occupied
+    occupied = db.query(Bed).filter(Bed.ward_id == ward_id, Bed.is_occupied == True).count()
+    if occupied > 0:
+        raise HTTPException(status_code=400, detail="Cannot delete ward with occupied beds")
+        
+    # Delete beds first
+    db.query(Bed).filter(Bed.ward_id == ward_id).delete()
+    db.delete(ward)
+    db.commit()
+    return {"message": "Ward deleted"}
+
 # --- Bed Management ---
 
 @router.post("/beds")
@@ -253,6 +341,34 @@ def get_beds(
             "admission_id": admission_id
         })
     return result
+
+@router.put("/beds/{bed_id}/status")
+def update_bed_status(
+    bed_id: int,
+    status_update: BedStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Mark bed as MAINTENANCE or AVAILABLE"""
+    bed = db.query(Bed).join(Ward).filter(
+        Bed.bed_id == bed_id,
+        Ward.hospital_id == current_user.hospital_id
+    ).first()
+    
+    if not bed:
+        raise HTTPException(status_code=404, detail="Bed not found")
+        
+    if bed.is_occupied:
+        raise HTTPException(status_code=400, detail="Cannot change status of an occupied bed")
+        
+    status_val = status_update.status.upper()
+    if status_val not in ["AVAILABLE", "MAINTENANCE"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+        
+    bed.status = status_val  # type: ignore
+    db.commit()
+    db.refresh(bed)
+    return bed
 
 @router.get("/beds/available")
 def get_available_beds(
@@ -430,6 +546,52 @@ def get_active_admissions(
     
     return result
 
+@router.get("/admissions/alerts")
+def get_medication_alerts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Fetch due or overdue medication alerts for all active admissions"""
+    active_admissions = db.query(IPDAdmission).filter(
+        IPDAdmission.hospital_id == current_user.hospital_id,
+        IPDAdmission.status == "admitted"
+    ).all()
+    
+    alerts = []
+    from datetime import datetime
+    now = datetime.now()
+    
+    for adm in active_admissions:
+        patient = db.query(Patient).filter(Patient.record_id == adm.patient_id).first()
+        ward = db.query(Ward).filter(Ward.ward_id == adm.ward_id).first()
+        bed = db.query(Bed).filter(Bed.bed_id == adm.bed_id).first()
+        
+        for order in (adm.medication_orders or []):
+            next_due_str = order.get("next_due")
+            if next_due_str:
+                try:
+                    next_due_dt = datetime.fromisoformat(next_due_str)
+                    # Alert if next_due is in the past, or due within next 1 hour
+                    time_diff = next_due_dt - now
+                    is_due = next_due_dt <= now or time_diff.total_seconds() <= 3600
+                    
+                    if is_due:
+                        alerts.append({
+                            "admission_id": adm.admission_id,
+                            "patient_name": patient.full_name if patient else "Unknown",
+                            "ward_name": ward.ward_name if ward else "Unknown",
+                            "bed_number": bed.bed_number if bed else "Unknown",
+                            "order_id": order.get("id"),
+                            "medicine_name": order.get("medicine_name"),
+                            "dosage": order.get("dosage"),
+                            "frequency": order.get("frequency"),
+                            "next_due": next_due_str,
+                            "overdue_seconds": max(0, int((now - next_due_dt).total_seconds()))
+                        })
+                except Exception:
+                    pass
+    return alerts
+
 @router.get("/admissions/{admission_id}")
 def get_admission_detail(
     admission_id: int,
@@ -456,6 +618,202 @@ def get_admission_detail(
         "bed": bed
     }
 
+@router.post("/admissions/{admission_id}/transfer")
+def transfer_patient(
+    admission_id: int,
+    transfer: BedTransfer,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Transfer patient to a new bed"""
+    admission = db.query(IPDAdmission).filter(
+        IPDAdmission.admission_id == admission_id,
+        IPDAdmission.hospital_id == current_user.hospital_id
+    ).first()
+    if not admission or admission.status != "admitted":
+        raise HTTPException(status_code=404, detail="Active admission not found")
+        
+    new_bed = db.query(Bed).filter(Bed.bed_id == transfer.new_bed_id).first()
+    if not new_bed or new_bed.is_occupied or new_bed.status != "AVAILABLE":
+        raise HTTPException(status_code=400, detail="New bed is not available")
+        
+    old_bed = db.query(Bed).filter(Bed.bed_id == admission.bed_id).first()
+    
+    # Detach from old bed
+    if old_bed:
+        old_bed.is_occupied = False  # type: ignore
+        old_bed.status = "AVAILABLE"  # type: ignore
+        
+        old_ward = db.query(Ward).filter(Ward.ward_id == old_bed.ward_id).first()
+        if old_ward:
+            old_ward.occupied_beds = db.query(Bed).filter(Bed.ward_id == old_ward.ward_id, Bed.is_occupied == True).count()  # type: ignore
+    
+    # Attach to new bed
+    new_bed.is_occupied = True  # type: ignore
+    new_bed.status = "OCCUPIED"  # type: ignore
+    
+    new_ward = db.query(Ward).filter(Ward.ward_id == new_bed.ward_id).first()
+    if new_ward:
+        new_ward.occupied_beds = db.query(Bed).filter(Bed.ward_id == new_ward.ward_id, Bed.is_occupied == True).count()  # type: ignore
+        
+    admission.bed_id = new_bed.bed_id  # type: ignore
+    admission.ward_id = new_bed.ward_id  # type: ignore
+    
+    # Move equipment if attached to bed
+    if old_bed:
+        equipments = db.query(MedicalEquipment).filter(MedicalEquipment.current_bed_id == old_bed.bed_id).all()
+        for eq in equipments:
+            eq.current_bed_id = new_bed.bed_id  # type: ignore
+            eq.current_ward_id = new_bed.ward_id  # type: ignore
+    
+    db.commit()
+    db.refresh(admission)
+    return admission
+
+@router.post("/admissions/{admission_id}/orders")
+def add_doctor_order(
+    admission_id: int,
+    order: MedicationOrder,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Add a medication order (Doctor)"""
+    check_doctor_role(current_user)
+    admission = db.query(IPDAdmission).filter(
+        IPDAdmission.admission_id == admission_id,
+        IPDAdmission.hospital_id == current_user.hospital_id
+    ).first()
+    if not admission:
+        raise HTTPException(status_code=404, detail="Admission not found")
+        
+    import uuid
+    raw_orders = admission.medication_orders
+    orders = list(raw_orders) if isinstance(raw_orders, list) else []
+    
+    freq_hours = order.frequency_hours if order.frequency_hours is not None else 12
+    next_due_dt = datetime.now() + timedelta(hours=freq_hours)
+    
+    new_order = {
+        "id": uuid.uuid4().hex[:8],
+        "medicine_name": order.medicine_name,
+        "dosage": order.dosage,
+        "frequency": order.frequency,
+        "frequency_hours": freq_hours,
+        "notes": order.notes,
+        "start_date": datetime.now().isoformat(),
+        "next_due": next_due_dt.isoformat(),
+        "prescribed_by": current_user.full_name
+    }
+    orders.append(new_order)
+    admission.medication_orders = orders  # type: ignore
+    db.commit()
+    return new_order
+
+@router.post("/admissions/{admission_id}/medication")
+def administer_medication(
+    admission_id: int,
+    med_log: MedicationLogRecord,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Log administered medication (Nurse)"""
+    check_nurse_or_doctor_role(current_user)
+    admission = db.query(IPDAdmission).filter(
+        IPDAdmission.admission_id == admission_id,
+        IPDAdmission.hospital_id == current_user.hospital_id
+    ).first()
+    if not admission:
+        raise HTTPException(status_code=404, detail="Admission not found")
+        
+    # Advance next_due in medication_orders type-safely
+    raw_orders = admission.medication_orders
+    orders = list(raw_orders) if isinstance(raw_orders, list) else []
+    order_found = False
+    freq_hours = 12
+    for o in orders:
+        if isinstance(o, dict) and o.get("id") == med_log.order_id:
+            order_found = True
+            freq_hours = o.get("frequency_hours", 12)
+            o["next_due"] = (datetime.now() + timedelta(hours=freq_hours)).isoformat()
+            break
+            
+    if order_found:
+        admission.medication_orders = orders  # type: ignore
+        
+    raw_log = admission.medication_log
+    log = list(raw_log) if isinstance(raw_log, list) else []
+    new_log = {
+        "timestamp": datetime.now().isoformat(),
+        "order_id": med_log.order_id,
+        "medicine_name": med_log.medicine_name,
+        "notes": med_log.notes,
+        "administered_by": current_user.full_name
+    }
+    log.append(new_log)
+    admission.medication_log = log  # type: ignore
+    
+    # Billing Hook: If patient already has a linked PatientInvoice, add medication fee directly
+    if admission.patient_invoice_id:
+        from ..models import PatientInvoiceItem, PatientInvoice
+        item_desc = f"Medication Administered: {med_log.medicine_name}"
+        unit_price = 150.0
+        new_inv_item = PatientInvoiceItem(
+            invoice_id=admission.patient_invoice_id,
+            description=item_desc,
+            qty=1,
+            unit_price=unit_price,
+            discount=0.0,
+            amount=unit_price,
+            charge_type="MEDICINE",
+            reference_id=admission.admission_id
+        )
+        db.add(new_inv_item)
+        
+        invoice = db.query(PatientInvoice).filter(PatientInvoice.invoice_id == admission.patient_invoice_id).first()
+        if invoice:
+            subtotal_val = float(invoice.subtotal) if invoice.subtotal is not None else 0.0  # type: ignore
+            gst_rate_val = float(invoice.gst_rate) if invoice.gst_rate is not None else 18.0  # type: ignore
+            discount_val = float(invoice.discount_amount) if invoice.discount_amount is not None else 0.0  # type: ignore
+            
+            new_subtotal = subtotal_val + unit_price
+            new_tax = round((new_subtotal * gst_rate_val) / 100.0, 2)
+            
+            invoice.subtotal = new_subtotal  # type: ignore
+            invoice.tax_amount = new_tax  # type: ignore
+            invoice.total_amount = round(new_subtotal - discount_val + new_tax)  # type: ignore
+            
+    db.commit()
+    return new_log
+
+@router.post("/admissions/{admission_id}/notes")
+def add_doctor_note(
+    admission_id: int,
+    note: DoctorNote,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Add a ward round note (Doctor)"""
+    check_doctor_role(current_user)
+    admission = db.query(IPDAdmission).filter(
+        IPDAdmission.admission_id == admission_id,
+        IPDAdmission.hospital_id == current_user.hospital_id
+    ).first()
+    if not admission:
+        raise HTTPException(status_code=404, detail="Admission not found")
+        
+    notes_list = list(admission.doctor_notes or [])  # type: ignore
+    new_note = {
+        "timestamp": datetime.now().isoformat(),
+        "doctor_id": current_user.user_id,
+        "doctor_name": current_user.full_name,
+        "note_type": note.note_type,
+        "content": note.content
+    }
+    notes_list.append(new_note)
+    admission.doctor_notes = notes_list  # type: ignore
+    db.commit()
+    return new_note
+
 @router.post("/admissions/{admission_id}/vitals")
 def record_vitals(
     admission_id: int,
@@ -464,6 +822,7 @@ def record_vitals(
     current_user: User = Depends(get_current_user)
 ):
     """Log daily vitals for admitted patient"""
+    check_nurse_or_doctor_role(current_user)
     admission = db.query(IPDAdmission).filter(
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id

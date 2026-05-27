@@ -976,59 +976,6 @@ async def upload_scan(
     db.refresh(db_scan)
     return db_scan
 
-@router.get("/scans/patient/{patient_id}", response_model=List[ScanResponse])
-def get_patient_scans(
-    patient_id: int, 
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
-        
-    if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    scans = db.query(Dental3DScan).filter(Dental3DScan.patient_id == patient_id).all()
-    
-    s3_manager = S3Manager()
-    for scan in scans:
-        if scan.file_path and not scan.file_path.startswith("local_storage"):
-            # If it's an S3 key, generate a presigned URL
-            scan.presigned_url = s3_manager.generate_presigned_url(scan.file_path)
-        else:
-            # For local files, the frontend handles it or we can provide a local URL
-            pass
-            
-    return scans
-@router.delete("/scans/patient/{patient_id}")
-def delete_all_patient_scans(
-    patient_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
-        
-    if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    scans = db.query(Dental3DScan).filter(Dental3DScan.patient_id == patient_id).all()
-    
-    s3_manager = S3Manager()
-    delete_count = 0
-    
-    for scan in scans:
-        if scan.file_path:
-            # Delete from S3 or Local
-            s3_manager.delete_file(scan.file_path)
-        
-        db.delete(scan)
-        delete_count += 1
-        
-    db.commit()
-    return {"message": f"Successfully deleted {delete_count} scans", "count": delete_count}
 
 # --- Revenue Analytics ---
 

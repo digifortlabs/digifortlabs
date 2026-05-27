@@ -25,8 +25,55 @@ export default function HMSAdmissionsPage() {
     const [selectedAdmission, setSelectedAdmission] = useState<any>(null);
     const [form, setForm] = useState({ patient_name: '', age: '', gender: 'Male', ward_id: '', bed_id: '', diagnosis: '', doctor_name: '', contact_phone: '', notes: '' });
     const [dischargeNotes, setDischargeNotes] = useState('');
+    const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [searching, setSearching] = useState(false);
 
     useEffect(() => { loadData(); }, []);
+
+    useEffect(() => {
+        if (!searchQuery.trim()) {
+            setSearchResults([]);
+            return;
+        }
+        const delayDebounce = setTimeout(() => {
+            performSearch(searchQuery);
+        }, 300);
+        return () => clearTimeout(delayDebounce);
+    }, [searchQuery]);
+
+    const performSearch = async (query: string) => {
+        setSearching(true);
+        try {
+            const data = await apiFetch(`patients?search=${encodeURIComponent(query)}`);
+            setSearchResults(Array.isArray(data) ? data : []);
+        } catch (e) {
+            console.error("Failed to search patients", e);
+        } finally {
+            setSearching(false);
+        }
+    };
+
+    const handleSelectPatient = (patient: any) => {
+        let cleanAge = '';
+        if (patient.age) {
+            const match = patient.age.match(/\d+/);
+            if (match) cleanAge = match[0];
+        }
+        setForm({
+            ...form,
+            patient_name: patient.full_name,
+            age: cleanAge,
+            gender: patient.gender || 'Male',
+            diagnosis: patient.diagnosis || '',
+            doctor_name: patient.doctor_name || '',
+            contact_phone: patient.contact_number || patient.phone || ''
+        });
+        setSelectedPatientId(patient.record_id);
+        setSearchResults([]);
+        setSearchQuery('');
+    };
 
     const loadData = async () => {
         setLoading(true);
@@ -42,16 +89,18 @@ export default function HMSAdmissionsPage() {
         } finally { setLoading(false); }
     };
 
-    const availableBeds = beds.filter(b => b.status === 'available' && (!form.ward_id || b.ward_id === parseInt(form.ward_id)));
+    const availableBeds = beds.filter(b => b.status?.toLowerCase() === 'available' && (!form.ward_id || b.ward_id === parseInt(form.ward_id)));
 
     const handleAdmit = async () => {
         try {
             await apiFetch('hms/admissions', {
                 method: 'POST',
-                body: JSON.stringify({ ...form, ward_id: parseInt(form.ward_id), bed_id: parseInt(form.bed_id), age: parseInt(form.age) || 0 })
+                body: JSON.stringify({ ...form, patient_id: selectedPatientId, ward_id: parseInt(form.ward_id), bed_id: parseInt(form.bed_id), age: parseInt(form.age) || 0 })
             });
             setIsAddOpen(false);
             setForm({ patient_name: '', age: '', gender: 'Male', ward_id: '', bed_id: '', diagnosis: '', doctor_name: '', contact_phone: '', notes: '' });
+            setSelectedPatientId(null);
+            setSearchQuery('');
             loadData();
         } catch (e: any) { alert(e.message || 'Failed'); }
     };
@@ -167,18 +216,74 @@ export default function HMSAdmissionsPage() {
             )}
 
             {/* Admit Modal */}
-            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-                <DialogContent className="max-w-md">
+            <Dialog open={isAddOpen} onOpenChange={(open) => {
+                setIsAddOpen(open);
+                if (!open) {
+                    setForm({ patient_name: '', age: '', gender: 'Male', ward_id: '', bed_id: '', diagnosis: '', doctor_name: '', contact_phone: '', notes: '' });
+                    setSelectedPatientId(null);
+                    setSearchQuery('');
+                    setSearchResults([]);
+                }
+            }}>
+                <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                     <DialogHeader><DialogTitle>New Admission</DialogTitle></DialogHeader>
-                    <div className="space-y-3 py-2">
-                        <div className="space-y-2"><Label>Patient Name *</Label>
-                            <Input placeholder="Full name" value={form.patient_name} onChange={e => setForm({ ...form, patient_name: e.target.value })} /></div>
+                    <div className="space-y-4 py-2">
+                        {/* Search registered patients */}
+                        <div className="space-y-1.5 relative">
+                            <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Search Registered Patient (Optional)</Label>
+                            <Input 
+                                placeholder="Type patient name or MRD..." 
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="border-emerald-100 focus:border-emerald-500 font-medium"
+                            />
+                            {searching && <span className="absolute right-3 bottom-2.5 text-xs text-slate-400">Searching...</span>}
+                            
+                            {searchResults.length > 0 && (
+                                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                                    {searchResults.map(p => (
+                                        <button 
+                                            key={p.record_id}
+                                            onClick={() => handleSelectPatient(p)}
+                                            className="w-full text-left px-4 py-2.5 hover:bg-emerald-50/50 flex flex-col justify-center transition-colors"
+                                        >
+                                            <span className="font-bold text-slate-900 text-sm">{p.full_name}</span>
+                                            <span className="text-xs text-slate-500 font-mono mt-0.5">MRD: {p.patient_u_id} • Age: {p.age || 'N/A'} • {p.gender}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {selectedPatientId && (
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between">
+                                <div>
+                                    <span className="text-[10px] font-black uppercase text-emerald-600 tracking-wider">Selected Existing Patient</span>
+                                    <p className="font-extrabold text-emerald-900 text-sm leading-tight mt-0.5">{form.patient_name}</p>
+                                </div>
+                                <Button 
+                                    size="sm" 
+                                    variant="ghost" 
+                                    onClick={() => {
+                                        setSelectedPatientId(null);
+                                        setForm({ ...form, patient_name: '', age: '', gender: 'Male', diagnosis: '', doctor_name: '', contact_phone: '' });
+                                    }}
+                                    className="text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 font-bold"
+                                >
+                                    Clear
+                                </Button>
+                            </div>
+                        )}
+
+                        <div className="border-t border-slate-100 pt-3 space-y-3">
+                            <div className="space-y-2"><Label>Patient Name *</Label>
+                                <Input placeholder="Full name" value={form.patient_name} onChange={e => setForm({ ...form, patient_name: e.target.value })} disabled={selectedPatientId !== null} /></div>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-2"><Label>Age</Label>
-                                <Input type="number" placeholder="Age" value={form.age} onChange={e => setForm({ ...form, age: e.target.value })} /></div>
+                                <Input type="number" placeholder="Age" value={form.age} onChange={e => setForm({ ...form, age: e.target.value })} disabled={selectedPatientId !== null} /></div>
                             <div className="space-y-2"><Label>Gender</Label>
                                 <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm"
-                                    value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })}>
+                                    value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })} disabled={selectedPatientId !== null}>
                                     <option>Male</option><option>Female</option><option>Other</option>
                                 </select></div>
                         </div>
@@ -206,6 +311,7 @@ export default function HMSAdmissionsPage() {
                         </div>
                         <div className="space-y-2"><Label>Notes</Label>
                             <Textarea placeholder="Admission notes..." rows={2} className="resize-none" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
+                        </div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
