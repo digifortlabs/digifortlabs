@@ -23,17 +23,17 @@ const CATEGORIZED_NAV_ITEMS = [
     {
         category: 'Clinical Specialties',
         items: [
-            { label: 'HMS Operations', href: '/hospital/hms', icon: Bed, roles: ['hospital_admin', 'nurse_ipd', 'doctor_ipd'] },
-            { label: 'Clinic OPD', href: '/hospital/clinic', icon: Activity, roles: ['hospital_admin', 'doctor_opd'] },
-            { label: 'Dental Portal', href: '/hospital/dental', icon: Activity, roles: ['hospital_admin', 'doctor_opd'] },
-            { label: 'ENT Specialty', href: '/hospital/ent', icon: Activity, roles: ['hospital_admin', 'doctor_opd'] },
+            { label: 'HMS Operations', href: '/hospital/hms', icon: Bed, roles: ['hospital_admin', 'nurse_ipd', 'doctor_ipd'], module: 'hms' },
+            { label: 'Clinic OPD', href: '/hospital/clinic', icon: Activity, roles: ['hospital_admin', 'doctor_opd'], module: 'clinic' },
+            { label: 'Dental Portal', href: '/hospital/dental', icon: Activity, roles: ['hospital_admin', 'doctor_opd'], module: 'dental' },
+            { label: 'ENT Specialty', href: '/hospital/ent', icon: Activity, roles: ['hospital_admin', 'doctor_opd'], module: 'ent' },
         ]
     },
     {
         category: 'Administration',
         items: [
-            { label: 'Accounting & Billing', href: '/hospital/accounting', icon: IndianRupee, roles: ['hospital_admin', 'account_staff'] },
-            { label: 'Inventory & Stock', href: '/hospital/inventory', icon: Package, roles: ['hospital_admin', 'mrd_staff'] },
+            { label: 'Accounting & Billing', href: '/hospital/accounting', icon: IndianRupee, roles: ['hospital_admin', 'account_staff'], module: 'accounting' },
+            { label: 'Inventory & Stock', href: '/hospital/inventory', icon: Package, roles: ['hospital_admin', 'mrd_staff'], module: 'inventory' },
             { label: 'Staff Management', href: '/hospital/staff', icon: UserPlus, roles: ['hospital_admin'] },
             { label: 'Doctors Directory', href: '/hospital/doctors', icon: Users, roles: ['hospital_admin'] },
             { label: 'Portal Settings', href: '/hospital/settings', icon: Settings, roles: ['hospital_admin'] },
@@ -49,10 +49,20 @@ export default function HospitalNavbar() {
     const [userEmail, setUserEmail] = useState('');
     const [hospitalName, setHospitalName] = useState('Hospital Portal');
     const [hospitalLogo, setHospitalLogo] = useState<string | null>(null);
+    const [userModules, setUserModules] = useState<string[]>([]);
 
     useEffect(() => {
         setUserRole(localStorage.getItem('userRole') || '');
         setUserEmail(localStorage.getItem('userEmail') || '');
+        
+        try {
+            const modulesStr = localStorage.getItem('userModules');
+            if (modulesStr) {
+                setUserModules(JSON.parse(modulesStr));
+            }
+        } catch (e) {
+            console.error(e);
+        }
         
         const savedName = localStorage.getItem('hospitalName');
         const savedLogo = localStorage.getItem('hospitalLogo');
@@ -73,8 +83,10 @@ export default function HospitalNavbar() {
 
     const filterCategoryItems = (items: typeof CATEGORIZED_NAV_ITEMS[0]['items']) => {
         return items.filter(item => {
-            if (!item.roles) return true;
-            return item.roles.includes(userRole);
+            if (item.roles && !item.roles.includes(userRole)) return false;
+            // @ts-ignore
+            if (item.module && !userModules.includes(item.module)) return false;
+            return true;
         });
     };
 
