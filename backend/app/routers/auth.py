@@ -662,6 +662,17 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
     if not last_active or (now - last_active).total_seconds() > 300:
         user.last_active_at = now  # type: ignore[assignment]
         db.commit()
+
+    # Demo Account Expiration Check
+    if user.hospital and user.hospital.trial_ends_at:
+        trial_end = user.hospital.trial_ends_at
+        if trial_end.tzinfo is None:
+            trial_end = trial_end.replace(tzinfo=IST)
+        if now > trial_end:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your trial period has expired. Please upgrade your subscription to continue.",
+            )
     
     return user
 

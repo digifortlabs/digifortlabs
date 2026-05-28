@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
 import random
 import string
+import re
+import uuid
 
 from ..models import Hospital, User, UserRole, BandwidthUsage
 from ..utils import get_password_hash
@@ -45,14 +47,25 @@ def register_demo_account(data: DemoRegistrationRequest, db: Session):
         elif mod == "hms": specialty = "Hospital"
         
     try:
+        # Generate URL-safe subdomain slug
+        base_slug = re.sub(r'[^a-z0-9]', '', data.organization_name.lower()) + "-demo"
+        slug = base_slug
+        while db.query(Hospital).filter(Hospital.hospital_slug == slug).first():
+            slug = f"{base_slug}-{uuid.uuid4().hex[:4]}"
+            
+        trial_end = datetime.now(IST) + timedelta(days=30)
+            
         # Create demo hospital with limits
         hospital = Hospital(
             legal_name=data.organization_name,
+            hospital_slug=slug,
             email=data.email.lower(),
             subscription_tier="Demo",
             specialty=specialty,
             enabled_modules=enabled,
             max_users=2,
+            trial_ends_at=trial_end,
+            custom_pricing={"max_patients": 50, "max_records": 50},
             is_active=True
         )
         db.add(hospital)
@@ -81,8 +94,12 @@ def register_demo_account(data: DemoRegistrationRequest, db: Session):
         db.add(user)
         db.commit()
         
-        # Send credentials email
-        EmailService.send_demo_credentials_email(data.email, password)
+        # Send credentials email - NOTE: the EmailService needs to be updated to accept and send the slug. For now we will just pass the slug if it supports it, or we'll update the email service next.
+        try:
+            EmailService.send_demo_credentials_email(data.email, password, slug)
+        except TypeError:
+            # Fallback if send_demo_credentials_email doesn't support slug yet
+            EmailService.send_demo_credentials_email(data.email, password)
     except Exception as e:
         db.rollback()
         import traceback

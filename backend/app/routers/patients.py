@@ -629,6 +629,15 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
         else:
              raise HTTPException(status_code=400, detail="User context missing hospital ID")
 
+    # Demo Account Patient Quota Check
+    if current_user.hospital and current_user.hospital.custom_pricing:
+        max_patients = current_user.hospital.custom_pricing.get("max_patients")
+        if max_patients:
+            current_count = db.query(Patient).filter(Patient.hospital_id == hospital_id, Patient.is_deleted == False).count()
+            if current_count >= max_patients:
+                from fastapi import status
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Patient quota exceeded (Max: {max_patients}). Please upgrade to add more patients.")
+
     # 1. Check for Duplicate MRD (Explicit Check for better error)
     if patient.patient_u_id and patient.patient_u_id.strip():
         existing_mrd = db.query(Patient).filter(
@@ -826,6 +835,14 @@ async def upload_patient_file(
             
         if not is_platform and patient.hospital_id != current_user.hospital_id:
             raise HTTPException(status_code=403, detail="Not authorized to upload for this patient")
+
+        # Demo Account Record Quota Check
+        if current_user.hospital and current_user.hospital.custom_pricing:
+            max_records = current_user.hospital.custom_pricing.get("max_records")
+            if max_records:
+                current_count = db.query(PDFFile).filter(PDFFile.hospital_id == current_user.hospital_id).count()
+                if current_count >= max_records:
+                    raise HTTPException(status_code=403, detail=f"Record quota exceeded (Max: {max_records}). Please upgrade to upload more records.")
 
         allowed_extensions = {'.pdf', '.mp4', '.mov', '.avi', '.mkv'}
         ext = os.path.splitext(file.filename)[1].lower()

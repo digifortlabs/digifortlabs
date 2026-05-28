@@ -131,6 +131,7 @@ class Hospital(Base):
     id_generation_settings = Column(JSON, default=dict) # Prefixes and starting sequences for UHID, OPD, etc.
     is_active = Column(Boolean, default=True)
     is_deleted = Column(Boolean, default=False)
+    trial_ends_at = Column(DateTime, nullable=True) # Expiration date for demo/trial accounts
     
     # Profile Details (Post-Registration, Optional)
     director_name = Column(String, nullable=True)

@@ -1073,10 +1073,11 @@ class EmailService:
             return False
 
     @staticmethod
-    def send_demo_credentials_email(email: str, password: str):
+    def send_demo_credentials_email(email: str, password: str, slug: str = None):
         context = {
             "email": email,
-            "password": password
+            "password": password,
+            "slug": slug
         }
         return EmailService._send_email(
             recipient=email,
