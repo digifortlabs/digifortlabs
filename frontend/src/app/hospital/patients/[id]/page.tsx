@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, User, Phone, MapPin, Calendar, Activity, Clock, FileText, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, User, Phone, MapPin, Calendar, Activity, Clock, FileText, CheckCircle2, Trash2 } from 'lucide-react';
 import { apiFetch } from '@/config/api';
 import { useTerminology } from '@/hooks/useTerminology';
 import { Card } from '@/components/ui/card';
@@ -15,8 +15,10 @@ export default function PatientProfile() {
     const router = useRouter();
     const { terms } = useTerminology();
     const [patient, setPatient] = useState<any>(null);
+    const [timelineEvents, setTimelineEvents] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         if (!params.id) return;
@@ -26,12 +28,30 @@ export default function PatientProfile() {
     const fetchPatientData = async (id: string) => {
         setLoading(true);
         try {
-            const data = await apiFetch(`/patients/${id}`);
+            const [data, timelineData] = await Promise.all([
+                apiFetch(`/patients/${id}`),
+                apiFetch(`/patients/${id}/timeline`)
+            ]);
             setPatient(data);
+            setTimelineEvents(timelineData || []);
         } catch (e) {
             console.error("Failed to load patient", e);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDeletePatient = async () => {
+        if (confirm(`Are you sure you want to delete this ${terms.patient.toLowerCase()}? This action will move them to the Recycle Bin.`)) {
+            setIsDeleting(true);
+            try {
+                await apiFetch(`/patients/${patient.record_id}`, { method: 'DELETE' });
+                router.push('/hospital/patients');
+            } catch (error) {
+                console.error('Failed to delete patient', error);
+                alert('Failed to delete patient.');
+                setIsDeleting(false);
+            }
         }
     };
 
@@ -103,47 +123,45 @@ export default function PatientProfile() {
         return recordedAge || 'N/A';
     };
 
-    // Mock timeline for now until backend aggregate endpoint is ready
-    const timelineEvents = [
-        {
-            date: patient.created_at || new Date().toISOString(),
-            type: 'registration',
-            title: patient.patient_category === 'IPD' ? 'IPD File Created' 
-                 : patient.patient_category === 'EMERGENCY' ? 'Emergency File Created' 
-                 : 'OPD File Created',
-            department: 'Registration',
-            description: `${patient.patient_category === 'IPD' ? 'IPD File' : 'Patient'} registered at age ${getAgeDisplay(patient)} with MRD: ${patient.patient_u_id}`,
-            icon: User,
-            color: 'bg-blue-500 text-white'
-        },
-        ...(patient.ipd_admissions || []).map((adm: any) => ({
-            date: adm.admission_date,
-            type: 'ipd',
-            title: 'IPD Admission',
-            department: 'Inpatient Department',
-            description: `Admitted at age ${getAgeDisplay(patient)} under Dr. ${adm.doctor_name || 'N/A'}. Diagnosis: ${adm.diagnosis || 'Pending'}`,
-            icon: Activity,
-            color: 'bg-red-500 text-white'
-        })),
-        ...(patient.opd_visits || []).map((visit: any) => ({
-            date: visit.visit_date,
-            type: 'opd',
-            title: 'OPD Consultation',
-            department: 'Outpatient Department',
-            description: `Consulted Dr. ${visit.doctor_name || 'N/A'} at age ${getAgeDisplay(patient)}.`,
-            icon: CheckCircle2,
-            color: 'bg-emerald-500 text-white'
-        }))
-    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const getIconForType = (type: string) => {
+        switch(type) {
+            case 'REGISTRATION': return <User size={14} />;
+            case 'IPD': return <Activity size={14} />;
+            case 'OPD': return <CheckCircle2 size={14} />;
+            case 'FOLLOW_UP': return <CheckCircle2 size={14} />;
+            case 'MRD': return <FileText size={14} />;
+            default: return <Clock size={14} />;
+        }
+    };
+
+    const getColorForType = (type: string) => {
+        switch(type) {
+            case 'REGISTRATION': return 'bg-slate-500 text-white';
+            case 'IPD': return 'bg-rose-500 text-white';
+            case 'OPD': return 'bg-blue-500 text-white';
+            case 'FOLLOW_UP': return 'bg-amber-500 text-white';
+            case 'MRD': return 'bg-emerald-500 text-white';
+            default: return 'bg-slate-300 text-white';
+        }
+    };
 
     return (
         <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
-            <button 
-                onClick={() => router.push('/hospital/patients')}
-                className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
-            >
-                <ArrowLeft size={16} /> Back to Directory
-            </button>
+            <div className="flex justify-between items-center">
+                <button 
+                    onClick={() => router.push('/hospital/patients')}
+                    className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
+                >
+                    <ArrowLeft size={16} /> Back to Directory
+                </button>
+                <button 
+                    onClick={handleDeletePatient}
+                    disabled={isDeleting}
+                    className="flex items-center gap-2 text-sm font-bold text-red-500 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-xl transition"
+                >
+                    <Trash2 size={16} /> {isDeleting ? 'Deleting...' : `Delete ${terms.patient}`}
+                </button>
+            </div>
 
             {/* Top Profile Card */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:flex-row">
@@ -156,7 +174,7 @@ export default function PatientProfile() {
                     </div>
                     <div className="flex items-center gap-3 mt-2">
                         <span className="inline-block px-3 py-1 bg-white/20 rounded-full text-xs font-bold uppercase tracking-widest">
-                            {terms.mrd}: {patient.patient_u_id}
+                            UHID: {patient.uhid}
                         </span>
                         <button 
                             onClick={() => setIsEditModalOpen(true)}
@@ -296,14 +314,21 @@ export default function PatientProfile() {
                         <div className="relative border-l-2 border-slate-100 ml-3 space-y-8 pb-4">
                             {timelineEvents.map((event, i) => (
                                 <div key={i} className="relative pl-6">
-                                    <div className={`absolute -left-[17px] top-1 w-8 h-8 rounded-full ${event.color} flex items-center justify-center shadow-sm border-4 border-white`}>
-                                        <event.icon size={14} />
+                                    <div className={`absolute -left-[17px] top-1 w-8 h-8 rounded-full flex items-center justify-center shadow-sm border-4 border-white ${getColorForType(event.type)}`}>
+                                        {getIconForType(event.type)}
                                     </div>
                                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
                                             <div>
                                                 <h4 className="font-bold text-slate-900">{event.title}</h4>
-                                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{event.department}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{event.type}</span>
+                                                    {event.id_number && (
+                                                        <span className="text-[10px] bg-white border border-slate-200 px-2 rounded font-mono text-slate-600">
+                                                            {event.id_number}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                             <div className="text-sm font-medium text-slate-500 whitespace-nowrap">
                                                 {formatDate(event.date)}

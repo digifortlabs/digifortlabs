@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(.venv/Scripts/python.exe -m py_compile app/routers/auth.py)"
-    ]
-  }
-}

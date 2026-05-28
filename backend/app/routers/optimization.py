@@ -18,7 +18,7 @@ from app.models import PDFFile, Patient, SystemSetting, AIExtraction
 from app.services.s3_handler import S3Manager
 from app.services.ocr import classify_document
 from app.services.ai_service import AIService
-from fastapi import Header, Body
+from fastapi import Header, Body, BackgroundTasks
 from pydantic import BaseModel
 import json
 
@@ -34,7 +34,7 @@ async def trigger_optimization(
     Upload a PDF and trigger an asynchronous optimization task.
     Returns a job_id for status polling.
     """
-    file_name = file.filename or "unnamed.pdf"
+    file_name = os.path.basename(file.filename) if file.filename else "unnamed.pdf"
     if not file_name.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
 
@@ -198,31 +198,18 @@ def download_file_for_ocr(file_id: int, db: Session = Depends(get_db), authentic
     except Exception as e:
         raise HTTPException(status_code=500, detail="Decryption failed")
 
-@router.post("/ocr/{file_id}/result")
-def submit_ocr_result(
-    file_id: int, 
-    request: OCRResultRequest = Body(...), 
-    db: Session = Depends(get_db), 
-    authenticated: bool = Depends(verify_worker_api_key)
-):
-    """
-    Receives OCR text from worker, updates DB, and attempts AI extraction.
-    """
-    db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
-    if not db_file:
-        raise HTTPException(status_code=404, detail="File not found")
-        
-    extracted_text = request.ocr_text.strip()
-    if extracted_text:
-        db_file.ocr_text = extracted_text  # type: ignore
-        db_file.is_searchable = True  # type: ignore
-        
-        # 1. Tags
-        auto_tags = classify_document(extracted_text)
-        if auto_tags:
-            db_file.tags = ", ".join(auto_tags)  # type: ignore
+def background_ai_extraction(file_id: int, extracted_text: str):
+    from app.database import SessionLocal
+    from app.models import PDFFile, Patient, SystemSetting, AIExtraction
+    from app.services.ai_service import AIService
+    import json
+    
+    db = SessionLocal()
+    try:
+        db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+        if not db_file:
+            return
             
-        # 2. Structured Extraction
         hospital = db_file.patient.hospital if db_file.patient else None
         ai_config = hospital.ai_settings if hospital and hospital.ai_settings else {}
         api_key = ai_config.get("api_key")
@@ -253,8 +240,39 @@ def submit_ocr_result(
                         summary=structured_data.get('diagnosis')
                     )
                     db.add(extraction_record)
+                    db.commit()
             except Exception:
                 pass
+    finally:
+        db.close()
+
+@router.post("/ocr/{file_id}/result")
+def submit_ocr_result(
+    file_id: int, 
+    background_tasks: BackgroundTasks,
+    request: OCRResultRequest = Body(...), 
+    db: Session = Depends(get_db), 
+    authenticated: bool = Depends(verify_worker_api_key)
+):
+    """
+    Receives OCR text from worker, updates DB, and attempts AI extraction in background.
+    """
+    db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+    if not db_file:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    extracted_text = request.ocr_text.strip()
+    if extracted_text:
+        db_file.ocr_text = extracted_text  # type: ignore
+        db_file.is_searchable = True  # type: ignore
+        
+        # 1. Tags
+        auto_tags = classify_document(extracted_text)
+        if auto_tags:
+            db_file.tags = ", ".join(auto_tags)  # type: ignore
+            
+        # 2. Structured Extraction (Offloaded to background task)
+        background_tasks.add_task(background_ai_extraction, file_id, extracted_text)
                 
     db.commit()
     return {"status": "success", "file_id": file_id}

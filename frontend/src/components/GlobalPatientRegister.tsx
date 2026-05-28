@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { apiFetch } from '@/config/api';
 import { useTerminology } from '@/hooks/useTerminology';
 import { toTitleCase, toUpperCaseMRD } from '@/lib/formatters';
+import QuickAssignDoctorModal from './QuickAssignDoctorModal';
 
 const calculateAgeFromDob = (dobString: string) => {
     if (!dobString) return null;
@@ -47,16 +48,16 @@ const calculateAgeFromDob = (dobString: string) => {
 export default function GlobalPatientRegister() {
     const [isOpen, setIsOpen] = useState(false);
     const { terms, specialty } = useTerminology();
-    const [activeTab, setActiveTab] = useState('identity');
     const [isSaving, setIsSaving] = useState(false);
     const [ageUnit, setAgeUnit] = useState<'Years' | 'Months' | 'Days'>('Years');
+    const [namePrefix, setNamePrefix] = useState('Mr.');
 
     const [formData, setFormData] = useState({
         full_name: '',
         uhid: '',
         patient_u_id: '', // MRD No
         age: '',
-        gender: '',
+        gender: 'Male',
         dob: '',
         contact_number: '',
         address: '',
@@ -74,36 +75,31 @@ export default function GlobalPatientRegister() {
         allergies: '',
         medications: '',
         weight: '',
-        diagnosis: ''
+        diagnosis: '',
+        blood_group: ''
     });
 
     const autoGenerateIds = async () => {
-        let finalMRD = `MRD-${Math.floor(100000 + Math.random() * 900000)}`;
         let finalUHID = `DF-${Math.floor(1000 + Math.random() * 9000)}`;
         try {
             const res = await apiFetch('/patients/next-id');
             if (res && res.next_id) {
-                finalMRD = res.next_id;
-                const match = res.next_id.match(/(\d+)$/);
-                if (match) {
-                    const num = match[1];
-                    finalUHID = `DF-${num.padStart(4, '0')}`;
-                }
+                finalUHID = res.next_id;
             }
         } catch (err) {
             console.error("Failed to fetch next sequential IDs:", err);
         }
-        return { finalMRD, finalUHID };
+        return { finalUHID };
     };
 
     useEffect(() => {
         const handleOpen = async () => {
             setIsOpen(true);
             const today = new Date().toISOString().split('T')[0];
-            const { finalMRD, finalUHID } = await autoGenerateIds();
+            const { finalUHID } = await autoGenerateIds();
             setFormData(prev => ({
                 ...prev,
-                patient_u_id: finalMRD,
+                patient_u_id: '',
                 uhid: finalUHID,
                 admission_date: today,
                 discharge_date: today
@@ -113,19 +109,24 @@ export default function GlobalPatientRegister() {
         return () => window.removeEventListener('open-global-patient-register', handleOpen);
     }, []);
 
+    // Assign Doctor Modal State
+    const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+    const [newlyRegisteredId, setNewlyRegisteredId] = useState<number | null>(null);
+    const [newlyRegisteredName, setNewlyRegisteredName] = useState<string>('');
+
     const handleClose = () => {
         setIsOpen(false);
         resetForm();
     };
 
     const resetForm = async () => {
-        const { finalMRD, finalUHID } = await autoGenerateIds();
+        const { finalUHID } = await autoGenerateIds();
         setFormData({
             full_name: '',
             uhid: finalUHID,
-            patient_u_id: finalMRD,
+            patient_u_id: '',
             age: '',
-            gender: '',
+            gender: 'Male',
             dob: '',
             contact_number: '',
             address: '',
@@ -143,9 +144,20 @@ export default function GlobalPatientRegister() {
             allergies: '',
             medications: '',
             weight: '',
-            diagnosis: ''
+            diagnosis: '',
+            blood_group: ''
         });
-        setActiveTab('identity');
+        setNamePrefix('Mr.');
+    };
+
+    const handlePrefixChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const prefix = e.target.value;
+        setNamePrefix(prefix);
+        if (['Mr.', 'Master'].includes(prefix)) {
+            setFormData(prev => ({ ...prev, gender: 'Male' }));
+        } else if (['Mrs.', 'Miss', 'Baby'].includes(prefix)) {
+            setFormData(prev => ({ ...prev, gender: 'Female' }));
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -157,19 +169,17 @@ export default function GlobalPatientRegister() {
 
         setIsSaving(true);
         try {
-            // Determine endpoint based on specialty or use a universal one if backend supports it
-            // For now, we'll hit the core patients endpoint which most modules sync with
             let endpoint = 'patients';
             if (specialty === 'Dental') endpoint = 'dental/patients';
             else if (specialty === 'ENT') endpoint = 'ent/patients';
 
             const payload = {
                 ...formData,
+                full_name: `${namePrefix} ${formData.full_name.trim()}`,
                 age: formData.age ? `${formData.age} ${ageUnit}` : '',
-                // Sanitize dates
-                dob: formData.dob || null,
-                admission_date: formData.admission_date || null,
-                discharge_date: formData.discharge_date || null,
+                dob: formData.dob ? `${formData.dob}T00:00:00Z` : null,
+                admission_date: formData.admission_date ? `${formData.admission_date}T00:00:00Z` : null,
+                discharge_date: formData.discharge_date ? `${formData.discharge_date}T00:00:00Z` : null,
             };
 
             const data = await apiFetch(`/${endpoint}`, {
@@ -177,12 +187,23 @@ export default function GlobalPatientRegister() {
                 body: payload
             });
 
-            alert("Patient registered successfully!");
-            handleClose();
-            window.dispatchEvent(new CustomEvent('patient-registered', { detail: data }));
+            setNewlyRegisteredId(data.record_id || data.patient_id);
+            setNewlyRegisteredName(`${namePrefix} ${formData.full_name.trim()}`);
+            setIsAssignModalOpen(true);
         } catch (error: any) {
             console.error("Registration failed:", error);
-            alert(error.message || "Failed to register patient.");
+            if (error.status === 409 && error.data && error.data.detail) {
+                const existingId = error.data.detail.existing_patient_id;
+                const msg = error.data.detail.message;
+                const confirmMsg = `${msg}\n\nWould you like to skip registration and book an appointment for this existing patient?`;
+                if (window.confirm(confirmMsg)) {
+                    setNewlyRegisteredId(existingId);
+                    setNewlyRegisteredName(`${namePrefix} ${formData.full_name.trim()}`);
+                    setIsAssignModalOpen(true);
+                }
+            } else {
+                alert(`Error: ${error.message || "Data formatting error in server response."}`);
+            }
         } finally {
             setIsSaving(false);
         }
@@ -191,23 +212,24 @@ export default function GlobalPatientRegister() {
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-3xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={handleClose} />
+            
+            <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-slate-100">
                 {/* Header */}
-                <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white z-10">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
                             <User className="w-5 h-5 text-indigo-600" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-black text-slate-900 tracking-tight">Register New {terms.patient}</h2>
-                            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">{specialty} Command Center</p>
+                            <h2 className="text-xl font-black text-slate-900 tracking-tight leading-none">Register New Patient</h2>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">General Command Center</p>
                         </div>
                     </div>
                     <button 
                         onClick={handleClose}
-                        disabled={isSaving}
-                        className="w-10 h-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -215,36 +237,40 @@ export default function GlobalPatientRegister() {
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                        <TabsList className="grid w-full grid-cols-3 mb-8 bg-slate-100 p-1 rounded-2xl">
-                            <TabsTrigger value="identity" disabled={isSaving} className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm font-bold text-xs disabled:opacity-50">
-                                1. Identity
-                            </TabsTrigger>
-                            <TabsTrigger value="clinical" disabled={isSaving} className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm font-bold text-xs disabled:opacity-50">
-                                2. Clinical
-                            </TabsTrigger>
-                            <TabsTrigger value="admission" disabled={isSaving} className="rounded-xl data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm font-bold text-xs disabled:opacity-50">
-                                3. Admission
-                            </TabsTrigger>
-                        </TabsList>
-
-                        <form onSubmit={handleSubmit} id="global-register-form">
-                            <TabsContent value="identity" className="space-y-6 mt-0">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <form onSubmit={handleSubmit} id="global-register-form" className="space-y-8">
+                        {/* Section: Basic Details */}
+                        <div>
+                            <h3 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2 border-b border-slate-100 pb-2">
+                                <User className="w-4 h-4 text-indigo-500" /> Basic Details
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Full Name *</Label>
-                                        <Input 
-                                            placeholder="Enter patient full name"
-                                            className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500 font-bold"
-                                            value={formData.full_name}
-                                            onChange={e => setFormData({...formData, full_name: toTitleCase(e.target.value)})}
-                                            required
-                                        />
+                                        <div className="flex gap-2">
+                                            <select 
+                                                className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500 bg-slate-50 px-3 font-semibold text-sm outline-none border"
+                                                value={namePrefix}
+                                                onChange={handlePrefixChange}
+                                            >
+                                                <option value="Mr.">Mr.</option>
+                                                <option value="Mrs.">Mrs.</option>
+                                                <option value="Miss">Miss</option>
+                                                <option value="Master">Master</option>
+                                                <option value="Baby">Baby</option>
+                                            </select>
+                                            <Input 
+                                                placeholder="Enter patient full name"
+                                                className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500 font-bold flex-1"
+                                                value={formData.full_name}
+                                                onChange={e => setFormData({...formData, full_name: toTitleCase(e.target.value)})}
+                                                required
+                                            />
+                                        </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-xs font-black uppercase tracking-widest text-slate-500">UHID (Optional)</Label>
+                                        <Label className="text-xs font-black uppercase tracking-widest text-slate-500">UHID (Auto-generated)</Label>
                                         <Input 
-                                            placeholder="UHID-12345"
+                                            placeholder="DF-1234"
                                             className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500 font-mono"
                                             value={formData.uhid}
                                             onChange={e => setFormData({...formData, uhid: toUpperCaseMRD(e.target.value)})}
@@ -377,183 +403,79 @@ export default function GlobalPatientRegister() {
                                         </div>
                                     </div>
                                 </div>
-                            </TabsContent>
-
-                            <TabsContent value="clinical" className="space-y-6 mt-0">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Chief Complaint</Label>
-                                        <Input 
-                                            placeholder="Reason for visit"
-                                            className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500"
-                                            value={formData.chief_complaint}
-                                            onChange={e => setFormData({...formData, chief_complaint: e.target.value})}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Weight (kg)</Label>
-                                        <Input 
-                                            placeholder="e.g. 70"
-                                            className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500"
-                                            value={formData.weight}
-                                            onChange={e => setFormData({...formData, weight: e.target.value})}
-                                        />
-                                    </div>
-                                </div>
+                            </div>
+                            
+                        {/* Section: Clinical Vitals */}
+                        <div>
+                            <h3 className="text-sm font-black text-slate-900 mb-4 mt-2 flex items-center gap-2 border-b border-slate-100 pb-2">
+                                <Activity className="w-4 h-4 text-rose-500" /> Clinical Vitals
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Medical History</Label>
-                                    <Textarea 
-                                        placeholder="Past surgeries, systemic diseases..."
-                                        className="min-h-[80px] border-slate-200 rounded-xl focus:ring-indigo-500"
-                                        value={formData.medical_history}
-                                        onChange={e => setFormData({...formData, medical_history: e.target.value})}
+                                    <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Blood Group</Label>
+                                    <Input 
+                                        placeholder="e.g. O+"
+                                        className="h-11 border-slate-200 rounded-xl focus:ring-rose-500"
+                                        value={formData.blood_group}
+                                        onChange={e => setFormData({...formData, blood_group: e.target.value})}
                                     />
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Allergies</Label>
-                                        <div className="relative">
-                                            <AlertCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-rose-400" />
-                                            <Input 
-                                                placeholder="e.g. Penicillin"
-                                                className="h-11 pl-10 border-slate-200 rounded-xl focus:ring-rose-200"
-                                                value={formData.allergies}
-                                                onChange={e => setFormData({...formData, allergies: e.target.value})}
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Current Medications</Label>
-                                        <Input 
-                                            placeholder="e.g. Aspirin 50mg"
-                                            className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500"
-                                            value={formData.medications}
-                                            onChange={e => setFormData({...formData, medications: e.target.value})}
-                                        />
-                                    </div>
-                                </div>
-                            </TabsContent>
-
-                            <TabsContent value="admission" className="space-y-6 mt-0">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-black uppercase tracking-widest text-slate-500">{terms.mrd} Number</Label>
-                                        <Input 
-                                            placeholder="MRD-2025/123"
-                                            className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500 font-mono font-bold"
-                                            value={formData.patient_u_id}
-                                            onChange={e => setFormData({...formData, patient_u_id: toUpperCaseMRD(e.target.value)})}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Admission Date</Label>
-                                        <Input 
-                                            type="date"
-                                            className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500"
-                                            value={formData.admission_date}
-                                            onChange={e => setFormData({...formData, admission_date: e.target.value})}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Category</Label>
-                                        <select 
-                                            className="w-full h-11 border border-slate-200 rounded-xl bg-white text-sm px-3 outline-none focus:ring-2 focus:ring-indigo-500"
-                                            value={formData.patient_category}
-                                            onChange={e => setFormData({...formData, patient_category: e.target.value})}
-                                        >
-                                            <option value="OPD">OPD</option>
-                                            <option value="IPD">IPD</option>
-                                            <option value="EMERGENCY">EMERGENCY</option>
-                                        </select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Consulting Doctor</Label>
-                                        <div className="relative">
-                                            <Stethoscope className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                            <Input 
-                                                placeholder="e.g. Dr. Shah"
-                                                className="h-11 pl-10 border-slate-200 rounded-xl focus:ring-indigo-500 font-bold"
-                                                value={formData.doctor_name}
-                                                onChange={e => setFormData({...formData, doctor_name: e.target.value})}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
                                 <div className="space-y-2">
-                                    <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Initial Diagnosis</Label>
-                                    <Textarea 
-                                        placeholder="Preliminary diagnosis details..."
-                                        className="min-h-[80px] border-slate-200 rounded-xl focus:ring-indigo-500"
-                                        value={formData.diagnosis}
-                                        onChange={e => setFormData({...formData, diagnosis: e.target.value})}
+                                    <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Weight (kg)</Label>
+                                    <Input 
+                                        placeholder="e.g. 70"
+                                        className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500"
+                                        value={formData.weight}
+                                        onChange={e => setFormData({...formData, weight: e.target.value})}
                                     />
                                 </div>
-                            </TabsContent>
-                        </form>
-                    </Tabs>
+                            </div>
+                        </div>
+
+                    </form>
                 </div>
 
                 <div className="p-6 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
                     <div className="flex gap-2">
-                        {activeTab === 'identity' ? (
-                            <>
-                                <Button variant="outline" onClick={handleClose} disabled={isSaving} className="rounded-xl px-6">
-                                    Cancel
-                                </Button>
-                                <Button variant="ghost" onClick={resetForm} disabled={isSaving} className="rounded-xl text-slate-500 hover:text-slate-900">
-                                    Reset Form
-                                </Button>
-                            </>
-                        ) : (
-                            <Button 
-                                variant="outline" 
-                                onClick={() => {
-                                    if (activeTab === 'clinical') setActiveTab('identity');
-                                    else if (activeTab === 'admission') setActiveTab('clinical');
-                                }} 
-                                disabled={isSaving}
-                                className="rounded-xl px-6 flex items-center gap-2"
-                            >
-                                <ChevronLeft className="w-4 h-4" />
-                                Back
-                            </Button>
-                        )}
+                        <Button type="button" variant="outline" onClick={handleClose} disabled={isSaving} className="rounded-xl px-6">
+                            Cancel
+                        </Button>
+                        <Button type="button" variant="ghost" onClick={resetForm} disabled={isSaving} className="rounded-xl text-slate-500 hover:text-slate-900">
+                            Reset Form
+                        </Button>
                     </div>
 
-                    {activeTab === 'admission' ? (
-                        <Button 
-                            type="submit" 
-                            form="global-register-form"
-                            disabled={isSaving}
-                            className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl px-8 h-11 font-bold shadow-lg shadow-slate-900/20 gap-2"
-                        >
-                            {isSaving ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Processing...
-                                </>
-                            ) : (
-                                <>
-                                    <Save className="w-4 h-4" />
-                                    Register {terms.patient}
-                                </>
-                            )}
-                        </Button>
-                    ) : (
-                        <Button 
-                            onClick={() => {
-                                if (activeTab === 'identity') setActiveTab('clinical');
-                                else if (activeTab === 'clinical') setActiveTab('admission');
-                            }}
-                            disabled={isSaving}
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-8 h-11 font-bold shadow-lg shadow-indigo-500/20 gap-2"
-                        >
-                            Next Step
-                            <ChevronRight className="w-4 h-4" />
-                        </Button>
-                    )}
+                    <Button 
+                        type="submit" 
+                        form="global-register-form"
+                        disabled={isSaving}
+                        className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl px-8 h-11 font-bold shadow-lg shadow-slate-900/20 gap-2"
+                    >
+                        {isSaving ? (
+                            <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Processing...
+                            </>
+                        ) : (
+                            <>
+                                <Save className="w-4 h-4" />
+                                Register {terms.patient}
+                            </>
+                        )}
+                    </Button>
                 </div>
             </div>
+
+            <QuickAssignDoctorModal 
+                isOpen={isAssignModalOpen}
+                onClose={() => {
+                    setIsAssignModalOpen(false);
+                    handleClose(); 
+                    window.dispatchEvent(new CustomEvent('patient-registered'));
+                }}
+                patientId={newlyRegisteredId}
+                patientName={newlyRegisteredName}
+            />
         </div>
     );
 }

@@ -41,6 +41,7 @@ class S3Manager:
         """
         Upload a file-like object to S3 or Local Storage.
         """
+        object_name = self._clean_key(object_name)
         if self.mode == "local":
             try:
                 # Ensure directory exists
@@ -113,7 +114,12 @@ class S3Manager:
         if object_name and object_name.startswith("s3://"):
             parts = object_name.replace("s3://", "").split("/", 1)
             if len(parts) == 2:
-                return parts[1]
+                object_name = parts[1]
+        
+        # Prevent Path Traversal
+        if object_name and ("../" in object_name or "..\\" in object_name):
+            raise ValueError("Invalid path: traversal detected")
+            
         return object_name
 
     def download_to_temp_cache(self, object_name, local_path):

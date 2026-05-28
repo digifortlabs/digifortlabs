@@ -87,65 +87,16 @@ class EmailService:
         """
         Sends an account locked email.
         """
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
-        from datetime import datetime
-        from app.core.config import settings
-
-        # SMTP Configuration
-        SMTP_SERVER = settings.SMTP_SERVER
-        SMTP_PORT = settings.SMTP_PORT
-        SMTP_USERNAME = settings.SMTP_USERNAME
-        SMTP_PASSWORD = settings.SMTP_PASSWORD
-        SENDER_EMAIL = settings.SENDER_EMAIL
-        
-        try:
-            msg = MIMEMultipart()
-            msg['From'] = f"Digifort Security <{SENDER_EMAIL}>"
-            msg['To'] = email
-            msg['Bcc'] = "info@digifortlabs.com"
-            msg['Subject'] = "ACTION REQUIRED: Account Locked"
-            msg['Date'] = datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
-            msg['X-Mailer'] = "DigifortLabs Security Mailer 1.0"
-            msg['Message-ID'] = f"<{datetime.now().timestamp()}@{settings.SMTP_SERVER}>"
-
-            body = f"""
-            <!DOCTYPE html>
-            <html>
-            <body style="font-family: Arial, sans-serif; color: #333;">
-                <div style="max-width: 600px; margin: 0 auto; border: 1px solid #d9534f; padding: 20px; border-radius: 8px; background-color: #fff5f5;">
-                    <h2 style="color: #c0392b; margin-top: 0;">Account Temporarily Locked</h2>
-                    <p>Hello,</p>
-                    <p>Your account has been locked due to <strong>{reason}</strong>.</p>
-                    
-                    <p>This is a security measure to protect your data. The lock will automatically expire in <strong>30 minutes</strong>.</p>
-                    
-                    <p style="font-weight: bold; margin-top: 20px;">Did you forget your password?</p>
-                    <p>You can reset it using the "Forgot Password" link on the login page after the lock expires.</p>
-
-                    <div style="margin-top: 20px; font-size: 12px; color: #999; border-top: 1px solid #ffcccc; padding-top: 10px;">
-                        Digifort Labs Security Team
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
-            
-            msg.attach(MIMEText(body, 'html'))
-
-            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.sendmail(SENDER_EMAIL, [email, "info@digifortlabs.com"], msg.as_string())
-            server.quit()
-            
-            logger.info(f"[EMAIL SERVICE] Account Locked email sent to {email}")
-            return True
-
-        except Exception as e:
-            logger.info(f"[EMAIL SERVICE] Failed to send account locked email to {email}: {str(e)}")
-            return False
+        context = {
+            "reason": reason
+        }
+        return EmailService._send_email(
+            recipient=email,
+            subject="ACTION REQUIRED: Account Locked",
+            template_name="email/account_locked.html",
+            context=context,
+            sender_name="Digifort Security"
+        )
 
     @staticmethod
     def send_otp_email(email: str, otp_code: str):
@@ -243,95 +194,22 @@ class EmailService:
         """
         Sends a welcome email to new Hospital Admins with their initial credentials.
         """
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
-        from datetime import datetime
-        from app.core.config import settings
-
-        # SMTP Configuration
-        SMTP_SERVER = settings.SMTP_SERVER
-        SMTP_PORT = settings.SMTP_PORT
-        SMTP_USERNAME = settings.SMTP_USERNAME
-        SMTP_PASSWORD = settings.SMTP_PASSWORD
-        SENDER_EMAIL = settings.SENDER_EMAIL
-
         if not login_url:
+            from app.core.config import settings
             login_url = f"{settings.FRONTEND_URL}/login"
-
-        try:
-            msg = MIMEMultipart()
-            msg['From'] = f"Digifort Labs <{SENDER_EMAIL}>"
-            msg['To'] = email
-            msg['Bcc'] = "info@digifortlabs.com"
-            msg['Subject'] = "Welcome to Digifort Labs - Your Account Credentials"
-            msg['Date'] = datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
-            msg['X-Mailer'] = "DigifortLabs Mailer 1.0"
-            msg['Message-ID'] = f"<{datetime.now().timestamp()}@{settings.SMTP_SERVER}>"
-
-            body = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <style>
-                    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f8fafc; margin: 0; padding: 0; }}
-                    .container {{ max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #e2e8f0; }}
-                    .header {{ background: #0f172a; color: #ffffff; padding: 30px; text-align: center; }}
-                    .content {{ padding: 30px; }}
-                    .card {{ background: #f0fdf4; border: 1px dashed #22c55e; border-radius: 8px; padding: 25px; margin: 25px 0; text-align: center; }}
-                    .password {{ font-family: monospace; font-size: 24px; letter-spacing: 2px; font-weight: 700; color: #15803d; background: #ffffff; padding: 10px 20px; border-radius: 6px; display: inline-block; margin: 10px 0; border: 1px solid #bbf7d0; }}
-                    .btn {{ display: inline-block; background-color: #2563eb; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin-top: 10px; }}
-                    .footer {{ background: #f1f5f9; padding: 20px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }}
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h2 style="margin:0; font-size: 24px;">Welcome on Board! [START]</h2>
-                    </div>
-                    <div class="content">
-                        <p style="font-size: 16px;">Hello <strong>{name}</strong>,</p>
-                        <p>Your hospital account has been successfully created on the Digifort Labs platform.</p>
-                        <p>Here are your one-time login credentials. Please log in and change your password immediately.</p>
-                        
-                        <div class="card">
-                            <div style="font-size: 12px; font-weight: 700; color: #166534; text-transform: uppercase; margin-bottom: 5px;">Your One-Time Password</div>
-                            <div class="password">{password}</div>
-                        </div>
-                        
-                        <div style="text-align: center;">
-                            <a href="{login_url}" class="btn">Log In to Dashboard</a>
-                        </div>
-                        
-                        <p style="margin-top: 30px; font-size: 14px; color: #64748b;">
-                            If the button above doesn't work, copy and paste this link into your browser:<br>
-                            <a href="{login_url}" style="color: #2563eb;">{login_url}</a>
-                        </p>
-                    </div>
-                    <div class="footer">
-                        Digifort Labs - Secure Records Management
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
             
-            msg.attach(MIMEText(body, 'html'))
-
-            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            text = msg.as_string()
-            server.sendmail(SENDER_EMAIL, email, text)
-            server.quit()
-            
-            logger.info(f"[EMAIL SERVICE] Welcome Email sent to {email}")
-            return True
-
-        except Exception as e:
-            logger.info(f"[EMAIL SERVICE] Failed to send welcome email to {email}: {str(e)}")
-            return False
+        context = {
+            "name": name,
+            "password": password,
+            "login_url": login_url
+        }
+        return EmailService._send_email(
+            recipient=email,
+            subject="Welcome to Digifort Labs - Your Account Credentials",
+            template_name="email/welcome.html",
+            context=context,
+            sender_name="Digifort Labs"
+        )
 
     @staticmethod
     def send_contact_form(name: str, email: str, message: str):
@@ -1196,49 +1074,14 @@ class EmailService:
 
     @staticmethod
     def send_demo_credentials_email(email: str, password: str):
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.mime.multipart import MIMEMultipart
-        from datetime import datetime
-        from app.core.config import settings
-
-        SMTP_SERVER = settings.SMTP_SERVER
-        SMTP_PORT = settings.SMTP_PORT
-        SMTP_USERNAME = settings.SMTP_USERNAME
-        SMTP_PASSWORD = settings.SMTP_PASSWORD
-        SENDER_EMAIL = settings.SENDER_EMAIL
-
-        try:
-            msg = MIMEMultipart()
-            msg['From'] = f"Digifort Labs <{SENDER_EMAIL}>"
-            msg['To'] = email
-            msg['Subject'] = "Demo Account Created - Digifort Labs"
-
-            body = f"""
-            <html>
-            <body style="font-family: sans-serif;">
-                <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
-                    <h2>Welcome to Digifort Labs Demo!</h2>
-                    <p>Your demo account has been created with limited storage (100MB).</p>
-                    <div style="background: #f0f9ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                        <p><strong>Email:</strong> {email}</p>
-                        <p><strong>Password:</strong> {password}</p>
-                    </div>
-                    <p><a href="https://digifortlabs.com/login" style="background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Login Now</a></p>
-                </div>
-            </body>
-            </html>
-            """
-            msg.attach(MIMEText(body, 'html'))
-
-            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=5)
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.sendmail(SENDER_EMAIL, [email], msg.as_string())
-            server.quit()
-            
-            logger.info(f"[EMAIL] Successfully sent demo credentials to {email}")
-            return True
-        except Exception as e:
-            logger.info(f"[EMAIL] Demo credentials failed: {e}")
-            return False
+        context = {
+            "email": email,
+            "password": password
+        }
+        return EmailService._send_email(
+            recipient=email,
+            subject="Demo Account Created - Digifort Labs",
+            template_name="email/demo_credentials.html",
+            context=context,
+            sender_name="Digifort Labs"
+        )

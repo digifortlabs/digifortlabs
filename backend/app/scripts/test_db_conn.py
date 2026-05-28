@@ -3,7 +3,9 @@ logger = logging.getLogger(__name__)
 import sqlalchemy
 import os
 
-DATABASE_URL = "postgresql://digifort_admin:Digif0rtlab$@localhost:5433/digifort_db"
+from app.core.config import settings
+
+DATABASE_URL = settings.DATABASE_URL
 
 logger.info(f"Connecting to {DATABASE_URL}...")
 try:

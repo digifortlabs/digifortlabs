@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #334155; margin: 0; padding: 0; background-color: #f1f5f9; }
+        .wrapper { background-color: #f1f5f9; padding: 40px 0; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .header { background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: #ffffff; padding: 40px 30px; text-align: center; }
+        .content { padding: 40px 30px; }
+        .button { display: inline-block; padding: 12px 24px; background-color: #2563eb; color: #ffffff !important; text-decoration: none; border-radius: 8px; font-weight: 600; margin-top: 20px; }
+        .footer { text-align: center; padding: 30px; font-size: 13px; color: #64748b; }
+        .specs { margin-top: 30px; padding: 20px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <div class="container">
+            <div class="header">
+                <h1 style="margin:0; font-size: 24px; letter-spacing: 1px;">DIGIFORT LABS</h1>
+            </div>
+            <div class="content">
+                <h2 style="color: #0f172a; margin-top: 0;">Hello {{ name }},</h2>
+                <p>Thank you for reaching out to **Digifort Labs**. We have successfully received your inquiry regarding our records optimization services.</p>
+                <p>Our expert team is currently reviewing your message and will get back to you within 24 business hours.</p>
+                
+                <div class="specs">
+                    <p style="margin-top: 0; font-weight: 600; color: #0f172a; font-size: 14px;">Summary of your message:</p>
+                    <p style="font-size: 14px; color: #475569; margin-bottom: 0; font-style: italic;">"{{ message_preview }}"</p>
+                </div>
+
+                <p style="margin-top: 30px;">In the meantime, feel free to visit our portal to explore our latest medical record management solutions.</p>
+                <a href="https://digifortlabs.com" class="button">Visit Our Website</a>
+            </div>
+            <div class="footer">
+                <p>&copy; {{ current_year }} Digifort Labs. All rights reserved.<br>
+                Vapi, Valsad, Gujarat, India</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

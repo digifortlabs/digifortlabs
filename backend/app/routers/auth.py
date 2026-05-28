@@ -73,9 +73,14 @@ def check_email(data: EmailCheckRequest, db: Session = Depends(get_db)):
     else:
         hospital_slug = None
 
+    import os
+    is_demo = user.email.lower() == os.environ.get("DEMO_ACCOUNT_EMAIL", "demo@digifortlabs.com").lower()
+
     # Determine subdomain
     target_subdomain = 'dashboard'
-    if user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN, UserRole.WAREHOUSE_MANAGER]:
+    if is_demo:
+        target_subdomain = 'demo'
+    elif user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN, UserRole.WAREHOUSE_MANAGER]:
         target_subdomain = 'admin'
     elif hospital_slug:
         target_subdomain = hospital_slug

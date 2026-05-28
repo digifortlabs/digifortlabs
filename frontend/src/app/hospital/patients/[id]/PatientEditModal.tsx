@@ -293,14 +293,35 @@ export default function PatientEditModal({ patient, isOpen, onClose, onUpdated }
                     </div>
                 </form>
 
-                <div className="p-6 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/50">
-                    <button type="button" onClick={onClose} disabled={isSaving} className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:text-slate-900">
-                        Cancel
+                <div className="p-6 border-t border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
+                    <button 
+                        type="button" 
+                        onClick={() => {
+                            if (confirm(`Are you sure you want to delete this profile?`)) {
+                                if (patient && patient.record_id) {
+                                    apiFetch(`/patients/${patient.record_id}`, { method: 'DELETE' })
+                                        .then(() => {
+                                            alert('Patient deleted successfully.');
+                                            window.location.href = '/hospital/patients';
+                                        })
+                                        .catch(err => alert('Failed to delete patient.'));
+                                }
+                            }
+                        }} 
+                        disabled={isSaving} 
+                        className="px-4 py-2.5 rounded-xl font-bold text-red-500 hover:bg-red-50"
+                    >
+                        Delete Patient
                     </button>
-                    <button type="submit" onClick={handleSubmit} disabled={isSaving} className="px-6 py-2.5 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 flex items-center gap-2 shadow-sm">
-                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        Save Changes
-                    </button>
+                    <div className="flex gap-3">
+                        <button type="button" onClick={onClose} disabled={isSaving} className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:text-slate-900">
+                            Cancel
+                        </button>
+                        <button type="submit" onClick={handleSubmit} disabled={isSaving} className="px-6 py-2.5 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 flex items-center gap-2 shadow-sm">
+                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                            Save Changes
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

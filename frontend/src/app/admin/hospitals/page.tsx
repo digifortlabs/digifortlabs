@@ -51,6 +51,7 @@ interface Hospital {
     subscription_tier: string;
     organization_type?: string;
     specialty?: string;
+    mrd_service_type?: string;
     established_year?: number;
     terminology?: Record<string, any>;
     enabled_modules?: string[];
@@ -99,6 +100,7 @@ export default function ManageClientsPage() {
         registration_number: '',
         director_name: '',
         specialty: 'General',
+        mrd_service_type: 'PORTAL_ONLY',
         address: '',
         city: '',
         state: '',
@@ -250,6 +252,7 @@ export default function ManageClientsPage() {
                 subscription_tier: newHospital.subscription_tier,
                 organization_type: "Hospital",
                 specialty: newHospital.specialty,
+                mrd_service_type: newHospital.mrd_service_type,
                 terminology: {},
                 enabled_modules: newHospital.enabled_modules,
                 email: newHospital.email,
@@ -302,6 +305,7 @@ export default function ManageClientsPage() {
                         price_per_file: 100.0,
                         included_pages: 20,
                         price_per_extra_page: 1.0,
+                        mrd_service_type: 'PORTAL_ONLY',
                         enabled_modules: ['core']
                     });
                     fetchData();
@@ -338,6 +342,7 @@ export default function ManageClientsPage() {
                 hospital_slug: editingHospital.hospital_slug || editingHospital.legal_name.toLowerCase().replace(/[^a-z0-9]/g, ''),
                 subscription_tier: editingHospital.subscription_tier,
                 specialty: editingHospital.specialty,
+                mrd_service_type: editingHospital.mrd_service_type,
                 enabled_modules: editingHospital.enabled_modules,
                 is_active: editingHospital.is_active,
                 price_per_file: parseFloat(editingHospital.price_per_file.toString()) || 0,
@@ -1222,6 +1227,20 @@ export default function ManageClientsPage() {
                                             </select>
                                         </div>
 
+                                        {/* MRD Service Type */}
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">MRD Service Type</label>
+                                            <select
+                                                value={newHospital.mrd_service_type}
+                                                onChange={(e) => setNewHospital({...newHospital, mrd_service_type: e.target.value})}
+                                                className="w-full p-3 rounded-xl border border-slate-200 bg-white focus:outline-none"
+                                            >
+                                                <option value="PORTAL_ONLY">Portal Only (Self Storage)</option>
+                                                <option value="SCANNING_SUPPORT">Scanning Support (Digifort Scans)</option>
+                                                <option value="FULL_MANAGED">Fully Managed (Digifort Stores)</option>
+                                            </select>
+                                        </div>
+
                                         {/* Price per patient MRD file */}
                                         <div className="space-y-1">
                                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Price per Patient MRD File (Patient ID)</label>
@@ -1538,6 +1557,19 @@ export default function ManageClientsPage() {
                                                 <option value="Standard">Standard (MRD + Outpatient)</option>
                                                 <option value="Professional">Professional (Full HMS Clinic)</option>
                                                 <option value="Enterprise">Enterprise (IPD + Asset + High SLA)</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">MRD Service Type</label>
+                                            <select
+                                                value={editingHospital.mrd_service_type}
+                                                onChange={(e) => setEditingHospital({...editingHospital, mrd_service_type: e.target.value})}
+                                                className="w-full p-3 rounded-xl border border-slate-200 bg-white"
+                                            >
+                                                <option value="PORTAL_ONLY">Portal Only (Self Storage)</option>
+                                                <option value="SCANNING_SUPPORT">Scanning Support (Digifort Scans)</option>
+                                                <option value="FULL_MANAGED">Fully Managed (Digifort Stores)</option>
                                             </select>
                                         </div>
 

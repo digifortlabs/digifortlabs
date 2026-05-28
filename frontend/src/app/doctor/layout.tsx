@@ -8,6 +8,7 @@ import {
     CalendarDays, Users, Stethoscope, FileText,
     Settings, LogOut, Menu, X, ChevronDown, Activity
 } from 'lucide-react';
+import DashboardSkeleton from '@/components/ui/DashboardSkeleton';
 
 const NAV_ITEMS = [
     { label: 'My Schedule', href: '/doctor', icon: CalendarDays },
@@ -97,14 +98,7 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
     };
 
     if (!isAuthReady) {
-        return (
-            <div className="flex h-screen items-center justify-center bg-slate-950">
-                <div className="flex flex-col items-center gap-3">
-                    <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-slate-400 text-sm font-medium">Verifying session…</p>
-                </div>
-            </div>
-        );
+        return <DashboardSkeleton />;
     }
 
     const displayName = userEmail.split('@')[0]?.split('.').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'Doctor';

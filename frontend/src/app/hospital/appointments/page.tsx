@@ -20,6 +20,7 @@ export default function AppointmentsDashboard() {
     const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
     const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
     const [selectedDoctor, setSelectedDoctor] = useState<string>("all");
+    const [isFollowUpFilter, setIsFollowUpFilter] = useState<boolean>(false);
     const [viewMode, setViewMode] = useState<"day" | "week">("day");
 
     const [isLoading, setIsLoading] = useState(false);
@@ -62,6 +63,7 @@ export default function AppointmentsDashboard() {
             let url = `/appointments?date=${selectedDate}`;
             if (selectedDepartment !== "all") url += `&department_id=${selectedDepartment}`;
             if (selectedDoctor !== "all") url += `&doctor_id=${selectedDoctor}`;
+            if (isFollowUpFilter) url += `&is_follow_up=true`;
 
             if (selectedHospitalId) {
                 url += `&hospital_id=${selectedHospitalId}`;
@@ -135,7 +137,7 @@ export default function AppointmentsDashboard() {
             loadFilters();
             loadAppointments();
         }
-    }, [selectedHospitalId, selectedDate, selectedDepartment, selectedDoctor]);
+    }, [selectedHospitalId, selectedDate, selectedDepartment, selectedDoctor, isFollowUpFilter]);
 
     const handleStatusUpdate = async (id: number, newStatus: string) => {
         try {
@@ -218,6 +220,17 @@ export default function AppointmentsDashboard() {
                                     </SelectContent>
                                 </Select>
                             </div>
+                            <div className="w-full sm:w-auto flex items-end mb-2">
+                                <label className="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer bg-slate-50/50 hover:bg-slate-100 border border-slate-200 px-4 h-11 rounded-xl transition-colors">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={isFollowUpFilter}
+                                        onChange={(e) => setIsFollowUpFilter(e.target.checked)}
+                                        className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                                    />
+                                    Follow Up Only
+                                </label>
+                            </div>
                         </div>
                         <div className="flex gap-2 w-full md:w-auto justify-end">
                             <Button
@@ -270,9 +283,21 @@ export default function AppointmentsDashboard() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="inline-flex items-center bg-indigo-50/80 text-indigo-700 border border-indigo-100/60 px-3 py-1.5 rounded-xl font-bold text-xs tracking-wide">
-                                                    Patient ID #{appt.patient_id}
-                                                </span>
+                                                <div className="flex flex-col gap-1.5 items-start">
+                                                    <span className="inline-flex items-center bg-indigo-50/80 text-indigo-700 border border-indigo-100/60 px-3 py-1.5 rounded-xl font-bold text-xs tracking-wide">
+                                                        Patient ID #{appt.patient_id}
+                                                    </span>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                                                            {appt.visit_type || 'OPD'}
+                                                        </span>
+                                                        {appt.is_follow_up && (
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                                                Follow Up
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col gap-0.5">

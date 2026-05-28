@@ -6,7 +6,7 @@ from datetime import datetime, date, timedelta
 from pydantic import BaseModel
 
 from ..database import get_db
-from ..models import User, Patient, IPDAdmission, Ward, Bed, OperationTheater, MedicalEquipment, RFIDCard
+from ..models import User, Patient, IPDAdmission, Ward, Bed, OperationTheater, MedicalEquipment, RFIDCard, Hospital
 from .auth import get_current_user
 
 router = APIRouter(prefix="/hms", tags=["Hospital Management System"])
@@ -415,18 +415,62 @@ def admit_patient(
     
     patient_id = admission.patient_id
     
-    # Dynamic Patient Registration on intake
+    hospital = db.query(Hospital).filter(Hospital.hospital_id == current_user.hospital_id).first()
+    id_settings = hospital.id_generation_settings or {} if hospital else {}
+    
+    import re
+    
+    # IPD Generation
+    ipd_prefix = id_settings.get("ipd_prefix", "IPD-")
+    ipd_postfix = id_settings.get("ipd_postfix", "")
+    ipd_padding = int(id_settings.get("ipd_padding", 4))
+    
+    patients_with_ipd = db.query(Patient.ipd_number).filter(Patient.hospital_id == current_user.hospital_id).all()
+    max_ipd = 0
+    for p in patients_with_ipd:
+        if not p.ipd_number: continue
+        numbers = re.findall(r'\d+', p.ipd_number)
+        if numbers:
+            max_ipd = max(max_ipd, int(numbers[-1]))
+    generated_ipd = f"{ipd_prefix}{str(max_ipd + 1).zfill(ipd_padding)}{ipd_postfix}"
+
     if not patient_id:
         if not admission.patient_name:
             raise HTTPException(status_code=400, detail="Either patient_id or patient_name is required")
         
-        # Generate MRD
-        import uuid
-        mrd_code = f"MRD-{uuid.uuid4().hex[:6].upper()}"
+        # We also need a UHID for new patients
+        uhid_prefix = id_settings.get("uhid_prefix", "DF-")
+        uhid_postfix = id_settings.get("uhid_postfix", "")
+        uhid_padding = int(id_settings.get("uhid_padding", 4))
+        
+        patients_with_uhid = db.query(Patient.uhid).filter(Patient.hospital_id == current_user.hospital_id).all()
+        max_uhid = 0
+        for p in patients_with_uhid:
+            if not p.uhid: continue
+            numbers = re.findall(r'\d+', p.uhid)
+            if numbers:
+                max_uhid = max(max_uhid, int(numbers[-1]))
+        uhid_code = f"{uhid_prefix}{str(max_uhid + 1).zfill(uhid_padding)}{uhid_postfix}"
+        
+        # MRD Generation
+        mrd_prefix = id_settings.get("mrd_prefix", "MRD-")
+        mrd_postfix = id_settings.get("mrd_postfix", "")
+        mrd_padding = int(id_settings.get("mrd_padding", 4))
+        
+        patients_with_mrd = db.query(Patient.patient_u_id).filter(Patient.hospital_id == current_user.hospital_id).all()
+        max_mrd = 0
+        for p in patients_with_mrd:
+            if not p.patient_u_id: continue
+            numbers = re.findall(r'\d+', p.patient_u_id)
+            if numbers:
+                max_mrd = max(max_mrd, int(numbers[-1]))
+        mrd_code = f"{mrd_prefix}{str(max_mrd + 1).zfill(mrd_padding)}{mrd_postfix}"
         
         new_patient = Patient(
             hospital_id=current_user.hospital_id,
+            uhid=uhid_code,
             patient_u_id=mrd_code,
+            ipd_number=generated_ipd,
             full_name=admission.patient_name,
             gender=admission.gender or "Other",
             age=str(admission.age) if admission.age is not None else None,
@@ -439,6 +483,26 @@ def admit_patient(
         db.add(new_patient)
         db.flush()  # populate new_patient.record_id
         patient_id = new_patient.record_id
+    else:
+        # Update existing patient with IPD and conditionally MRD
+        existing_patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+        if existing_patient:
+            existing_patient.ipd_number = generated_ipd
+            if not existing_patient.patient_u_id:
+                mrd_prefix = id_settings.get("mrd_prefix", "MRD-")
+                mrd_postfix = id_settings.get("mrd_postfix", "")
+                mrd_padding = int(id_settings.get("mrd_padding", 4))
+                
+                patients_with_mrd = db.query(Patient.patient_u_id).filter(Patient.hospital_id == current_user.hospital_id).all()
+                max_mrd = 0
+                for p in patients_with_mrd:
+                    if not p.patient_u_id: continue
+                    numbers = re.findall(r'\d+', p.patient_u_id)
+                    if numbers:
+                        max_mrd = max(max_mrd, int(numbers[-1]))
+                existing_patient.patient_u_id = f"{mrd_prefix}{str(max_mrd + 1).zfill(mrd_padding)}{mrd_postfix}"
+            db.add(existing_patient)
+            db.flush()
     
     # Create IPD admission
     new_admission = IPDAdmission(

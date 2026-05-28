@@ -256,7 +256,12 @@ def get_ent_stats(
     current_user: User = Depends(get_current_user)
 ):
     """Get high level stats for ENT dashboard"""
-    total_patients = db.query(ENTPatient).filter(ENTPatient.hospital_id == current_user.hospital_id).count()
+    total_patients = db.query(ENTPatient).join(
+        Patient, ENTPatient.patient_id == Patient.record_id
+    ).filter(
+        ENTPatient.hospital_id == current_user.hospital_id,
+        Patient.is_deleted == False
+    ).count()
     total_surgeries = db.query(ENTSurgery).filter(ENTSurgery.hospital_id == current_user.hospital_id).count()
     total_audiometry = db.query(AudiometryTest).filter(AudiometryTest.hospital_id == current_user.hospital_id).count()
     

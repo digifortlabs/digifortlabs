@@ -58,3 +58,5 @@ server_manager/logs/
 *.bat
 # Added by code-review-graph
 .code-review-graph/
+
+*.db

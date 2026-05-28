@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
     LayoutDashboard, Users, CalendarDays, IndianRupee, Settings,
-    LogOut, Menu, X, ChevronDown, Building2, Activity, Package, UserPlus, Bed
+    LogOut, Menu, X, ChevronDown, Building2, Activity, Package, UserPlus, Bed, Trash2
 } from 'lucide-react';
 import { getCurrentSubdomain } from '@/lib/utils';
 
@@ -16,6 +16,7 @@ const CATEGORIZED_NAV_ITEMS = [
             { label: 'Dashboard', href: '/hospital', icon: LayoutDashboard },
             { label: 'Patients', href: '/hospital/patients', icon: Users, roles: ['hospital_admin', 'doctor_opd', 'reception_staff'] },
             { label: 'Records & Archives', href: '/hospital/records', icon: Users, roles: ['hospital_admin', 'mrd_staff'] },
+            { label: 'Recycle Bin', href: '/hospital/recycle-bin', icon: Trash2, roles: ['hospital_admin', 'platform_staff'] },
             { label: 'Appointments', href: '/hospital/appointments', icon: CalendarDays, roles: ['hospital_admin', 'doctor_opd', 'reception_staff'] },
         ]
     },
@@ -34,6 +35,7 @@ const CATEGORIZED_NAV_ITEMS = [
             { label: 'Accounting & Billing', href: '/hospital/accounting', icon: IndianRupee, roles: ['hospital_admin', 'account_staff'] },
             { label: 'Inventory & Stock', href: '/hospital/inventory', icon: Package, roles: ['hospital_admin', 'mrd_staff'] },
             { label: 'Staff Management', href: '/hospital/staff', icon: UserPlus, roles: ['hospital_admin'] },
+            { label: 'Doctors Directory', href: '/hospital/doctors', icon: Users, roles: ['hospital_admin'] },
             { label: 'Portal Settings', href: '/hospital/settings', icon: Settings, roles: ['hospital_admin'] },
         ]
     }

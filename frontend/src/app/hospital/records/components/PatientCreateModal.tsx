@@ -28,7 +28,7 @@ interface PatientCreateModalProps {
     terms: any;
     specialty: string;
     userProfile: any;
-    hospitalDoctors: string[];
+    hospitalDoctors: any[];
     isMRDDuplicate: boolean;
     onMRDChange: (val: string) => void;
     checkExistingUHID: (val: string) => void;
@@ -315,20 +315,51 @@ export default function PatientCreateModal({
                                 </div>
 
                                 <div className="col-span-12">
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">Doctor Name(s)</label>
-                                    <input
-                                        type="text"
-                                        list="hospital-doctors-list"
-                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm font-bold"
-                                        placeholder="e.g. Dr. Dixit, Dr. Shah"
-                                        value={newPatient.doctor_name || ''}
-                                        onChange={e => setNewPatient((prev: any) => ({ ...prev, doctor_name: e.target.value }))}
-                                    />
-                                    <datalist id="hospital-doctors-list">
-                                        {hospitalDoctors.map((doc, idx) => (
-                                            <option key={idx} value={doc} />
-                                        ))}
-                                    </datalist>
+                                    <label className="block text-xs font-bold text-slate-700 mb-2">Assign Doctor(s)</label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto custom-scrollbar p-2 bg-slate-50 border border-slate-200 rounded-xl">
+                                        {hospitalDoctors.map((doc, idx) => {
+                                            const isSelected = newPatient.doctor_profile_ids.includes(doc.profile_id);
+                                            return (
+                                                <label 
+                                                    key={doc.profile_id} 
+                                                    className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${isSelected ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-white border-slate-200 hover:border-indigo-100 hover:bg-slate-50'}`}
+                                                >
+                                                    <input 
+                                                        type="checkbox" 
+                                                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                        checked={isSelected}
+                                                        onChange={(e) => {
+                                                            let updatedIds = [...newPatient.doctor_profile_ids];
+                                                            let updatedNames = newPatient.doctor_name ? newPatient.doctor_name.split(',').map((n: string) => n.trim()).filter(Boolean) : [];
+                                                            
+                                                            if (e.target.checked) {
+                                                                updatedIds.push(doc.profile_id);
+                                                                if (!updatedNames.includes(doc.full_name)) updatedNames.push(doc.full_name);
+                                                            } else {
+                                                                updatedIds = updatedIds.filter(id => id !== doc.profile_id);
+                                                                updatedNames = updatedNames.filter((n: string) => n !== doc.full_name);
+                                                            }
+                                                            
+                                                            setNewPatient((prev: any) => ({ 
+                                                                ...prev, 
+                                                                doctor_profile_ids: updatedIds,
+                                                                doctor_name: updatedNames.join(', ')
+                                                            }));
+                                                        }}
+                                                    />
+                                                    <div className="flex flex-col">
+                                                        <span className={`font-bold text-sm ${isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>Dr. {doc.full_name}</span>
+                                                        <span className="text-[10px] font-semibold text-slate-500">{doc.specialization || 'General'}</span>
+                                                    </div>
+                                                </label>
+                                            );
+                                        })}
+                                        {hospitalDoctors.length === 0 && (
+                                            <div className="col-span-1 sm:col-span-2 text-center text-xs text-slate-500 p-2">
+                                                No doctors found. Please add doctors first.
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>

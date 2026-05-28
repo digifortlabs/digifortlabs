@@ -35,6 +35,7 @@ interface PatientState {
     admission_date: string;
     discharge_date: string;
     doctor_name: string;
+    doctor_profile_ids: number[];
     weight: string;
     mediclaim: string;
     diagnosis: string;
@@ -79,7 +80,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
     const [userRole, setUserRole] = useState<string>('');
     const [hospitals, setHospitals] = useState<any[]>([]);
     const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null);
-    const [hospitalDoctors, setHospitalDoctors] = useState<string[]>([]);
+    const [hospitalDoctors, setHospitalDoctors] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState<'identity' | 'admission' | 'clinical'>('identity');
 
     // Date Range Logic
@@ -104,7 +105,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
     const [newPatient, setNewPatient] = useState<PatientState>({
         full_name: '', patient_u_id: '', uhid: '', age: '', gender: '', address: '', contact_number: '', email_id: '',
         aadhaar_number: '', patient_category: config.category, dob: '', admission_date: '', discharge_date: '',
-        doctor_name: '', weight: '', mediclaim: '', diagnosis: ''
+        doctor_name: '', doctor_profile_ids: [], weight: '', mediclaim: '', diagnosis: ''
     });
 
     // --- Helpers ---
@@ -112,7 +113,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
         setNewPatient({
             full_name: '', patient_u_id: '', uhid: '', age: '', gender: '', address: '', contact_number: '', email_id: '',
             aadhaar_number: '', patient_category: specialty === 'Dental' ? 'OPD' : config.category, dob: '', admission_date: '', discharge_date: '',
-            doctor_name: '', weight: '', mediclaim: '', diagnosis: ''
+            doctor_name: '', doctor_profile_ids: [], weight: '', mediclaim: '', diagnosis: ''
         });
         setIsExistingPatient(false);
         setIsMRDDuplicate(false);
@@ -178,7 +179,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
 
     const fetchDoctors = async () => {
         try {
-            let url = `patients/doctors`;
+            let url = `doctors/`;
             if (selectedHospitalId && ['superadmin', 'superadmin_staff'].includes(userProfile?.role)) {
                 url += `?hospital_id=${selectedHospitalId}`;
             }
@@ -303,13 +304,29 @@ export default function RecordManager({ mode }: RecordManagerProps) {
             }
 
             let data;
+            const patientPayload = { ...body };
+            delete patientPayload.doctor_profile_ids; // Backend POST /patients/ might not expect this yet
+            
             if (isEditing && selectedPatientId) {
-                data = await apiFetch(`patients/${selectedPatientId}`, { method: 'PUT', body });
+                data = await apiFetch(`patients/${selectedPatientId}`, { method: 'PUT', body: patientPayload });
             } else {
-                data = await apiFetch(`patients/`, { method: 'POST', body });
+                data = await apiFetch(`patients/`, { method: 'POST', body: patientPayload });
             }
 
             if (data) {
+                // Now assign doctors
+                if (body.doctor_profile_ids && body.doctor_profile_ids.length > 0) {
+                    // Quick loop to assign
+                    for (const pid of body.doctor_profile_ids) {
+                        try {
+                            await apiFetch(`patients/${data.record_id}/assign-doctor`, {
+                                method: 'POST',
+                                body: { profile_id: pid }
+                            });
+                        } catch(e) { console.error("Doctor assignment error", e) }
+                    }
+                }
+
                 if (isEditing) {
                     setPatients(patients.map(p => (p.record_id || p.patient_id) === selectedPatientId ? data : p));
                     alert(`${mode === 'patients' ? terms.patient : 'Document'} Updated Successfully!`);
@@ -356,6 +373,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
             aadhaar_number: p.aadhaar_number || '',
             patient_category: config.category,
             dob: p.dob ? new Date(p.dob).toISOString().split('T')[0] : '',
+            doctor_profile_ids: p.assigned_doctors?.map((d:any) => d.profile_id) || []
         }));
         setAgeUnit(unit);
         setIsExistingPatient(true);
@@ -701,6 +719,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
                                                                         admission_date: p.admission_date ? new Date(p.admission_date).toISOString().split('T')[0] : '',
                                                                         discharge_date: p.discharge_date ? new Date(p.discharge_date).toISOString().split('T')[0] : '',
                                                                         doctor_name: p.doctor_name || '',
+                                                                        doctor_profile_ids: p.assigned_doctors?.map((d:any) => d.profile_id) || [],
                                                                         weight: p.weight || '',
                                                                         mediclaim: p.mediclaim || '',
                                                                         diagnosis: p.diagnosis || '',

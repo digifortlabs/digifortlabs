@@ -1,0 +1,27 @@
+<html>
+<body style="font-family: sans-serif; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+        <div style="background: #10b981; color: #fff; padding: 20px; text-align: center;">
+            <h2 style="margin: 0;">Medical Record Delivery</h2>
+        </div>
+        <div style="padding: 20px;">
+            <p>Hello,</p>
+            <p>The requested medical record is attached to this email.</p>
+            
+            <div style="background: #f9fafb; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+                <p><strong>Hospital:</strong> {{ hospital_name }}</p>
+                <p><strong>Patient:</strong> {{ patient_name }} (MRD: {{ mrd_id }})</p>
+                <p><strong>File Name:</strong> {{ filename }}</p>
+                <p><strong>Requested By:</strong> {{ requester_name }} ({{ recipient_email }})</p>
+                <p><strong>Request IP:</strong> {{ ip_address }}</p>
+                <p><strong>Timestamp:</strong> {{ timestamp }}</p>
+            </div>
+            
+            <p style="color: #666; font-size: 14px;"><strong>Security Notice:</strong> This document contains sensitive health information. Please ensure it is handled in compliance with local regulations.</p>
+        </div>
+        <div style="background: #f8fafc; padding: 15px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+            This is an automated delivery from Digifort Labs Platform.
+        </div>
+    </div>
+</body>
+</html>

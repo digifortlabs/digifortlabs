@@ -103,7 +103,16 @@ function LoginForm() {
                 const targetUrl = getDomainUrl(targetSubdomain, `/login?email=${encodeURIComponent(email)}`);
                 setTimeout(() => {
                     if (targetUrl.startsWith('http')) {
-                        window.location.href = targetUrl;
+                        try {
+                            const parsed = new URL(targetUrl);
+                            if (['http:', 'https:'].includes(parsed.protocol)) {
+                                window.location.href = targetUrl;
+                            } else {
+                                console.error('Blocked unsafe redirect:', targetUrl);
+                            }
+                        } catch(e) {
+                            console.error('Invalid redirect URL:', targetUrl);
+                        }
                     } else {
                         router.push(targetUrl);
                     }
@@ -200,7 +209,12 @@ function LoginForm() {
         let targetSubdomain = slug || 'admin';
         let targetPath = '/admin';
 
-        if (isSuperAdmin) {
+        const isDemoAccount = email.toLowerCase() === 'demo@digifortlabs.com' || slug === 'demo';
+
+        if (isDemoAccount) {
+            targetSubdomain = 'demo';
+            targetPath = isDoctor ? '/doctor' : (isHospitalUser ? '/hospital' : '/admin');
+        } else if (isSuperAdmin) {
             targetSubdomain = 'admin';
             targetPath = '/admin';
         } else if (slug) {

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { useTerminology } from '@/hooks/useTerminology';
+import CreateAppointmentModal from '../appointments/components/CreateAppointmentModal';
 
 export default function PatientsDirectory() {
     const router = useRouter();
@@ -17,11 +18,33 @@ export default function PatientsDirectory() {
     const [searchTerm, setSearchTerm] = useState('');
     const [hospitalId, setHospitalId] = useState<string | null>(null);
 
+    // Appointment Modal State
+    const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
+    const [selectedPatientForAppointment, setSelectedPatientForAppointment] = useState<string>('');
+    const [departments, setDepartments] = useState<any[]>([]);
+    const [doctors, setDoctors] = useState<any[]>([]);
+
     useEffect(() => {
         const id = localStorage.getItem('hospital_id');
         setHospitalId(id);
         fetchPatients(id, '');
+        if (id) {
+            loadFilters(id);
+        }
     }, []);
+
+    const loadFilters = async (hId: string) => {
+        try {
+            const [deptsRes, docsRes] = await Promise.all([
+                apiFetch(`appointments/departments?hospital_id=${hId}`),
+                apiFetch(`appointments/doctors?hospital_id=${hId}`)
+            ]);
+            if (deptsRes) setDepartments(deptsRes);
+            if (docsRes) setDoctors(docsRes);
+        } catch (error) {
+            console.error("Error loading filters:", error);
+        }
+    };
 
     const fetchPatients = async (hId: string | null, search: string) => {
         setLoading(true);
@@ -107,6 +130,19 @@ export default function PatientsDirectory() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-4">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="hidden sm:flex border-blue-200 text-blue-600 hover:bg-blue-50 gap-2 font-bold bg-white"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedPatientForAppointment(patient.record_id.toString());
+                                            setIsAppointmentModalOpen(true);
+                                        }}
+                                    >
+                                        <Calendar size={14} />
+                                        Add Appointment
+                                    </Button>
                                     <div className="hidden sm:flex text-xs text-slate-400 font-medium">
                                         View Profile & Timeline
                                     </div>
@@ -125,6 +161,19 @@ export default function PatientsDirectory() {
                     )}
                 </div>
             </Card>
+
+            {isAppointmentModalOpen && (
+                <CreateAppointmentModal
+                    isOpen={isAppointmentModalOpen}
+                    onClose={() => setIsAppointmentModalOpen(false)}
+                    onSuccess={() => {
+                        setIsAppointmentModalOpen(false);
+                    }}
+                    departments={departments}
+                    doctors={doctors}
+                    initialPatientId={selectedPatientForAppointment}
+                />
+            )}
         </div>
     );
 }

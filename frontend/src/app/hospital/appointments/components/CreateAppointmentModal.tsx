@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { apiFetch } from '@/config/api';
 
 interface CreateAppointmentModalProps {
@@ -12,10 +13,11 @@ interface CreateAppointmentModalProps {
     onSuccess: () => void;
     departments: any[];
     doctors: any[];
+    initialPatientId?: string;
 }
 
-export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, departments, doctors }: CreateAppointmentModalProps) {
-    const [patientId, setPatientId] = useState('');
+export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, departments, doctors, initialPatientId }: CreateAppointmentModalProps) {
+    const [patientId, setPatientId] = useState(initialPatientId || '');
     const [departmentId, setDepartmentId] = useState('');
     const [doctorId, setDoctorId] = useState('');
     const [appointmentDate, setAppointmentDate] = useState('');
@@ -26,6 +28,26 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [patientName, setPatientName] = useState('');
     const [isSearchingPatient, setIsSearchingPatient] = useState(false);
+    const [visitType, setVisitType] = useState('OPD');
+    const [isFollowUp, setIsFollowUp] = useState(false);
+
+    React.useEffect(() => {
+        if (isOpen && initialPatientId) {
+            setPatientId(initialPatientId);
+        } else if (!isOpen) {
+            // Reset form when closed
+            setPatientId('');
+            setDepartmentId('');
+            setDoctorId('');
+            setAppointmentDate('');
+            setStartTime('');
+            setEndTime('');
+            setReason('');
+            setNotes('');
+            setVisitType('OPD');
+            setIsFollowUp(false);
+        }
+    }, [isOpen, initialPatientId]);
 
     React.useEffect(() => {
         if (!patientId) {
@@ -72,7 +94,9 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
                 start_time: startDateTime,
                 end_time: endDateTime,
                 reason_for_visit: reason,
-                notes: notes
+                notes: notes,
+                visit_type: visitType,
+                is_follow_up: isFollowUp
             };
 
             const data = await apiFetch('appointments', {
@@ -137,6 +161,22 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
                             )}
                         </div>
                         <div className="space-y-1">
+                            <label className="text-xs font-black uppercase tracking-widest text-slate-400 block mb-1">Visit Type *</label>
+                            <Select required value={visitType} onValueChange={setVisitType}>
+                                <SelectTrigger className="bg-slate-50/50 border-slate-200 text-slate-800 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl h-11 font-medium">
+                                    <SelectValue placeholder="Select Visit Type" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-white border-slate-100 text-slate-800 rounded-xl shadow-xl">
+                                    <SelectItem value="OPD">OPD</SelectItem>
+                                    <SelectItem value="IPD">IPD</SelectItem>
+                                    <SelectItem value="Emergency">Emergency</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
                             <label className="text-xs font-black uppercase tracking-widest text-slate-400 block mb-1">Reason for Visit</label>
                             <Input
                                 value={reason}
@@ -144,6 +184,21 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
                                 className="bg-slate-50/50 border-slate-200 text-slate-800 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl h-11 font-medium px-4"
                                 placeholder="E.g. Follow up, Checkup"
                             />
+                        </div>
+                        <div className="space-y-1 flex items-end">
+                            <div className="flex items-center space-x-2 h-11 px-4 bg-slate-50/50 border border-slate-200 rounded-xl w-full">
+                                <Checkbox 
+                                    id="isFollowUp" 
+                                    checked={isFollowUp}
+                                    onCheckedChange={(checked: boolean | 'indeterminate') => setIsFollowUp(checked === true)}
+                                />
+                                <label
+                                    htmlFor="isFollowUp"
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-slate-700"
+                                >
+                                    Mark as Follow Up
+                                </label>
+                            </div>
                         </div>
                     </div>
 

@@ -4,7 +4,8 @@ let logDatabase = {
     ssh: [],
     backend: [],
     frontend: [],
-    live: []
+    live: [],
+    ocr_worker: []
 };
 
 let currentTab = "all";
@@ -30,6 +31,7 @@ async function fetchLogs() {
         logDatabase.backend = [];
         logDatabase.frontend = [];
         logDatabase.live = [];
+        logDatabase.ocr_worker = [];
         
         data.forEach(entry => {
             logDatabase.all.push(entry);
@@ -114,6 +116,9 @@ function renderLogLine(entry) {
     } else if (entry.service === "live") {
         chClass = "ch-live";
         chLabel = "Live";
+    } else if (entry.service === "ocr_worker") {
+        chClass = "ch-ocr";
+        chLabel = "OCR";
     }
     
     const channelSpan = `<span class="log-channel ${chClass}">${chLabel}</span>`;
@@ -175,7 +180,8 @@ function connectWebSocket() {
             ssh: logDatabase.ssh.length,
             backend: logDatabase.backend.length,
             frontend: logDatabase.frontend.length,
-            live: logDatabase.live.length
+            live: logDatabase.live.length,
+            ocr_worker: logDatabase.ocr_worker.length
         });
 
         // If current active tab matches, append live line
@@ -246,8 +252,8 @@ function updateCardUI(key, svc) {
                 badge.innerText = "online";
                 badge.className = "status-badge running";
             } else {
-                badge.innerText = "offline";
-                badge.className = "status-badge error";
+                badge.innerText = "running";
+                badge.className = "status-badge starting";
             }
         } else {
             badge.innerText = svc.status;
@@ -384,7 +390,7 @@ function formatDuration(seconds) {
 
 // Update tab count badges
 function updateTabCounts(counts) {
-    const tabMap = { all: "tab-all", ssh: "tab-ssh", backend: "tab-backend", frontend: "tab-frontend", live: "tab-live" };
+    const tabMap = { all: "tab-all", ssh: "tab-ssh", backend: "tab-backend", frontend: "tab-frontend", live: "tab-live", ocr_worker: "tab-ocr_worker" };
     for (const [key, tabId] of Object.entries(tabMap)) {
         const btn = document.getElementById(tabId);
         if (!btn) continue;

@@ -11,8 +11,8 @@ from sqlalchemy import or_, cast, Date
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import SessionLocal, get_db
-from ..models import BandwidthUsage, Patient, PDFFile, User, UserRole
-from ..routers.auth import get_current_user
+from ..models import BandwidthUsage, Patient, PDFFile, User, UserRole, Permission, Hospital
+from ..routers.auth import get_current_user, require_permission
 from ..services.compression import CompressionService
 from ..services.ocr import extract_text_from_pdf, classify_document, extract_text_from_image
 from ..services.s3_handler import S3Manager
@@ -432,6 +432,7 @@ from typing import List, Optional, Union
 
 class PatientMedicalBase(BaseModel):
     # New Medical Fields
+    blood_group: Optional[str] = None
     doctor_name: Optional[str] = None
     weight: Optional[str] = None
     diagnosis: Optional[str] = None
@@ -443,7 +444,7 @@ class PatientMedicalBase(BaseModel):
 
 class PatientResponse(PatientMedicalBase):
     record_id: int
-    patient_u_id: str
+    patient_u_id: Optional[str] = None
     hospital_id: int
     full_name: str
     hospital_name: Optional[str] = None
@@ -486,7 +487,7 @@ class PatientResponse(PatientMedicalBase):
         from_attributes = True
 
 class PatientCreate(PatientMedicalBase):
-    patient_u_id: str
+    patient_u_id: Optional[str] = None
     uhid: Optional[str] = None
     full_name: str
     age: Optional[str] = None
@@ -563,7 +564,6 @@ def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session =
         existing_mrd = db.query(Patient).filter(
             Patient.hospital_id == db_patient.hospital_id,
             Patient.patient_u_id == patient_update.patient_u_id.strip(),
-            Patient.is_deleted == False,
             Patient.record_id != patient_id
         ).first()
         if existing_mrd:
@@ -573,7 +573,6 @@ def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session =
         existing_uhid = db.query(Patient).filter(
             Patient.hospital_id == db_patient.hospital_id,
             Patient.uhid == patient_update.uhid.strip(),
-            Patient.is_deleted == False,
             Patient.record_id != patient_id
         ).first()
         if existing_uhid:
@@ -620,7 +619,7 @@ def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session =
 
     return db_patient
 
-@router.post("/")
+@router.post("/", response_model=PatientDetailResponse)
 def create_patient(patient: PatientCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Enforce hospital data segregation
     hospital_id = current_user.hospital_id
@@ -631,21 +630,24 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
              raise HTTPException(status_code=400, detail="User context missing hospital ID")
 
     # 1. Check for Duplicate MRD (Explicit Check for better error)
-    existing_mrd = db.query(Patient).filter(
-        Patient.hospital_id == hospital_id,
-        Patient.patient_u_id == patient.patient_u_id,
-        Patient.is_deleted == False
-    ).first()
-    
-    if existing_mrd:
-        raise HTTPException(status_code=400, detail=f"MRD Number '{patient.patient_u_id}' already exists.")
+    if patient.patient_u_id and patient.patient_u_id.strip():
+        existing_mrd = db.query(Patient).filter(
+            Patient.hospital_id == hospital_id,
+            Patient.patient_u_id == patient.patient_u_id.strip()
+        ).first()
+        
+        if existing_mrd:
+            raise HTTPException(status_code=400, detail=f"MRD Number '{patient.patient_u_id}' already exists.")
 
-    # 1.5 Check for Duplicate UHID
-    if patient.uhid and patient.uhid.strip():
+    # 1.5 Check for Duplicate UHID (Generate if missing)
+    if not patient.uhid or not patient.uhid.strip():
+        # Auto-generate UHID
+        res = get_next_uhid(hospital_id=hospital_id, db=db, current_user=current_user)
+        patient.uhid = res["next_id"]
+    else:
         existing_uhid = db.query(Patient).filter(
             Patient.hospital_id == hospital_id,
-            Patient.uhid == patient.uhid.strip(),
-            Patient.is_deleted == False
+            Patient.uhid == patient.uhid.strip()
         ).first()
         if existing_uhid:
             raise HTTPException(status_code=400, detail=f"UHID '{patient.uhid}' already exists.")
@@ -669,7 +671,13 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
             Patient.is_deleted == False
         ).first()
         if existing_name_contact:
-            raise HTTPException(status_code=400, detail=f"Patient '{patient.full_name}' with Contact Number '{patient.contact_number}' is already registered.")
+            raise HTTPException(
+                status_code=409, 
+                detail={
+                    "message": f"Patient '{patient.full_name}' with Contact Number '{patient.contact_number}' is already registered.",
+                    "existing_patient_id": existing_name_contact.record_id
+                }
+            )
 
     # 2. Date Validation (Phase 2 Requirement)
     if patient.admission_date and patient.discharge_date:
@@ -679,7 +687,7 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
              raise HTTPException(status_code=400, detail="Discharge Date cannot be before Admission Date.")
 
     db_patient = Patient(
-        patient_u_id=patient.patient_u_id,
+        patient_u_id=patient.patient_u_id.strip() if patient.patient_u_id and patient.patient_u_id.strip() else None,
         uhid=patient.uhid,
         hospital_id=hospital_id,
         full_name=patient.full_name,
@@ -728,6 +736,75 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
     #     # We don't fail the request, just log it. Patient is created.
         
     return db_patient
+
+@router.get("/{patient_id}/timeline")
+def get_patient_timeline(
+    patient_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    # Fetch Patient to ensure existence and permission
+    patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+        
+    if current_user.role not in ["superadmin", "superadmin_staff"] and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    timeline = []
+    
+    # 1. Registration Event
+    timeline.append({
+        "type": "REGISTRATION",
+        "date": patient.created_at or patient.admission_date or datetime.now(),
+        "id_number": patient.uhid,
+        "title": "Patient Registered (UHID)",
+        "description": f"Registered with UHID: {patient.uhid}"
+    })
+    
+    # 2. Appointments (OPD / Follow up)
+    from .appointments import Appointment # Avoid circular import if it was at top, or just use db.query
+    from ..models import Appointment as AppointmentModel
+    
+    appointments = db.query(AppointmentModel).filter(AppointmentModel.patient_id == patient_id).all()
+    for appt in appointments:
+        visit_type_label = "Follow-up" if appt.is_follow_up else (appt.visit_type or "OPD")
+        timeline.append({
+            "type": "FOLLOW_UP" if appt.is_follow_up else "OPD",
+            "date": appt.appointment_date,
+            "id_number": appt.opd_number,
+            "title": f"{visit_type_label} Visit (OPD)",
+            "description": f"Consultation with Doctor ID: {appt.doctor_id}. Reason: {appt.reason_for_visit or 'N/A'}"
+        })
+        
+    # 3. Admissions (IPD)
+    from ..models import IPDAdmission
+    admissions = db.query(IPDAdmission).filter(IPDAdmission.patient_id == patient_id).all()
+    for adm in admissions:
+        # Use patient's ipd_number for now, or could be stored on admission
+        timeline.append({
+            "type": "IPD",
+            "date": adm.admission_date,
+            "id_number": patient.ipd_number or "N/A",
+            "title": "Admitted to IPD",
+            "description": f"Admitted to Ward ID: {adm.ward_id}, Bed ID: {adm.bed_id}. Diagnosis: {adm.diagnosis or 'N/A'}"
+        })
+        
+    # 4. MRD Generation (if any)
+    if patient.patient_u_id:
+        timeline.append({
+            "type": "MRD",
+            "date": patient.created_at or patient.admission_date or datetime.now(), # Approximate date
+            "id_number": patient.patient_u_id,
+            "title": "Physical File Created (MRD)",
+            "description": f"MRD Number assigned: {patient.patient_u_id}"
+        })
+
+    # Sort timeline by date descending
+    timeline.sort(key=lambda x: x["date"], reverse=True)
+    
+    return timeline
+
 
 @router.post("/{patient_id}/upload")
 async def upload_patient_file(
@@ -962,7 +1039,7 @@ def search_files(q: str, hospital_id: Optional[int] = None, db: Session = Depend
     return response_data
 
 @router.get("/next-id")
-def get_next_mrd_id(hospital_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_next_uhid(hospital_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     target_hospital_id = current_user.hospital_id
 
     if current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
@@ -972,37 +1049,36 @@ def get_next_mrd_id(hospital_id: Optional[int] = None, db: Session = Depends(get
     if not target_hospital_id:
         raise HTTPException(status_code=400, detail="Hospital Context Required")
 
-    # Fetch all UIDs for this hospital to find max
-    # Note: This is a simple approach. For high scale, use a sequence or dedicated counter table.
-    patients = db.query(Patient.patient_u_id).filter(Patient.hospital_id == target_hospital_id).all()
+    hospital = db.query(Hospital).filter(Hospital.hospital_id == target_hospital_id).first()
+    id_settings = hospital.id_generation_settings or {} if hospital else {}
+    
+    conf_prefix = id_settings.get("uhid_prefix", "")
+    conf_postfix = id_settings.get("uhid_postfix", "")
+    conf_padding = int(id_settings.get("uhid_padding", 4))
+
+    # Fetch all UHIDs for this hospital to find max
+    patients = db.query(Patient.uhid).filter(Patient.hospital_id == target_hospital_id).all()
     
     max_val = 0
-    prefix = "" 
+    prefix = conf_prefix or "DF-" 
     
-    import re # Ensure imported
+    import re
     
-    # Simple heuristic: Look for pattern Prefix+Number or just Number
     for p in patients:
-        uid = p.patient_u_id
-        # Extract number from end
-        match = re.search(r'(\d+)$', uid)
-        if match:
-            num_part = int(match.group(1))
+        uid = p.uhid
+        if not uid: continue
+        # Extract number from string
+        numbers = re.findall(r'\d+', uid)
+        if numbers:
+            num_part = int(numbers[-1])
             if num_part > max_val:
                 max_val = num_part
-                # Update prefix if this is the max (best guess at current series)
-                prefix = uid[:match.start()]
 
     # If no patients, start at 1
     next_val = max_val + 1
-    
-    # Simple zero-padding logic: if max_val likely came from a padded string (impossible to know for sure without original str)
-    # But usually 5 or 6 digits is standard. Let's return raw next string for now based on prefix.
-    
-    last_id = f"{prefix}{max_val}" if max_val > 0 else "None"
-    next_id = f"{prefix}{next_val}"
-    
-    return {"next_id": next_id, "last_id": last_id}
+        
+    padded = str(next_val).zfill(conf_padding)
+    return {"next_id": f"{conf_prefix or prefix}{padded}{conf_postfix}"}
 
 @router.get("/doctors", response_model=List[str])
 def get_unique_doctors(
@@ -1048,6 +1124,7 @@ def get_patients(
     current_user: User = Depends(get_current_user)
 ):
     is_platform = current_user.role in ["superadmin", "superadmin_staff"]
+    is_doctor = current_user.role in ["doctor_opd", "doctor_ipd"]
     
     query = db.query(Patient).options(joinedload(Patient.files), joinedload(Patient.box)).filter(Patient.is_deleted == False)
     
@@ -1057,6 +1134,17 @@ def get_patients(
     if not is_platform:
         # Standard Staff: RESTRICT to their own hospital
         query = query.filter(Patient.hospital_id == current_user.hospital_id)
+        
+        # Doctor check: Only see assigned patients
+        if is_doctor:
+            from ..models import PatientDoctorAssignment, DoctorProfile
+            # Find the doctor profile for this user
+            doctor_profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user.user_id).first()
+            if doctor_profile:
+                query = query.join(PatientDoctorAssignment).filter(PatientDoctorAssignment.doctor_profile_id == doctor_profile.profile_id)
+            else:
+                # If they have no profile, they see no patients
+                query = query.filter(Patient.record_id == -1)
     else:
         # Platform Staff:
         # If hospital_id is provided, filter by it.
@@ -1093,10 +1181,18 @@ def get_patients(
 @router.get("/{patient_id}", response_model=PatientDetailResponse)
 def get_patient(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     is_platform = current_user.role in ["superadmin", "superadmin_staff"]
+    is_doctor = current_user.role in ["doctor_opd", "doctor_ipd"]
     
     query = db.query(Patient).options(joinedload(Patient.files), joinedload(Patient.box)).filter(Patient.record_id == patient_id, Patient.is_deleted == False)
     if not is_platform:
         query = query.filter(Patient.hospital_id == current_user.hospital_id)
+        if is_doctor:
+            from ..models import PatientDoctorAssignment, DoctorProfile
+            doctor_profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user.user_id).first()
+            if doctor_profile:
+                query = query.join(PatientDoctorAssignment).filter(PatientDoctorAssignment.doctor_profile_id == doctor_profile.profile_id)
+            else:
+                query = query.filter(Patient.record_id == -1)
     
     patient = query.first()
     
@@ -1304,36 +1400,13 @@ def confirm_upload(file_id: int, background_tasks: BackgroundTasks, db: Session 
     # Migration Logic: Handle both local drafts/ and S3 draft/ folders
     s3_key = f.s3_key or ""
     
-    # Case 1: Local drafts/ folder (legacy)
-    if "drafts/" in s3_key:
-        success, msg = StorageService.migrate_to_s3(db, file_id)
-        if not success:
-            # If S3 migration failed, we still mark as confirmed locally
-            f.upload_status = 'confirmed'
-            db.commit()
-            # background_tasks.add_task(run_manual_ocr_task, file_id) # Temporarily disabled automatic OCR
-            return {"status": "partial", "message": f"Confirmed locally, but archival error: {msg}"}
-        
-        # background_tasks.add_task(run_manual_ocr_task, file_id) # Temporarily disabled automatic OCR
-        
-        try:
-            from ..audit import log_audit
-            log_audit(db, current_user.user_id, "FILE_CONFIRMED", f"Confirmed (Migrated): {f.filename}", hospital_id=current_user.hospital_id)
-            db.commit()
-        except: pass
-        
-        return {"status": "success", "message": "File confirmed and archived to S3. OCR is running in background."}
-    
-    # Case 2: S3 draft/ or draft_backup/ folders (current uploads)
-    elif "draft/" in s3_key or "draft_backup/" in s3_key:
+    # Check if the file is stuck in draft/ or drafts/ prefix in S3 and migrate it
+    if "draft/" in s3_key or "drafts/" in s3_key or "draft_backup/" in s3_key:
         success, msg = StorageService.migrate_s3_draft_to_final(db, file_id)
         if not success:
             f.upload_status = 'confirmed'
             db.commit()
-            # background_tasks.add_task(run_manual_ocr_task, file_id) # Temporarily disabled automatic OCR
             return {"status": "partial", "message": f"Confirmed, but migration error: {msg}"}
-        
-        # background_tasks.add_task(run_manual_ocr_task, file_id) # Temporarily disabled automatic OCR
         
         try:
             from ..audit import log_audit
@@ -1342,6 +1415,7 @@ def confirm_upload(file_id: int, background_tasks: BackgroundTasks, db: Session 
         except: pass
 
         return {"status": "success", "message": "File confirmed and moved to final storage. OCR is running in background."}
+
 
     # Case 3: Already in final storage
     from ..audit import log_audit
@@ -1894,33 +1968,17 @@ def delete_patient(
         )
 
     try:
-        # 1. Clean up S3 Files first
-        s3_manager = S3Manager()
-        files_deleted_count = 0
-        
-        if patient.files:
-            for f in patient.files:
-                if f.s3_key:
-                    # Attempt delete from S3
-                    s3_manager.delete_file(f.s3_key)
-                    # Also try local path if distinct (legacy support)
-                    if f.storage_path and f.storage_path != f.s3_key and os.path.isabs(f.storage_path):
-                         try:
-                             if os.path.exists(f.storage_path): os.remove(f.storage_path)
-                         except: pass
-                    files_deleted_count += 1
-        
-        logger.info(f"[DELETE] Patient Deletion: Removed {files_deleted_count} associated S3 files.")
-
-        # 2. DB Deletion (Cascade will handle rows)
-        db.delete(patient)
+        # DB Deletion (Soft Delete to preserve relational integrity and move to recycle bin)
+        from sqlalchemy.sql import func
+        patient.is_deleted = True
+        patient.deleted_at = func.now()
         
         from ..audit import log_audit
-        audit_msg = f"Deleted patient: {patient.full_name} (MRD: {patient.patient_u_id})"
+        audit_msg = f"Moved patient to recycle bin: {patient.full_name} (MRD: {patient.patient_u_id})"
         if patient.patient_category == "MLC":
             audit_msg = f"CRITICAL ACTION: {audit_msg} [MLC REMOVAL]"
             
-        log_audit(db, current_user.user_id, "PATIENT_DELETED", audit_msg, hospital_id=current_user.hospital_id)
+        log_audit(db, current_user.user_id, "PATIENT_SOFT_DELETED", audit_msg, hospital_id=current_user.hospital_id)
         
         db.commit()
     except Exception as e:
@@ -1928,7 +1986,7 @@ def delete_patient(
         logger.info(f"Delete Error: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete patient.")
 
-    return {"status": "success", "message": "Patient deleted successfully"}
+    return {"status": "success", "message": "Patient moved to recycle bin successfully"}
 
 @router.post("/files/{file_id}/request-download")
 def request_file_download(
@@ -2036,3 +2094,265 @@ def request_file_download(
         "message": f"Medical record delivered successfully to {current_user.email}. Hospital admin ({admin_email}) CC'd.",
         "remaining_requests": remaining
     }
+
+
+class AssignDoctorRequest(BaseModel):
+    profile_id: int
+
+@router.post("/{patient_id}/assign-doctor")
+def assign_doctor(patient_id: int, request: AssignDoctorRequest, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_PATIENTS))):
+    patient = db.query(Patient).filter(Patient.record_id == patient_id, Patient.hospital_id == current_user.hospital_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    
+    from ..models import DoctorProfile, PatientDoctorAssignment
+    doctor = db.query(DoctorProfile).filter(DoctorProfile.profile_id == request.profile_id, DoctorProfile.hospital_id == current_user.hospital_id).first()
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+        
+    existing = db.query(PatientDoctorAssignment).filter(
+        PatientDoctorAssignment.patient_id == patient_id,
+        PatientDoctorAssignment.doctor_profile_id == request.profile_id
+    ).first()
+    
+    if existing:
+        return {"message": "Doctor already assigned"}
+        
+    assignment = PatientDoctorAssignment(patient_id=patient_id, doctor_profile_id=request.profile_id)
+    db.add(assignment)
+    db.commit()
+    return {"message": "Doctor assigned successfully"}
+
+@router.delete("/{patient_id}/unassign-doctor/{profile_id}")
+def unassign_doctor(patient_id: int, profile_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_PATIENTS))):
+    from ..models import PatientDoctorAssignment
+    # Check patient access implicitly
+    patient = db.query(Patient).filter(Patient.record_id == patient_id, Patient.hospital_id == current_user.hospital_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+        
+    assignment = db.query(PatientDoctorAssignment).filter(
+        PatientDoctorAssignment.patient_id == patient_id,
+        PatientDoctorAssignment.doctor_profile_id == profile_id
+    ).first()
+    
+    if assignment:
+        db.delete(assignment)
+        db.commit()
+        return {"message": "Doctor unassigned successfully"}
+    return {"message": "Doctor not assigned"}
+
+
+# ==========================================
+# RECYCLE BIN ENDPOINTS
+# ==========================================
+
+@router.get("/recycle-bin/list")
+def get_recycled_patients(
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """Get list of soft-deleted patients (Recycle Bin)"""
+    is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
+    query = db.query(Patient).filter(Patient.is_deleted == True)
+    
+    if not is_platform:
+        query = query.filter(Patient.hospital_id == current_user.hospital_id)
+        
+    recycled = query.all()
+    
+    result = []
+    for p in recycled:
+        days_left = 90
+        if p.deleted_at:
+            from datetime import datetime, timezone
+            delta = datetime.now(timezone.utc) - p.deleted_at
+            days_left = max(0, 90 - delta.days)
+            
+        result.append({
+            "record_id": p.record_id,
+            "patient_u_id": p.patient_u_id,
+            "uhid": p.uhid,
+            "full_name": p.full_name,
+            "deleted_at": p.deleted_at,
+            "days_until_permanent_deletion": days_left
+        })
+        
+    return result
+
+@router.post("/{patient_id}/restore")
+def restore_patient(
+    patient_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Restore a patient from the recycle bin"""
+    is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
+    patient = db.query(Patient).filter(Patient.record_id == patient_id, Patient.is_deleted == True).first()
+    
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found in recycle bin")
+        
+    if not is_platform and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    patient.is_deleted = False
+    patient.deleted_at = None
+    
+    from ..audit import log_audit
+    log_audit(db, current_user.user_id, "PATIENT_RESTORED", f"Restored patient: {patient.full_name}", hospital_id=current_user.hospital_id)
+    
+    db.commit()
+    return {"message": "Patient restored successfully"}
+
+@router.delete("/{patient_id}/permanent")
+def delete_patient_permanently(
+    patient_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Permanently delete a patient and their files (S3 & Local). SuperAdmin or authorized staff."""
+    is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
+    # We require the user to have permission to delete, even if it's in the bin
+    patient = db.query(Patient).options(joinedload(Patient.files)).filter(Patient.record_id == patient_id, Patient.is_deleted == True).first()
+    
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found in recycle bin")
+        
+    if not is_platform and patient.hospital_id != current_user.hospital_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    try:
+        # Clean up S3 Files physically
+        from ..services.s3_handler import S3Manager
+        import os
+        s3_manager = S3Manager()
+        files_deleted_count = 0
+        
+        if patient.files:
+            for f in patient.files:
+                if f.s3_key:
+                    s3_manager.delete_file(f.s3_key)
+                    if f.storage_path and f.storage_path != f.s3_key and os.path.isabs(f.storage_path):
+                         try:
+                             if os.path.exists(f.storage_path): os.remove(f.storage_path)
+                         except: pass
+                    files_deleted_count += 1
+        
+        logger.info(f"[PERMANENT DELETE] Removed {files_deleted_count} S3 files for patient {patient_id}")
+        
+        # Manual Cascade Delete to avoid ForeignKeyViolations
+        from sqlalchemy import text
+        tables_to_nullify = {
+            "operation_theaters": "current_patient_id",
+            "medical_equipments": "current_patient_id",
+            "rfid_cards": "patient_id"
+        }
+        for t, col in tables_to_nullify.items():
+            db.execute(text(f"UPDATE {t} SET {col} = NULL WHERE {col} = :pid"), {"pid": patient_id})
+            
+        tables_to_delete = {
+            "pdf_files": "record_id",
+            "patient_diagnoses": "record_id",
+            "patient_procedures": "record_id",
+            "dental_patients": "main_patient_id",
+            "dental_appointments": "patient_id",
+            "dental_3d_scans": "patient_id",
+            "dental_treatment_plans": "patient_id",
+            "periodontal_exams": "patient_id",
+            "ortho_records": "patient_id",
+            "communication_logs": "patient_id",
+            "ent_patients": "patient_id",
+            "audiometry_tests": "patient_id",
+            "ent_examinations": "patient_id",
+            "ent_surgeries": "patient_id",
+            "opd_patients": "patient_id",
+            "opd_visits": "patient_id",
+            "appointments": "patient_id",
+            "insurance_claims": "patient_id",
+            "dental_lab_orders": "patient_id",
+            "ipd_admissions": "patient_id",
+            "dental_treatments": "patient_id",
+            "patient_invoices": "patient_id",
+            "patient_doctor_assignments": "patient_id",
+            "qa_issues": "record_id"
+        }
+        for t, col in tables_to_delete.items():
+            db.execute(text(f"DELETE FROM {t} WHERE {col} = :pid"), {"pid": patient_id})
+        s3_manager = S3Manager()
+        files_deleted_count = 0
+        
+        if patient.files:
+            for f in patient.files:
+                if f.s3_key:
+                    s3_manager.delete_file(f.s3_key)
+                    if f.storage_path and f.storage_path != f.s3_key and os.path.isabs(f.storage_path):
+                         try:
+                             if os.path.exists(f.storage_path): os.remove(f.storage_path)
+                         except: pass
+                    files_deleted_count += 1
+        
+        logger.info(f"[PERMANENT DELETE] Removed {files_deleted_count} S3 files for patient {patient_id}")
+        
+        from ..audit import log_audit
+        log_audit(db, current_user.user_id, "PATIENT_PERMANENTLY_DELETED", f"Permanently deleted patient: {patient.full_name}", hospital_id=current_user.hospital_id)
+        
+        db.delete(patient)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Permanent Delete Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to permanently delete patient.")
+        
+    return {"message": "Patient permanently deleted"}
+
+@router.post("/recycle-bin/cleanup")
+def cleanup_recycle_bin(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Automatically delete patients older than 90 days in the recycle bin."""
+    # Only platform admins can run this system-wide cleanup, or it cleans up for the hospital
+    is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
+    
+    from datetime import datetime, timedelta, timezone
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=90)
+    
+    query = db.query(Patient).filter(
+        Patient.is_deleted == True,
+        Patient.deleted_at <= cutoff_date
+    )
+    
+    if not is_platform:
+        query = query.filter(Patient.hospital_id == current_user.hospital_id)
+        
+    patients_to_delete = query.all()
+    deleted_count = 0
+    
+    from ..services.s3_handler import S3Manager
+    import os
+    s3_manager = S3Manager()
+    
+    for patient in patients_to_delete:
+        try:
+            # Eager load files or just query them
+            files = db.query(PDFFile).filter(PDFFile.patient_id == patient.record_id).all()
+            for f in files:
+                if f.s3_key:
+                    s3_manager.delete_file(f.s3_key)
+                    if f.storage_path and f.storage_path != f.s3_key and os.path.isabs(f.storage_path):
+                         try:
+                             if os.path.exists(f.storage_path): os.remove(f.storage_path)
+                         except: pass
+            
+            db.delete(patient)
+            deleted_count += 1
+        except Exception as e:
+            logger.error(f"Error auto-deleting patient {patient.record_id}: {e}")
+            
+    db.commit()
+    
+    from ..audit import log_audit
+    log_audit(db, current_user.user_id, "RECYCLE_BIN_CLEANUP", f"Auto-deleted {deleted_count} patients older than 90 days.", hospital_id=current_user.hospital_id)
+    
+    return {"message": f"Successfully cleaned up {deleted_count} patients"}

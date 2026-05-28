@@ -148,7 +148,7 @@ app.add_middleware(BandwidthMiddleware)
 
 # IMPORTANT: CORS must be added LAST to be the outermost middleware 
 # and handle preflight requests before security headers or rate limits.
-CORS_ORIGIN_REGEX = r"https://(.*\.)?digifortlabs\.com|http://(.*\.)?localhost(:\d+)?|http://(.*\.)?127\.0\.0\.1(:\d+)?"
+CORS_ORIGIN_REGEX = r"^(https://(.*\.)?digifortlabs\.com|http://(.*\.)?localhost(:\d+)?|http://(.*\.)?127\.0\.0\.1(:\d+)?)$"
 
 app.add_middleware(
     CORSMiddleware,
@@ -194,11 +194,17 @@ async def global_exception_handler(request: Request, exc: Exception):
         logger.info(f"WARNING: Failed to write to system_error_logs: {dbe}")
     
     status_code = 500
-    if isinstance(exc, HTTPException): status_code = exc.status_code
+    detail_msg = str(exc)
+
+    if isinstance(exc, HTTPException): 
+        status_code = exc.status_code
+        detail_msg = exc.detail
+    elif settings.ENVIRONMENT == "production":
+        detail_msg = "An internal server error occurred. Please try again later."
     
     response = JSONResponse(
         status_code=status_code,
-        content={"detail": str(exc), "type": type(exc).__name__}
+        content={"detail": detail_msg, "type": type(exc).__name__}
     )
     
     # Manually add CORS headers since middleware might be bypassed on error
@@ -282,11 +288,13 @@ app.include_router(dental.router, prefix="/dental", tags=["dental"])
 from .routers import appointments
 app.include_router(appointments.router)
 
+from .routers import doctors
+app.include_router(doctors.router)
+
 from .routers import ent
 app.include_router(ent.router)
 
-from .routers import clinic
-app.include_router(clinic.router)
+
 from .routers import patient_billing
 app.include_router(patient_billing.router)
 

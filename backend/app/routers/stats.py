@@ -49,7 +49,7 @@ def get_dashboard_stats(
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
     prev_24h = now - timedelta(hours=48)
-    q_patients = db.query(Patient)
+    q_patients = db.query(Patient).filter(Patient.is_deleted == False)
 
     # 1. User Stats & Trend
     try:
@@ -82,7 +82,7 @@ def get_dashboard_stats(
 
     # 2. Patient Data & Trend
     try:
-        q_patients = db.query(Patient)
+        q_patients = db.query(Patient).filter(Patient.is_deleted == False)
         if target_hospital_id: 
             q_patients = q_patients.filter(Patient.hospital_id == target_hospital_id)
         
@@ -405,7 +405,7 @@ def get_group_stats(
     hospital_ids = [h.hospital_id for h in hospitals]
 
     # Aggregate counts
-    total_patients = db.query(Patient).filter(Patient.hospital_id.in_(hospital_ids)).count()
+    total_patients = db.query(Patient).filter(Patient.hospital_id.in_(hospital_ids), Patient.is_deleted == False).count()
     total_files = db.query(PDFFile).join(Patient).filter(Patient.hospital_id.in_(hospital_ids)).count()
     total_users = db.query(User).filter(User.hospital_id.in_(hospital_ids)).count()
     
@@ -419,7 +419,7 @@ def get_group_stats(
         branch_stats.append({
             "hospital_id": h.hospital_id,
             "name": h.legal_name,
-            "patient_count": db.query(Patient).filter(Patient.hospital_id == h.hospital_id).count(),
+            "patient_count": db.query(Patient).filter(Patient.hospital_id == h.hospital_id, Patient.is_deleted == False).count(),
             "file_count": branch_files,
             "revenue": round(rev, 2)
         })

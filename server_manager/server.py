@@ -536,11 +536,17 @@ def health_checker_worker():
             except Exception:
                 live_health = "offline"
 
+        # 5. Check OCR Worker (simply online if status is running)
+        ocr_health = "offline"
+        if services_state["ocr_worker"]["status"] == "running":
+            ocr_health = "online"
+
         # Update health states in real-time
         services_state["ssh"]["health"] = ssh_health
         services_state["backend"]["health"] = backend_health
         services_state["frontend"]["health"] = frontend_health
         services_state["live"]["health"] = live_health
+        services_state["ocr_worker"]["health"] = ocr_health
 
         time.sleep(3)
 

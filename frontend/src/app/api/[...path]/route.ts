@@ -24,6 +24,30 @@ async function proxy(req: NextRequest) {
         body = await req.text();
     }
 
+    // SSRF Prevention: Validate dynamically constructed URLs
+    let isSafe = false;
+    try {
+        const parsedUrl = new URL(url);
+        const allowedDomains = ['localhost', '127.0.0.1', 'digifortlabs.com', 'api.digifortlabs.com'];
+        // Also allow whatever is specifically set in NEXT_PUBLIC_API_URL
+        if (BACKEND) {
+            try {
+                const backendParsed = new URL(BACKEND);
+                allowedDomains.push(backendParsed.hostname);
+            } catch (e) {}
+        }
+        
+        if (allowedDomains.includes(parsedUrl.hostname)) {
+            isSafe = true;
+        }
+    } catch {
+        isSafe = false;
+    }
+
+    if (!isSafe) {
+        return NextResponse.json({ error: 'Blocked: Target URL is not in the allowed list.' }, { status: 403 });
+    }
+
     const backendRes = await fetch(url, {
         method: req.method,
         headers,

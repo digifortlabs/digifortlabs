@@ -683,6 +683,55 @@ export default function AccountSettings({
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* ID Generation Configurations */}
+                                <div>
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-3 flex items-center gap-1.5 border-b border-indigo-50 pb-1.5 mt-5">
+                                        <Fingerprint size={12} /> ID Generation Formats
+                                    </h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                        {['uhid', 'opd', 'ipd', 'mrd'].map((type) => (
+                                            <div key={type} className="bg-slate-50/50 p-3 rounded-xl border border-slate-200/50 space-y-2 shadow-sm">
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{type} Format</div>
+                                                <div className="flex flex-col gap-2">
+                                                    <div>
+                                                        <label className="block text-[8px] font-black uppercase tracking-widest text-slate-400 mb-0.5 ml-0.5">Prefix (e.g. DF-)</label>
+                                                        <input
+                                                            type="text"
+                                                            disabled={!isEditing}
+                                                            className={`w-full border rounded-lg px-2.5 py-1.5 outline-none font-semibold text-xs transition-all ${isEditing ? 'bg-white border-indigo-200 text-slate-900 focus:ring-2 focus:ring-indigo-500/20' : 'bg-slate-50 border-slate-200/80 text-slate-600'}`}
+                                                            value={profile.id_generation_settings?.[`${type}_prefix`] || ''}
+                                                            onChange={e => setProfile({ ...profile, id_generation_settings: { ...(profile.id_generation_settings || {}), [`${type}_prefix`]: e.target.value } })}
+                                                        />
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <div className="flex-1">
+                                                            <label className="block text-[8px] font-black uppercase tracking-widest text-slate-400 mb-0.5 ml-0.5">Padding Digits</label>
+                                                            <input
+                                                                type="number"
+                                                                disabled={!isEditing}
+                                                                className={`w-full border rounded-lg px-2.5 py-1.5 outline-none font-semibold text-xs transition-all ${isEditing ? 'bg-white border-indigo-200 text-slate-900 focus:ring-2 focus:ring-indigo-500/20' : 'bg-slate-50 border-slate-200/80 text-slate-600'}`}
+                                                                value={profile.id_generation_settings?.[`${type}_padding`] || 4}
+                                                                onChange={e => setProfile({ ...profile, id_generation_settings: { ...(profile.id_generation_settings || {}), [`${type}_padding`]: parseInt(e.target.value) || 4 } })}
+                                                            />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <label className="block text-[8px] font-black uppercase tracking-widest text-slate-400 mb-0.5 ml-0.5">Postfix</label>
+                                                            <input
+                                                                type="text"
+                                                                disabled={!isEditing}
+                                                                className={`w-full border rounded-lg px-2.5 py-1.5 outline-none font-semibold text-xs transition-all ${isEditing ? 'bg-white border-indigo-200 text-slate-900 focus:ring-2 focus:ring-indigo-500/20' : 'bg-slate-50 border-slate-200/80 text-slate-600'}`}
+                                                                value={profile.id_generation_settings?.[`${type}_postfix`] || ''}
+                                                                onChange={e => setProfile({ ...profile, id_generation_settings: { ...(profile.id_generation_settings || {}), [`${type}_postfix`]: e.target.value } })}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
                     </div>

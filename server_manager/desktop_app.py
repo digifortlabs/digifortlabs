@@ -164,14 +164,49 @@ class DesktopApp:
         left_container = tk.Frame(main_paned, bg=COLORS["bg"])
         main_paned.add(left_container, width=400)
         
+        # Create Scrollable Canvas for Left Panel
+        canvas = tk.Canvas(left_container, bg=COLORS["bg"], highlightthickness=0, bd=0)
+        scrollbar = ttk.Scrollbar(left_container, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg=COLORS["bg"])
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+        )
+
+        canvas_window = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        
+        def configure_window_width(event):
+            canvas.itemconfig(canvas_window, width=event.width)
+            
+        canvas.bind('<Configure>', configure_window_width)
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Mouse wheel binding
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            
+        def _bound_to_mousewheel(event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        def _unbound_to_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+            
+        canvas.bind('<Enter>', _bound_to_mousewheel)
+        canvas.bind('<Leave>', _unbound_to_mousewheel)
+        
         # Service Cards Panel
-        lbl_control = tk.Label(left_container, text="DEVELOPMENT CONTROLLERS", font=("Segoe UI", 9, "bold"), fg=COLORS["fg_dim"], bg=COLORS["bg"])
+        lbl_control = tk.Label(scrollable_frame, text="DEVELOPMENT CONTROLLERS", font=("Segoe UI", 9, "bold"), fg=COLORS["fg_dim"], bg=COLORS["bg"])
         lbl_control.pack(anchor="w", pady=(0, 6), padx=2)
         
-        cards_frame = tk.Frame(left_container, bg=COLORS["bg"])
+        cards_frame = tk.Frame(scrollable_frame, bg=COLORS["bg"])
         cards_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Build 4 service frames (SSH, Backend, Frontend, Live)
+        # Build 5 service frames (SSH, Backend, Frontend, Live, OCR Worker)
         self.service_widgets = {}
         
         services_list = [
@@ -282,10 +317,10 @@ class DesktopApp:
                 }
 
         # Environment & Config section
-        lbl_env = tk.Label(left_container, text="ENVIRONMENT VARIABLES", font=("Segoe UI", 9, "bold"), fg=COLORS["fg_dim"], bg=COLORS["bg"])
+        lbl_env = tk.Label(scrollable_frame, text="ENVIRONMENT VARIABLES", font=("Segoe UI", 9, "bold"), fg=COLORS["fg_dim"], bg=COLORS["bg"])
         lbl_env.pack(anchor="w", pady=(5, 6), padx=2)
         
-        env_frame = tk.Frame(left_container, bg=COLORS["panel"], highlightthickness=1, highlightbackground=COLORS["border"])
+        env_frame = tk.Frame(scrollable_frame, bg=COLORS["panel"], highlightthickness=1, highlightbackground=COLORS["border"])
         env_frame.pack(fill=tk.X, pady=(0, 5))
         
         # Scrollable container for environment keys
@@ -570,7 +605,7 @@ class DesktopApp:
                 if health == "online":
                     widgets["badge"].config(text="ONLINE", fg=COLORS["success"], bg=COLORS["border"])
                 else:
-                    widgets["badge"].config(text="OFFLINE", fg=COLORS["danger"], bg=COLORS["border"])
+                    widgets["badge"].config(text="RUNNING", fg=COLORS["warning"], bg=COLORS["border"])
                 widgets["accent_bar"].config(bg=widgets["color"])
                 
                 # Uptime calculate

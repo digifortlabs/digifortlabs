@@ -183,6 +183,21 @@ def cleanup_drafts():
                         # This file has been confirmed, should be in final storage
                         final_key = confirmed_files[int(file_id_str)]
                         
+                        # Fix logic bug: If the database key is still a draft key, we should NOT check its existence and delete it!
+                        # Instead, we should migrate the draft to final storage and update the database.
+                        if final_key == key or "draft/" in final_key or "drafts/" in final_key:
+                            logger.info(f"[WARN] Database key for {file_id_str} is still a draft key: {final_key}. Migrating now...")
+                            success, msg = StorageService.migrate_s3_draft_to_final(db, int(file_id_str))
+                            if success:
+                                # Fetch the updated s3_key
+                                updated_file = db.query(PDFFile).filter(PDFFile.file_id == int(file_id_str)).first()
+                                confirmed_files[int(file_id_str)] = updated_file.s3_key
+                                logger.info(f"   [OK] Migrated stuck draft {file_id_str} to final storage: {updated_file.s3_key}")
+                                total_moved += 1
+                            else:
+                                logger.info(f"   [ERROR] Failed to migrate stuck draft {file_id_str}: {msg}")
+                            continue
+                            
                         # Check if final file exists
                         try:
                             s3_client.head_object(Bucket=BUCKET_NAME, Key=final_key)

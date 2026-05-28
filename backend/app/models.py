@@ -124,9 +124,11 @@ class Hospital(Base):
     pricing_tier = Column(String, default="C") # A, B, or C
     organization_type = Column(String, default="Private") # Government, Private, Teaching, etc.
     specialty = Column(String, default="General") # General, Dental, etc.
+    mrd_service_type = Column(String, default="PORTAL_ONLY") # PORTAL_ONLY, SCANNING_SUPPORT, FULL_MANAGED
     terminology = Column(JSON, default=dict) # {"patient": "Client", "hospital": "Clinic"}
     enabled_modules = Column(JSON, default=list) # e.g. ["core", "dental", "accounting"]
     ai_settings = Column(JSON, default=lambda: {"enabled": False, "api_key": ""}) # Per-tenant AI config
+    id_generation_settings = Column(JSON, default=dict) # Prefixes and starting sequences for UHID, OPD, etc.
     is_active = Column(Boolean, default=True)
     is_deleted = Column(Boolean, default=False)
     
@@ -233,17 +235,28 @@ class User(Base):
     qa_entries = relationship("QAEntry", back_populates="reviewer")
     patient_invoices_created = relationship("PatientInvoice", back_populates="creator")
 
+class PatientDoctorAssignment(Base):
+    __tablename__ = "patient_doctor_assignments"
+    assignment_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    doctor_profile_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=False)
+    assigned_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    patient = relationship("Patient", back_populates="doctor_assignments")
+    doctor_profile = relationship("DoctorProfile", back_populates="patient_assignments")
+
 class Patient(Base):
     __tablename__ = "patients"
 
     record_id = Column(Integer, primary_key=True, index=True)
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
-    patient_u_id = Column(String, index=True, nullable=False) # MRD NUMBER
+    patient_u_id = Column(String, index=True, nullable=True) # MRD NUMBER
     
     __table_args__ = (
-        UniqueConstraint('hospital_id', 'patient_u_id', name='uq_hospital_patient_mrd'),
+        UniqueConstraint('hospital_id', 'uhid', name='uq_hospital_patient_uhid'),
     )
-    uhid = Column(String, index=True, nullable=True) # Alternate ID
+    uhid = Column(String, index=True, nullable=False) # Alternate ID
+    ipd_number = Column(String, index=True, nullable=True) # IPD NUMBER
     full_name = Column(String, nullable=False)
     gender = Column(String, nullable=True)
     age = Column(String, nullable=True)
@@ -254,9 +267,12 @@ class Patient(Base):
     diagnosis = Column(Text, nullable=True)
     specialty = Column(String, default="General") # General, Dental, ENT
     is_deleted = Column(Boolean, default=False)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
     
     # Storage linkage
     physical_box_id = Column(Integer, ForeignKey("physical_boxes.box_id"), nullable=True)
+    
+    doctor_assignments = relationship("PatientDoctorAssignment", back_populates="patient", cascade="all, delete-orphan")
     
     patient_category = Column(String, default="STANDARD") # STANDARD, MLC, BIRTH, DEATH
     
@@ -270,6 +286,7 @@ class Patient(Base):
     maa_card = Column(String, nullable=True)
     dob = Column(DateTime, nullable=True)
     
+    blood_group = Column(String, nullable=True)
     doctor_name = Column(String, nullable=True)
     weight = Column(String, nullable=True)
     operative_notes = Column(Text, nullable=True)
@@ -674,11 +691,11 @@ class PatientDiagnosis(Base):
     record_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
     code = Column(String, ForeignKey("icd11_codes.code"), nullable=False)
     notes = Column(Text, nullable=True)
-    diagnosed_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    diagnosed_by = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
     diagnosed_at = Column(DateTime(timezone=True), server_default=func.now())
     
     icd_code = relationship("ICD11Code")
-    doctor = relationship("User")
+    doctor = relationship("DoctorProfile")
 
 class ICD11ProcedureCode(Base):
     __tablename__ = "icd11_procedure_codes"
@@ -691,11 +708,11 @@ class PatientProcedure(Base):
     record_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
     code = Column(String, ForeignKey("icd11_procedure_codes.code"), nullable=False)
     notes = Column(Text, nullable=True)
-    performed_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    performed_by = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
     performed_at = Column(DateTime(timezone=True), server_default=func.now())
     
     procedure_code = relationship("ICD11ProcedureCode")
-    doctor = relationship("User")
+    doctor = relationship("DoctorProfile")
 
 
 class DentalPatient(Base):
@@ -757,18 +774,25 @@ class Department(Base):
 class DoctorProfile(Base):
     __tablename__ = "doctor_profiles"
     profile_id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, unique=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True, unique=True)
     department_id = Column(Integer, ForeignKey("departments.department_id"), nullable=False)
+    full_name = Column(String, nullable=False)
+    email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
     specialization = Column(String, nullable=True) # e.g., "Endodontist"
     consultation_fee = Column(Float, default=0.0)
+    is_active = Column(Boolean, default=True)
     
     user = relationship("User", backref="doctor_profile")
     department = relationship("Department")
+    hospital = relationship("Hospital")
+    patient_assignments = relationship("PatientDoctorAssignment", back_populates="doctor_profile", cascade="all, delete-orphan")
 
 class DoctorSchedule(Base):
     __tablename__ = "doctor_schedules"
     schedule_id = Column(Integer, primary_key=True, index=True)
-    doctor_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    doctor_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=False)
     day_of_week = Column(Integer, nullable=False) # 0=Monday, 6=Sunday
     start_time = Column(String, nullable=False) # e.g., "09:00"
     end_time = Column(String, nullable=False) # e.g., "17:00"
@@ -780,7 +804,7 @@ class Appointment(Base):
     appointment_id = Column(Integer, primary_key=True, index=True)
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
     patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
-    doctor_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    doctor_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=False)
     department_id = Column(Integer, ForeignKey("departments.department_id"), nullable=False)
     
     appointment_date = Column(DateTime(timezone=True), nullable=False)
@@ -791,12 +815,16 @@ class Appointment(Base):
     reason_for_visit = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
     
+    visit_type = Column(String, default="OPD") # OPD, IPD, Emergency
+    is_follow_up = Column(Boolean, default=False)
+    opd_number = Column(String, index=True, nullable=True)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
     
     hospital = relationship("Hospital")
     patient = relationship("Patient")
-    doctor = relationship("User")
+    doctor = relationship("DoctorProfile")
     department = relationship("Department")
 
 
@@ -893,7 +921,7 @@ class PeriodontalExam(Base):
 
     exam_id = Column(Integer, primary_key=True, index=True)
     dental_patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
-    dentist_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    dentist_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
     
     exam_date = Column(DateTime(timezone=True), server_default=func.now())
     notes = Column(Text, nullable=True)
@@ -991,7 +1019,7 @@ class DentalLabOrder(Base):
     patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True)
     dental_patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=True)
     lab_id = Column(Integer, ForeignKey("dental_labs.lab_id"), nullable=False)
-    dentist_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    dentist_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=False)
     
     appliance_type = Column(String, nullable=False) # e.g., Crown, Bridge, Denture
     tooth_number = Column(String, nullable=True) # e.g., "14, 15", or "Upper Arch"
@@ -1006,14 +1034,14 @@ class DentalLabOrder(Base):
     patient = relationship("Patient")
     dental_patient = relationship("DentalPatient", back_populates="lab_orders")
     lab = relationship("DentalLab", back_populates="orders")
-    dentist = relationship("User")
+    dentist = relationship("DoctorProfile")
 
 class OrthoRecord(Base):
     __tablename__ = "ortho_records"
     record_id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True)
     dental_patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=True)
-    dentist_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    dentist_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=False)
     
     visit_date = Column(DateTime(timezone=True), server_default=func.now())
     appliance_type = Column(String, nullable=False) # Braces, Aligners, Retainers
@@ -1025,7 +1053,7 @@ class OrthoRecord(Base):
     
     patient = relationship("Patient")
     dental_patient = relationship("DentalPatient", back_populates="ortho_records")
-    dentist = relationship("User")
+    dentist = relationship("DoctorProfile")
 
 class CommunicationLog(Base):
     __tablename__ = "communication_logs"
@@ -1102,7 +1130,7 @@ class AudiometryTest(Base):
     test_id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
-    audiologist_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    audiologist_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
     
     test_type = Column(String, nullable=False) # Pure Tone, Speech, Impedance
     results = Column(JSON, default={})
@@ -1112,7 +1140,7 @@ class AudiometryTest(Base):
     test_date = Column(DateTime(timezone=True), server_default=func.now())
 
     patient = relationship("Patient")
-    audiologist = relationship("User")
+    audiologist = relationship("DoctorProfile")
 
 
 class ENTExamination(Base):
@@ -1120,7 +1148,7 @@ class ENTExamination(Base):
     exam_id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
-    examiner_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    examiner_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
     
     examination_data = Column(JSON, default={"otoscopy": {}, "rhinoscopy": {}, "laryngoscopy": {}})
     findings = Column(Text, nullable=True)
@@ -1128,7 +1156,7 @@ class ENTExamination(Base):
     exam_date = Column(DateTime(timezone=True), server_default=func.now())
 
     patient = relationship("Patient")
-    examiner = relationship("User")
+    examiner = relationship("DoctorProfile")
 
 
 class ENTSurgery(Base):
@@ -1136,7 +1164,7 @@ class ENTSurgery(Base):
     surgery_id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
-    surgeon_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    surgeon_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
     
     procedure_code = Column(String, nullable=True)
     surgery_type = Column(String, nullable=False)
@@ -1151,7 +1179,7 @@ class ENTSurgery(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     patient = relationship("Patient")
-    surgeon = relationship("User")
+    surgeon = relationship("DoctorProfile")
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -1180,7 +1208,7 @@ class OPDVisit(Base):
     patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
     opd_patient_id = Column(Integer, ForeignKey("opd_patients.opd_patient_id"), nullable=True) # Added foreign key
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
-    doctor_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    doctor_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
     
     visit_date = Column(DateTime(timezone=True), server_default=func.now())
     
@@ -1201,7 +1229,7 @@ class OPDVisit(Base):
     patient_invoice_id = Column(Integer, ForeignKey("patient_invoices.invoice_id"), nullable=True)
     
     patient = relationship("Patient")
-    doctor = relationship("User")
+    doctor = relationship("DoctorProfile")
     opd_patient = relationship("OPDPatient", back_populates="visits")
     prescriptions = relationship("Prescription", back_populates="visit")
     patient_invoice = relationship("PatientInvoice", back_populates="opd_visits")
@@ -1260,7 +1288,7 @@ class IPDAdmission(Base):
     ward_id = Column(Integer, ForeignKey("wards.ward_id"), nullable=False)
     bed_id = Column(Integer, ForeignKey("beds.bed_id"), nullable=False)
     
-    admitting_doctor_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    admitting_doctor_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
     diagnosis = Column(Text, nullable=True)
     treatment_plan = Column(Text, nullable=True)
     
@@ -1276,7 +1304,7 @@ class IPDAdmission(Base):
     patient = relationship("Patient")
     ward = relationship("Ward")
     bed = relationship("Bed")
-    doctor = relationship("User")
+    doctor = relationship("DoctorProfile")
     patient_invoice = relationship("PatientInvoice", back_populates="ipd_admissions")
 
 class OperationTheater(Base):
@@ -1288,13 +1316,13 @@ class OperationTheater(Base):
     status = Column(String, default="AVAILABLE") # AVAILABLE, IN_USE, MAINTENANCE
     
     current_patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True)
-    current_doctor_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    current_doctor_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
     scheduled_start = Column(DateTime, nullable=True)
     scheduled_end = Column(DateTime, nullable=True)
     
     hospital = relationship("Hospital")
     patient = relationship("Patient")
-    doctor = relationship("User")
+    doctor = relationship("DoctorProfile")
 
 class MedicalEquipment(Base):
     __tablename__ = "medical_equipments"

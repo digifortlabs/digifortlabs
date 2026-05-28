@@ -18,6 +18,7 @@ import CompanyProfileSettings from './components/CompanyProfileSettings';
 import LoginActivityPanel from './components/LoginActivityPanel';
 import AccountSettings from './components/AccountSettings';
 import PlatformConfig from './components/PlatformConfig';
+import DepartmentSettings from './components/DepartmentSettings';
 
 export default function SettingsPage() {
     const router = useRouter();
@@ -202,6 +203,17 @@ export default function SettingsPage() {
                     <UserIcon size={13} /> Account
                 </button>
                 
+                <button
+                    onClick={() => setActiveTab('departments')}
+                    className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-150 ${
+                        activeTab === 'departments' 
+                            ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/20' 
+                            : 'text-slate-500 hover:text-indigo-600'
+                    }`}
+                >
+                    <LayoutDashboard size={13} /> Departments
+                </button>
+                
                 {isPlatformAdmin && (
                     <button
                         onClick={() => setActiveTab('platform')}
@@ -240,6 +252,10 @@ export default function SettingsPage() {
                         handleSaveProfile={handleSaveProfile}
                         mustChangePassword={mustChangePassword}
                     />
+                )}
+
+                {activeTab === 'departments' && (
+                    <DepartmentSettings />
                 )}
 
                 {activeTab === 'platform' && isPlatformAdmin && (

@@ -3,7 +3,8 @@ logger = logging.getLogger(__name__)
 from typing import List, Optional, cast
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+import subprocess
 from pydantic import BaseModel, EmailStr, validator
 from sqlalchemy import func, text, bindparam
 from sqlalchemy.orm import Session
@@ -110,6 +111,7 @@ class HospitalResponse(BaseModel):
     is_active: bool = True
     is_deleted: bool = False
     pending_updates: Optional[str] = None # JSON String
+    id_generation_settings: Optional[dict] = {}
     
     certifications: Optional[list] = []
     important_documents: Optional[list] = []
@@ -145,6 +147,7 @@ class HospitalUpdate(BaseModel):
     terminology: Optional[dict] = None
     enabled_modules: Optional[list] = None
     is_active: Optional[bool] = None
+    id_generation_settings: Optional[dict] = None
     
     certifications: Optional[list] = None
     important_documents: Optional[list] = None
@@ -476,8 +479,26 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
     }
 
 @router.post("", response_model=HospitalResponse, include_in_schema=False)
+def activate_ssl(subdomain: str):
+    domain = f"{subdomain}.digifortlabs.com"
+    logger.info(f"Activating SSL for {domain}")
+    try:
+        # Run certbot to expand the certificate with the new subdomain
+        # --expand will safely add the new domain to the existing cert or create a new one
+        subprocess.run([
+            "sudo", "certbot", "--nginx", "-d", domain,
+            "--non-interactive", "--agree-tos", "-m", "admin@digifortlabs.com",
+            "--redirect"
+        ], check=True, capture_output=True, text=True)
+        logger.info(f"Successfully activated SSL for {domain}")
+        
+        # Reload nginx explicitly just in case certbot didn't
+        subprocess.run(["sudo", "systemctl", "reload", "nginx"])
+    except Exception as e:
+        logger.error(f"Failed to activate SSL for {domain}: {e}")
+
 @router.post("/", response_model=HospitalResponse)
-def create_hospital(hospital: HospitalCreate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
+def create_hospital(hospital: HospitalCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
     # RBAC handles authorization instead of hardcoded SUPER_ADMIN check
 
     # Check for duplicate email
@@ -634,7 +655,7 @@ def create_hospital_admin(hospital_id: int, admin_data: AdminCreate, db: Session
     return {"message": f"Admin created for {hospital.legal_name}", "email": admin_data.email}
 
 @router.patch("/{hospital_id}", response_model=HospitalResponse)
-def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_SETTINGS))):
+def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_SETTINGS))):
     # 1. Fetch Hospital
     db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id, Hospital.is_deleted == False).first()
     if not db_hospital:
@@ -650,7 +671,8 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Sessi
     update_data = hospital_update.model_dump(exclude_unset=True)
 
     # Validate slug uniqueness if being changed
-    if 'hospital_slug' in update_data and update_data['hospital_slug']:
+    slug_changed = False
+    if 'hospital_slug' in update_data and update_data['hospital_slug'] != db_hospital.hospital_slug:
         import re
         clean_slug = re.sub(r'[^a-z0-9-]', '', update_data['hospital_slug'].lower().strip())
         if not clean_slug:
@@ -659,6 +681,7 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Sessi
         if conflict:
             raise HTTPException(status_code=400, detail=f"Subdomain '{clean_slug}' is already taken")
         update_data['hospital_slug'] = clean_slug
+        slug_changed = True
 
     # 3. Apply Logic
     if is_super:
@@ -704,7 +727,7 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Sessi
         owner_editable_fields = {
             "legal_name", "director_name", "registration_number", "address", "city", "state", "pincode",
             "phone", "email", "gst_number", "certifications", "important_documents", 
-            "terminology", "ai_settings"
+            "terminology", "ai_settings", "id_generation_settings"
         }
         
         immediate_updates = {}
@@ -749,11 +772,14 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, db: Sessi
 
     db.commit()
     db.refresh(db_hospital)
+    
+    if slug_changed:
+        background_tasks.add_task(activate_ssl, db_hospital.hospital_slug)
 
     return db_hospital
 
 @router.post("/{hospital_id}/approve")
-def approve_update(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
+def approve_update(hospital_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
     db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
     if not db_hospital or not db_hospital.pending_updates:
         raise HTTPException(status_code=404, detail="No pending updates found")
@@ -761,14 +787,20 @@ def approve_update(hospital_id: int, db: Session = Depends(get_db), current_user
     import json
     updates = json.loads(str(db_hospital.pending_updates))
     
+    slug_changed = False
     for key, value in updates.items():
         if hasattr(db_hospital, key):
             if key in ["gst_number", "organization_type"] and value:
                 value = value.upper()
+            if key == "hospital_slug" and value != db_hospital.hospital_slug:
+                slug_changed = True
             setattr(db_hospital, key, value)
     
     db_hospital.pending_updates = None  # type: ignore[assignment]
     db.commit()
+    
+    if slug_changed:
+        background_tasks.add_task(activate_ssl, db_hospital.hospital_slug)
     
     log_audit(db, cast(int, current_user.user_id), "UPDATE_APPROVED", f"Approved changes for {db_hospital.legal_name}")
     

@@ -1,0 +1,223 @@
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, EmailStr
+from sqlalchemy.orm import Session
+import uuid
+
+from ..database import get_db
+from ..models import User, UserRole, DoctorProfile, Department, Permission
+from ..routers.auth import get_current_user, require_permission
+from ..utils import get_password_hash
+
+router = APIRouter(
+    prefix="/doctors",
+    tags=["Doctors"],
+    responses={404: {"description": "Not found"}},
+)
+
+class DoctorCreate(BaseModel):
+    full_name: str
+    department_id: int
+    specialization: Optional[str] = None
+    consultation_fee: float = 0.0
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    create_login_account: bool = False
+    password: Optional[str] = None
+    role: UserRole = UserRole.DOCTOR_OPD # Defaults to OPD if account created
+
+class DoctorUpdate(BaseModel):
+    full_name: Optional[str] = None
+    department_id: Optional[int] = None
+    specialization: Optional[str] = None
+    consultation_fee: Optional[float] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class DoctorProfileResponse(BaseModel):
+    profile_id: int
+    full_name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    department_id: int
+    specialization: Optional[str] = None
+    consultation_fee: float
+    is_active: bool
+    user_id: Optional[int] = None
+    
+    class Config:
+        from_attributes = True
+
+@router.get("/", response_model=List[DoctorProfileResponse])
+def get_doctors(
+    hospital_id: Optional[int] = None,
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """Get all doctors in the current hospital."""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.HOSPITAL_ADMIN, UserRole.RECEPTION_STAFF, UserRole.HOSPITAL_STAFF]:
+        raise HTTPException(status_code=403, detail="Not authorized to view doctors")
+        
+    target_hospital_id = current_user.hospital_id
+    if current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF] and hospital_id:
+        target_hospital_id = hospital_id
+
+    doctors = db.query(DoctorProfile).filter(
+        DoctorProfile.hospital_id == target_hospital_id,
+        DoctorProfile.is_active == True
+    ).all()
+    
+    return doctors
+
+@router.post("/", response_model=DoctorProfileResponse)
+def create_doctor(
+    data: DoctorCreate, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_USERS))
+):
+    """Create a new doctor profile, optionally with a User account."""
+    # 1. Check department
+    dept = db.query(Department).filter(
+        Department.department_id == data.department_id,
+        Department.hospital_id == current_user.hospital_id
+    ).first()
+    if not dept:
+        raise HTTPException(status_code=404, detail="Department not found")
+
+    new_user_id = None
+    if data.create_login_account:
+        if not data.email:
+            raise HTTPException(status_code=400, detail="Email is required to create a login account")
+            
+        import secrets
+        import string
+        from ..services.email_service import EmailService
+        
+        password_to_use = data.password
+        is_auto_generated = False
+        if not password_to_use:
+            alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+            password_to_use = ''.join(secrets.choice(alphabet) for i in range(12))
+            is_auto_generated = True
+
+        if db.query(User).filter(User.email == data.email).first():
+            raise HTTPException(status_code=400, detail="Email already registered for login")
+            
+        new_user = User(
+            email=data.email,
+            full_name=data.full_name,
+            hashed_password=get_password_hash(password_to_use),
+            role=data.role,
+            hospital_id=current_user.hospital_id,
+            force_password_change=is_auto_generated
+        )
+        db.add(new_user)
+        db.flush() # get user_id
+        new_user_id = new_user.user_id
+        
+        if is_auto_generated:
+            try:
+                EmailService.send_welcome_email(
+                    email=data.email,
+                    name=data.full_name,
+                    password=password_to_use,
+                    login_url="https://digifortlabs.com/login"
+                )
+            except Exception as e:
+                import logging
+                logging.error(f"Failed to send welcome email to doctor: {e}")
+
+    # 2. Create DoctorProfile
+    profile = DoctorProfile(
+        hospital_id=current_user.hospital_id,
+        user_id=new_user_id,
+        full_name=data.full_name,
+        email=data.email,
+        phone=data.phone,
+        department_id=data.department_id,
+        specialization=data.specialization,
+        consultation_fee=data.consultation_fee
+    )
+    db.add(profile)
+    
+    try:
+        from ..audit import log_audit
+        log_audit(db, current_user.user_id, "DOCTOR_CREATED", f"Created doctor profile: {data.full_name}", hospital_id=current_user.hospital_id)
+    except:
+        pass
+        
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+@router.patch("/{profile_id}", response_model=DoctorProfileResponse)
+def update_doctor(
+    profile_id: int, 
+    data: DoctorUpdate, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_USERS))
+):
+    profile = db.query(DoctorProfile).filter(
+        DoctorProfile.profile_id == profile_id, 
+        DoctorProfile.hospital_id == current_user.hospital_id
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Doctor profile not found")
+        
+    if data.full_name is not None:
+        profile.full_name = data.full_name
+        # Optionally update linked User if one exists
+        if profile.user_id:
+            profile.user.full_name = data.full_name
+            
+    if data.email is not None:
+        profile.email = data.email
+    if data.phone is not None:
+        profile.phone = data.phone
+    if data.is_active is not None:
+        profile.is_active = data.is_active
+        if profile.user_id:
+            profile.user.is_active = data.is_active
+        
+    if data.department_id is not None:
+        dept = db.query(Department).filter(Department.department_id == data.department_id, Department.hospital_id == current_user.hospital_id).first()
+        if not dept:
+            raise HTTPException(status_code=404, detail="Department not found")
+        profile.department_id = data.department_id
+    if data.specialization is not None:
+        profile.specialization = data.specialization
+    if data.consultation_fee is not None:
+        profile.consultation_fee = data.consultation_fee
+
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+@router.delete("/{profile_id}")
+def delete_doctor(
+    profile_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_USERS))
+):
+    profile = db.query(DoctorProfile).filter(
+        DoctorProfile.profile_id == profile_id, 
+        DoctorProfile.hospital_id == current_user.hospital_id
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Doctor profile not found")
+
+    # Soft Delete
+    profile.is_active = False
+    if profile.user_id:
+        profile.user.is_active = False
+        profile.user.is_deleted = True
+    
+    try:
+        from ..audit import log_audit
+        log_audit(db, current_user.user_id, "DOCTOR_DELETED", f"Deactivated doctor profile: {profile.full_name}", hospital_id=current_user.hospital_id)
+    except:
+        pass
+
+    db.commit()
+    return {"message": "Doctor deleted"}

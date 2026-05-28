@@ -1,0 +1,28 @@
+<html>
+<body style="font-family: sans-serif; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+        <div style="background: #3b82f6; color: #fff; padding: 20px; text-align: center;">
+            <h2 style="margin: 0;">Archive Retrieval Started</h2>
+        </div>
+        <div style="padding: 20px;">
+            <p>Hello,</p>
+            <p>We have received your request to retrieve a medical record from the long-term archive.</p>
+            
+            <div style="background: #eff6ff; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+                <p><strong>Patient:</strong> {{ patient_name }}</p>
+                <p><strong>File Name:</strong> {{ filename }}</p>
+                <p><strong>Hospital:</strong> {{ hospital_name }}</p>
+                <p><strong>Estimated Time:</strong> 3-5 Hours (Standard Archive Tier)</p>
+            </div>
+            
+            <p><strong>What's next?</strong></p>
+            <p>AWS is currently moving the file from cold storage to active storage. Once the process is complete, you will receive another email with the secure document attached.</p>
+            
+            <p style="font-size: 14px; color: #666;">No further action is required from your side at this time.</p>
+        </div>
+        <div style="background: #f8fafc; padding: 15px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+            Digifort Labs Archive Management System
+        </div>
+    </div>
+</body>
+</html>

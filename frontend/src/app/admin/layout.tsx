@@ -9,6 +9,7 @@ import InactivityWarning from '../../components/InactivityWarning';
 import { useInactivityLogout } from '../../hooks/useInactivityLogout';
 import GlobalPatientRegister from '@/components/GlobalPatientRegister';
 import GreetingBar from '@/components/hospital/GreetingBar';
+import DashboardSkeleton from '@/components/ui/DashboardSkeleton';
 
 export default function DashboardLayout({
     children,
@@ -124,14 +125,7 @@ export default function DashboardLayout({
     }, [pathname, userRole, router]);
 
     if (!isAuthReady) {
-        return (
-            <div className="flex h-screen items-center justify-center bg-slate-950">
-                <div className="flex flex-col items-center gap-3">
-                    <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-slate-400 text-sm font-medium">Verifying session…</p>
-                </div>
-            </div>
-        );
+        return <DashboardSkeleton />;
     }
 
     return (

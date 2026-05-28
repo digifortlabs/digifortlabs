@@ -6,6 +6,7 @@ import HospitalNavbar from '@/components/hospital/HospitalNavbar';
 import GreetingBar from '@/components/hospital/GreetingBar';
 import MaintenanceBanner from '@/components/MaintenanceBanner';
 import GlobalPatientRegister from '@/components/GlobalPatientRegister';
+import DashboardSkeleton from '@/components/ui/DashboardSkeleton';
 
 export default function HospitalLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
@@ -65,7 +66,7 @@ export default function HospitalLayout({ children }: { children: React.ReactNode
                 window.dispatchEvent(new CustomEvent('hospitalProfileUpdated', { detail: { name: hName || '', fullName: user.full_name || '' } }));
 
                 // Redirect wrong roles away
-                const hospitalRoles = ['hospital_admin', 'hospital_staff', 'mrd_staff', 'account_staff', 'nurse_ipd', 'doctor_ipd', 'doctor_opd'];
+                const hospitalRoles = ['hospital_admin', 'hospital_staff', 'mrd_staff', 'account_staff', 'nurse_ipd', 'doctor_ipd', 'doctor_opd', 'doctor_both', 'reception_staff'];
                 if (!hospitalRoles.includes(role)) {
                     router.replace('/login');
                     return;
@@ -97,14 +98,7 @@ export default function HospitalLayout({ children }: { children: React.ReactNode
     }, [pathname, userRole, router]);
 
     if (!isAuthReady) {
-        return (
-            <div className="flex h-screen items-center justify-center bg-white">
-                <div className="flex flex-col items-center gap-3">
-                    <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-slate-400 text-sm font-medium">Verifying session…</p>
-                </div>
-            </div>
-        );
+        return <DashboardSkeleton />;
     }
 
     return (

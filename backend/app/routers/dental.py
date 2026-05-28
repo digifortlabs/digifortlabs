@@ -356,7 +356,10 @@ def get_dental_stats(
     hospital_id = current_user.hospital_id
     
     # 1. Total Patients
-    total_patients_query = db.query(DentalPatient)
+    total_patients_query = db.query(DentalPatient).join(
+        Patient, DentalPatient.patient_id == Patient.record_id
+    ).filter(Patient.is_deleted == False)
+    
     if hospital_id:
         total_patients_query = total_patients_query.filter(DentalPatient.hospital_id == hospital_id)
     total_patients = total_patients_query.count()
@@ -1287,4 +1290,4 @@ def delete_all_patient_scans(
         db.delete(scan)
 
     db.commit()
-    return None  # 204 No Content
+    return None 

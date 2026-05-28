@@ -9,7 +9,7 @@ export default function StaffManagement() {
     const [staff, setStaff] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    const [newStaff, setNewStaff] = useState({ email: '', password: '', role: 'mrd_staff' });
+    const [newStaff, setNewStaff] = useState({ full_name: '', email: '', password: '', role: 'mrd_staff' });
     const [editStaff, setEditStaff] = useState({ user_id: 0, role: '', password: '' });
     const [isEditing, setIsEditing] = useState(false);
     const [error, setError] = useState('');
@@ -75,7 +75,7 @@ export default function StaffManagement() {
 
             if (data) {
                 setShowModal(false);
-                setNewStaff({ email: '', password: '', role: 'mrd_staff' });
+                setNewStaff({ full_name: '', email: '', password: '', role: 'mrd_staff' });
                 fetchStaff();
             }
         } catch (err: any) {
@@ -230,16 +230,28 @@ export default function StaffManagement() {
 
                         <form onSubmit={isEditing ? handleUpdate : handleCreate} className="space-y-4">
                             {!isEditing && (
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">Email Address</label>
-                                    <input
-                                        type="email"
-                                        required
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition font-medium"
-                                        value={newStaff.email}
-                                        onChange={e => setNewStaff({ ...newStaff, email: e.target.value })}
-                                    />
-                                </div>
+                                <>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">Full Name</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition font-medium"
+                                            value={newStaff.full_name}
+                                            onChange={e => setNewStaff({ ...newStaff, full_name: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">Email Address</label>
+                                        <input
+                                            type="email"
+                                            required
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition font-medium"
+                                            value={newStaff.email}
+                                            onChange={e => setNewStaff({ ...newStaff, email: e.target.value })}
+                                        />
+                                    </div>
+                                </>
                             )}
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">{isEditing ? 'New Password (Optional)' : 'Password'}</label>
