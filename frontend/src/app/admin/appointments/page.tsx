@@ -20,6 +20,7 @@ export default function AppointmentsDashboard() {
     const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
     const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
     const [selectedDoctor, setSelectedDoctor] = useState<string>("all");
+    const [showAllDates, setShowAllDates] = useState<boolean>(false);
     const [viewMode, setViewMode] = useState<"day" | "week">("day");
 
     const [isLoading, setIsLoading] = useState(false);
@@ -60,16 +61,24 @@ export default function AppointmentsDashboard() {
     const loadAppointments = async () => {
         setIsLoading(true);
         try {
-            let url = `/appointments?date=${selectedDate}`;
-            if (selectedDepartment !== "all") url += `&department_id=${selectedDepartment}`;
-            if (selectedDoctor !== "all") url += `&doctor_id=${selectedDoctor}`;
+            let url = `/appointments`;
+            const params: string[] = [];
+            if (!showAllDates && selectedDate) {
+                params.push(`date=${selectedDate}`);
+            }
+            if (selectedDepartment !== "all") params.push(`department_id=${selectedDepartment}`);
+            if (selectedDoctor !== "all") params.push(`doctor_id=${selectedDoctor}`);
 
             if (selectedHospitalId) {
-                url += `&hospital_id=${selectedHospitalId}`;
+                params.push(`hospital_id=${selectedHospitalId}`);
             } else if (['superadmin', 'superadmin_staff', 'website_admin', 'website_staff'].includes(userProfile?.role)) {
                 setAppointments([]);
                 setIsLoading(false);
                 return;
+            }
+
+            if (params.length > 0) {
+                url += `?${params.join('&')}`;
             }
 
             const data = await apiFetch(url);
@@ -136,7 +145,7 @@ export default function AppointmentsDashboard() {
             loadFilters();
             loadAppointments();
         }
-    }, [selectedHospitalId, selectedDate, selectedDepartment, selectedDoctor]);
+    }, [selectedHospitalId, selectedDate, showAllDates, selectedDepartment, selectedDoctor]);
 
     const handleStatusUpdate = async (id: number, newStatus: string) => {
         try {
@@ -191,12 +200,24 @@ export default function AppointmentsDashboard() {
                     <div className="flex flex-col md:flex-row gap-4 justify-between items-end">
                         <div className="flex gap-4 flex-wrap w-full md:w-auto">
                             <div className="w-full sm:w-48">
-                                <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2 block">Date</label>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block">Date</label>
+                                    <label className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-1 cursor-pointer">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={showAllDates} 
+                                            onChange={(e) => setShowAllDates(e.target.checked)}
+                                            className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+                                        />
+                                        All Dates
+                                    </label>
+                                </div>
                                 <Input
                                     type="date"
                                     value={selectedDate}
                                     onChange={(e) => setSelectedDate(e.target.value)}
-                                    className="bg-slate-50/50 border-slate-200 text-slate-800 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl h-11 font-medium px-4"
+                                    disabled={showAllDates}
+                                    className="bg-slate-50/50 border-slate-200 text-slate-800 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl h-11 font-medium px-4 disabled:opacity-50"
                                 />
                             </div>
                             <div className="w-full sm:w-48">
