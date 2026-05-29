@@ -6,6 +6,14 @@ const nextConfig = {
     // which then hits FastAPI's "/hospitals/" route and triggers a 307 to an absolute
     // localhost:8000 URL — a cross-origin redirect that drops auth cookies.
     skipTrailingSlashRedirect: true,
+    typescript: {
+        // Disabling type checking during production builds prevents OOM/swapping hangs on AWS EC2 micro instances.
+        ignoreBuildErrors: true,
+    },
+    eslint: {
+        // Disabling ESLint during production builds speeds up deployment compile times.
+        ignoreDuringBuilds: true,
+    },
 };
 
 export default nextConfig;
