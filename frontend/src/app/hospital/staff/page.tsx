@@ -9,12 +9,13 @@ export default function StaffManagement() {
     const [staff, setStaff] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    const [newStaff, setNewStaff] = useState({ full_name: '', email: '', password: '', role: 'mrd_staff' });
-    const [editStaff, setEditStaff] = useState({ user_id: 0, role: '', password: '' });
+    const [newStaff, setNewStaff] = useState({ full_name: '', email: '', password: '', role: 'mrd_staff', mfa_enabled: true });
+    const [editStaff, setEditStaff] = useState({ user_id: 0, role: '', password: '', mfa_enabled: true });
     const [isEditing, setIsEditing] = useState(false);
     const [error, setError] = useState('');
     const [hospitalInfo, setHospitalInfo] = useState<any>(null);
     const [planLimits] = useState({ 'Standard': 2, 'Premium': 5, 'Enterprise': 10 });
+    const currentUserEmail = typeof window !== 'undefined' ? localStorage.getItem('userEmail') : '';
 
     // New states for confirmation modal and potential edit mode (though edit mode is not fully implemented in this change)
     const [editMode, setEditMode] = useState(false); // Added as per instruction, but not used in this snippet
@@ -75,7 +76,7 @@ export default function StaffManagement() {
 
             if (data) {
                 setShowModal(false);
-                setNewStaff({ full_name: '', email: '', password: '', role: 'mrd_staff' });
+                setNewStaff({ full_name: '', email: '', password: '', role: 'mrd_staff', mfa_enabled: true });
                 fetchStaff();
             }
         } catch (err: any) {
@@ -108,7 +109,7 @@ export default function StaffManagement() {
     };
 
     const handleEdit = (user: any) => {
-        setEditStaff({ user_id: user.user_id, role: user.role, password: '' });
+        setEditStaff({ user_id: user.user_id, role: user.role, password: '', mfa_enabled: user.mfa_enabled !== false });
         setIsEditing(true);
         setShowModal(true);
         setError('');
@@ -118,7 +119,7 @@ export default function StaffManagement() {
         e.preventDefault();
         setError('');
         try {
-            const bodyData: any = { role: editStaff.role };
+            const bodyData: any = { role: editStaff.role, mfa_enabled: editStaff.mfa_enabled };
             if (editStaff.password) {
                 bodyData.password = editStaff.password;
             }
@@ -137,6 +138,8 @@ export default function StaffManagement() {
             setError(err.message);
         }
     };
+
+    const isEditingSelf = isEditing && staff.find(u => u.user_id === editStaff.user_id)?.email === currentUserEmail;
 
     return (
         <div className="w-full mx-auto px-4 pb-4 pt-0">
@@ -188,21 +191,32 @@ export default function StaffManagement() {
                             <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 font-bold text-xl">
                                 {user.email[0].toUpperCase()}
                             </div>
-                            {user.role !== 'hospital_admin' && (
-                                <div className="flex gap-2">
-                                    <button onClick={() => handleEdit(user)} className="text-slate-300 hover:text-indigo-500 transition">
-                                        <Edit2 size={18} />
-                                    </button>
+                            <div className="flex gap-2">
+                                <button onClick={() => handleEdit(user)} className="text-slate-300 hover:text-indigo-500 transition">
+                                    <Edit2 size={18} />
+                                </button>
+                                {user.email !== currentUserEmail && (
                                     <button onClick={() => handleDelete(user.user_id)} className="text-slate-300 hover:text-red-500 transition">
                                         <Trash2 size={18} />
                                     </button>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                         <h3 className="font-bold text-lg text-slate-900 truncate">{user.email}</h3>
-                        <div className="flex items-center gap-2 mt-2 text-sm text-slate-500 font-medium bg-slate-50 w-fit px-3 py-1 rounded-full border border-slate-100">
-                            <Shield size={12} className="text-indigo-500" />
-                            {user.role === 'doctor_ipd' || user.role === 'doctor_opd' ? 'Doctor (IPD & OPD Access)' : user.role.replace('_', ' ').toUpperCase()}
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <div className="flex items-center gap-2 text-xs text-slate-500 font-medium bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
+                                <Shield size={12} className="text-indigo-500" />
+                                {user.role === 'doctor_ipd' || user.role === 'doctor_opd' ? 'Doctor (IPD & OPD Access)' : user.role.replace('_', ' ').toUpperCase()}
+                            </div>
+                            {user.mfa_enabled !== false ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                                    🛡️ OTP Enabled
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full">
+                                    ⚠️ OTP Disabled
+                                </span>
+                            )}
                         </div>
 
                         {user.plain_password && (
@@ -267,7 +281,8 @@ export default function StaffManagement() {
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-2">Role</label>
                                 <select
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition font-medium"
+                                    disabled={isEditingSelf}
+                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition font-medium disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed"
                                     value={isEditing ? (editStaff.role === 'doctor_opd' ? 'doctor_ipd' : editStaff.role) : (newStaff.role === 'doctor_opd' ? 'doctor_ipd' : newStaff.role)}
                                     onChange={(e) => isEditing ? setEditStaff({ ...editStaff, role: e.target.value }) : setNewStaff({ ...newStaff, role: e.target.value })}
                                 >
@@ -278,6 +293,21 @@ export default function StaffManagement() {
                                     <option value="reception_staff">Receptionist (Registration & Intake)</option>
                                     <option value="hospital_admin">Client Admin (Full Access)</option>
                                 </select>
+                            </div>
+                            <div className="flex items-center gap-3 py-2">
+                                <input
+                                    type="checkbox"
+                                    id="mfa_enabled"
+                                    className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 focus:ring-2 cursor-pointer"
+                                    checked={isEditing ? editStaff.mfa_enabled : newStaff.mfa_enabled}
+                                    onChange={e => isEditing 
+                                        ? setEditStaff({ ...editStaff, mfa_enabled: e.target.checked }) 
+                                        : setNewStaff({ ...newStaff, mfa_enabled: e.target.checked })
+                                    }
+                                />
+                                <label htmlFor="mfa_enabled" className="text-sm font-bold text-slate-700 select-none cursor-pointer">
+                                    Enable OTP 2FA Security (New Devices)
+                                </label>
                             </div>
                             <div className="flex gap-3 pt-4">
                                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-6 py-3 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">

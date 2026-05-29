@@ -13,6 +13,24 @@ export default function HospitalLayout({ children }: { children: React.ReactNode
     const pathname = usePathname();
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [userRole, setUserRole] = useState('');
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+    useEffect(() => {
+        const saved = localStorage.getItem('sidebarCollapsed');
+        if (saved !== null) {
+            setSidebarCollapsed(saved === 'true');
+        }
+
+        const handleCollapseChange = (e: Event) => {
+            const customEvent = e as CustomEvent;
+            setSidebarCollapsed(customEvent.detail?.collapsed ?? false);
+        };
+
+        window.addEventListener('hospitalSidebarCollapseChange', handleCollapseChange as EventListener);
+        return () => {
+            window.removeEventListener('hospitalSidebarCollapseChange', handleCollapseChange as EventListener);
+        };
+    }, []);
 
     useEffect(() => {
         // Consume cross-subdomain auth handoff hash
@@ -112,7 +130,7 @@ export default function HospitalLayout({ children }: { children: React.ReactNode
 
             <HospitalNavbar />
 
-            <div className="relative z-10 flex-1 flex flex-col min-h-screen lg:pl-72 transition-all duration-300">
+            <div className={`relative z-10 flex-1 flex flex-col min-h-screen transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-72'}`}>
                 {/* Sticky greeting bar — always visible on every hospital page */}
                 <div className="sticky top-0 z-30">
                     <MaintenanceBanner />

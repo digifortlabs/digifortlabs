@@ -51,6 +51,7 @@ class UserCreate(BaseModel):
     full_name: str # Fix: Added full_name
     password: str
     role: UserRole
+    mfa_enabled: Optional[bool] = True
 
 class HospitalMini(BaseModel):
     hospital_id: int
@@ -68,6 +69,7 @@ class UserResponse(BaseModel):
     role: UserRole
     hospital_id: Optional[int] = None
     hospital: Optional[HospitalMini] = None
+    mfa_enabled: bool = True
     
     class Config:
         from_attributes = True
@@ -174,7 +176,8 @@ def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: U
         full_name=user.full_name, # Fix: Populate full_name
         hashed_password=get_password_hash(user.password),
         role=user.role,
-        hospital_id=target_hospital_id
+        hospital_id=target_hospital_id,
+        mfa_enabled=user.mfa_enabled if user.mfa_enabled is not None else True
     )
     
     try:
@@ -193,6 +196,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: U
 class UserUpdate(BaseModel):
     role: Optional[UserRole] = None
     password: Optional[str] = None
+    mfa_enabled: Optional[bool] = None
 
 @router.patch("/{user_id}")
 def update_user(user_id: int, data: UserUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_USERS))):
@@ -238,6 +242,9 @@ def update_user(user_id: int, data: UserUpdate, db: Session = Depends(get_db), c
         if is_self:
             current_user.force_password_change = False
         target_user.current_session_id = str(uuid.uuid4()) # Invalidate existing sessions
+
+    if data.mfa_enabled is not None:
+        target_user.mfa_enabled = data.mfa_enabled
         
     try:
         from ..audit import log_audit

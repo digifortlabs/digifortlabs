@@ -215,6 +215,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_deleted = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False) # For email verification
+    mfa_enabled = Column(Boolean, default=True)
     
     # Auth & Security Tracking
     locked_until = Column(DateTime, nullable=True)
@@ -835,7 +836,7 @@ class TreatmentPlan(Base):
     __tablename__ = "dental_treatment_plans"
 
     plan_id = Column(Integer, primary_key=True, index=True)
-    dental_patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
     
     name = Column(String, nullable=False) # e.g. "Full Mouth Rehabilitation"
     status = Column(String, default="proposed") # proposed, accepted, completed, rejected
@@ -893,7 +894,7 @@ class Dental3DScan(Base):
     __tablename__ = "dental_3d_scans"
 
     scan_id = Column(Integer, primary_key=True, index=True)
-    dental_patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
     
     scan_type = Column(String, nullable=True) # e.g., "Intraoral", "CBCT", "Model"
     file_path = Column(String, nullable=False) # Path to S3 or local storage
@@ -921,7 +922,7 @@ class PeriodontalExam(Base):
     __tablename__ = "periodontal_exams"
 
     exam_id = Column(Integer, primary_key=True, index=True)
-    dental_patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=False)
     dentist_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
     
     exam_date = Column(DateTime(timezone=True), server_default=func.now())
@@ -986,8 +987,7 @@ class InsuranceProvider(Base):
 class InsuranceClaim(Base):
     __tablename__ = "insurance_claims"
     claim_id = Column(Integer, primary_key=True, index=True)
-    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True)
-    dental_patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=True)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=True)
     provider_id = Column(Integer, ForeignKey("insurance_providers.provider_id"), nullable=False)
     
     policy_number = Column(String, nullable=False)
@@ -998,7 +998,6 @@ class InsuranceClaim(Base):
     resolved_date = Column(DateTime, nullable=True)
     notes = Column(Text, nullable=True)
     
-    patient = relationship("Patient")
     dental_patient = relationship("DentalPatient", back_populates="insurance_claims")
     provider = relationship("InsuranceProvider", back_populates="claims")
 
@@ -1017,8 +1016,7 @@ class DentalLab(Base):
 class DentalLabOrder(Base):
     __tablename__ = "dental_lab_orders"
     order_id = Column(Integer, primary_key=True, index=True)
-    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True)
-    dental_patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=True)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=True)
     lab_id = Column(Integer, ForeignKey("dental_labs.lab_id"), nullable=False)
     dentist_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=False)
     
@@ -1032,7 +1030,6 @@ class DentalLabOrder(Base):
     received_date = Column(DateTime(timezone=True), nullable=True)
     status = Column(String, default="sent") # sent, received, fitted, returned
     
-    patient = relationship("Patient")
     dental_patient = relationship("DentalPatient", back_populates="lab_orders")
     lab = relationship("DentalLab", back_populates="orders")
     dentist = relationship("DoctorProfile")
@@ -1040,8 +1037,7 @@ class DentalLabOrder(Base):
 class OrthoRecord(Base):
     __tablename__ = "ortho_records"
     record_id = Column(Integer, primary_key=True, index=True)
-    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True)
-    dental_patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=True)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=True)
     dentist_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=False)
     
     visit_date = Column(DateTime(timezone=True), server_default=func.now())
@@ -1052,15 +1048,13 @@ class OrthoRecord(Base):
     notes = Column(Text, nullable=True)
     next_visit_tasks = Column(Text, nullable=True)
     
-    patient = relationship("Patient")
     dental_patient = relationship("DentalPatient", back_populates="ortho_records")
     dentist = relationship("DoctorProfile")
 
 class CommunicationLog(Base):
     __tablename__ = "communication_logs"
     log_id = Column(Integer, primary_key=True, index=True)
-    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True)
-    dental_patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=True)
+    patient_id = Column(Integer, ForeignKey("dental_patients.patient_id"), nullable=True)
     
     comm_type = Column(String, nullable=False) # SMS, Email, WhatsApp
     category = Column(String, nullable=False) # Reminder, Post-Op, Marketing
@@ -1068,7 +1062,6 @@ class CommunicationLog(Base):
     sent_at = Column(DateTime(timezone=True), server_default=func.now())
     status = Column(String, default="sent") # sent, failed, delivered
     
-    patient = relationship("Patient")
     dental_patient = relationship("DentalPatient", back_populates="communications")
 
 class DentalInventoryItem(Base):

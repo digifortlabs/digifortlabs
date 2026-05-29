@@ -31,7 +31,14 @@ export default function PatientsDirectory() {
         if (id) {
             loadFilters(id);
         }
-    }, []);
+
+        const handlePatientRegistered = () => {
+            fetchPatients(id, searchTerm);
+        };
+        
+        window.addEventListener('patient-registered', handlePatientRegistered);
+        return () => window.removeEventListener('patient-registered', handlePatientRegistered);
+    }, [searchTerm]);
 
     const loadFilters = async (hId: string) => {
         try {

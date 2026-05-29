@@ -210,9 +210,9 @@ async def login_for_access_token(
                     known_devices = []
             
             # --- TRUSTED DEVICE CHECK ---
-            # MFA/OTP is enabled for administrative accounts.
+            # MFA/OTP is enabled for administrative accounts (if user has mfa_enabled = True).
             is_demo = user.email.lower() == os.environ.get("DEMO_ACCOUNT_EMAIL", "").lower()
-            is_admin = user.role in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.WAREHOUSE_MANAGER]
+            is_admin = user.role in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.WAREHOUSE_MANAGER] and getattr(user, 'mfa_enabled', True)
             trusted_token = request.cookies.get("trusted_device")
             is_trusted = False
             

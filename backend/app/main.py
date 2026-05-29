@@ -302,6 +302,9 @@ app.include_router(patient_billing.router)
 from .routers import hms
 app.include_router(hms.router, dependencies=[Depends(require_module("hms"))])
 
+from .routers import clinic
+app.include_router(clinic.router, dependencies=[Depends(require_module("clinic"))])
+
 try:
     from .routers import scanner
     app.include_router(scanner.router) # Scanner Service

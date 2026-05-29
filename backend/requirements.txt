@@ -26,7 +26,7 @@ opencv-python-headless
 pytesseract
 PyMuPDF
 Pillow
-google-generativeai
+google-genai
 pylsd-nova
 scipy
 fastapi-csrf-protect

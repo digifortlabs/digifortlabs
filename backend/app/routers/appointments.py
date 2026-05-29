@@ -203,7 +203,7 @@ async def create_appointment(
     
     # Auto-assign date and times if not provided
     if not payload.appointment_date:
-        payload.appointment_date = now.date()
+        payload.appointment_date = datetime.combine(now.date(), datetime.min.time())
         
     if not payload.start_time or not payload.end_time:
         # Find the latest appointment for this doctor today

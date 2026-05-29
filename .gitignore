@@ -60,3 +60,10 @@ server_manager/logs/
 .code-review-graph/
 
 *.db
+
+# Deployment Archive & Logs
+deploy.tar.gz
+*.tar.gz
+logs/
+backend/logs/
+

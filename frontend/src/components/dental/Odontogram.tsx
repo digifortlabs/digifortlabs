@@ -25,13 +25,10 @@ const getToothShape = (id: number) => {
     const n = id % 10; // Last digit (1-8)
     // 1=Central Incisor, 2=Lateral Incisor, 3=Canine, 4=1st Premolar, 5=2nd Premolar, 6=1st Molar, 7=2nd Molar, 8=3rd Molar
 
-    // Scale and adjust viewbox for different types?
-    // Let's keep it simple with standardized width/height ratios or just use generic types for now.
-
-    if (n === 1 || n === 2) return { type: 'Incisor', root: ROOT_SINGLE, crown: CROWN_INCISOR, width: 35, height: 45 };
-    if (n === 3) return { type: 'Canine', root: ROOT_SINGLE, crown: CROWN_CANINE, width: 35, height: 45 };
-    if (n === 4 || n === 5) return { type: 'Premolar', root: ROOT_SINGLE, crown: CROWN_PREMOLAR, width: 40, height: 40 };
-    return { type: 'Molar', root: ROOT_DOUBLE, crown: CROWN_MOLAR, width: 45, height: 50 };
+    if (n === 1 || n === 2) return { type: 'Incisor', root: ROOT_SINGLE, crown: CROWN_INCISOR, viewWidth: 35, viewHeight: 45, displayWidth: 20, displayHeight: 26 };
+    if (n === 3) return { type: 'Canine', root: ROOT_SINGLE, crown: CROWN_CANINE, viewWidth: 35, viewHeight: 45, displayWidth: 20, displayHeight: 26 };
+    if (n === 4 || n === 5) return { type: 'Premolar', root: ROOT_SINGLE, crown: CROWN_PREMOLAR, viewWidth: 40, viewHeight: 40, displayWidth: 23, displayHeight: 23 };
+    return { type: 'Molar', root: ROOT_DOUBLE, crown: CROWN_MOLAR, viewWidth: 45, viewHeight: 50, displayWidth: 26, displayHeight: 29 };
 };
 
 // --- Data ---
@@ -78,7 +75,7 @@ const Tooth = ({ id, status = [], selected, onClick }: ToothProps) => {
             onClick={() => onClick(id)}
             className={cn(
                 "flex flex-col items-center cursor-pointer transition-all relative group select-none",
-                selected ? "scale-110 z-10" : "hover:scale-105",
+                selected ? "scale-115 z-10" : "hover:scale-105",
                 isSupra && (isUpper ? "translate-y-2" : "-translate-y-2"), // Simple shift for supra-eruption
                 isMobility && "animate-pulse" // Simple pulse for mobility
             )}
@@ -89,11 +86,11 @@ const Tooth = ({ id, status = [], selected, onClick }: ToothProps) => {
                 "relative transition-transform duration-300",
                 isImpacted && "rotate-45 opacity-80 translate-y-2" // Impacted: Rotated
             )}
-                style={{ width: shape.width, height: shape.height }}
+                style={{ width: shape.displayWidth, height: shape.displayHeight }}
             >
                 {/* TOOTH SVG */}
                 <svg
-                    viewBox={`0 0 ${shape.width} ${shape.height}`}
+                    viewBox={`0 0 ${shape.viewWidth} ${shape.viewHeight}`}
                     className={cn(
                         "w-full h-full drop-shadow-sm transition-all duration-300",
                         isUpper ? "rotate-180" : "" // Flip upper teeth to point roots up
@@ -131,17 +128,17 @@ const Tooth = ({ id, status = [], selected, onClick }: ToothProps) => {
 
                     {/* Caries: Dark Spot on Crown */}
                     {hasCaries && !isMissing && !isRootStump && (
-                        <circle cx={shape.width / 2} cy={shape.height * 0.4} r="4" fill="rgba(60, 20, 20, 0.8)" />
+                        <circle cx={shape.viewWidth / 2} cy={shape.viewHeight * 0.4} r="4" fill="rgba(60, 20, 20, 0.8)" />
                     )}
 
                     {/* Fracture: ZigZag Line */}
                     {isFracture && !isMissing && !isRootStump && (
-                        <path d={`M${shape.width * 0.2},${shape.height * 0.3} L${shape.width * 0.5},${shape.height * 0.5} L${shape.width * 0.8},${shape.height * 0.3}`} fill="none" stroke="red" strokeWidth="2" />
+                        <path d={`M${shape.viewWidth * 0.2},${shape.viewHeight * 0.3} L${shape.viewWidth * 0.5},${shape.viewHeight * 0.5} L${shape.viewWidth * 0.8},${shape.viewHeight * 0.3}`} fill="none" stroke="red" strokeWidth="2" />
                     )}
 
                     {/* Abscess: Red Circle at Root Apex */}
                     {hasAbscess && !isMissing && (
-                        <circle cx={shape.width / 2} cy={shape.height * 0.85} r="4" fill="rgba(220, 38, 38, 0.8)" className="animate-pulse" />
+                        <circle cx={shape.viewWidth / 2} cy={shape.viewHeight * 0.85} r="4" fill="rgba(220, 38, 38, 0.8)" className="animate-pulse" />
                     )}
 
                 </svg>
@@ -151,30 +148,30 @@ const Tooth = ({ id, status = [], selected, onClick }: ToothProps) => {
                 {/* Missing: Big Red X */}
                 {isMissing && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <span className="text-red-500 font-bold text-4xl opacity-80">✕</span>
+                        <span className="text-red-500 font-bold text-2xl opacity-80">✕</span>
                     </div>
                 )}
 
                 {/* Selection Highlight Ring */}
                 {selected && (
-                    <div className="absolute inset-[-4px] border-2 border-blue-500 rounded-lg pointer-events-none animate-pulse" />
+                    <div className="absolute inset-[-3px] border-2 border-blue-500 rounded-lg pointer-events-none animate-pulse" />
                 )}
             </div>
 
             {/* Label */}
             <span className={cn(
-                "text-[10px] font-bold mt-1 tracking-tighter",
+                "text-[9px] font-bold mt-0.5 tracking-tighter",
                 selected ? "text-blue-600" : "text-gray-400"
             )}>{id}</span>
 
             {/* Status Dots (for fallback or extra info) */}
-            <div className="flex gap-0.5 mt-0.5 h-1.5 flex-wrap justify-center max-w-[40px]">
+            <div className="flex gap-0.5 mt-0.5 h-1.5 flex-wrap justify-center max-w-[30px]">
                 {status.map(s => {
                     // Don't show dots for visually distinct conditions to reduce clutter
                     if (['missing', 'caries', 'abscess', 'fracture', 'root_stump', 'impacted'].includes(s)) return null;
                     const cond = CONDITIONS.find(c => c.id === s);
                     if (!cond) return null;
-                    return <div key={s} className={cn("w-1.5 h-1.5 rounded-full", cond.color)} title={cond.label} />
+                    return <div key={s} className={cn("w-1 h-1 rounded-full", cond.color)} title={cond.label} />
                 })}
             </div>
         </div>
@@ -256,10 +253,10 @@ export default function Odontogram({
                     </div>
 
                     {/* Teeth Container */}
-                    <div className="flex flex-col items-center space-y-12 overflow-x-auto pb-4 px-4">
+                    <div className="flex flex-col items-center space-y-8 overflow-x-auto pb-2 px-2">
                         {/* Upper Arch */}
-                        <div className="flex justify-center gap-1 min-w-max border-b-2 border-dashed border-gray-200 pb-4 relative">
-                            <span className="absolute -left-8 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 -rotate-90">UPPER</span>
+                        <div className="flex justify-center gap-1 min-w-max border-b-2 border-dashed border-gray-200 pb-3 relative">
+                            <span className="absolute -left-8 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 -rotate-90">UPPER</span>
                             <div className="flex gap-1 border-r-2 border-gray-300 pr-2">
                                 {UPPER_RIGHT.map(id => (
                                     <Tooth key={id} id={id} status={toothStatus[id]} selected={selectedTeeth.includes(id)} onClick={handleToothClick} />
@@ -274,7 +271,7 @@ export default function Odontogram({
 
                         {/* Lower Arch */}
                         <div className="flex justify-center gap-1 min-w-max relative">
-                            <span className="absolute -left-8 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 -rotate-90">LOWER</span>
+                            <span className="absolute -left-8 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 -rotate-90">LOWER</span>
                             <div className="flex gap-1 border-r-2 border-gray-300 pr-2">
                                 {LOWER_RIGHT.map(id => (
                                     <Tooth key={id} id={id} status={toothStatus[id]} selected={selectedTeeth.includes(id)} onClick={handleToothClick} />

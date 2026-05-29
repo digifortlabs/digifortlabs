@@ -2,19 +2,19 @@ import logging
 logger = logging.getLogger(__name__)
 import os
 import json
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from typing import Optional, Dict
 
 class AIService:
     def __init__(self, api_key: str):
         self.api_key = api_key
         if self.api_key:
-            genai.configure(api_key=self.api_key)
+            self.client = genai.Client(api_key=self.api_key)
             self.model_name = "gemini-1.5-flash"
             self.flash_models = ["gemini-1.5-flash", "gemini-pro-vision"]
-            self.model = genai.GenerativeModel(self.model_name)
         else:
-            self.model = None
+            self.client = None
             self.flash_models = []
             logger.info("[WARN] WARNING: API Key not provided. AI Data Extraction disabled.")
 
@@ -22,7 +22,7 @@ class AIService:
         """
         Uses Gemini to extract structured patient data from OCR text.
         """
-        if not self.model or not ocr_text:
+        if not self.client or not ocr_text:
             return None
 
         prompt = f"""
@@ -47,7 +47,10 @@ class AIService:
         """
 
         try:
-            response = self.model.generate_content(prompt)
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
+            )
             if not response.text:
                 return None
             
@@ -61,7 +64,7 @@ class AIService:
         """
         Uses Gemini's multimodal capabilities to extract data directly from an image.
         """
-        if not self.model or not image_bytes:
+        if not self.client or not image_bytes:
             return None
 
         prompt = """
@@ -85,12 +88,13 @@ class AIService:
         """
 
         try:
-            image_data = {
-                "mime_type": mime_type,
-                "data": image_bytes
-            }
-            
-            response = self.model.generate_content([prompt, image_data])
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[
+                    prompt,
+                    types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+                ]
+            )
             if not response.text:
                 return None
             

@@ -248,6 +248,12 @@ export default function RecordManager({ mode }: RecordManagerProps) {
             fetchPatients();
             fetchDoctors();
         }
+
+        const handlePatientRegistered = () => {
+            fetchPatients();
+        };
+        window.addEventListener('patient-registered', handlePatientRegistered);
+        return () => window.removeEventListener('patient-registered', handlePatientRegistered);
     }, [selectedHospitalId, startDate, endDate, showAllDates]);
 
     useEffect(() => {
@@ -306,7 +312,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
             let data;
             const patientPayload = { ...body };
             delete patientPayload.doctor_profile_ids; // Backend POST /patients/ might not expect this yet
-            
+
             if (isEditing && selectedPatientId) {
                 data = await apiFetch(`patients/${selectedPatientId}`, { method: 'PUT', body: patientPayload });
             } else {
@@ -323,7 +329,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
                                 method: 'POST',
                                 body: { profile_id: pid }
                             });
-                        } catch(e) { console.error("Doctor assignment error", e) }
+                        } catch (e) { console.error("Doctor assignment error", e) }
                     }
                 }
 
@@ -373,7 +379,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
             aadhaar_number: p.aadhaar_number || '',
             patient_category: config.category,
             dob: p.dob ? new Date(p.dob).toISOString().split('T')[0] : '',
-            doctor_profile_ids: p.assigned_doctors?.map((d:any) => d.profile_id) || []
+            doctor_profile_ids: p.assigned_doctors?.map((d: any) => d.profile_id) || []
         }));
         setAgeUnit(unit);
         setIsExistingPatient(true);
@@ -498,10 +504,10 @@ export default function RecordManager({ mode }: RecordManagerProps) {
             {/* No hospital selected — prompt superadmin to pick one */}
             {!selectedHospitalId && ['website_admin', 'website_staff', 'superadmin', 'superadmin_staff'].includes(userRole) ? (
                 <div className="mt-2 pb-20">
-                    <HospitalSelectionPrompt 
-                        requiredModule={mode === 'corporate' ? 'corporate' : 'core'} 
+                    <HospitalSelectionPrompt
+                        requiredModule={mode === 'corporate' ? 'corporate' : 'core'}
                         storageKey="mrd_hospital_id"
-                        onSelect={setSelectedHospitalId} 
+                        onSelect={setSelectedHospitalId}
                     />
                 </div>
             ) : (
@@ -719,7 +725,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
                                                                         admission_date: p.admission_date ? new Date(p.admission_date).toISOString().split('T')[0] : '',
                                                                         discharge_date: p.discharge_date ? new Date(p.discharge_date).toISOString().split('T')[0] : '',
                                                                         doctor_name: p.doctor_name || '',
-                                                                        doctor_profile_ids: p.assigned_doctors?.map((d:any) => d.profile_id) || [],
+                                                                        doctor_profile_ids: p.assigned_doctors?.map((d: any) => d.profile_id) || [],
                                                                         weight: p.weight || '',
                                                                         mediclaim: p.mediclaim || '',
                                                                         diagnosis: p.diagnosis || '',
@@ -773,7 +779,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
                 activeTab={activeTab}
                 setActiveTab={(val) => setActiveTab(val as 'identity' | 'admission' | 'clinical')}
                 isExtracting={isExtracting}
-                onAIExtraction={(file) => {}}
+                onAIExtraction={(file) => { }}
                 onOpenCamera={() => setShowCameraModal(true)}
                 onReset={resetForm}
                 onSubmit={handleCreate}
@@ -800,7 +806,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
             <CameraModal
                 isOpen={showCameraModal}
                 onClose={() => setShowCameraModal(false)}
-                onCapture={(file) => {}}
+                onCapture={(file) => { }}
             />
         </DashboardPageShell>
     );
