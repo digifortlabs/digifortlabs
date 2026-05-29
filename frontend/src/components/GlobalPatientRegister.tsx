@@ -16,6 +16,7 @@ import { apiFetch } from '@/config/api';
 import { useTerminology } from '@/hooks/useTerminology';
 import { toTitleCase, toUpperCaseMRD } from '@/lib/formatters';
 import QuickAssignDoctorModal from './QuickAssignDoctorModal';
+import IPDAdmissionModal from './IPDAdmissionModal';
 
 const calculateAgeFromDob = (dobString: string) => {
     if (!dobString) return null;
@@ -111,6 +112,7 @@ export default function GlobalPatientRegister() {
 
     // Assign Doctor Modal State
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+    const [isIPDModalOpen, setIsIPDModalOpen] = useState(false);
     const [newlyRegisteredId, setNewlyRegisteredId] = useState<number | null>(null);
     const [newlyRegisteredName, setNewlyRegisteredName] = useState<string>('');
 
@@ -167,6 +169,11 @@ export default function GlobalPatientRegister() {
             return;
         }
 
+        if (formData.contact_number.length !== 10) {
+            alert("Contact Number must be exactly 10 digits.");
+            return;
+        }
+
         setIsSaving(true);
         try {
             let endpoint = 'patients';
@@ -189,7 +196,11 @@ export default function GlobalPatientRegister() {
 
             setNewlyRegisteredId(data.record_id || data.patient_id);
             setNewlyRegisteredName(`${namePrefix} ${formData.full_name.trim()}`);
-            setIsAssignModalOpen(true);
+            if (formData.patient_category === 'IPD') {
+                setIsIPDModalOpen(true);
+            } else {
+                setIsAssignModalOpen(true);
+            }
         } catch (error: any) {
             console.error("Registration failed:", error);
             if (error.status === 409 && error.data && error.data.detail) {
@@ -199,7 +210,11 @@ export default function GlobalPatientRegister() {
                 if (window.confirm(confirmMsg)) {
                     setNewlyRegisteredId(existingId);
                     setNewlyRegisteredName(`${namePrefix} ${formData.full_name.trim()}`);
-                    setIsAssignModalOpen(true);
+                    if (formData.patient_category === 'IPD') {
+                        setIsIPDModalOpen(true);
+                    } else {
+                        setIsAssignModalOpen(true);
+                    }
                 }
             } else {
                 alert(`Error: ${error.message || "Data formatting error in server response."}`);
@@ -284,7 +299,8 @@ export default function GlobalPatientRegister() {
                                                 placeholder="Phone number"
                                                 className="h-11 pl-10 border-slate-200 rounded-xl focus:ring-indigo-500"
                                                 value={formData.contact_number}
-                                                onChange={e => setFormData({...formData, contact_number: e.target.value})}
+                                                onChange={e => setFormData({...formData, contact_number: e.target.value.replace(/\D/g, '').slice(0, 10)})}
+                                                maxLength={10}
                                                 required
                                             />
                                         </div>
@@ -296,6 +312,8 @@ export default function GlobalPatientRegister() {
                                                 type="date"
                                                 className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500 font-medium"
                                                 value={formData.dob}
+                                                max={new Date().toISOString().split('T')[0]}
+                                                min="1900-01-01"
                                                 onChange={e => {
                                                     const dobVal = e.target.value;
                                                     const calculated = calculateAgeFromDob(dobVal);
@@ -371,7 +389,8 @@ export default function GlobalPatientRegister() {
                                                 placeholder="12-digit Aadhaar No"
                                                 className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500"
                                                 value={formData.aadhaar_number}
-                                                onChange={e => setFormData({...formData, aadhaar_number: e.target.value})}
+                                                onChange={e => setFormData({...formData, aadhaar_number: e.target.value.replace(/\D/g, '').slice(0, 12)})}
+                                                maxLength={12}
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -380,7 +399,8 @@ export default function GlobalPatientRegister() {
                                                 placeholder="ABHA ID (14 digits)"
                                                 className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500"
                                                 value={formData.abha_id}
-                                                onChange={e => setFormData({...formData, abha_id: e.target.value})}
+                                                onChange={e => setFormData({...formData, abha_id: e.target.value.replace(/\D/g, '').slice(0, 14)})}
+                                                maxLength={14}
                                             />
                                         </div>
                                         <div className="space-y-2">
@@ -413,12 +433,22 @@ export default function GlobalPatientRegister() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Blood Group</Label>
-                                    <Input 
-                                        placeholder="e.g. O+"
-                                        className="h-11 border-slate-200 rounded-xl focus:ring-rose-500"
+                                    <select
+                                        className="w-full h-11 border border-slate-200 rounded-xl bg-white text-sm px-3 outline-none focus:ring-2 focus:ring-rose-500 font-medium"
                                         value={formData.blood_group}
                                         onChange={e => setFormData({...formData, blood_group: e.target.value})}
-                                    />
+                                    >
+                                        <option value="">Select Blood Group</option>
+                                        <option value="A+">A+</option>
+                                        <option value="A-">A-</option>
+                                        <option value="B+">B+</option>
+                                        <option value="B-">B-</option>
+                                        <option value="AB+">AB+</option>
+                                        <option value="AB-">AB-</option>
+                                        <option value="O+">O+</option>
+                                        <option value="O-">O-</option>
+                                        <option value="Bombay Blood Group">Bombay Blood Group</option>
+                                    </select>
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Weight (kg)</Label>
@@ -475,6 +505,17 @@ export default function GlobalPatientRegister() {
                 }}
                 patientId={newlyRegisteredId}
                 patientName={newlyRegisteredName}
+            />
+
+            <IPDAdmissionModal 
+                isOpen={isIPDModalOpen}
+                patientId={newlyRegisteredId}
+                patientName={newlyRegisteredName}
+                onClose={() => {
+                    setIsIPDModalOpen(false);
+                    handleClose(); 
+                    window.dispatchEvent(new CustomEvent('patient-registered'));
+                }}
             />
         </div>
     );

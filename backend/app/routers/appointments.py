@@ -36,7 +36,7 @@ class DepartmentResponse(DepartmentBase):
         from_attributes = True
 
 class DoctorResponse(BaseModel):
-    user_id: int
+    profile_id: int
     full_name: str
     department_id: int
     specialization: Optional[str] = None
@@ -285,18 +285,19 @@ async def get_doctors(
     db: Session = Depends(get_db)
 ):
     """Get doctors, optionally filtered by department."""
-    query = db.query(User, DoctorProfile).join(
-        DoctorProfile, User.user_id == DoctorProfile.user_id
-    ).filter(User.hospital_id == current_user.hospital_id)
+    query = db.query(DoctorProfile).filter(
+        DoctorProfile.hospital_id == current_user.hospital_id,
+        DoctorProfile.is_active == True
+    )
     
     if department_id:
         query = query.filter(DoctorProfile.department_id == department_id)
         
     doctors = []
-    for user, profile in query.all():
+    for profile in query.all():
         doctors.append(DoctorResponse(
-            user_id=user.user_id,
-            full_name=user.full_name,
+            profile_id=profile.profile_id,
+            full_name=profile.full_name,
             department_id=profile.department_id,
             specialization=profile.specialization,
             consultation_fee=profile.consultation_fee

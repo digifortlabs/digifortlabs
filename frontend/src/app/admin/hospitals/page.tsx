@@ -96,6 +96,7 @@ export default function ManageClientsPage() {
     const [newHospital, setNewHospital] = useState({
         // Profile
         legal_name: '',
+        organization_type: 'Hospital',
         established_year: new Date().getFullYear(),
         registration_number: '',
         director_name: '',
@@ -286,6 +287,7 @@ export default function ManageClientsPage() {
                     setOnboardStep(1);
                     setNewHospital({
                         legal_name: '',
+                        organization_type: 'Hospital',
                         established_year: new Date().getFullYear(),
                         registration_number: '',
                         director_name: '',
@@ -1004,7 +1006,7 @@ export default function ManageClientsPage() {
                             {/* STEP 1: Hospital Profile */}
                             {onboardStep === 1 && (
                                 <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-3 gap-4">
                                         <div className="space-y-1">
                                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Legal Name *</label>
                                             <input 
@@ -1014,6 +1016,19 @@ export default function ManageClientsPage() {
                                                 onChange={(e) => setNewHospital({...newHospital, legal_name: e.target.value})}
                                                 className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                             />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Organization Type *</label>
+                                            <select
+                                                value={newHospital.organization_type}
+                                                onChange={(e) => setNewHospital({...newHospital, organization_type: e.target.value})}
+                                                className="w-full p-3 rounded-xl border border-slate-200 bg-white focus:outline-none"
+                                            >
+                                                <option value="Hospital">Hospital</option>
+                                                <option value="Clinic">Clinic</option>
+                                                <option value="Dental Clinic">Dental Clinic</option>
+                                                <option value="Independent Doctor">Independent Doctor</option>
+                                            </select>
                                         </div>
                                         <div className="space-y-1">
                                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Primary Specialty *</label>

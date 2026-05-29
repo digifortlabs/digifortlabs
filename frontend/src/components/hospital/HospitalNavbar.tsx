@@ -49,6 +49,7 @@ const CATEGORIZED_NAV_ITEMS = [
     {
         category: 'Clinical Specialties',
         items: [
+            { label: 'Emergency / Casualty', href: '/hospital/emergency', icon: Activity, roles: ['hospital_admin', 'reception_staff', 'doctor_opd', 'doctor_ipd', 'nurse_ipd'] },
             { label: 'HMS Operations', href: '/hospital/hms', icon: Bed, roles: ['hospital_admin', 'nurse_ipd', 'doctor_ipd'], module: 'hms' },
             { label: 'Clinic OPD', href: '/hospital/clinic', icon: Stethoscope, roles: ['hospital_admin', 'doctor_opd'], module: 'clinic' },
             { label: 'Dental Portal', href: '/hospital/dental', icon: Tooth, roles: ['hospital_admin', 'doctor_opd'], module: 'dental' },

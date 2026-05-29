@@ -6,7 +6,7 @@ from datetime import datetime, date, timedelta
 from pydantic import BaseModel
 
 from ..database import get_db
-from ..models import User, Patient, IPDAdmission, Ward, Bed, OperationTheater, MedicalEquipment, RFIDCard, Hospital, PatientInvoice, PatientInvoiceItem
+from ..models import User, Patient, IPDAdmission, Ward, Bed, OperationTheater, MedicalEquipment, RFIDCard, Hospital, PatientInvoice, PatientInvoiceItem, EmergencyVisit
 from .auth import get_current_user
 
 router = APIRouter(prefix="/hms", tags=["Hospital Management System"])
@@ -561,6 +561,15 @@ def admit_patient(
     if ward:
         ward.occupied_beds = db.query(Bed).filter(Bed.ward_id == ward.ward_id, Bed.is_occupied == True).count()  # type: ignore
         
+    # Auto-close any active Emergency Visits for this patient
+    active_er_visits = db.query(EmergencyVisit).filter(
+        EmergencyVisit.patient_id == patient_id,
+        EmergencyVisit.hospital_id == current_user.hospital_id,
+        EmergencyVisit.status == "Active"
+    ).all()
+    for er_visit in active_er_visits:
+        er_visit.status = "Admitted"
+        
     db.commit()
     db.refresh(new_admission)
     return new_admission
@@ -797,14 +806,113 @@ def add_doctor_order(
         "frequency": order.frequency,
         "frequency_hours": freq_hours,
         "notes": order.notes,
+        "status": "active",
         "start_date": datetime.now().isoformat(),
         "next_due": next_due_dt.isoformat(),
-        "prescribed_by": current_user.full_name
+        "prescribed_by": current_user.full_name,
+        "history": [{
+            "action": "created",
+            "timestamp": datetime.now().isoformat(),
+            "actor": current_user.full_name,
+            "details": f"Prescribed {order.medicine_name} {order.dosage} {order.frequency}"
+        }]
     }
     orders.append(new_order)
     admission.medication_orders = orders  # type: ignore
     db.commit()
     return new_order
+
+@router.put("/admissions/{admission_id}/orders/{order_id}")
+def update_doctor_order(
+    admission_id: int,
+    order_id: str,
+    order: MedicationOrder,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Edit a medication order (Doctor)"""
+    check_doctor_role(current_user)
+    admission = db.query(IPDAdmission).filter(
+        IPDAdmission.admission_id == admission_id,
+        IPDAdmission.hospital_id == current_user.hospital_id
+    ).first()
+    if not admission:
+        raise HTTPException(status_code=404, detail="Admission not found")
+        
+    raw_orders = admission.medication_orders
+    orders = list(raw_orders) if isinstance(raw_orders, list) else []
+    
+    order_found = False
+    for o in orders:
+        if o.get("id") == order_id:
+            old_dosage = o.get("dosage")
+            old_freq = o.get("frequency")
+            o["medicine_name"] = order.medicine_name
+            o["dosage"] = order.dosage
+            o["frequency"] = order.frequency
+            o["frequency_hours"] = order.frequency_hours if order.frequency_hours is not None else 12
+            o["notes"] = order.notes
+            
+            if "history" not in o:
+                o["history"] = []
+                
+            o["history"].append({
+                "action": "edited",
+                "timestamp": datetime.now().isoformat(),
+                "actor": current_user.full_name,
+                "details": f"Edited: {old_dosage} {old_freq} -> {order.dosage} {order.frequency}"
+            })
+            order_found = True
+            break
+            
+    if not order_found:
+        raise HTTPException(status_code=404, detail="Order not found")
+        
+    # Reassign to trigger JSON update in SQLAlchemy
+    admission.medication_orders = list(orders)
+    db.commit()
+    return {"message": "Order updated"}
+
+@router.delete("/admissions/{admission_id}/orders/{order_id}")
+def delete_doctor_order(
+    admission_id: int,
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete (stop) a medication order (Doctor)"""
+    check_doctor_role(current_user)
+    admission = db.query(IPDAdmission).filter(
+        IPDAdmission.admission_id == admission_id,
+        IPDAdmission.hospital_id == current_user.hospital_id
+    ).first()
+    if not admission:
+        raise HTTPException(status_code=404, detail="Admission not found")
+        
+    raw_orders = admission.medication_orders
+    orders = list(raw_orders) if isinstance(raw_orders, list) else []
+    
+    order_found = False
+    for o in orders:
+        if o.get("id") == order_id:
+            o["status"] = "deleted"
+            if "history" not in o:
+                o["history"] = []
+            o["history"].append({
+                "action": "deleted",
+                "timestamp": datetime.now().isoformat(),
+                "actor": current_user.full_name,
+                "details": "Order stopped/deleted"
+            })
+            order_found = True
+            break
+            
+    if not order_found:
+        raise HTTPException(status_code=404, detail="Order not found")
+        
+    admission.medication_orders = list(orders)
+    db.commit()
+    return {"message": "Order deleted"}
 
 @router.post("/admissions/{admission_id}/medication")
 def administer_medication(

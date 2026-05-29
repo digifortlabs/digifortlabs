@@ -206,7 +206,7 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
                                                 setActiveHospitalId(h.hospital_id.toString());
                                                 localStorage.setItem('hospital_id', h.hospital_id.toString());
                                                 localStorage.setItem('hospitalName', h.legal_name);
-                                                window.dispatchEvent(new CustomEvent('hospitalProfileUpdated', { detail: { name: h.legal_name, fullName: userFullName || '' } }));
+                                                window.dispatchEvent(new CustomEvent('hospitalProfileUpdated', { detail: { name: h.legal_name, fullName: localStorage.getItem('userFullName') || '' } }));
                                                 setIsSwitcherOpen(false);
                                                 window.location.reload(); // Reload to refresh data context
                                             }}

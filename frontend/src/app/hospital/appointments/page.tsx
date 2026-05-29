@@ -247,7 +247,7 @@ export default function AppointmentsDashboard() {
                                     <SelectContent className="bg-white border-slate-100 text-slate-800 rounded-xl shadow-xl">
                                         <SelectItem value="all">All Doctors</SelectItem>
                                         {doctors.map((d: any) => (
-                                            <SelectItem key={d.user_id} value={d.user_id.toString()}>
+                                            <SelectItem key={d.profile_id} value={d.profile_id.toString()}>
                                                 Dr. {d.full_name} ({departments.find(dept => dept.department_id === d.department_id)?.name || 'Unknown'})
                                             </SelectItem>
                                         ))}
@@ -337,7 +337,7 @@ export default function AppointmentsDashboard() {
                                                 <div className="flex flex-col gap-0.5">
                                                     <div className="flex items-center gap-1.5 text-slate-800 font-bold">
                                                         <User className="w-4 h-4 text-slate-400" />
-                                                        <span>Dr. {doctors.find(d => d.user_id === appt.doctor_id)?.full_name || 'Unknown'}</span>
+                                                        <span>Dr. {doctors.find(d => d.profile_id === appt.doctor_id)?.full_name || 'Unknown'}</span>
                                                     </div>
                                                     <div className="text-xs font-semibold text-slate-400 ml-6">
                                                         {departments.find(d => d.department_id === appt.department_id)?.name || 'Unknown Dept'}

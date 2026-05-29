@@ -719,6 +719,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
             allowed_ids = [p.hospital_id for p in user.doctor_profile if p.hospital_id]
             if requested_hospital_id in allowed_ids:
                 from ..models import Hospital
+                user.is_global_mocked = True # type: ignore
                 user.hospital_id = requested_hospital_id # type: ignore[assignment]
                 user.hospital = db.query(Hospital).filter(Hospital.hospital_id == requested_hospital_id).first()
     

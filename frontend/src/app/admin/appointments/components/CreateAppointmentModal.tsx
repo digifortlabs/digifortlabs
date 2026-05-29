@@ -24,12 +24,18 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
         return `${year}-${month}-${day}`;
     };
 
+    const getCurrentTimeString = (offsetMinutes = 0) => {
+        const d = new Date();
+        d.setMinutes(d.getMinutes() + offsetMinutes);
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    };
+
     const [patientId, setPatientId] = useState('');
     const [departmentId, setDepartmentId] = useState('');
     const [doctorId, setDoctorId] = useState('');
     const [appointmentDate, setAppointmentDate] = useState(getTodayDateString());
-    const [startTime, setStartTime] = useState('');
-    const [endTime, setEndTime] = useState('');
+    const [startTime, setStartTime] = useState(getCurrentTimeString(0));
+    const [endTime, setEndTime] = useState(getCurrentTimeString(15));
     const [reason, setReason] = useState('');
     const [notes, setNotes] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,13 +50,13 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
                 setDoctorId(appointmentToEdit.doctor_id.toString());
                 setAppointmentDate(appointmentToEdit.appointment_date.split('T')[0]);
                 
-                const parseTimeStr = (isoStr: string) => {
-                    if (!isoStr || !isoStr.includes('T')) return '';
-                    return isoStr.split('T')[1].substring(0, 5);
+                const extractTime = (isoString: string) => {
+                    const d = new Date(isoString);
+                    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
                 };
                 
-                setStartTime(parseTimeStr(appointmentToEdit.start_time));
-                setEndTime(parseTimeStr(appointmentToEdit.end_time));
+                setStartTime(extractTime(appointmentToEdit.start_time));
+                setEndTime(extractTime(appointmentToEdit.end_time));
                 setReason(appointmentToEdit.reason_for_visit || '');
                 setNotes(appointmentToEdit.notes || '');
             } else {
@@ -61,9 +67,9 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
             setPatientId('');
             setDepartmentId('');
             setDoctorId('');
-            setAppointmentDate('');
-            setStartTime('');
-            setEndTime('');
+            setAppointmentDate(getTodayDateString());
+            setStartTime(getCurrentTimeString(0));
+            setEndTime(getCurrentTimeString(15));
             setReason('');
             setNotes('');
         }
@@ -223,7 +229,7 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
                                     {doctors
                                         .filter(d => departmentId ? d.department_id.toString() === departmentId : true)
                                         .map(d => (
-                                            <SelectItem key={d.user_id} value={d.user_id.toString()}>
+                                            <SelectItem key={d.profile_id} value={d.profile_id.toString()}>
                                                 Dr. {d.full_name}
                                             </SelectItem>
                                         ))}

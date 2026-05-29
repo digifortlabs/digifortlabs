@@ -449,6 +449,30 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 )}
                             </Link>
                         )}
+                        
+                        {/* Emergency / Casualty (Not for Platform Admin) */}
+                        {!isPlatformAdmin && (terms.hospital.toLowerCase().includes('hospital') || specialty === 'General' || isHospitalAdmin) && (
+                            <Link
+                                href={getDomainUrl(dashboardSubdomain, '/emergency')}
+                                className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/emergency')
+                                    ? 'active bg-red-600/10 text-red-500 font-bold border border-red-900/30 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
+                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
+                            >
+                                <div className="flex items-center gap-3 text-xs">
+                                    <svg className={`w-4 h-4 ${isActive('/emergency') ? 'text-red-500' : 'text-red-400 group-hover:text-red-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    {!isCollapsed && <span className={isActive('/emergency') ? 'text-red-500' : 'text-red-400'}>Emergency / Casualty</span>}
+                                </div>
+                                
+                                {isCollapsed && (
+                                    <span className="absolute left-16 bg-red-900 border border-red-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
+                                        Emergency
+                                    </span>
+                                )}
+                            </Link>
+                        )}
 
                         {/* Doctors Management */}
                         {(isHospitalAdmin || isGroupAdmin || isPlatformAdmin) && (

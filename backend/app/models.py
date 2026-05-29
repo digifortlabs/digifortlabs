@@ -1234,6 +1234,37 @@ class OPDVisit(Base):
     prescriptions = relationship("Prescription", back_populates="visit")
     patient_invoice = relationship("PatientInvoice", back_populates="opd_visits")
 
+class EmergencyVisit(Base):
+    __tablename__ = "emergency_visits"
+    emergency_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    doctor_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
+    
+    visit_date = Column(DateTime(timezone=True), server_default=func.now())
+    triage_level = Column(String, default="Yellow") # Red, Orange, Yellow, Green, Blue
+    mode_of_arrival = Column(String, nullable=True) # Walk-in, Ambulance, Police
+    is_medico_legal = Column(Boolean, default=False)
+    police_station = Column(String, nullable=True)
+    ambulance_driver = Column(String, nullable=True)
+    
+    # Vitals
+    temperature = Column(Float, nullable=True)
+    blood_pressure = Column(String, nullable=True)
+    pulse_rate = Column(Integer, nullable=True)
+    weight = Column(Float, nullable=True)
+    
+    # Clinical
+    chief_complaint = Column(Text, nullable=True)
+    diagnosis = Column(Text, nullable=True)
+    treatment = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+    
+    status = Column(String, default="Active") # Active, Admitted, Discharged
+    
+    patient = relationship("Patient")
+    doctor = relationship("DoctorProfile")
+
 class Prescription(Base):
     __tablename__ = "prescriptions"
     prescription_id = Column(Integer, primary_key=True, index=True)

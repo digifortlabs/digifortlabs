@@ -46,7 +46,7 @@ class DoctorProfileResponse(BaseModel):
     specialization: Optional[str] = None
     consultation_fee: float
     is_active: bool
-    is_residential: bool
+    is_residential: Optional[bool] = True
     user_id: Optional[int] = None
     hospital_id: Optional[int] = None
     hospital_name: Optional[str] = None
@@ -269,7 +269,7 @@ async def get_my_schedule(
     db: Session = Depends(get_db)
 ):
     """Get the current doctor's weekly schedule."""
-    profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user.id).first()
+    profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user.user_id).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Doctor profile not found")
         
@@ -285,7 +285,7 @@ async def update_my_schedule(
     db: Session = Depends(get_db)
 ):
     """Update the current doctor's weekly schedule."""
-    profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user.id).first()
+    profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user.user_id).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Doctor profile not found")
         

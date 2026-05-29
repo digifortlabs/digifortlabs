@@ -26,12 +26,18 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
         return `${year}-${month}-${day}`;
     };
 
+    const getCurrentTimeString = (offsetMinutes = 0) => {
+        const d = new Date();
+        d.setMinutes(d.getMinutes() + offsetMinutes);
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    };
+
     const [patientId, setPatientId] = useState(initialPatientId || '');
     const [departmentId, setDepartmentId] = useState('');
     const [doctorId, setDoctorId] = useState('');
     const [appointmentDate, setAppointmentDate] = useState(getTodayDateString());
-    const [startTime, setStartTime] = useState('');
-    const [endTime, setEndTime] = useState('');
+    const [startTime, setStartTime] = useState(getCurrentTimeString(0));
+    const [endTime, setEndTime] = useState(getCurrentTimeString(15));
     const [reason, setReason] = useState('');
     const [notes, setNotes] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,13 +54,13 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
                 setDoctorId(appointmentToEdit.doctor_id.toString());
                 setAppointmentDate(appointmentToEdit.appointment_date.split('T')[0]);
                 
-                const parseTimeStr = (isoStr: string) => {
-                    if (!isoStr || !isoStr.includes('T')) return '';
-                    return isoStr.split('T')[1].substring(0, 5);
+                const extractTime = (isoString: string) => {
+                    const d = new Date(isoString);
+                    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
                 };
                 
-                setStartTime(parseTimeStr(appointmentToEdit.start_time));
-                setEndTime(parseTimeStr(appointmentToEdit.end_time));
+                setStartTime(extractTime(appointmentToEdit.start_time));
+                setEndTime(extractTime(appointmentToEdit.end_time));
                 setReason(appointmentToEdit.reason_for_visit || '');
                 setNotes(appointmentToEdit.notes || '');
                 setVisitType(appointmentToEdit.visit_type || 'OPD');
@@ -70,9 +76,9 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
             setPatientId('');
             setDepartmentId('');
             setDoctorId('');
-            setAppointmentDate('');
-            setStartTime('');
-            setEndTime('');
+            setAppointmentDate(getTodayDateString());
+            setStartTime(getCurrentTimeString(0));
+            setEndTime(getCurrentTimeString(15));
             setReason('');
             setNotes('');
             setVisitType('OPD');
@@ -198,14 +204,12 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
                         </div>
                         <div className="space-y-1">
                             <label className="text-xs font-black uppercase tracking-widest text-slate-400 block mb-1">Visit Type *</label>
-                            <Select required value={visitType} onValueChange={setVisitType}>
-                                <SelectTrigger className="bg-slate-50/50 border-slate-200 text-slate-800 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl h-11 font-medium">
+                            <Select required value={visitType} onValueChange={setVisitType} disabled>
+                                <SelectTrigger className="bg-slate-50 cursor-not-allowed border-slate-200 text-slate-500 rounded-xl h-11 font-medium">
                                     <SelectValue placeholder="Select Visit Type" />
                                 </SelectTrigger>
                                 <SelectContent className="bg-white border-slate-100 text-slate-800 rounded-xl shadow-xl">
                                     <SelectItem value="OPD">OPD</SelectItem>
-                                    <SelectItem value="IPD">IPD</SelectItem>
-                                    <SelectItem value="Emergency">Emergency</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -267,7 +271,7 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
                                     {doctors
                                         .filter(d => departmentId ? d.department_id.toString() === departmentId : true)
                                         .map(d => (
-                                            <SelectItem key={d.user_id} value={d.user_id.toString()}>
+                                            <SelectItem key={d.profile_id} value={d.profile_id.toString()}>
                                                 Dr. {d.full_name}
                                             </SelectItem>
                                         ))}

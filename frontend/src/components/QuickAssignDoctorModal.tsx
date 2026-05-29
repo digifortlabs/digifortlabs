@@ -214,7 +214,7 @@ export default function QuickAssignDoctorModal({ isOpen, onClose, patientId, pat
                             </SelectTrigger>
                             <SelectContent>
                                 {doctors.map(d => (
-                                    <SelectItem key={d.user_id} value={d.user_id.toString()}>
+                                    <SelectItem key={d.profile_id} value={d.profile_id.toString()}>
                                         Dr. {d.full_name}
                                     </SelectItem>
                                 ))}
@@ -250,13 +250,12 @@ export default function QuickAssignDoctorModal({ isOpen, onClose, patientId, pat
 
                     <div className="space-y-2">
                         <Label>Visit Type</Label>
-                        <Select value={visitType} onValueChange={setVisitType}>
-                            <SelectTrigger>
+                        <Select value={visitType} onValueChange={setVisitType} disabled>
+                            <SelectTrigger className="bg-slate-50 cursor-not-allowed text-slate-500">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="OPD">OPD Visit</SelectItem>
-                                <SelectItem value="IPD">IPD Rounds</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

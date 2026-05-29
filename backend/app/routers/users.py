@@ -84,7 +84,8 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
     
     # Calculate allowed hospitals for doctor
     allowed_hospitals = []
-    if not current_user.hospital_id and current_user.subdomain and current_user.role.startswith("doctor"):
+    is_global = current_user.subdomain and current_user.role.startswith("doctor") and (not current_user.hospital_id or getattr(current_user, 'is_global_mocked', False))
+    if is_global:
         for p in current_user.doctor_profile:
             if p.hospital_id:
                 allowed_hospitals.append({

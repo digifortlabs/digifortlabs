@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Bed, ChevronLeft, RefreshCw, UserPlus, AlertCircle, Activity, FileText, Pill, Stethoscope, Cpu, Syringe, Plus, Info, Users } from 'lucide-react';
+import { Bed, ChevronLeft, RefreshCw, UserPlus, AlertCircle, Activity, FileText, Pill, Stethoscope, Cpu, Syringe, Plus, Info, Users, Edit2, Trash2, History, Printer } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,7 @@ export default function HMSBedsPage() {
     const [wards, setWards] = useState<any[]>([]);
     const [beds, setBeds] = useState<any[]>([]);
     const [equipments, setEquipments] = useState<any[]>([]);
+    const [doctors, setDoctors] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedWard, setSelectedWard] = useState<any>(null);
     const [userRole, setUserRole] = useState<string>('');
@@ -30,6 +31,7 @@ export default function HMSBedsPage() {
     // State for Bed selection
     const [selectedBed, setSelectedBed] = useState<any>(null);
     const [activeAdmission, setActiveAdmission] = useState<any>(null);
+    const [activePatient, setActivePatient] = useState<any>(null);
     
     // Forms
     const [admitForm, setAdmitForm] = useState({ patient_name: '', age: '', gender: 'Male', diagnosis: '', doctor_name: '', contact_phone: '' });
@@ -41,8 +43,13 @@ export default function HMSBedsPage() {
     // Console Forms
     const [alerts, setAlerts] = useState<any[]>([]);
     const [orderForm, setOrderForm] = useState({ medicine_name: '', dosage: '', frequency: '', frequency_hours: '12', notes: '' });
+    const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+    const [editOrderForm, setEditOrderForm] = useState({ medicine_name: '', dosage: '', frequency: '', frequency_hours: '12', notes: '' });
+    const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
     const [medLogForm, setMedLogForm] = useState({ order_id: '', medicine_name: '', notes: '' });
     const [noteForm, setNoteForm] = useState({ note_type: 'Ward Round', content: '' });
+    const [isEditingDoctor, setIsEditingDoctor] = useState(false);
+    const [editDoctorName, setEditDoctorName] = useState('');
 
     useEffect(() => {
         const role = localStorage.getItem('userRole') || '';
@@ -79,17 +86,19 @@ export default function HMSBedsPage() {
         setLoading(true);
         try {
             let suffix = hId ? `?hospital_id=${hId}` : '';
-            const [w, b, e, a] = await Promise.all([
+            const [w, b, e, a, d] = await Promise.all([
                 apiFetch(`hms/wards${suffix}`).catch(() => []),
                 apiFetch(`hms/beds${suffix}`).catch(() => []),
                 apiFetch(`hms/equipment${suffix}`).catch(() => []),
                 apiFetch(`hms/admissions/alerts${suffix}`).catch(() => []),
+                apiFetch(`doctors${suffix}`).catch(() => []),
             ]);
             const wardList = w || [];
             setWards(wardList);
             setBeds(b || []);
             setEquipments(e || []);
             setAlerts(a || []);
+            setDoctors(d || []);
             
             if (wardList.length > 0 && !selectedWard) {
                 setSelectedWard(wardList[0]);
@@ -152,6 +161,7 @@ export default function HMSBedsPage() {
                 try {
                     const data = await apiFetch(`hms/admissions/${bed.admission_id}`);
                     setActiveAdmission(data.admission);
+                    setActivePatient(data.patient);
                     setIsConsoleOpen(true);
                 } catch (e) {
                     alert("Could not load patient details.");
@@ -167,6 +177,7 @@ export default function HMSBedsPage() {
         try {
             const data = await apiFetch(`hms/admissions/${activeAdmission.admission_id}`);
             setActiveAdmission(data.admission);
+            setActivePatient(data.patient);
         } catch (e) {
             console.error(e);
         }
@@ -185,6 +196,31 @@ export default function HMSBedsPage() {
             setOrderForm({ medicine_name: '', dosage: '', frequency: '', frequency_hours: '12', notes: '' });
             refreshAdmission();
         } catch (e: any) { alert(e.message || "Failed to add order"); }
+    };
+
+    const handleSaveEditOrder = async (orderId: string) => {
+        if (!activeAdmission) return;
+        try {
+            await apiFetch(`hms/admissions/${activeAdmission.admission_id}/orders/${orderId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    ...editOrderForm,
+                    frequency_hours: parseInt(editOrderForm.frequency_hours) || 12
+                })
+            });
+            setEditingOrderId(null);
+            refreshAdmission();
+        } catch (e: any) { alert(e.message || "Failed to update order"); }
+    };
+
+    const handleDeleteOrder = async (orderId: string) => {
+        if (!activeAdmission || !confirm("Are you sure you want to stop/delete this medication order?")) return;
+        try {
+            await apiFetch(`hms/admissions/${activeAdmission.admission_id}/orders/${orderId}`, {
+                method: 'DELETE'
+            });
+            refreshAdmission();
+        } catch (e: any) { alert(e.message || "Failed to delete order"); }
     };
 
     const handleLogMedication = async () => {
@@ -211,7 +247,21 @@ export default function HMSBedsPage() {
         } catch (e: any) { alert(e.message || "Failed to add note"); }
     };
 
-    const wardBeds = beds.filter(b => selectedWard && b.ward_id === selectedWard.ward_id);
+    const handleUpdateDoctor = async () => {
+        if (!activePatient?.record_id) return;
+        try {
+            await apiFetch(`patients/${activePatient.record_id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ doctor_name: editDoctorName })
+            });
+            setIsEditingDoctor(false);
+            refreshAdmission();
+        } catch (e: any) { alert(e.message || "Failed to update doctor"); }
+    };
+
+    const wardBeds = beds
+        .filter(b => selectedWard && b.ward_id === selectedWard.ward_id)
+        .sort((a, b) => a.bed_number.localeCompare(b.bed_number, undefined, { numeric: true, sensitivity: 'base' }));
     const occupiedCount = wardBeds.filter(b => b.status === 'occupied').length;
     const availableCount = wardBeds.filter(b => b.status === 'available').length;
 
@@ -283,7 +333,7 @@ export default function HMSBedsPage() {
                                         <p className="text-sm mt-1">Beds are auto-generated based on ward capacity.</p>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-6">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
                                         {wardBeds.map(bed => {
                                             const isOccupied = bed.status?.toLowerCase() === 'occupied';
                                             const isMaintenance = bed.status?.toLowerCase() === 'maintenance';
@@ -297,15 +347,15 @@ export default function HMSBedsPage() {
                                                 <div key={bed.bed_id} 
                                                     onClick={() => handleBedClick(bed)}
                                                     className={cn(
-                                                        'group relative flex flex-col p-4 rounded-2xl border-[3px] transition-all cursor-pointer hover:shadow-lg overflow-hidden',
+                                                        'group relative flex flex-col p-4 rounded-xl border-[2px] transition-all cursor-pointer hover:shadow-md overflow-hidden',
                                                         isOccupied ? 'bg-white border-rose-300 hover:border-rose-400' :
                                                         isMaintenance ? 'bg-amber-50 border-amber-200' :
                                                         'bg-white border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50'
                                                     )}
-                                                    style={{ minHeight: '160px' }}
+                                                    style={{ minHeight: '120px' }}
                                                 >
                                                     {/* Top Bar: Bed Number & Status */}
-                                                    <div className="flex justify-between items-start mb-4">
+                                                    <div className="flex justify-between items-start mb-2">
                                                         <span className="text-lg font-black text-slate-700 tracking-tight">{bed.bed_number}</span>
                                                         <div className="flex items-center gap-1.5">
                                                             {isOccupied && hasAlert && (
@@ -329,7 +379,7 @@ export default function HMSBedsPage() {
                                                                     </div>
                                                                     <div className="w-14 h-3 bg-rose-100 rounded-full absolute left-1/2 -translate-x-[10px] bottom-1 border border-rose-200" />
                                                                 </div>
-                                                                <div className="mt-4 text-center w-full">
+                                                                <div className="mt-2 text-center w-full">
                                                                     <p className="text-sm font-bold text-slate-900 truncate px-1" title={bed.patient_name}>{bed.patient_name}</p>
                                                                     <p className="text-[10px] font-medium text-rose-600 bg-rose-50 rounded inline-block px-1.5 py-0.5 mt-1 border border-rose-100">Admitted</p>
                                                                 </div>
@@ -504,9 +554,75 @@ export default function HMSBedsPage() {
                                     <span>Admitted: {new Date(activeAdmission?.admission_date).toLocaleDateString()}</span>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <div className="text-xs font-black uppercase text-slate-400 tracking-wider mb-1">Attending Doctor</div>
-                                <div className="font-medium text-slate-200">{activeAdmission?.doctor_name || 'Unassigned'}</div>
+                              <div className="text-right flex flex-col items-end gap-3">
+                                  {['hospital_admin', 'superadmin', 'mrd_staff'].includes(userRole) && (
+                                      <div className="flex gap-2">
+                                          <Button 
+                                              variant="outline" 
+                                              size="sm" 
+                                              className="bg-white/10 border-white/20 hover:bg-white/20 text-white font-semibold h-8"
+                                              onClick={() => window.open(`/hospital/hms/admissions/${activeAdmission.admission_id}/mrd`, '_blank')}
+                                          >
+                                              <Printer className="w-4 h-4 mr-2" />
+                                              Print MRD File
+                                          </Button>
+                                      </div>
+                                  )}
+                                  <div>
+                                      <div className="text-xs font-black uppercase text-slate-400 tracking-wider mb-1">Attending Doctor</div>
+                                {isEditingDoctor ? (
+                                    <div className="flex items-start gap-2 relative">
+                                        <div className="relative">
+                                            <Input 
+                                                value={editDoctorName} 
+                                                onChange={e => setEditDoctorName(e.target.value)} 
+                                                className="h-8 text-sm w-56 text-slate-900 bg-white" 
+                                                placeholder="e.g. Dr. Smith, Dr. Patel"
+                                                autoComplete="off"
+                                                autoFocus
+                                            />
+                                            {isEditingDoctor && editDoctorName && doctors.length > 0 && (
+                                                <div className="absolute top-full right-0 mt-1 w-56 bg-white rounded-md shadow-xl border border-slate-200 z-50 max-h-48 overflow-y-auto text-left">
+                                                    {doctors.filter(d => (d.full_name || '').toLowerCase().includes(editDoctorName.split(',').pop()?.trim().toLowerCase() || '')).length > 0 ? (
+                                                        doctors.filter(d => (d.full_name || '').toLowerCase().includes(editDoctorName.split(',').pop()?.trim().toLowerCase() || '')).map(d => (
+                                                            <div 
+                                                                key={d.profile_id} 
+                                                                className="p-2 text-sm text-slate-700 hover:bg-indigo-50 cursor-pointer border-b border-slate-100 last:border-0"
+                                                                onClick={() => {
+                                                                    const parts = editDoctorName.split(',');
+                                                                    parts.pop(); // remove the partial term
+                                                                    const prefix = parts.length > 0 ? parts.join(',').trim() + (parts.length > 0 ? ', ' : '') : '';
+                                                                    setEditDoctorName(prefix + d.full_name + ', ');
+                                                                    document.querySelector('input')?.focus();
+                                                                }}
+                                                            >
+                                                                <span className="font-medium text-slate-900">{d.full_name || 'Unknown Doctor'}</span>
+                                                                {d.specialization && <span className="text-xs text-slate-500 block">{d.specialization}</span>}
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <div className="p-3 text-xs text-slate-500 text-center">No doctors found. Press Save to enter custom text.</div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <Button size="sm" onClick={handleUpdateDoctor} className="h-8 bg-indigo-600 hover:bg-indigo-700">Save</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => setIsEditingDoctor(false)} className="h-8 text-slate-400 hover:text-white hover:bg-slate-800">Cancel</Button>
+                                    </div>
+                                ) : (
+                                    <div 
+                                        className="font-medium text-slate-200 cursor-pointer hover:text-indigo-300 flex items-center justify-end gap-2 group"
+                                        onClick={() => {
+                                            setEditDoctorName(activePatient?.doctor_name || '');
+                                            setIsEditingDoctor(true);
+                                        }}
+                                        title="Click to assign multiple doctors"
+                                    >
+                                        {activePatient?.doctor_name || 'Unassigned'}
+                                        <span className="opacity-0 group-hover:opacity-100 text-xs text-slate-400">(Edit)</span>
+                                    </div>
+                                )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -548,8 +664,14 @@ export default function HMSBedsPage() {
                                                                                         <Input placeholder="12" type="number" value={orderForm.frequency_hours} onChange={e => setOrderForm({...orderForm, frequency_hours: e.target.value})} />
                                                                                     </div>
                                                                                     <div className="col-span-12 md:col-span-2">
-                                                                                        <Label className="text-xs mb-1">Notes</Label>
-                                                                                        <Input placeholder="After meals" value={orderForm.notes} onChange={e => setOrderForm({...orderForm, notes: e.target.value})} />
+                                                                                        <Label className="text-xs mb-1">Meal Timing</Label>
+                                                                                        <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={orderForm.notes} onChange={e => setOrderForm({...orderForm, notes: e.target.value})}>
+                                                                                            <option value="">-- Select --</option>
+                                                                                            <option value="Before meals (AC)">Before meals</option>
+                                                                                            <option value="After meals (PC)">After meals</option>
+                                                                                            <option value="With meals">With meals</option>
+                                                                                            <option value="Empty stomach">Empty stomach</option>
+                                                                                        </select>
                                                                                     </div>
                                                                                     <div className="col-span-12 md:col-span-1">
                                                                                         <Button onClick={handleAddOrder} disabled={!orderForm.medicine_name || !orderForm.dosage} className="w-full bg-indigo-600 hover:bg-indigo-700 h-10"><Plus className="w-4 h-4" /></Button>
@@ -571,24 +693,134 @@ export default function HMSBedsPage() {
                                                 <p className="text-sm text-slate-500">No active medication orders.</p>
                                             </div>
                                         ) : (
-                                            (activeAdmission?.medication_orders || []).map((order: any, idx: number) => (
-                                                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 flex justify-between items-center shadow-sm">
-                                                    <div className="flex items-start gap-4">
-                                                        <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0 text-indigo-600">
-                                                            <Pill className="w-5 h-5" />
+                                            (activeAdmission?.medication_orders || []).map((order: any, idx: number) => {
+                                                const isDeleted = order.status === 'deleted';
+                                                return editingOrderId === order.id ? (
+                                                    <div key={idx} className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 shadow-sm space-y-4">
+                                                        <h4 className="font-bold text-indigo-900 text-sm">Edit Medication Order</h4>
+                                                        <div className="grid grid-cols-12 gap-3 items-end">
+                                                            <div className="col-span-12 md:col-span-3">
+                                                                <Label className="text-xs mb-1">Medicine Name</Label>
+                                                                <Input value={editOrderForm.medicine_name} onChange={e => setEditOrderForm({...editOrderForm, medicine_name: e.target.value})} className="bg-white" />
+                                                            </div>
+                                                            <div className="col-span-6 md:col-span-2">
+                                                                <Label className="text-xs mb-1">Dosage</Label>
+                                                                <Input value={editOrderForm.dosage} onChange={e => setEditOrderForm({...editOrderForm, dosage: e.target.value})} className="bg-white" />
+                                                            </div>
+                                                            <div className="col-span-6 md:col-span-2">
+                                                                <Label className="text-xs mb-1">Frequency</Label>
+                                                                <Input value={editOrderForm.frequency} onChange={e => setEditOrderForm({...editOrderForm, frequency: e.target.value})} className="bg-white" />
+                                                            </div>
+                                                            <div className="col-span-6 md:col-span-2">
+                                                                <Label className="text-xs mb-1">Hours Interval</Label>
+                                                                <Input type="number" value={editOrderForm.frequency_hours} onChange={e => setEditOrderForm({...editOrderForm, frequency_hours: e.target.value})} className="bg-white" />
+                                                            </div>
+                                                            <div className="col-span-6 md:col-span-3">
+                                                                <Label className="text-xs mb-1">Meal Timing / Notes</Label>
+                                                                <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={editOrderForm.notes} onChange={e => setEditOrderForm({...editOrderForm, notes: e.target.value})}>
+                                                                    <option value="">-- Select --</option>
+                                                                    <option value="Before meals (AC)">Before meals</option>
+                                                                    <option value="After meals (PC)">After meals</option>
+                                                                    <option value="With meals">With meals</option>
+                                                                    <option value="Empty stomach">Empty stomach</option>
+                                                                </select>
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <h4 className="font-bold text-slate-900 text-lg leading-tight">{order.medicine_name} <span className="text-indigo-600 font-mono text-sm ml-2 bg-indigo-50 px-2 py-0.5 rounded">{order.dosage}</span></h4>
-                                                            <p className="text-sm font-medium text-slate-600 mt-1">Frequency: {order.frequency}</p>
-                                                            {order.notes && <p className="text-xs text-slate-500 mt-1 bg-slate-50 px-2 py-1 rounded inline-block border border-slate-100">Note: {order.notes}</p>}
+                                                        <div className="flex justify-end gap-2 pt-2 border-t border-indigo-100">
+                                                            <Button size="sm" variant="ghost" onClick={() => setEditingOrderId(null)} className="h-8">Cancel</Button>
+                                                            <Button size="sm" onClick={() => handleSaveEditOrder(order.id)} disabled={!editOrderForm.medicine_name || !editOrderForm.dosage} className="h-8 bg-indigo-600 hover:bg-indigo-700">Save Changes</Button>
                                                         </div>
                                                     </div>
-                                                    <div className="text-right flex flex-col justify-between h-full items-end gap-2">
-                                                        <Badge variant="outline" className="text-[10px] font-mono bg-slate-50">{new Date(order.start_date).toLocaleString()}</Badge>
-                                                        <span className="text-xs font-bold text-slate-400">Dr. {order.prescribed_by}</span>
+                                                ) : (
+                                                    <div key={idx} className={`bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col ${isDeleted ? 'opacity-60 bg-slate-50' : ''}`}>
+                                                        <div className="flex justify-between items-center w-full">
+                                                            <div className="flex items-start gap-4">
+                                                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${isDeleted ? 'bg-slate-200 text-slate-400' : 'bg-indigo-100 text-indigo-600'}`}>
+                                                                    <Pill className="w-5 h-5" />
+                                                                </div>
+                                                                <div>
+                                                                    <h4 className={`font-bold text-lg leading-tight ${isDeleted ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
+                                                                        {order.medicine_name} 
+                                                                        <span className={`font-mono text-sm ml-2 px-2 py-0.5 rounded ${isDeleted ? 'text-slate-500 bg-slate-200' : 'text-indigo-600 bg-indigo-50'}`}>{order.dosage}</span>
+                                                                    </h4>
+                                                                    <p className={`text-sm font-medium mt-1 ${isDeleted ? 'text-slate-400' : 'text-slate-600'}`}>Frequency: {order.frequency}</p>
+                                                                    {order.notes && <p className={`text-xs mt-1 px-2 py-1 rounded inline-block border ${isDeleted ? 'text-slate-400 bg-slate-100 border-slate-200' : 'text-slate-500 bg-slate-50 border-slate-100'}`}>Note: {order.notes}</p>}
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right flex flex-col justify-between h-full items-end gap-2">
+                                                                <Badge variant="outline" className={`text-[10px] font-mono ${isDeleted ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-slate-50'}`}>{new Date(order.start_date).toLocaleString()}</Badge>
+                                                                <span className={`text-xs font-bold ${isDeleted ? 'text-slate-400' : 'text-slate-400'}`}>{order.prescribed_by ? `Dr. ${order.prescribed_by}` : ''}</span>
+                                                                
+                                                                <div className="flex gap-1 mt-1">
+                                                                    <Button 
+                                                                        size="sm" 
+                                                                        variant="ghost" 
+                                                                        className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600"
+                                                                        onClick={() => setExpandedHistoryId(expandedHistoryId === order.id ? null : order.id)}
+                                                                        title="View History"
+                                                                    >
+                                                                        <History className="w-4 h-4" />
+                                                                    </Button>
+                                                                    {!isDeleted && (
+                                                                        <>
+                                                                            <Button 
+                                                                                size="sm" 
+                                                                                variant="ghost" 
+                                                                                className="h-7 w-7 p-0 text-slate-400 hover:text-indigo-600"
+                                                                                onClick={() => {
+                                                                                    setEditOrderForm({
+                                                                                        medicine_name: order.medicine_name,
+                                                                                        dosage: order.dosage,
+                                                                                        frequency: order.frequency,
+                                                                                        frequency_hours: order.frequency_hours?.toString() || '12',
+                                                                                        notes: order.notes || ''
+                                                                                    });
+                                                                                    setEditingOrderId(order.id);
+                                                                                }}
+                                                                            >
+                                                                                <Edit2 className="w-4 h-4" />
+                                                                            </Button>
+                                                                            <Button 
+                                                                                size="sm" 
+                                                                                variant="ghost" 
+                                                                                className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
+                                                                                onClick={() => handleDeleteOrder(order.id)}
+                                                                            >
+                                                                                <Trash2 className="w-4 h-4" />
+                                                                            </Button>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {expandedHistoryId === order.id && (
+                                                            <div className="mt-4 pt-3 border-t border-slate-100">
+                                                                <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Change History</h5>
+                                                                <div className="space-y-2">
+                                                                    {(order.history || []).map((hist: any, hIdx: number) => (
+                                                                        <div key={hIdx} className="flex gap-3 text-sm items-start">
+                                                                            <div className="w-24 flex-shrink-0 text-xs text-slate-400 font-mono pt-0.5">
+                                                                                {new Date(hist.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                                            </div>
+                                                                            <div className="flex-1">
+                                                                                <span className={`font-semibold mr-2 ${hist.action === 'created' ? 'text-green-600' : hist.action === 'deleted' ? 'text-rose-600' : 'text-blue-600'}`}>
+                                                                                    {hist.action.toUpperCase()}
+                                                                                </span>
+                                                                                <span className="text-slate-600">{hist.details}</span>
+                                                                                <span className="text-xs text-slate-400 ml-2 block sm:inline">by {hist.actor}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                    {(!order.history || order.history.length === 0) && (
+                                                                        <p className="text-xs text-slate-400 italic">No history available for this legacy order.</p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                </div>
-                                            )).reverse()
+                                                );
+                                            }).reverse()
                                         )}
                                     </div>
                                 </TabsContent>

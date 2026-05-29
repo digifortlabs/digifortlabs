@@ -68,11 +68,13 @@ export default function DoctorsManagement() {
         setError('');
         setIsSubmitting(true);
         try {
-            const payload = {
+            const payload: any = {
                 ...newDoctor,
                 department_id: parseInt(newDoctor.department_id),
                 consultation_fee: parseFloat(newDoctor.consultation_fee.toString())
             };
+            if (!payload.email) delete payload.email;
+            if (!payload.password) delete payload.password;
             
             const data = await apiFetch(`doctors/`, {
                 method: 'POST',
@@ -83,7 +85,7 @@ export default function DoctorsManagement() {
                 setShowModal(false);
                 setNewDoctor({ 
                     email: '', password: '', full_name: '', role: 'doctor_opd', phone: '',
-                    department_id: '', specialization: '', consultation_fee: 0, create_login_account: false
+                    department_id: '', specialization: '', consultation_fee: 0, create_login_account: false, is_residential: true
                 });
                 fetchDoctors();
             }
@@ -277,7 +279,11 @@ export default function DoctorsManagement() {
                                         type="text" placeholder="e.g. 9876543210"
                                         className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition font-medium"
                                         value={isEditing ? editDoctor.phone : newDoctor.phone}
-                                        onChange={e => isEditing ? setEditDoctor({ ...editDoctor, phone: e.target.value }) : setNewDoctor({ ...newDoctor, phone: e.target.value })}
+                                        onChange={e => {
+                                            const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                                            isEditing ? setEditDoctor({ ...editDoctor, phone: val }) : setNewDoctor({ ...newDoctor, phone: val });
+                                        }}
+                                        maxLength={10}
                                     />
                                 </div>
                                 

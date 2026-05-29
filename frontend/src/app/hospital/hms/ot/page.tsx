@@ -242,7 +242,7 @@ export default function OTPage() {
                             <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm"
                                 value={assignForm.doctor_id} onChange={e => setAssignForm({ ...assignForm, doctor_id: e.target.value })}>
                                 <option value="">Select surgeon...</option>
-                                {doctors.map(d => <option key={d.user_id} value={d.user_id}>Dr. {d.full_name}</option>)}
+                                {doctors.map(d => <option key={d.profile_id} value={d.profile_id}>Dr. {d.full_name}</option>)}
                             </select>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
