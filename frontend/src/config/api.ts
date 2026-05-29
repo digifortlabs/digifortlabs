@@ -82,6 +82,11 @@ async function doFetch(url: string, _path: string, options: any, token: string |
         ...options.headers,
     };
 
+    const activeHospitalId = typeof window !== 'undefined' ? localStorage.getItem('hospital_id') : null;
+    if (activeHospitalId) {
+        headers['X-Hospital-Id'] = activeHospitalId;
+    }
+
     if (currentCsrfToken) {
         headers['X-CSRF-Token'] = currentCsrfToken;
     }

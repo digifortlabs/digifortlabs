@@ -70,6 +70,7 @@ class UserResponse(BaseModel):
     hospital_id: Optional[int] = None
     hospital: Optional[HospitalMini] = None
     mfa_enabled: bool = True
+    allowed_hospitals: Optional[list] = None
     
     class Config:
         from_attributes = True
@@ -80,7 +81,30 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
     """Return the currently logged-in user's profile."""
     # Hide password for security
     current_user.plain_password = None
-    return current_user
+    
+    # Calculate allowed hospitals for doctor
+    allowed_hospitals = []
+    if not current_user.hospital_id and current_user.subdomain and current_user.role.startswith("doctor"):
+        for p in current_user.doctor_profile:
+            if p.hospital_id:
+                allowed_hospitals.append({
+                    "hospital_id": p.hospital_id,
+                    "legal_name": p.hospital.legal_name if p.hospital else "Unknown Hospital",
+                    "hospital_slug": p.hospital.hospital_slug if p.hospital else ""
+                })
+    
+    # We must return a dict to satisfy Pydantic since we are injecting allowed_hospitals which isn't on the User model
+    response_data = {
+        "user_id": current_user.user_id,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "role": current_user.role,
+        "hospital_id": current_user.hospital_id,
+        "hospital": current_user.hospital,
+        "mfa_enabled": True,
+        "allowed_hospitals": allowed_hospitals
+    }
+    return response_data
 
 @router.get("/", response_model=List[UserResponse])
 def get_users(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

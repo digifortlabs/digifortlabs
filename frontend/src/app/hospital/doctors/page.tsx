@@ -16,11 +16,11 @@ export default function DoctorsManagement() {
     
     const [newDoctor, setNewDoctor] = useState({ 
         email: '', password: '', full_name: '', role: 'doctor_opd', phone: '',
-        department_id: '', specialization: '', consultation_fee: 0, create_login_account: false
+        department_id: '', specialization: '', consultation_fee: 0, create_login_account: false, is_residential: true
     });
     const [editDoctor, setEditDoctor] = useState({ 
         profile_id: 0, role: '', password: '', full_name: '', email: '', phone: '',
-        department_id: '', specialization: '', consultation_fee: 0, is_active: true
+        department_id: '', specialization: '', consultation_fee: 0, is_active: true, is_residential: true
     });
     
     const [isEditing, setIsEditing] = useState(false);
@@ -125,7 +125,8 @@ export default function DoctorsManagement() {
             department_id: doc.department_id?.toString() || '',
             specialization: doc.specialization || '',
             consultation_fee: doc.consultation_fee || 0,
-            is_active: doc.is_active !== false
+            is_active: doc.is_active !== false,
+            is_residential: doc.is_residential !== false
         });
         setIsEditing(true);
         setShowModal(true);
@@ -145,7 +146,8 @@ export default function DoctorsManagement() {
                 department_id: parseInt(editDoctor.department_id),
                 specialization: editDoctor.specialization,
                 consultation_fee: parseFloat(editDoctor.consultation_fee.toString()),
-                is_active: editDoctor.is_active
+                is_active: editDoctor.is_active,
+                is_residential: editDoctor.is_residential
             };
             
             const data = await apiFetch(`doctors/${editDoctor.profile_id}`, {
@@ -230,11 +232,16 @@ export default function DoctorsManagement() {
                             </div>
                         </div>
 
-                        <div className="mt-4 pt-4 border-t border-slate-100 flex items-center gap-2 text-xs font-bold bg-slate-50 w-fit px-3 py-1.5 rounded-full">
-                            <Shield size={12} className={doc.user_id ? "text-green-500" : "text-slate-400"} />
-                            <span className={doc.user_id ? "text-green-600" : "text-slate-500"}>
-                                {doc.user_id ? 'Has System Access' : 'Profile Only'}
-                            </span>
+                        <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-xs font-bold bg-slate-50 px-3 py-1.5 rounded-full">
+                                <Shield size={12} className={doc.user_id ? "text-green-500" : "text-slate-400"} />
+                                <span className={doc.user_id ? "text-green-600" : "text-slate-500"}>
+                                    {doc.user_id ? 'Has System Access' : 'Profile Only'}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded-full bg-slate-50 text-slate-500">
+                                {doc.is_residential ? 'Residential' : 'Visiting'}
+                            </div>
                         </div>
                     </div>
                 ))}
@@ -377,6 +384,23 @@ export default function DoctorsManagement() {
                                             value={isEditing ? editDoctor.consultation_fee : newDoctor.consultation_fee}
                                             onChange={e => isEditing ? setEditDoctor({ ...editDoctor, consultation_fee: parseFloat(e.target.value) }) : setNewDoctor({ ...newDoctor, consultation_fee: parseFloat(e.target.value) })}
                                         />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">Residential Doctor</label>
+                                        <div className="flex items-center gap-3 py-2">
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="sr-only peer" 
+                                                    checked={isEditing ? editDoctor.is_residential : newDoctor.is_residential}
+                                                    onChange={(e) => isEditing ? setEditDoctor({...editDoctor, is_residential: e.target.checked}) : setNewDoctor({...newDoctor, is_residential: e.target.checked})}
+                                                />
+                                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                                            </label>
+                                            <span className="text-sm font-bold text-slate-700">
+                                                {isEditing ? (editDoctor.is_residential ? 'Yes (Residential)' : 'No (Visiting)') : (newDoctor.is_residential ? 'Yes (Residential)' : 'No (Visiting)')}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

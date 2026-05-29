@@ -49,7 +49,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.rewrite(new URL(`/admin${path === '/' ? '' : path}`, req.url));
   }
 
-  if (subdomain && subdomain !== 'www') {
+    if (subdomain && subdomain !== 'www') {
     const isPublicPath = PUBLIC_PATHS.some(p => path === p || path.startsWith(`${p}/`) || path.startsWith(`${p}?`));
     if (isPublicPath) return NextResponse.next();
 
@@ -57,7 +57,17 @@ export async function proxy(req: NextRequest) {
     if (path.startsWith('/hospital') || path.startsWith('/doctor')) {
       const response = NextResponse.next();
       response.headers.set('x-hospital-slug', subdomain);
+      if (subdomain.startsWith('dr-')) {
+          response.headers.set('x-doctor-slug', subdomain);
+      }
       return response;
+    }
+
+    // Route doctor subdomains to /doctor
+    if (subdomain.startsWith('dr-')) {
+        const response = NextResponse.rewrite(new URL(`/doctor${path === '/' ? '' : path}`, req.url));
+        response.headers.set('x-doctor-slug', subdomain);
+        return response;
     }
 
     // Default to /hospital for tenant subdomains (so /records goes to /hospital/records)

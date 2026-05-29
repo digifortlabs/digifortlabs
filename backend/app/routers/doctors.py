@@ -35,6 +35,7 @@ class DoctorUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     is_active: Optional[bool] = None
+    is_residential: Optional[bool] = None
 
 class DoctorProfileResponse(BaseModel):
     profile_id: int
@@ -45,6 +46,7 @@ class DoctorProfileResponse(BaseModel):
     specialization: Optional[str] = None
     consultation_fee: float
     is_active: bool
+    is_residential: bool
     user_id: Optional[int] = None
     hospital_id: Optional[int] = None
     hospital_name: Optional[str] = None
@@ -216,6 +218,8 @@ def update_doctor(
         profile.is_active = data.is_active
         if profile.user_id:
             profile.user.is_active = data.is_active
+    if data.is_residential is not None:
+        profile.is_residential = data.is_residential
         
     if data.department_id is not None:
         dept = db.query(Department).filter(Department.department_id == data.department_id, Department.hospital_id == current_user.hospital_id).first()

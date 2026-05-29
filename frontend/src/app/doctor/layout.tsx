@@ -26,6 +26,11 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
     const [specialty, setSpecialty] = useState('');
     const [mobileOpen, setMobileOpen] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
+    
+    // Hospital Switcher State
+    const [allowedHospitals, setAllowedHospitals] = useState<any[]>([]);
+    const [activeHospitalId, setActiveHospitalId] = useState<string>('');
+    const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
 
     useEffect(() => {
         // Consume cross-subdomain auth handoff hash
@@ -75,6 +80,20 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
 
                 const spec = localStorage.getItem('userSpecialty') || '';
                 setSpecialty(spec);
+                
+                if (user.allowed_hospitals && user.allowed_hospitals.length > 0) {
+                    setAllowedHospitals(user.allowed_hospitals);
+                    const currentId = localStorage.getItem('hospital_id') || user.allowed_hospitals[0].hospital_id.toString();
+                    setActiveHospitalId(currentId);
+                    localStorage.setItem('hospital_id', currentId);
+                    // Update the hospital name for the GreetingBar to the active one
+                    const activeHosp = user.allowed_hospitals.find((h:any) => h.hospital_id.toString() === currentId);
+                    if (activeHosp) {
+                        localStorage.setItem('hospitalName', activeHosp.legal_name);
+                        window.dispatchEvent(new CustomEvent('hospitalProfileUpdated', { detail: { name: activeHosp.legal_name, fullName: user.full_name || '' } }));
+                    }
+                }
+
             } catch {
                 ['access_token','userRole','userEmail','userSpecialty','userModules',
                  'userTerminology','loginTime','hospital_id'].forEach(k => localStorage.removeItem(k));
@@ -156,6 +175,48 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
                         <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5">
                             <Activity size={13} className="text-violet-400 shrink-0" />
                             <span className="text-[11px] font-bold text-slate-400 capitalize truncate">{specialty.replace(/_/g, ' ')}</span>
+                        </div>
+                    )}
+                    
+                    {/* Hospital Switcher */}
+                    {allowedHospitals.length > 0 && (
+                        <div className="relative mt-2">
+                            <button
+                                onClick={() => setIsSwitcherOpen(!isSwitcherOpen)}
+                                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-violet-600/10 border border-violet-500/20 text-left transition-all hover:bg-violet-600/20"
+                            >
+                                <div className="flex flex-col overflow-hidden min-w-0">
+                                    <span className="text-[10px] font-bold text-violet-400 uppercase tracking-widest hidden lg:block">Active Hospital</span>
+                                    <span className="text-xs font-black text-white truncate hidden lg:block">
+                                        {allowedHospitals.find(h => h.hospital_id.toString() === activeHospitalId)?.legal_name || "Select Hospital"}
+                                    </span>
+                                    <span className="lg:hidden flex justify-center w-full">
+                                        <Activity size={18} className="text-violet-400" />
+                                    </span>
+                                </div>
+                                <ChevronDown size={14} className={`text-violet-400 transition-transform hidden lg:block ${isSwitcherOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            
+                            {isSwitcherOpen && (
+                                <div className="absolute bottom-full left-0 w-full mb-2 bg-slate-800 border border-white/10 rounded-xl overflow-hidden shadow-xl z-50">
+                                    {allowedHospitals.map(h => (
+                                        <button
+                                            key={h.hospital_id}
+                                            onClick={() => {
+                                                setActiveHospitalId(h.hospital_id.toString());
+                                                localStorage.setItem('hospital_id', h.hospital_id.toString());
+                                                localStorage.setItem('hospitalName', h.legal_name);
+                                                window.dispatchEvent(new CustomEvent('hospitalProfileUpdated', { detail: { name: h.legal_name, fullName: userFullName || '' } }));
+                                                setIsSwitcherOpen(false);
+                                                window.location.reload(); // Reload to refresh data context
+                                            }}
+                                            className={`w-full text-left px-3 py-2.5 text-xs font-bold transition-colors ${activeHospitalId === h.hospital_id.toString() ? 'bg-violet-600 text-white' : 'text-slate-300 hover:bg-white/5'}`}
+                                        >
+                                            <span className="block truncate">{h.legal_name}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
                     <button
