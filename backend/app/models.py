@@ -799,6 +799,7 @@ class DoctorSchedule(Base):
     day_of_week = Column(Integer, nullable=False) # 0=Monday, 6=Sunday
     start_time = Column(String, nullable=False) # e.g., "09:00"
     end_time = Column(String, nullable=False) # e.g., "17:00"
+    session_type = Column(String, default="OPD") # "OPD", "IPD", "OT"
     slot_duration_minutes = Column(Integer, default=30)
     is_active = Column(Boolean, default=True)
 
