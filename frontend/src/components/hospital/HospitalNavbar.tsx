@@ -171,7 +171,7 @@ export default function HospitalNavbar() {
                                         <Icon size={18} strokeWidth={2.5} className={active ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-700'} />
                                         
                                         {/* Premium Hover Tooltip */}
-                                        <span className="absolute left-14 bg-slate-900 border border-slate-800 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 whitespace-nowrap z-50">
+                                        <span className="absolute left-14 bg-slate-900 border border-slate-800 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-xl opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-75 whitespace-nowrap z-50">
                                             {item.label}
                                         </span>
                                     </Link>
@@ -211,7 +211,7 @@ export default function HospitalNavbar() {
                             {userEmail.charAt(0).toUpperCase() || 'U'}
                         </div>
                         {/* Profile Info Tooltip */}
-                        <div className="absolute left-14 bottom-2 bg-slate-900 border border-slate-800 text-white text-[10px] font-bold px-3 py-2 rounded-lg shadow-xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 whitespace-nowrap z-50">
+                        <div className="absolute left-14 bottom-2 bg-slate-900 border border-slate-800 text-white text-[10px] font-bold px-3 py-2 rounded-lg shadow-xl opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-75 whitespace-nowrap z-50">
                             <p className="font-extrabold text-blue-400 uppercase tracking-widest leading-none mb-1">{hospitalName}</p>
                             <p className="text-xs text-white mb-1.5">{userEmail || 'User'}</p>
                             <span className="inline-block text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
@@ -230,7 +230,7 @@ export default function HospitalNavbar() {
                         title="Sign Out"
                     >
                         <LogOut size={16} />
-                        <span className="absolute left-14 bg-slate-900 border border-slate-800 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 whitespace-nowrap z-50">
+                        <span className="absolute left-14 bg-slate-900 border border-slate-800 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-xl opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-75 whitespace-nowrap z-50">
                             Sign Out
                         </span>
                     </button>
@@ -305,7 +305,7 @@ export default function HospitalNavbar() {
                 </div>
 
                 {/* Categorized Menu Links Container */}
-                <div className={`flex-1 overflow-y-auto py-6 scrollbar-thin transition-all duration-300 ${isCollapsed ? 'px-2' : 'px-4'}`}>
+                <div className={`flex-1 py-6 scrollbar-thin transition-all duration-300 ${isCollapsed ? 'px-2 overflow-visible' : 'px-4 overflow-y-auto'}`}>
                     {renderNavLinks(false, isCollapsed)}
                 </div>
 
