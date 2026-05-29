@@ -17,10 +17,18 @@ interface CreateAppointmentModalProps {
 }
 
 export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, departments, doctors, initialPatientId }: CreateAppointmentModalProps) {
+    const getTodayDateString = () => {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
     const [patientId, setPatientId] = useState(initialPatientId || '');
     const [departmentId, setDepartmentId] = useState('');
     const [doctorId, setDoctorId] = useState('');
-    const [appointmentDate, setAppointmentDate] = useState('');
+    const [appointmentDate, setAppointmentDate] = useState(getTodayDateString());
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
     const [reason, setReason] = useState('');
@@ -32,9 +40,12 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
     const [isFollowUp, setIsFollowUp] = useState(false);
 
     React.useEffect(() => {
-        if (isOpen && initialPatientId) {
-            setPatientId(initialPatientId);
-        } else if (!isOpen) {
+        if (isOpen) {
+            setAppointmentDate(getTodayDateString());
+            if (initialPatientId) {
+                setPatientId(initialPatientId);
+            }
+        } else {
             // Reset form when closed
             setPatientId('');
             setDepartmentId('');

@@ -15,15 +15,29 @@ interface CreateAppointmentModalProps {
 }
 
 export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, departments, doctors }: CreateAppointmentModalProps) {
+    const getTodayDateString = () => {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
     const [patientId, setPatientId] = useState('');
     const [departmentId, setDepartmentId] = useState('');
     const [doctorId, setDoctorId] = useState('');
-    const [appointmentDate, setAppointmentDate] = useState('');
+    const [appointmentDate, setAppointmentDate] = useState(getTodayDateString());
     const [startTime, setStartTime] = useState('');
     const [endTime, setEndTime] = useState('');
     const [reason, setReason] = useState('');
     const [notes, setNotes] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    React.useEffect(() => {
+        if (isOpen) {
+            setAppointmentDate(getTodayDateString());
+        }
+    }, [isOpen]);
     const [patientName, setPatientName] = useState('');
     const [isSearchingPatient, setIsSearchingPatient] = useState(false);
 
