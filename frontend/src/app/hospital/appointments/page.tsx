@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Calendar as CalendarIcon, Clock, User, Filter, RefreshCcw, Building2 } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, Clock, User, Filter, RefreshCcw, Building2, Edit, Trash2 } from 'lucide-react';
 import { API_URL, apiFetch } from '@/config/api';
 import CreateAppointmentModal from './components/CreateAppointmentModal';
 import { format, parseISO, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
@@ -25,6 +25,7 @@ export default function AppointmentsDashboard() {
 
     const [isLoading, setIsLoading] = useState(false);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [editingAppointment, setEditingAppointment] = useState<any>(null);
 
     const [userProfile, setUserProfile] = useState<any>(null);
     const [hospitals, setHospitals] = useState<any[]>([]);
@@ -148,6 +149,18 @@ export default function AppointmentsDashboard() {
         }
     };
 
+    const handleDelete = async (id: number) => {
+        if (window.confirm("Are you sure you want to delete this appointment?")) {
+            try {
+                await apiFetch(`appointments/${id}`, { method: 'DELETE' });
+                loadAppointments();
+            } catch (error) {
+                console.error("Error deleting appointment:", error);
+                alert("Failed to delete appointment.");
+            }
+        }
+    };
+
     const getStatusColor = (status: string) => {
         switch (status.toLowerCase()) {
             case 'scheduled': return 'bg-blue-50 text-blue-700 border-blue-100 font-bold px-3 py-1 rounded-xl';
@@ -168,7 +181,7 @@ export default function AppointmentsDashboard() {
                     <p className="text-slate-500 font-medium mt-1">Manage hospital-wide schedules and patient flow</p>
                 </div>
                 <Button
-                    onClick={() => setIsCreateModalOpen(true)}
+                    onClick={() => { setEditingAppointment(null); setIsCreateModalOpen(true); }}
                     className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl h-11 px-6 shadow-lg shadow-indigo-600/10 transition-all gap-2"
                 >
                     <Plus className="w-5 h-5" /> New Appointment
@@ -325,7 +338,7 @@ export default function AppointmentsDashboard() {
                                                     {appt.status}
                                                 </Badge>
                                             </td>
-                                            <td className="px-6 py-4 text-right">
+                                            <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
                                                 {appt.status === 'Scheduled' && (
                                                     <Button size="sm" onClick={() => handleStatusUpdate(appt.appointment_id, 'Arrived')} className="bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200/50 rounded-xl font-bold text-xs">
                                                         Mark Arrived
@@ -341,6 +354,12 @@ export default function AppointmentsDashboard() {
                                                         Complete
                                                     </Button>
                                                 )}
+                                                <Button size="sm" variant="ghost" onClick={() => { setEditingAppointment(appt); setIsCreateModalOpen(true); }} className="text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl p-2 h-9 w-9">
+                                                    <Edit className="w-4.5 h-4.5" />
+                                                </Button>
+                                                <Button size="sm" variant="ghost" onClick={() => handleDelete(appt.appointment_id)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl p-2 h-9 w-9">
+                                                    <Trash2 className="w-4.5 h-4.5" />
+                                                </Button>
                                             </td>
                                         </tr>
                                     ))
@@ -353,13 +372,15 @@ export default function AppointmentsDashboard() {
 
             <CreateAppointmentModal
                 isOpen={isCreateModalOpen}
-                onClose={() => setIsCreateModalOpen(false)}
+                onClose={() => { setIsCreateModalOpen(false); setEditingAppointment(null); }}
                 onSuccess={() => {
                     setIsCreateModalOpen(false);
+                    setEditingAppointment(null);
                     loadAppointments();
                 }}
                 departments={departments}
                 doctors={doctors}
+                appointmentToEdit={editingAppointment}
             />
         </div>
     );

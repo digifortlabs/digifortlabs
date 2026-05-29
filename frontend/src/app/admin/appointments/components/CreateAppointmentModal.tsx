@@ -12,9 +12,10 @@ interface CreateAppointmentModalProps {
     onSuccess: () => void;
     departments: any[];
     doctors: any[];
+    appointmentToEdit?: any;
 }
 
-export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, departments, doctors }: CreateAppointmentModalProps) {
+export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, departments, doctors, appointmentToEdit }: CreateAppointmentModalProps) {
     const getTodayDateString = () => {
         const d = new Date();
         const year = d.getFullYear();
@@ -32,14 +33,41 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
     const [reason, setReason] = useState('');
     const [notes, setNotes] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [patientName, setPatientName] = useState('');
+    const [isSearchingPatient, setIsSearchingPatient] = useState(false);
 
     React.useEffect(() => {
         if (isOpen) {
-            setAppointmentDate(getTodayDateString());
+            if (appointmentToEdit) {
+                setPatientId(appointmentToEdit.patient_id.toString());
+                setDepartmentId(appointmentToEdit.department_id.toString());
+                setDoctorId(appointmentToEdit.doctor_id.toString());
+                setAppointmentDate(appointmentToEdit.appointment_date.split('T')[0]);
+                
+                const parseTimeStr = (isoStr: string) => {
+                    if (!isoStr || !isoStr.includes('T')) return '';
+                    return isoStr.split('T')[1].substring(0, 5);
+                };
+                
+                setStartTime(parseTimeStr(appointmentToEdit.start_time));
+                setEndTime(parseTimeStr(appointmentToEdit.end_time));
+                setReason(appointmentToEdit.reason_for_visit || '');
+                setNotes(appointmentToEdit.notes || '');
+            } else {
+                setAppointmentDate(getTodayDateString());
+            }
+        } else {
+            // Reset form when closed
+            setPatientId('');
+            setDepartmentId('');
+            setDoctorId('');
+            setAppointmentDate('');
+            setStartTime('');
+            setEndTime('');
+            setReason('');
+            setNotes('');
         }
-    }, [isOpen]);
-    const [patientName, setPatientName] = useState('');
-    const [isSearchingPatient, setIsSearchingPatient] = useState(false);
+    }, [isOpen, appointmentToEdit]);
 
     React.useEffect(() => {
         if (!patientId) {
@@ -89,14 +117,17 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
                 notes: notes
             };
 
-            const data = await apiFetch('appointments', {
-                method: 'POST',
+            const method = appointmentToEdit ? 'PUT' : 'POST';
+            const endpoint = appointmentToEdit ? `appointments/${appointmentToEdit.appointment_id}` : 'appointments';
+
+            const data = await apiFetch(endpoint, {
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
             if (data) {
-                alert("Appointment scheduled successfully!");
+                alert(appointmentToEdit ? "Appointment updated successfully!" : "Appointment scheduled successfully!");
                 // Reset form
                 setPatientId('');
                 setDepartmentId('');
@@ -109,8 +140,8 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
                 onSuccess();
             }
         } catch (error: any) {
-            console.error("Error creating appointment:", error);
-            alert(error.message || "Failed to schedule appointment.");
+            console.error("Error saving appointment:", error);
+            alert(error.message || "Failed to save appointment.");
         } finally {
             setIsSubmitting(false);
         }
@@ -120,9 +151,11 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="bg-white text-slate-800 border-slate-100 max-w-2xl rounded-3xl shadow-2xl overflow-hidden p-6 animate-in zoom-in-95 duration-200">
                 <DialogHeader className="pb-4 border-b border-slate-100">
-                    <DialogTitle className="font-black text-slate-900 tracking-tight text-xl">Schedule New Appointment</DialogTitle>
+                    <DialogTitle className="font-black text-slate-900 tracking-tight text-xl">
+                        {appointmentToEdit ? "Edit Appointment Details" : "Schedule New Appointment"}
+                    </DialogTitle>
                     <DialogDescription className="text-slate-500 font-medium text-xs mt-1">
-                        Book a time slot for a patient across any OPD department.
+                        {appointmentToEdit ? "Modify time slot or other details of this appointment." : "Book a time slot for a patient across any OPD department."}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -247,7 +280,7 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
                             Cancel
                         </Button>
                         <Button type="submit" disabled={isSubmitting} className="px-6 py-2.5 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-600/10 transition-all h-11">
-                            {isSubmitting ? "Scheduling..." : "Schedule Appointment"}
+                            {isSubmitting ? "Saving..." : (appointmentToEdit ? "Save Changes" : "Schedule Appointment")}
                         </Button>
                     </DialogFooter>
                 </form>
