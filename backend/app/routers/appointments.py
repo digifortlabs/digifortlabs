@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, time, timezone
 from pydantic import BaseModel
 
 from ..database import get_db
@@ -83,6 +83,76 @@ class AppointmentResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+class NextSlotResponse(BaseModel):
+    doctor_id: int
+    date: str
+    start_time: datetime
+    end_time: datetime
+    available: bool
+    message: Optional[str] = None
+
+def get_next_available_slot(db: Session, doctor_id: int, target_date: datetime.date, hospital_id: int) -> tuple[datetime, datetime]:
+    # 1. Check doctor's schedule for this day of week
+    day_of_week = target_date.weekday() # 0 = Monday, 6 = Sunday
+    schedule = db.query(DoctorSchedule).filter(
+        DoctorSchedule.doctor_id == doctor_id,
+        DoctorSchedule.day_of_week == day_of_week,
+        DoctorSchedule.is_active == True
+    ).first()
+    
+    # Default schedule boundaries if not configured
+    schedule_start_str = "09:00"
+    schedule_end_str = "17:00"
+    
+    if schedule:
+        schedule_start_str = schedule.start_time
+        schedule_end_str = schedule.end_time
+        
+    # Parse schedule hours
+    try:
+        sh, sm = map(int, schedule_start_str.split(":"))
+        eh, em = map(int, schedule_end_str.split(":"))
+    except Exception:
+        sh, sm = 9, 0
+        eh, em = 17, 0
+        
+    start_of_day_limit = datetime.combine(target_date, time(sh, sm))
+    end_of_day_limit = datetime.combine(target_date, time(eh, em))
+    
+    # 2. Get all appointments for this doctor on this day
+    # Ordered by end_time desc to find the latest
+    latest_appt = db.query(Appointment).filter(
+        Appointment.doctor_id == doctor_id,
+        Appointment.hospital_id == hospital_id,
+        Appointment.appointment_date >= datetime.combine(target_date, time.min),
+        Appointment.appointment_date <= datetime.combine(target_date, time.max),
+        Appointment.status.in_(["Scheduled", "Arrived", "In-Consultation"])
+    ).order_by(Appointment.end_time.desc()).first()
+    
+    now = datetime.now()
+    
+    # 3. Calculate start time
+    if latest_appt:
+        # Start immediately after the last appointment
+        start_time = latest_appt.end_time
+    else:
+        # Check if the DB has any timezone aware appointments to determine tz
+        sample = db.query(Appointment).filter(Appointment.hospital_id == hospital_id).first()
+        use_tz = timezone.utc if (sample and sample.end_time and sample.end_time.tzinfo) else None
+        
+        if target_date == now.date():
+            start_time = max(start_of_day_limit, now)
+        else:
+            start_time = start_of_day_limit
+            
+        if use_tz:
+            start_time = start_time.replace(tzinfo=use_tz)
+            
+    # Round start_time to nearest minute or keep as is? Keep as is
+    end_time = start_time + timedelta(minutes=7)
+    
+    return start_time, end_time
 
 # --- Endpoints ---
 
@@ -220,26 +290,9 @@ async def create_appointment(
         payload.appointment_date = datetime.combine(now.date(), datetime.min.time())
         
     if not payload.start_time or not payload.end_time:
-        # Find the latest appointment for this doctor today
-        start_of_day = datetime.combine(payload.appointment_date, datetime.min.time())
-        end_of_day = datetime.combine(payload.appointment_date, datetime.max.time())
-        
-        latest_appt = db.query(Appointment).filter(
-            Appointment.doctor_id == payload.doctor_id,
-            Appointment.appointment_date >= start_of_day,
-            Appointment.appointment_date <= end_of_day,
-            Appointment.status.in_(["Scheduled", "Arrived", "In-Consultation"])
-        ).order_by(Appointment.end_time.desc()).first()
-        
-        now_compared = datetime.now(timezone.utc) if (latest_appt and latest_appt.end_time.tzinfo) else now
-        if latest_appt and latest_appt.end_time > now_compared:
-            # Queue after the latest appointment
-            payload.start_time = latest_appt.end_time
-        else:
-            # Start now if no queue or queue is past
-            payload.start_time = now
-            
-        payload.end_time = payload.start_time + timedelta(minutes=7)
+        start_t, end_t = get_next_available_slot(db, payload.doctor_id, payload.appointment_date.date(), current_user.hospital_id)
+        payload.start_time = start_t
+        payload.end_time = end_t
     
     # Check doctor availability (only if times were manually provided, auto-queue avoids conflicts)
     else:
@@ -435,4 +488,59 @@ async def delete_appointment(
     db.delete(appointment)
     db.commit()
     return {"message": "Appointment deleted successfully"}
+
+@router.get("/next-slot", response_model=NextSlotResponse)
+def get_next_slot(
+    doctor_id: int,
+    date: str, # YYYY-MM-DD
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Calculate the next available 7-minute appointment slot for a doctor on a specific date."""
+    try:
+        target_date = datetime.strptime(date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+        
+    # Check if doctor exists and belongs to the same hospital
+    doctor = db.query(DoctorProfile).filter(
+        DoctorProfile.profile_id == doctor_id,
+        DoctorProfile.hospital_id == current_user.hospital_id
+    ).first()
+    
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+        
+    start_time, end_time = get_next_available_slot(db, doctor_id, target_date, current_user.hospital_id)
+    
+    # Check if the slot fits in the schedule
+    day_of_week = target_date.weekday()
+    schedule = db.query(DoctorSchedule).filter(
+        DoctorSchedule.doctor_id == doctor_id,
+        DoctorSchedule.day_of_week == day_of_week,
+        DoctorSchedule.is_active == True
+    ).first()
+    
+    available = True
+    message = "Slot available"
+    
+    if schedule:
+        try:
+            eh, em = map(int, schedule.end_time.split(":"))
+            end_limit = datetime.combine(target_date, time(eh, em))
+            # If start time is past the end of the shift, doctor is fully booked
+            if start_time >= end_limit:
+                available = False
+                message = "Doctor is fully booked on this date"
+        except Exception:
+            pass
+            
+    return NextSlotResponse(
+        doctor_id=doctor_id,
+        date=date,
+        start_time=start_time,
+        end_time=end_time,
+        available=available,
+        message=message
+    )
 
