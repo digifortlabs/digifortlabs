@@ -5,10 +5,10 @@ PROJECT_DIR="/home/ec2-user/digifortlabs"
 FRONTEND_SERVICE="frontend"
 BACKEND_NAME="backend"
 
-echo "🚀 Starting Production Deployment (Hard Pull)..."
+echo "???? Starting Production Deployment (Hard Pull)..."
 
 # Navigate to project
-cd $PROJECT_DIR || { echo "❌ Failed to change directory"; exit 1; }
+cd $PROJECT_DIR || { echo "??? Failed to change directory"; exit 1; }
 
 # Update Code
 echo "Updating code from GitHub..."
@@ -29,4 +29,4 @@ cd ..
 echo "Building and restarting Frontend container..."
 docker compose -f docker-compose.prod.yml up -d --build $FRONTEND_SERVICE
 
-echo "✅ Deployment Successful! Check logs with: pm2 logs backend"
+echo "??? Deployment Successful! Check logs with: pm2 logs backend"
