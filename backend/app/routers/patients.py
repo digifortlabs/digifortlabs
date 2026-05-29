@@ -2264,10 +2264,22 @@ def delete_patient_permanently(
         tables_to_nullify = {
             "operation_theaters": "current_patient_id",
             "medical_equipments": "current_patient_id",
-            "rfid_cards": "patient_id"
+            "rfid_cards": "patient_id",
+            "inventory_logs": "patient_id"
         }
         for t, col in tables_to_nullify.items():
             db.execute(text(f"UPDATE {t} SET {col} = NULL WHERE {col} = :pid"), {"pid": patient_id})
+            
+        # Delete sub-items that don't have patient_id directly but link to tables that do
+        sub_tables_to_delete = [
+            "DELETE FROM patient_invoice_items WHERE invoice_id IN (SELECT invoice_id FROM patient_invoices WHERE patient_id = :pid)",
+            "DELETE FROM prescriptions WHERE visit_id IN (SELECT visit_id FROM opd_visits WHERE patient_id = :pid)",
+            "DELETE FROM dental_treatment_phases WHERE plan_id IN (SELECT plan_id FROM dental_treatment_plans WHERE patient_id = :pid)",
+            "DELETE FROM dental_treatment_phases WHERE treatment_id IN (SELECT treatment_id FROM dental_treatments WHERE patient_id = :pid)",
+            "DELETE FROM periodontal_measurements WHERE exam_id IN (SELECT exam_id FROM periodontal_exams WHERE patient_id = :pid)"
+        ]
+        for query in sub_tables_to_delete:
+            db.execute(text(query), {"pid": patient_id})
             
         tables_to_delete = {
             "pdf_files": "record_id",
@@ -2363,6 +2375,56 @@ def cleanup_recycle_bin(
                              if os.path.exists(f.storage_path): os.remove(f.storage_path)
                          except: pass
             
+            # Manual Cascade Delete to avoid ForeignKeyViolations
+            from sqlalchemy import text
+            tables_to_nullify = {
+                "operation_theaters": "current_patient_id",
+                "medical_equipments": "current_patient_id",
+                "rfid_cards": "patient_id",
+                "inventory_logs": "patient_id"
+            }
+            for t, col in tables_to_nullify.items():
+                db.execute(text(f"UPDATE {t} SET {col} = NULL WHERE {col} = :pid"), {"pid": patient.record_id})
+                
+            sub_tables_to_delete = [
+                "DELETE FROM patient_invoice_items WHERE invoice_id IN (SELECT invoice_id FROM patient_invoices WHERE patient_id = :pid)",
+                "DELETE FROM prescriptions WHERE visit_id IN (SELECT visit_id FROM opd_visits WHERE patient_id = :pid)",
+                "DELETE FROM dental_treatment_phases WHERE plan_id IN (SELECT plan_id FROM dental_treatment_plans WHERE patient_id = :pid)",
+                "DELETE FROM dental_treatment_phases WHERE treatment_id IN (SELECT treatment_id FROM dental_treatments WHERE patient_id = :pid)",
+                "DELETE FROM periodontal_measurements WHERE exam_id IN (SELECT exam_id FROM periodontal_exams WHERE patient_id = :pid)"
+            ]
+            for query in sub_tables_to_delete:
+                db.execute(text(query), {"pid": patient.record_id})
+                
+            tables_to_delete = {
+                "pdf_files": "record_id",
+                "patient_diagnoses": "record_id",
+                "patient_procedures": "record_id",
+                "dental_patients": "main_patient_id",
+                "dental_appointments": "patient_id",
+                "dental_3d_scans": "patient_id",
+                "dental_treatment_plans": "patient_id",
+                "periodontal_exams": "patient_id",
+                "ortho_records": "patient_id",
+                "communication_logs": "patient_id",
+                "ent_patients": "patient_id",
+                "audiometry_tests": "patient_id",
+                "ent_examinations": "patient_id",
+                "ent_surgeries": "patient_id",
+                "opd_patients": "patient_id",
+                "opd_visits": "patient_id",
+                "appointments": "patient_id",
+                "insurance_claims": "patient_id",
+                "dental_lab_orders": "patient_id",
+                "ipd_admissions": "patient_id",
+                "dental_treatments": "patient_id",
+                "patient_invoices": "patient_id",
+                "patient_doctor_assignments": "patient_id",
+                "qa_issues": "record_id"
+            }
+            for t, col in tables_to_delete.items():
+                db.execute(text(f"DELETE FROM {t} WHERE {col} = :pid"), {"pid": patient.record_id})
+
             db.delete(patient)
             deleted_count += 1
         except Exception as e:
