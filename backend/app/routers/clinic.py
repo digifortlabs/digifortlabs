@@ -28,7 +28,8 @@ def get_opd_patients(
     target_hospital = hospital_id if hospital_id else current_user.hospital_id
     
     opd_patients = db.query(OPDPatient, Patient).join(Patient).filter(
-        OPDPatient.hospital_id == target_hospital
+        OPDPatient.hospital_id == target_hospital,
+        Patient.is_deleted == False
     ).all()
     
     result = []
@@ -94,7 +95,10 @@ def get_clinic_stats(
 ):
     target_hospital = hospital_id if hospital_id else current_user.hospital_id
     
-    total_patients = db.query(OPDPatient).filter(OPDPatient.hospital_id == target_hospital).count()
+    total_patients = db.query(OPDPatient).join(Patient).filter(
+        OPDPatient.hospital_id == target_hospital,
+        Patient.is_deleted == False
+    ).count()
     
     # Today visits
     today = datetime.now().date()
