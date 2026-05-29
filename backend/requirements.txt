@@ -38,3 +38,5 @@ pikepdf
 pdfminer.six
 markdown
 reportlab
+gunicorn
+
