@@ -223,6 +223,9 @@ class User(Base):
     current_session_id = Column(String, nullable=True)
     last_active_at = Column(DateTime(timezone=True), nullable=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Global Doctor features
+    subdomain = Column(String, unique=True, index=True, nullable=True)
     previous_login_at = Column(DateTime(timezone=True), nullable=True)
     force_password_change = Column(Boolean, default=False)
     
@@ -778,7 +781,7 @@ class DoctorProfile(Base):
     __tablename__ = "doctor_profiles"
     profile_id = Column(Integer, primary_key=True, index=True)
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True, unique=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True) # REMOVED unique=True so a User can have multiple profiles
     department_id = Column(Integer, ForeignKey("departments.department_id"), nullable=False)
     full_name = Column(String, nullable=False)
     email = Column(String, nullable=True)
@@ -786,6 +789,7 @@ class DoctorProfile(Base):
     specialization = Column(String, nullable=True) # e.g., "Endodontist"
     consultation_fee = Column(Float, default=0.0)
     is_active = Column(Boolean, default=True)
+    is_residential = Column(Boolean, default=True) # True = Single hospital doctor, False = Multi-hospital visiting doctor
     
     user = relationship("User", backref="doctor_profile")
     department = relationship("Department")

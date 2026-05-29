@@ -1023,6 +1023,7 @@ export default function ManageClientsPage() {
                                                 className="w-full p-3 rounded-xl border border-slate-200 bg-white focus:outline-none"
                                             >
                                                 <option value="General">General / Multi-Specialty</option>
+                                                <option value="Doctor">Independent Doctor / Consultant</option>
                                                 <option value="Dental">Dental Care Clinic</option>
                                                 <option value="ENT">ENT Diagnostics</option>
                                                 <option value="Clinic">Outpatient Clinic</option>

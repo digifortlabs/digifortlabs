@@ -505,6 +505,71 @@ def create_hospital(hospital: HospitalCreate, background_tasks: BackgroundTasks,
     if db.query(Hospital).filter(Hospital.email == hospital.email).first():
         raise HTTPException(status_code=400, detail="Hospital with this email already exists")
 
+    # Intercept Independent Doctor
+    if hospital.organization_type == "Independent Doctor":
+        import re
+        full_name = hospital.director_name or hospital.admin_full_name
+        base_slug = re.sub(r'[^a-z0-9]', '', full_name.lower())
+        if not base_slug:
+            base_slug = "doc"
+        subdomain = f"dr-{base_slug}"
+        
+        counter = 1
+        original_subdomain = subdomain
+        while db.query(User).filter(User.subdomain == subdomain).first():
+            subdomain = f"{original_subdomain}{counter}"
+            counter += 1
+
+        new_doctor = User(
+            email=hospital.email.lower(),
+            full_name=full_name,
+            phone=hospital.phone,
+            role=UserRole.DOCTOR_OPD,
+            hashed_password=get_password_hash(hospital.password),
+            hospital_id=None,
+            subdomain=subdomain,
+            is_active=True,
+            is_verified=False,
+            force_password_change=False
+        )
+        db.add(new_doctor)
+        db.flush()
+        
+        from ..models import DoctorProfile
+        profile = DoctorProfile(
+            user_id=new_doctor.user_id,
+            hospital_id=None,
+            is_residential=True,
+            specialization=hospital.specialty
+        )
+        db.add(profile)
+        db.commit()
+        db.refresh(new_doctor)
+        
+        try:
+            EmailService.send_welcome_email(
+                email=new_doctor.email,
+                name=full_name,
+                password="<Hidden>",
+                login_url=f"https://{subdomain}.digifortlabs.com/login"
+            )
+        except Exception:
+            pass
+            
+        return {
+            "hospital_id": new_doctor.user_id,
+            "legal_name": new_doctor.full_name,
+            "hospital_slug": subdomain,
+            "subscription_tier": "Independent Doctor",
+            "organization_type": "Independent Doctor",
+            "email": new_doctor.email,
+            "price_per_file": 0,
+            "included_pages": 0,
+            "price_per_extra_page": 0,
+            "is_active": True,
+            "is_deleted": False
+        }
+
     # Validate subdomain uniqueness
     import re
     target_slug = re.sub(r'[^a-z0-9]', '', hospital.legal_name.lower())

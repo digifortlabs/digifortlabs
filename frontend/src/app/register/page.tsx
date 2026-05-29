@@ -25,7 +25,7 @@ const STEPS = [
     { id: 5, label: 'Review', icon: CheckCircle2, color: 'green' },
 ];
 
-const ORG_TYPES = ['Hospital', 'Clinic', 'Dental Clinic'];
+const ORG_TYPES = ['Hospital', 'Clinic', 'Dental Clinic', 'Independent Doctor'];
 const SPECIALTIES = ['General Medical', 'Dental Practice', 'ENT Specialist'];
 
 const MODULES = [

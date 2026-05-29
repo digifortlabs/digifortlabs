@@ -83,6 +83,8 @@ def check_email(data: EmailCheckRequest, db: Session = Depends(get_db)):
         target_subdomain = 'demo'
     elif user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN, UserRole.WAREHOUSE_MANAGER]:
         target_subdomain = 'admin'
+    elif user.subdomain:
+        target_subdomain = user.subdomain
     elif hospital_slug:
         target_subdomain = hospital_slug
 
@@ -294,10 +296,19 @@ async def login_for_access_token(
     user.last_login_at = datetime.now(IST)  # type: ignore[assignment]
     
     # Create Token
+    multi_hospital_ids = []
+    is_multi_hospital_doctor = False
+    if not user.hospital_id and user.subdomain and user.role.startswith("doctor"):
+        is_multi_hospital_doctor = True
+        multi_hospital_ids = [p.hospital_id for p in user.doctor_profile]
+
     token_data = {
         "sub": user.email, 
         "role": user.role, 
         "hospital_id": user.hospital_id,
+        "is_multi_hospital": is_multi_hospital_doctor,
+        "allowed_hospital_ids": multi_hospital_ids,
+        "subdomain": user.subdomain,
         "group_id": user.hospital.group_id if user.hospital else None,
         "pricing_tier": user.hospital.pricing_tier if user.hospital else "C",
         "hospital_name": user.hospital.legal_name if user.hospital else None,
@@ -438,8 +449,19 @@ async def verify_device_otp(req: VerifyDeviceRequest, db: Session = Depends(get_
     
     log_audit(db, cast(int, user.user_id), "LOGIN_SUCCESS", "MFA User logged in successfully")
     
+    multi_hospital_ids = []
+    is_multi_hospital_doctor = False
+    if not user.hospital_id and user.subdomain and user.role.startswith("doctor"):
+        is_multi_hospital_doctor = True
+        multi_hospital_ids = [p.hospital_id for p in user.doctor_profile]
+
     token_data = {
-        "sub": user.email, "role": user.role, "hospital_id": user.hospital_id,
+        "sub": user.email, 
+        "role": user.role, 
+        "hospital_id": user.hospital_id,
+        "is_multi_hospital": is_multi_hospital_doctor,
+        "allowed_hospital_ids": multi_hospital_ids,
+        "subdomain": user.subdomain,
         "group_id": user.hospital.group_id if user.hospital else None,
         "pricing_tier": user.hospital.pricing_tier if user.hospital else "C",
         "hospital_name": user.hospital.legal_name if user.hospital else None,
@@ -860,7 +882,58 @@ async def register_hospital(data: HospitalRegistrationRequest, db: Session = Dep
         # Default for General Medical
         enabled_modules.append("mrd")
 
-    # 3. Create Hospital
+    # 3. Create Hospital or Global Doctor
+    if data.organization_type == "Independent Doctor":
+        import re
+        full_name = f"{data.admin_first_name} {data.admin_last_name}".strip()
+        base_slug = re.sub(r'[^a-z0-9]', '', full_name.lower())
+        if not base_slug:
+            base_slug = "doc"
+        subdomain = f"dr-{base_slug}"
+        
+        counter = 1
+        original_subdomain = subdomain
+        while db.query(User).filter(User.subdomain == subdomain).first():
+            subdomain = f"{original_subdomain}{counter}"
+            counter += 1
+
+        new_doctor = User(
+            email=email_lower,
+            full_name=full_name,
+            phone=data.phone,
+            role=UserRole.DOCTOR_OPD,
+            hashed_password=get_password_hash(data.password),
+            hospital_id=None,
+            subdomain=subdomain,
+            is_active=True,
+            is_verified=False,
+            force_password_change=False
+        )
+        db.add(new_doctor)
+        db.flush()
+        
+        from ..models import DoctorProfile
+        profile = DoctorProfile(
+            user_id=new_doctor.user_id,
+            hospital_id=None,
+            is_residential=True,
+            specialization=data.specialty
+        )
+        db.add(profile)
+        db.commit()
+        
+        try:
+            EmailService.send_welcome_email(
+                email=email_lower,
+                name=full_name,
+                password="<Hidden>",
+                login_url=f"https://{subdomain}.digifortlabs.com/login"
+            )
+        except Exception:
+            pass
+            
+        return {"message": "Independent Doctor registered successfully.", "hospital_id": None, "subdomain": subdomain}
+
     new_hospital = Hospital(
         legal_name=data.legal_name,
         email=email_lower,
