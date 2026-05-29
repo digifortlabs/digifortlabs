@@ -92,67 +92,95 @@ class NextSlotResponse(BaseModel):
     available: bool
     message: Optional[str] = None
 
-def get_next_available_slot(db: Session, doctor_id: int, target_date: datetime.date, hospital_id: int) -> tuple[datetime, datetime]:
-    # 1. Check doctor's schedule for this day of week
+class PreviewSlotRequest(BaseModel):
+    doctor_id: int
+    appointment_date: datetime.date
+    visit_type: str = "OPD"
+    preferred_time: Optional[datetime.time] = None
+
+class DoctorScheduleBlockResponse(BaseModel):
+    start_time: str
+    end_time: str
+    session_type: str
+
+def get_next_available_slot(
+    db: Session, doctor_id: int, target_date: datetime.date, hospital_id: int, 
+    visit_type: str = "OPD", preferred_time: Optional[datetime.time] = None
+) -> tuple[datetime, datetime, Optional[str]]:
     day_of_week = target_date.weekday() # 0 = Monday, 6 = Sunday
-    schedule = db.query(DoctorSchedule).filter(
+    
+    all_schedules = db.query(DoctorSchedule).filter(
         DoctorSchedule.doctor_id == doctor_id,
         DoctorSchedule.day_of_week == day_of_week,
         DoctorSchedule.is_active == True
-    ).first()
+    ).order_by(DoctorSchedule.start_time).all()
     
-    # Default schedule boundaries if not configured
-    schedule_start_str = "09:00"
-    schedule_end_str = "17:00"
+    valid_blocks = [s for s in all_schedules if s.session_type == visit_type]
     
-    if schedule:
-        schedule_start_str = schedule.start_time
-        schedule_end_str = schedule.end_time
-        
-    # Parse schedule hours
-    try:
-        sh, sm = map(int, schedule_start_str.split(":"))
-        eh, em = map(int, schedule_end_str.split(":"))
-    except Exception:
-        sh, sm = 9, 0
-        eh, em = 17, 0
-        
-    start_of_day_limit = datetime.combine(target_date, time(sh, sm))
-    end_of_day_limit = datetime.combine(target_date, time(eh, em))
-    
-    # 2. Get all appointments for this doctor on this day
-    # Ordered by end_time desc to find the latest
-    latest_appt = db.query(Appointment).filter(
+    if not valid_blocks:
+        if all_schedules:
+            raise ValueError(f"Doctor is not available for {visit_type} on this day.")
+        else:
+            raise ValueError("Doctor has no schedule on this day.")
+
+    now = datetime.now()
+    if target_date < now.date():
+        raise ValueError("Cannot book appointments in the past.")
+
+    appointments = db.query(Appointment).filter(
         Appointment.doctor_id == doctor_id,
         Appointment.hospital_id == hospital_id,
         Appointment.appointment_date >= datetime.combine(target_date, time.min),
         Appointment.appointment_date <= datetime.combine(target_date, time.max),
         Appointment.status.in_(["Scheduled", "Arrived", "In-Consultation"])
-    ).order_by(Appointment.end_time.desc()).first()
-    
-    now = datetime.now()
-    
-    # 3. Calculate start time
-    if latest_appt:
-        # Start immediately after the last appointment
-        start_time = latest_appt.end_time
-    else:
-        # Check if the DB has any timezone aware appointments to determine tz
-        sample = db.query(Appointment).filter(Appointment.hospital_id == hospital_id).first()
-        use_tz = timezone.utc if (sample and sample.end_time and sample.end_time.tzinfo) else None
+    ).order_by(Appointment.end_time.asc()).all()
+
+    search_start = now if target_date == now.date() else datetime.combine(target_date, time.min)
+    if preferred_time:
+        pref_dt = datetime.combine(target_date, preferred_time)
+        search_start = max(search_start, pref_dt)
+
+    message = None
+    if preferred_time:
+        pref_str = preferred_time.strftime("%H:%M")
+        for s in all_schedules:
+            if s.session_type != visit_type and s.start_time <= pref_str < s.end_time:
+                message = f"Doctor is in {s.session_type} at {pref_str}. Suggesting nearest available {visit_type} time."
+
+    for block in valid_blocks:
+        try:
+            sh, sm = map(int, block.start_time.split(":"))
+            eh, em = map(int, block.end_time.split(":"))
+        except:
+            continue
+            
+        block_start = datetime.combine(target_date, time(sh, sm))
+        block_end = datetime.combine(target_date, time(eh, em))
         
-        if target_date == now.date():
-            start_time = max(start_of_day_limit, now)
-        else:
-            start_time = start_of_day_limit
+        if block_end <= search_start:
+            continue
             
-        if use_tz:
-            start_time = start_time.replace(tzinfo=use_tz)
+        current_time = max(block_start, search_start)
+        
+        while current_time + timedelta(minutes=7) <= block_end:
+            slot_end = current_time + timedelta(minutes=7)
             
-    # Round start_time to nearest minute or keep as is? Keep as is
-    end_time = start_time + timedelta(minutes=7)
-    
-    return start_time, end_time
+            conflict = False
+            for appt in appointments:
+                if not (slot_end <= appt.start_time or current_time >= appt.end_time):
+                    conflict = True
+                    current_time = appt.end_time
+                    break
+            
+            if not conflict:
+                sample = db.query(Appointment).filter(Appointment.hospital_id == hospital_id).first()
+                use_tz = timezone.utc if (sample and sample.end_time and sample.end_time.tzinfo) else None
+                if use_tz:
+                    current_time = current_time.replace(tzinfo=use_tz)
+                    slot_end = slot_end.replace(tzinfo=use_tz)
+                return current_time, slot_end, message
+                
+    raise ValueError(f"No available {visit_type} slots remaining on this date.")
 
 # --- Endpoints ---
 
@@ -285,12 +313,15 @@ async def create_appointment(
     from datetime import datetime, timedelta, timezone
     now = datetime.now()
     
-    # Auto-assign date and times if not provided
-    if not payload.appointment_date:
-        payload.appointment_date = datetime.combine(now.date(), datetime.min.time())
-        
     if not payload.start_time or not payload.end_time:
-        start_t, end_t = get_next_available_slot(db, payload.doctor_id, payload.appointment_date.date(), current_user.hospital_id)
+        # Auto-assign date and times if not provided
+        if not payload.appointment_date:
+            payload.appointment_date = datetime.combine(now.date(), datetime.min.time())
+            
+        start_t, end_t, _ = get_next_available_slot(
+            db, payload.doctor_id, payload.appointment_date.date(), 
+            current_user.hospital_id, payload.visit_type
+        )
         payload.start_time = start_t
         payload.end_time = end_t
     
@@ -487,7 +518,57 @@ async def delete_appointment(
         
     db.delete(appointment)
     db.commit()
-    return {"message": "Appointment deleted successfully"}
+    return {"message": "Appointment cancelled successfully"}
+
+@router.post("/preview-slot", response_model=NextSlotResponse)
+async def preview_slot(
+    request: PreviewSlotRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Calculate and preview the exact time slot the system will assign."""
+    try:
+        start_t, end_t, message = get_next_available_slot(
+            db, request.doctor_id, request.appointment_date, 
+            current_user.hospital_id, request.visit_type, request.preferred_time
+        )
+        return NextSlotResponse(
+            doctor_id=request.doctor_id,
+            date=request.appointment_date.isoformat(),
+            start_time=start_t,
+            end_time=end_t,
+            available=True,
+            message=message
+        )
+    except ValueError as e:
+        # Cannot find any slot
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/doctor-schedule/{doctor_id}", response_model=List[DoctorScheduleBlockResponse])
+async def get_doctor_day_schedule(
+    doctor_id: int,
+    date: str, # YYYY-MM-DD
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get the specific schedule blocks (OPD, IPD, OT) for a doctor on a specific date."""
+    target_date = datetime.strptime(date, "%Y-%m-%d").date()
+    day_of_week = target_date.weekday()
+    
+    schedules = db.query(DoctorSchedule).filter(
+        DoctorSchedule.doctor_id == doctor_id,
+        DoctorSchedule.day_of_week == day_of_week,
+        DoctorSchedule.is_active == True
+    ).order_by(DoctorSchedule.start_time).all()
+    
+    return [
+        DoctorScheduleBlockResponse(
+            start_time=s.start_time,
+            end_time=s.end_time,
+            session_type=s.session_type
+        )
+        for s in schedules
+    ]
 
 @router.get("/next-slot", response_model=NextSlotResponse)
 def get_next_slot(

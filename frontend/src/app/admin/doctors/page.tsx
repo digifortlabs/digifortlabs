@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Stethoscope, Plus, Trash2, Edit2, Shield, AlertTriangle, Building, Briefcase, DollarSign } from 'lucide-react';
+import { Stethoscope, Plus, Trash2, Edit2, Shield, AlertTriangle, Building, Briefcase, DollarSign, Calendar } from 'lucide-react';
 import ContentSkeleton from '@/components/ui/ContentSkeleton';
 import ConfirmationModal from '@/components/ConfirmationModal';
+import DoctorScheduleModal from '@/components/DoctorScheduleModal';
 import { apiFetch } from '@/config/api';
 
 export default function DoctorsManagement() {
@@ -11,6 +12,7 @@ export default function DoctorsManagement() {
     const [departments, setDepartments] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [scheduleModal, setScheduleModal] = useState({ isOpen: false, doctorId: null as number | null, doctorName: '' });
     
     const [newDoctor, setNewDoctor] = useState({ 
         email: '', password: '', full_name: '', role: 'doctor_opd', phone: '',
@@ -201,10 +203,13 @@ export default function DoctorsManagement() {
                                 </div>
                             </div>
                             <div className="flex gap-2">
-                                <button onClick={() => handleEdit(doc)} className="text-slate-300 hover:text-indigo-500 transition">
+                                <button onClick={() => setScheduleModal({ isOpen: true, doctorId: doc.profile_id, doctorName: doc.full_name || 'Unnamed' })} className="text-slate-300 hover:text-indigo-500 transition" title="Manage Schedule">
+                                    <Calendar size={18} />
+                                </button>
+                                <button onClick={() => handleEdit(doc)} className="text-slate-300 hover:text-indigo-500 transition" title="Edit Profile">
                                     <Edit2 size={18} />
                                 </button>
-                                <button onClick={() => handleDelete(doc.profile_id)} className="text-slate-300 hover:text-red-500 transition">
+                                <button onClick={() => handleDelete(doc.profile_id)} className="text-slate-300 hover:text-red-500 transition" title="Delete Profile">
                                     <Trash2 size={18} />
                                 </button>
                             </div>
@@ -399,6 +404,13 @@ export default function DoctorsManagement() {
                 message={confirmModal.message}
                 type={confirmModal.type}
                 confirmText={confirmModal.confirmText}
+            />
+
+            <DoctorScheduleModal 
+                isOpen={scheduleModal.isOpen} 
+                onClose={() => setScheduleModal({ ...scheduleModal, isOpen: false })} 
+                doctorId={scheduleModal.doctorId}
+                doctorName={scheduleModal.doctorName}
             />
         </div>
     );

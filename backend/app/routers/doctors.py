@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 import uuid
 
 from ..database import get_db
-from ..models import User, UserRole, DoctorProfile, Department, Permission
+from ..models import User, UserRole, DoctorProfile, Department, Permission, DoctorSchedule
 from ..routers.auth import get_current_user, require_permission
 from ..utils import get_password_hash
 
@@ -47,6 +47,20 @@ class DoctorProfileResponse(BaseModel):
     user_id: Optional[int] = None
     hospital_id: Optional[int] = None
     hospital_name: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+class ScheduleBlockCreate(BaseModel):
+    day_of_week: int
+    start_time: str
+    end_time: str
+    session_type: str = "OPD"
+    is_active: bool = True
+
+class ScheduleBlockResponse(ScheduleBlockCreate):
+    schedule_id: int
+    doctor_id: int
     
     class Config:
         from_attributes = True
@@ -241,3 +255,50 @@ def delete_doctor(
 
     db.commit()
     return {"message": "Doctor deleted"}
+
+@router.get("/{doctor_id}/schedule", response_model=List[ScheduleBlockResponse])
+async def get_doctor_schedule_full(
+    doctor_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get the full weekly schedule for a doctor."""
+    schedules = db.query(DoctorSchedule).filter(
+        DoctorSchedule.doctor_id == doctor_id
+    ).all()
+    return schedules
+
+@router.post("/{doctor_id}/schedule", response_model=List[ScheduleBlockResponse])
+async def update_doctor_schedule(
+    doctor_id: int,
+    blocks: List[ScheduleBlockCreate],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Replace the doctor's weekly schedule with the new blocks."""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    # Delete old schedule
+    db.query(DoctorSchedule).filter(DoctorSchedule.doctor_id == doctor_id).delete()
+    
+    # Insert new blocks
+    new_schedules = []
+    for block in blocks:
+        sched = DoctorSchedule(
+            doctor_id=doctor_id,
+            day_of_week=block.day_of_week,
+            start_time=block.start_time,
+            end_time=block.end_time,
+            session_type=block.session_type,
+            is_active=block.is_active
+        )
+        db.add(sched)
+        new_schedules.append(sched)
+        
+    db.commit()
+    
+    for s in new_schedules:
+        db.refresh(s)
+        
+    return new_schedules
