@@ -54,6 +54,18 @@ class AppointmentCreate(BaseModel):
     visit_type: Optional[str] = 'OPD'
     is_follow_up: Optional[bool] = False
 
+class AppointmentUpdate(BaseModel):
+    doctor_id: Optional[int] = None
+    department_id: Optional[int] = None
+    appointment_date: Optional[datetime] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    reason_for_visit: Optional[str] = None
+    notes: Optional[str] = None
+    visit_type: Optional[str] = None
+    is_follow_up: Optional[bool] = None
+    status: Optional[str] = None
+
 class AppointmentResponse(BaseModel):
     appointment_id: int
     patient_id: int
@@ -356,3 +368,71 @@ async def update_appointment_status(
     setattr(appointment, "status", status)
     db.commit()
     return {"message": "Status updated successfully", "status": status}
+
+@router.put("/{appointment_id}", response_model=AppointmentResponse)
+async def update_appointment(
+    appointment_id: int,
+    payload: AppointmentUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update centralized appointment details with conflict checking."""
+    appointment = db.query(Appointment).filter(
+        Appointment.appointment_id == appointment_id,
+        Appointment.hospital_id == current_user.hospital_id
+    ).first()
+    
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+        
+    # If updating times, check doctor conflicts (excluding current appointment)
+    if payload.start_time or payload.end_time or payload.doctor_id:
+        doc_id = payload.doctor_id or appointment.doctor_id
+        start_t = payload.start_time or appointment.start_time
+        end_t = payload.end_time or appointment.end_time
+        appt_date = payload.appointment_date or appointment.appointment_date
+        
+        conflict = db.query(Appointment).filter(
+            Appointment.doctor_id == doc_id,
+            Appointment.appointment_id != appointment_id,
+            Appointment.status.in_(["Scheduled", "Arrived", "In-Consultation"]),
+            Appointment.appointment_date == appt_date,
+            or_(
+                Appointment.start_time.between(start_t, end_t),
+                Appointment.end_time.between(start_t, end_t)
+            )
+        ).first()
+        
+        if conflict:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Doctor already has an appointment during this time."
+            )
+            
+    update_data = payload.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(appointment, key, value)
+        
+    db.commit()
+    db.refresh(appointment)
+    return appointment
+
+@router.delete("/{appointment_id}")
+async def delete_appointment(
+    appointment_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a centralized appointment."""
+    appointment = db.query(Appointment).filter(
+        Appointment.appointment_id == appointment_id,
+        Appointment.hospital_id == current_user.hospital_id
+    ).first()
+    
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+        
+    db.delete(appointment)
+    db.commit()
+    return {"message": "Appointment deleted successfully"}
+
