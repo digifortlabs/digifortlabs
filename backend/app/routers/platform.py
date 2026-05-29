@@ -148,7 +148,33 @@ async def get_system_error_logs(
     try:
         from ..models import SystemErrorLog
         logs = db.query(SystemErrorLog).order_by(SystemErrorLog.timestamp.desc()).limit(limit).all()
-        return logs
+        
+        formatted_logs = []
+        for l in logs:
+            msg_parts = l.message.split(" | ")
+            method = ""
+            endpoint = ""
+            err_msg = msg_parts[0]
+            
+            if len(msg_parts) > 1:
+                req_parts = msg_parts[1].split(" ", 1)
+                if len(req_parts) == 2:
+                    method = req_parts[0]
+                    endpoint = req_parts[1]
+                else:
+                    endpoint = msg_parts[1]
+            
+            formatted_logs.append({
+                "id": l.id,
+                "error_type": l.severity,
+                "module": l.module,
+                "error_message": err_msg,
+                "method": method,
+                "endpoint": endpoint,
+                "timestamp": l.timestamp
+            })
+            
+        return formatted_logs
     except Exception as e:
         logger.info(f"System Error Logs fetching error: {e}")
         raise HTTPException(status_code=500, detail="Could not fetch system error logs")

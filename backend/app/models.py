@@ -665,6 +665,7 @@ class InventoryItem(Base):
     last_updated = Column(DateTime, onupdate=func.now())
     
     hospital = relationship("Hospital")
+    logs = relationship("InventoryLog", back_populates="item", cascade="all, delete-orphan")
 
 class InventoryLog(Base):
     __tablename__ = "inventory_logs"
@@ -677,7 +678,7 @@ class InventoryLog(Base):
     performed_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     
-    item = relationship("InventoryItem")
+    item = relationship("InventoryItem", back_populates="logs")
     user = relationship("User")
     hospital = relationship("Hospital")
 
