@@ -101,8 +101,22 @@ async function doFetch(url: string, _path: string, options: any, token: string |
 }
 
 export async function apiFetch(endpoint: string, options: any = {}) {
+    // Normalize endpoint slashes to prevent FastAPI redirect issues on production subdomains
+    let normalizedEndpoint = endpoint;
+    if (normalizedEndpoint) {
+        const qIndex = normalizedEndpoint.indexOf('?');
+        let pathPart = qIndex !== -1 ? normalizedEndpoint.substring(0, qIndex) : normalizedEndpoint;
+        const queryPart = qIndex !== -1 ? normalizedEndpoint.substring(qIndex) : '';
+
+        // Append trailing slash to bare resource paths (e.g. "patients", "hms/beds") to avoid backend redirects
+        if (/^[a-zA-Z_\-]+(\/[a-zA-Z_\-]+)*$/.test(pathPart)) {
+            pathPart += '/';
+        }
+        normalizedEndpoint = `${pathPart}${queryPart}`;
+    }
+
     const baseUrl = getApiUrl();
-    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const path = normalizedEndpoint.startsWith('/') ? normalizedEndpoint : `/${normalizedEndpoint}`;
     const url = `${baseUrl}${path}`;
 
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
