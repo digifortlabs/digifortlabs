@@ -82,12 +82,19 @@ export default function QuickAssignDoctorModal({ isOpen, onClose, patientId, pat
                 reason_for_visit: reasonForVisit
             };
 
-            await apiFetch('appointments/', {
+            const response = await apiFetch('appointments/', {
                 method: 'POST',
                 body: payload
             });
 
-            toast.success("Patient added to queue successfully!");
+            let timeMsg = "";
+            if (response && response.start_time) {
+                const dateStr = new Date(response.appointment_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                const timeStr = new Date(response.start_time).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+                timeMsg = ` Scheduled for ${dateStr} at ${timeStr}.`;
+            }
+
+            toast.success(`Patient added to queue successfully!${timeMsg}`);
             onClose();
         } catch (error: any) {
             console.error("Failed to assign doctor", error);
