@@ -10,6 +10,7 @@ export default function StaffManagement() {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [newStaff, setNewStaff] = useState({ full_name: '', email: '', password: '', role: 'mrd_staff', mfa_enabled: true });
+    const [searchQuery, setSearchQuery] = useState('');
     const [editStaff, setEditStaff] = useState({ user_id: 0, role: '', password: '', mfa_enabled: true });
     const [isEditing, setIsEditing] = useState(false);
     const [error, setError] = useState('');
@@ -141,6 +142,15 @@ export default function StaffManagement() {
 
     const isEditingSelf = isEditing && staff.find(u => u.user_id === editStaff.user_id)?.email === currentUserEmail;
 
+    const filteredStaff = staff.filter(user => {
+        const query = searchQuery.toLowerCase();
+        const emailMatch = user.email?.toLowerCase().includes(query) || false;
+        const nameMatch = user.full_name?.toLowerCase().includes(query) || false;
+        const roleMatch = user.role?.toLowerCase().includes(query) || false;
+        const hospitalMatch = user.hospital?.legal_name?.toLowerCase().includes(query) || false;
+        return emailMatch || nameMatch || roleMatch || hospitalMatch;
+    });
+
     return (
         <div className="w-full mx-auto px-4 pb-4 pt-0">
             <div className="flex justify-between items-center mb-4">
@@ -182,10 +192,19 @@ export default function StaffManagement() {
                 </div>
             </div>
 
-            {/* Stats / Limit Warning could go here */}
+            <div className="mb-6 relative max-w-md">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                <input
+                    type="text"
+                    placeholder="Search users by email, name, role, or hospital..."
+                    className="w-full pl-12 pr-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition font-medium text-slate-900 bg-white"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                />
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {staff.map(user => (
+                {filteredStaff.map(user => (
                     <div key={user.user_id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 group hover:shadow-md transition">
                         <div className="flex justify-between items-start mb-4">
                             <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 font-bold text-xl">
@@ -202,7 +221,15 @@ export default function StaffManagement() {
                                 </div>
                             )}
                         </div>
-                        <h3 className="font-bold text-lg text-slate-900 truncate">{user.email}</h3>
+                        <h3 className="font-bold text-lg text-slate-900 truncate">
+                            {user.full_name || user.email.split('@')[0]}
+                        </h3>
+                        <p className="text-slate-500 text-xs font-semibold truncate mb-2">{user.email}</p>
+                        {user.hospital && (
+                            <div className="text-[10px] font-extrabold text-indigo-500 uppercase tracking-widest bg-indigo-50/50 border border-indigo-100/50 px-2 py-0.5 rounded-md w-fit mb-3 flex items-center gap-1">
+                                🏢 {user.hospital.legal_name}
+                            </div>
+                        )}
                         <div className="flex flex-wrap items-center gap-2 mt-2">
                             <div className="flex items-center gap-2 text-xs text-slate-500 font-medium bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
                                 <Shield size={12} className="text-indigo-500" />
