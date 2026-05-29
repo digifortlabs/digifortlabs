@@ -256,6 +256,52 @@ def delete_doctor(
     db.commit()
     return {"message": "Doctor deleted"}
 
+@router.get("/me/schedule", response_model=List[ScheduleBlockResponse])
+async def get_my_schedule(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get the current doctor's weekly schedule."""
+    profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user.id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Doctor profile not found")
+        
+    schedules = db.query(DoctorSchedule).filter(
+        DoctorSchedule.doctor_id == profile.profile_id
+    ).all()
+    return schedules
+
+@router.post("/me/schedule", response_model=List[ScheduleBlockResponse])
+async def update_my_schedule(
+    blocks: List[ScheduleBlockCreate],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update the current doctor's weekly schedule."""
+    profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user.id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Doctor profile not found")
+        
+    db.query(DoctorSchedule).filter(DoctorSchedule.doctor_id == profile.profile_id).delete()
+    
+    new_schedules = []
+    for block in blocks:
+        sched = DoctorSchedule(
+            doctor_id=profile.profile_id,
+            day_of_week=block.day_of_week,
+            start_time=block.start_time,
+            end_time=block.end_time,
+            session_type=block.session_type,
+            is_active=block.is_active
+        )
+        db.add(sched)
+        new_schedules.append(sched)
+        
+    db.commit()
+    for s in new_schedules:
+        db.refresh(s)
+    return new_schedules
+
 @router.get("/{doctor_id}/schedule", response_model=List[ScheduleBlockResponse])
 async def get_doctor_schedule_full(
     doctor_id: int,

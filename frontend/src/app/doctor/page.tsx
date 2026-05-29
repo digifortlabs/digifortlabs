@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import {
     CalendarDays, Clock, Users, Stethoscope, CheckCircle2,
     AlertCircle, ChevronRight, Activity, FileText, ArrowRight,
-    Timer, User
+    Timer, User, Calendar
 } from 'lucide-react';
 import { apiFetch } from '@/config/api';
 import { formatDate } from '@/lib/dateFormatter';
+import DoctorScheduleModal from '@/components/DoctorScheduleModal';
 
 type Appointment = {
     id: number;
@@ -40,6 +41,7 @@ export default function DoctorPage() {
     const [currentTime, setCurrentTime] = useState('');
     const [today, setToday] = useState('');
     const [loading, setLoading] = useState(true);
+    const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
 
     useEffect(() => {
         setUserEmail(localStorage.getItem('userEmail') || '');
@@ -222,17 +224,32 @@ export default function DoctorPage() {
             {/* ── QUICK ACTIONS ── */}
             <div>
                 <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Quick Actions</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                     {[
                         { label: 'My Patients', icon: Users, href: '/doctor/patients', color: 'text-violet-400 bg-violet-500/10 border-violet-500/20' },
                         { label: 'OPD Register', icon: Stethoscope, href: '/doctor/opd', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
                         { label: 'Write Note', icon: FileText, href: '/doctor/notes/new', color: 'text-teal-400 bg-teal-500/10 border-teal-500/20' },
                         { label: 'All Appointments', icon: CalendarDays, href: '/doctor/appointments', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+                        { label: 'My Schedule', icon: Calendar, onClick: () => setScheduleModalOpen(true), color: 'text-pink-400 bg-pink-500/10 border-pink-500/20' },
                     ].map((action) => {
                         const Icon = action.icon;
+                        if (action.onClick) {
+                            return (
+                                <button
+                                    key={action.label}
+                                    onClick={action.onClick}
+                                    className="flex flex-col items-center gap-2.5 p-4 bg-slate-900/60 border border-white/5 rounded-2xl hover:bg-slate-800/80 hover:border-white/10 hover:-translate-y-0.5 transition-all duration-200 group w-full"
+                                >
+                                    <div className={`w-10 h-10 rounded-xl border ${action.color} flex items-center justify-center group-hover:scale-110 transition-transform duration-200`}>
+                                        <Icon size={18} strokeWidth={2.5} />
+                                    </div>
+                                    <span className="text-xs font-black text-slate-300 text-center">{action.label}</span>
+                                </button>
+                            );
+                        }
                         return (
                             <a
-                                key={action.href}
+                                key={action.label}
                                 href={action.href}
                                 className="flex flex-col items-center gap-2.5 p-4 bg-slate-900/60 border border-white/5 rounded-2xl hover:bg-slate-800/80 hover:border-white/10 hover:-translate-y-0.5 transition-all duration-200 group"
                             >
@@ -245,6 +262,12 @@ export default function DoctorPage() {
                     })}
                 </div>
             </div>
+        <DoctorScheduleModal 
+            isOpen={scheduleModalOpen} 
+            onClose={() => setScheduleModalOpen(false)} 
+            doctorId="me"
+            doctorName="Me"
+        />
         </div>
     );
 }

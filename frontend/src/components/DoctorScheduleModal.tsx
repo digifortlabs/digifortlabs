@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 interface DoctorScheduleModalProps {
     isOpen: boolean;
     onClose: () => void;
-    doctorId: number | null;
+    doctorId: number | "me" | null;
     doctorName: string;
 }
 
@@ -34,7 +34,8 @@ export default function DoctorScheduleModal({ isOpen, onClose, doctorId, doctorN
     const fetchSchedule = async () => {
         setIsLoading(true);
         try {
-            const data = await apiFetch(`doctors/${doctorId}/schedule`);
+            const endpoint = doctorId === "me" ? "doctors/me/schedule" : `doctors/${doctorId}/schedule`;
+            const data = await apiFetch(endpoint);
             setBlocks(data || []);
         } catch (error) {
             console.error(error);
@@ -67,7 +68,8 @@ export default function DoctorScheduleModal({ isOpen, onClose, doctorId, doctorN
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await apiFetch(`doctors/${doctorId}/schedule`, {
+            const endpoint = doctorId === "me" ? "doctors/me/schedule" : `doctors/${doctorId}/schedule`;
+            await apiFetch(endpoint, {
                 method: 'POST',
                 body: blocks
             });
