@@ -200,7 +200,7 @@ async def create_appointment(
     db: Session = Depends(get_db)
 ):
     """Create a new centralized appointment with dynamic queueing."""
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     now = datetime.now()
     
     # Auto-assign date and times if not provided
@@ -219,7 +219,8 @@ async def create_appointment(
             Appointment.status.in_(["Scheduled", "Arrived", "In-Consultation"])
         ).order_by(Appointment.end_time.desc()).first()
         
-        if latest_appt and latest_appt.end_time > now:
+        now_compared = datetime.now(timezone.utc) if (latest_appt and latest_appt.end_time.tzinfo) else now
+        if latest_appt and latest_appt.end_time > now_compared:
             # Queue after the latest appointment
             payload.start_time = latest_appt.end_time
         else:
@@ -329,8 +330,8 @@ async def update_appointment_status(
         raise HTTPException(status_code=404, detail="Appointment not found")
         
     if status == "Completed" and appointment.status != "Completed":
-        from datetime import datetime, timedelta
-        now = datetime.now()
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc) if appointment.end_time.tzinfo else datetime.now()
         
         # If the consultation went overtime, shift the queue
         if now > appointment.end_time:
