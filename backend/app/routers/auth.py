@@ -34,7 +34,7 @@ from ..services.email_service import EmailService
 # Define IST Timezone globally
 IST = timezone(timedelta(hours=5, minutes=30))
 
-router = APIRouter(tags=["auth"])
+router = APIRouter(tags=["auth"], redirect_slashes=False)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
@@ -62,6 +62,7 @@ class EmailCheckRequest(BaseModel):
     email: EmailStr
 
 @router.post("/check-email")
+@router.post("/check-email/", include_in_schema=False)
 def check_email(data: EmailCheckRequest, db: Session = Depends(get_db)):
     """Check if an email belongs to a hospital and return the target subdomain slug."""
     user = db.query(User).filter(func.lower(User.email) == func.lower(data.email), User.is_deleted == False).first()  # noqa: E712
@@ -93,6 +94,7 @@ def check_email(data: EmailCheckRequest, db: Session = Depends(get_db)):
     }
 
 @router.post("/token", response_model=Token)
+@router.post("/token/", response_model=Token, include_in_schema=False)
 async def login_for_access_token(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -360,6 +362,7 @@ class VerifyDeviceRequest(BaseModel):
     device_id: str
 
 @router.post("/mfa/verify-device", response_model=Token)
+@router.post("/mfa/verify-device/", response_model=Token, include_in_schema=False)
 async def verify_device_otp(req: VerifyDeviceRequest, db: Session = Depends(get_db)):
     """
     Verifies the email OTP for a new device and, if successful, registers the device
@@ -481,7 +484,7 @@ async def verify_device_otp(req: VerifyDeviceRequest, db: Session = Depends(get_
     max_age = int(expires_delta.total_seconds()) if expires_delta else settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     response.set_cookie(
         key="access_token", value=f"Bearer {access_token}", httponly=True,
-        secure=settings.ENVIRONMENT == "production", samesite="lax", max_age=max_age, path="/",
+        secure=settings.ENVIRONMENT == "production", samesite="none", max_age=max_age, path="/",
         domain=settings.COOKIE_DOMAIN if settings.COOKIE_DOMAIN else None
     )
     
@@ -499,6 +502,7 @@ async def verify_device_otp(req: VerifyDeviceRequest, db: Session = Depends(get_
     return response
 
 @router.post("/request-password-reset")
+@router.post("/request-password-reset/", include_in_schema=False)
 async def request_password_reset(request: PasswordResetRequest, db: Session = Depends(get_db)):
     email = request.email.lower()
     
@@ -543,6 +547,7 @@ async def request_password_reset(request: PasswordResetRequest, db: Session = De
 
 
 @router.post("/reset-password")
+@router.post("/reset-password/", include_in_schema=False)
 async def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_db)):
     from ..models import PasswordResetOTP
     from ..utils import get_password_hash
@@ -678,6 +683,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/session-token")
+@router.get("/session-token/", include_in_schema=False)
 async def get_session_token(current_user: User = Depends(get_current_user)):
     """Returns the JWT for the currently active session. Useful for desktop app handoff."""
     token_data = {
@@ -778,6 +784,7 @@ def require_tier(required_tier: str):
 
 
 @router.post("/logout")
+@router.post("/logout/", include_in_schema=False)
 async def logout(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Logs the user out by clearing the HttpOnly cookie and session ID."""
     # Invalidate session in DB immediately
@@ -799,6 +806,7 @@ async def logout(current_user: User = Depends(get_current_user), db: Session = D
     return response
 
 @router.post("/register-demo")
+@router.post("/register-demo/", include_in_schema=False)
 async def register_demo(data: dict, db: Session = Depends(get_db)):
     from ..services.demo_service import register_demo_account, DemoRegistrationRequest
     return register_demo_account(DemoRegistrationRequest(**data), db)
@@ -817,6 +825,7 @@ class HospitalRegistrationRequest(BaseModel):
     password: str
 
 @router.post("/register")
+@router.post("/register/", include_in_schema=False)
 async def register_hospital(data: HospitalRegistrationRequest, db: Session = Depends(get_db)):
     from ..models import Hospital, User, UserRole
     from ..utils import get_password_hash

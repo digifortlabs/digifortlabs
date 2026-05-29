@@ -13,7 +13,7 @@ from ..routers.auth import get_current_user, require_permission
 # ... (omitted lines)
 from ..utils import get_password_hash
 
-router = APIRouter()
+router = APIRouter(redirect_slashes=False)
 
 @router.delete("/{user_id}")
 def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_USERS))):
@@ -75,6 +75,7 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 @router.get("/me", response_model=UserResponse)
+@router.get("/me/", response_model=UserResponse, include_in_schema=False)
 def get_current_user_profile(current_user: User = Depends(get_current_user)):
     """Return the currently logged-in user's profile."""
     # Hide password for security

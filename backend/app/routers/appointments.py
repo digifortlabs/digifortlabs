@@ -75,6 +75,7 @@ class AppointmentResponse(BaseModel):
 # --- Endpoints ---
 
 @router.get("/departments", response_model=List[DepartmentResponse])
+@router.get("/departments/", response_model=List[DepartmentResponse], include_in_schema=False)
 async def get_departments(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -167,6 +168,7 @@ async def delete_department(
 
 
 @router.get("/doctors", response_model=List[DoctorResponse])
+@router.get("/doctors/", response_model=List[DoctorResponse], include_in_schema=False)
 async def get_doctors(
     department_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),

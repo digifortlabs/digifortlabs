@@ -619,6 +619,7 @@ def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session =
 
     return db_patient
 
+@router.post("")
 @router.post("/", response_model=PatientDetailResponse)
 def create_patient(patient: PatientCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Enforce hospital data segregation

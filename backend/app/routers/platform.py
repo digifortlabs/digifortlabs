@@ -26,6 +26,7 @@ async def health_check():
     }
 
 @router.get("/settings")
+@router.get("/settings/", include_in_schema=False)
 async def get_settings(db: Session = Depends(get_db)):
     # All users can arguably see settings (like announcement), but only admin can edit.
     try:

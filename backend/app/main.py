@@ -115,7 +115,8 @@ app = FastAPI(
     docs_url=None if settings.ENVIRONMENT == "production" else "/docs",
     redoc_url=None if settings.ENVIRONMENT == "production" else "/redoc",
     dependencies=[Depends(verify_csrf)],
-    lifespan=lifespan
+    lifespan=lifespan,
+    root_path="/api" if settings.ENVIRONMENT == "production" else ""
 )
 
 import time
@@ -137,6 +138,24 @@ async def latency_middleware(request, call_next):
     return response
 
 from fastapi.middleware.cors import CORSMiddleware
+
+@app.middleware("http")
+async def remove_trailing_slash(request: Request, call_next):
+    path = request.url.path
+    if path != "/" and path.endswith("/"):
+        # Strip '/api' prefix to get the relative path
+        rel_path = path[4:] if path.startswith("/api") else path
+        rel_path = rel_path.strip("/")
+        
+        # Determine if this is a root list endpoint (e.g. /patients/, /hospitals/)
+        # or an endpoint that explicitly requires a trailing slash (e.g. search/, pending-deletions/)
+        is_root_endpoint = "/" not in rel_path
+        is_explicit_slash = any(rel_path.endswith(s) for s in ["search", "pending-deletions"])
+        
+        if not is_root_endpoint and not is_explicit_slash:
+            request.scope["path"] = request.scope["path"].rstrip("/")
+    return await call_next(request)
+
 
 from .middleware.bandwidth import BandwidthMiddleware
 from .middleware.security import RateLimitMiddleware, SecurityHeadersMiddleware

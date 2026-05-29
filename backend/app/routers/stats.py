@@ -26,6 +26,7 @@ router = APIRouter(
 )
 
 @router.get("/dashboard")
+@router.get("/dashboard/", include_in_schema=False)
 def get_dashboard_stats(
     request: Request, 
     hospital_id: Optional[int] = None,
