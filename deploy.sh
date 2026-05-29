@@ -21,10 +21,18 @@ git clean -f -e .env -e .env.production -e node_modules/ -e venv/
 echo "Updating Backend and Database..."
 cd backend
 # Make sure we use the production environment for migrations
-if [ -f "venv/bin/python" ]; then
-    venv/bin/python migrate_v1_3.py
-else
-    python3 migrate_v1_3.py
+if [ -f "migrate_v1_3.py" ]; then
+    if [ -f "venv/bin/python" ]; then
+        venv/bin/python migrate_v1_3.py
+    else
+        python3 migrate_v1_3.py
+    fi
+elif [ -f "deprecated/migrate_v1_3.py" ]; then
+    if [ -f "venv/bin/python" ]; then
+        venv/bin/python deprecated/migrate_v1_3.py
+    else
+        python3 deprecated/migrate_v1_3.py
+    fi
 fi
 pm2 restart $BACKEND_NAME || pm2 start main.py --name $BACKEND_NAME
 cd ..
