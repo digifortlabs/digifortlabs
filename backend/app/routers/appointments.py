@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from typing import List, Optional
-from datetime import datetime, time, timezone, timedelta
+from datetime import datetime, time, timezone, timedelta, date
 from pydantic import BaseModel
 
 from ..database import get_db
@@ -94,9 +94,9 @@ class NextSlotResponse(BaseModel):
 
 class PreviewSlotRequest(BaseModel):
     doctor_id: int
-    appointment_date: datetime.date
+    appointment_date: date
     visit_type: str = "OPD"
-    preferred_time: Optional[datetime.time] = None
+    preferred_time: Optional[time] = None
 
 class DoctorScheduleBlockResponse(BaseModel):
     start_time: str
@@ -104,8 +104,8 @@ class DoctorScheduleBlockResponse(BaseModel):
     session_type: str
 
 def get_next_available_slot(
-    db: Session, doctor_id: int, target_date: datetime.date, hospital_id: int, 
-    visit_type: str = "OPD", preferred_time: Optional[datetime.time] = None
+    db: Session, doctor_id: int, target_date: date, hospital_id: int, 
+    visit_type: str = "OPD", preferred_time: Optional[time] = None
 ) -> tuple[datetime, datetime, Optional[str]]:
     day_of_week = target_date.weekday() # 0 = Monday, 6 = Sunday
     
