@@ -6,7 +6,7 @@ from datetime import datetime, date, timedelta
 from pydantic import BaseModel
 
 from ..database import get_db
-from ..models import User, Patient, IPDAdmission, Ward, Bed, OperationTheater, MedicalEquipment, RFIDCard, Hospital
+from ..models import User, Patient, IPDAdmission, Ward, Bed, OperationTheater, MedicalEquipment, RFIDCard, Hospital, PatientInvoice, PatientInvoiceItem
 from .auth import get_current_user
 
 router = APIRouter(prefix="/hms", tags=["Hospital Management System"])
@@ -89,6 +89,7 @@ class WardUpdate(BaseModel):
     ward_name: Optional[str] = None
     ward_type: Optional[str] = None
     floor_number: Optional[int] = None
+    total_beds: Optional[int] = None
 
 class VitalsRecord(BaseModel):
     temp: Optional[str] = None
@@ -107,6 +108,11 @@ class OTAssign(BaseModel):
     doctor_id: int
     scheduled_start: Optional[datetime] = None
     scheduled_end: Optional[datetime] = None
+
+class OTRelease(BaseModel):
+    surgery_fee: Optional[float] = None
+    anesthesia_fee: Optional[float] = None
+    post_surgery_status: Optional[str] = "recovery"
 
 class EquipmentCreate(BaseModel):
     name: str
@@ -237,6 +243,33 @@ def update_ward(
         ward.ward_type = ward_update.ward_type  # type: ignore
     if ward_update.floor_number is not None:
         ward.floor_number = ward_update.floor_number  # type: ignore
+    if ward_update.total_beds is not None and ward_update.total_beds != ward.total_beds:
+        if ward_update.total_beds > ward.total_beds:
+            # Add new beds
+            for i in range(ward.total_beds + 1, ward_update.total_beds + 1):
+                bed_num = f"{ward.ward_name[:3].upper()}-{100 + i}"
+                new_bed = Bed(
+                    ward_id=ward.ward_id,
+                    bed_number=bed_num,
+                    is_occupied=False,
+                    status="AVAILABLE"
+                )
+                db.add(new_bed)
+        else:
+            # Remove excess unoccupied beds
+            excess = ward.total_beds - ward_update.total_beds
+            available_beds = db.query(Bed).filter(
+                Bed.ward_id == ward.ward_id,
+                Bed.is_occupied == False
+            ).order_by(Bed.bed_id.desc()).limit(excess).all()
+            
+            if len(available_beds) < excess:
+                raise HTTPException(status_code=400, detail="Cannot reduce total beds. Too many beds are currently occupied.")
+                
+            for b in available_beds:
+                db.delete(b)
+                
+        ward.total_beds = ward_update.total_beds  # type: ignore
         
     db.commit()
     db.refresh(ward)
@@ -308,7 +341,7 @@ def get_beds(
     # Active IPD admissions
     active_admissions = db.query(IPDAdmission).filter(
         IPDAdmission.hospital_id == current_user.hospital_id,
-        IPDAdmission.status == "admitted"
+        IPDAdmission.status.in_(["admitted", "recovery"])
     ).all()
     
     admission_map = {adm.bed_id: adm for adm in active_admissions}
@@ -547,7 +580,7 @@ def get_admissions(
     
     if status:
         if status == "active":
-            query = query.filter(IPDAdmission.status == "admitted")
+            query = query.filter(IPDAdmission.status.in_(["admitted", "recovery"]))
         else:
             query = query.filter(IPDAdmission.status == status)
     
@@ -570,7 +603,7 @@ def get_admissions(
             "discharge_date": adm.discharge_date,
             "diagnosis": adm.diagnosis,
             "doctor_name": patient.doctor_name if patient else None,
-            "status": "active" if adm.status == "admitted" else "discharged"
+            "status": "active" if adm.status in ["admitted", "recovery"] else "discharged"
         })
     
     return result
@@ -585,7 +618,7 @@ def get_active_admissions(
     effective_h_id = hospital_id or current_user.hospital_id
     admissions = db.query(IPDAdmission).filter(
         IPDAdmission.hospital_id == effective_h_id,
-        IPDAdmission.status == "admitted"
+        IPDAdmission.status.in_(["admitted", "recovery"])
     ).all()
     
     result = []
@@ -618,7 +651,7 @@ def get_medication_alerts(
     """Fetch due or overdue medication alerts for all active admissions"""
     active_admissions = db.query(IPDAdmission).filter(
         IPDAdmission.hospital_id == current_user.hospital_id,
-        IPDAdmission.status == "admitted"
+        IPDAdmission.status.in_(["admitted", "recovery"])
     ).all()
     
     alerts = []
@@ -694,7 +727,7 @@ def transfer_patient(
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
     ).first()
-    if not admission or admission.status != "admitted":
+    if not admission or admission.status not in ["admitted", "recovery"]:
         raise HTTPException(status_code=404, detail="Active admission not found")
         
     new_bed = db.query(Bed).filter(Bed.bed_id == transfer.new_bed_id).first()
@@ -1026,6 +1059,16 @@ def assign_ot(
     if not ot:
         raise HTTPException(status_code=404, detail="Operation Theater not found")
         
+    # Scheduling conflict check
+    conflict = db.query(OperationTheater).filter(
+        OperationTheater.current_doctor_id == assignment.doctor_id,
+        OperationTheater.status == "IN_USE",
+        OperationTheater.ot_id != ot_id,
+        OperationTheater.hospital_id == current_user.hospital_id
+    ).first()
+    if conflict:
+        raise HTTPException(status_code=400, detail=f"Surgeon is already assigned to active OT: {conflict.ot_name}")
+        
     ot.current_patient_id = assignment.patient_id  # type: ignore
     ot.current_doctor_id = assignment.doctor_id  # type: ignore
     ot.scheduled_start = assignment.scheduled_start or datetime.now()  # type: ignore
@@ -1037,6 +1080,7 @@ def assign_ot(
 @router.post("/ots/{ot_id}/release")
 def release_ot(
     ot_id: int,
+    payload: OTRelease,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -1048,6 +1092,70 @@ def release_ot(
     if not ot:
         raise HTTPException(status_code=404, detail="Operation Theater not found")
         
+    if ot.current_patient_id:
+        # Update IPD Admission Status & Billing
+        adm = db.query(IPDAdmission).filter(
+            IPDAdmission.patient_id == ot.current_patient_id,
+            IPDAdmission.status.in_(["admitted", "recovery"])
+        ).first()
+        
+        if adm:
+            # Update recovery state
+            adm.status = payload.post_surgery_status or "recovery"
+            
+            # Add Billing Integration
+            if adm.patient_invoice_id:
+                if payload.surgery_fee:
+                    item1 = PatientInvoiceItem(
+                        invoice_id=adm.patient_invoice_id,
+                        description=f"Surgeon Fee - {ot.ot_name}",
+                        qty=1,
+                        unit_price=payload.surgery_fee,
+                        amount=payload.surgery_fee,
+                        charge_type="SURGERY_OT"
+                    )
+                    db.add(item1)
+                
+                if payload.anesthesia_fee:
+                    item2 = PatientInvoiceItem(
+                        invoice_id=adm.patient_invoice_id,
+                        description=f"Anesthesia Fee - {ot.ot_name}",
+                        qty=1,
+                        unit_price=payload.anesthesia_fee,
+                        amount=payload.anesthesia_fee,
+                        charge_type="SURGERY_OT"
+                    )
+                    db.add(item2)
+                
+                # Room usage fee ($1000/hr)
+                if ot.scheduled_start:
+                    end_time = ot.scheduled_end or datetime.now()
+                    if end_time < ot.scheduled_start:
+                        end_time = datetime.now()
+                    
+                    duration_hours = (end_time - ot.scheduled_start).total_seconds() / 3600.0
+                    room_fee = round(duration_hours * 1000.0, 2)
+                    if room_fee > 0:
+                        item3 = PatientInvoiceItem(
+                            invoice_id=adm.patient_invoice_id,
+                            description=f"OT Room Usage ({round(duration_hours, 1)} hrs) - {ot.ot_name}",
+                            qty=1,
+                            unit_price=room_fee,
+                            amount=room_fee,
+                            charge_type="SURGERY_OT"
+                        )
+                        db.add(item3)
+                
+                # Recalculate invoice totals
+                db.flush()
+                inv = db.query(PatientInvoice).filter(PatientInvoice.invoice_id == adm.patient_invoice_id).first()
+                if inv:
+                    subtotal = sum(i.amount for i in inv.items if getattr(i, 'amount', None) is not None)
+                    inv.subtotal_amount = subtotal
+                    tax = inv.tax_amount or 0.0
+                    discount = inv.discount_amount or 0.0
+                    inv.total_amount = subtotal + tax - discount
+
     ot.current_patient_id = None  # type: ignore
     ot.current_doctor_id = None  # type: ignore
     ot.scheduled_start = None  # type: ignore
@@ -1281,7 +1389,7 @@ def scan_rfid(
     # Active IPD admissions if any
     adm = db.query(IPDAdmission).filter(
         IPDAdmission.patient_id == patient.record_id,
-        IPDAdmission.status == "admitted"
+        IPDAdmission.status.in_(["admitted", "recovery"])
     ).first()
     
     admission_data = None
@@ -1298,6 +1406,13 @@ def scan_rfid(
             "vitals_log": adm.vitals_log or []
         }
         
+    ot_assignment = db.query(OperationTheater).filter(
+        OperationTheater.current_patient_id == patient.record_id,
+        OperationTheater.hospital_id == current_user.hospital_id,
+        OperationTheater.status == "IN_USE"
+    ).first()
+    ot_alert = f"Patient is currently scheduled/active in OT: {ot_assignment.ot_name}" if ot_assignment else None
+        
     return {
         "status": "success",
         "card_number": card.card_number,
@@ -1312,7 +1427,8 @@ def scan_rfid(
             "chief_complaint": patient.chief_complaint or patient.diagnosis or "N/A",
             "doctor_name": patient.doctor_name
         },
-        "active_admission": admission_data
+        "active_admission": admission_data,
+        "ot_alert": ot_alert
     }
 
 # --- Core Stats Endpoint ---
@@ -1342,7 +1458,7 @@ def get_hms_stats(
     
     current_admissions = db.query(IPDAdmission).filter(
         IPDAdmission.hospital_id == effective_h_id,
-        IPDAdmission.status == "admitted"
+        IPDAdmission.status.in_(["admitted", "recovery"])
     ).count()
     
     today_admissions = db.query(IPDAdmission).filter(

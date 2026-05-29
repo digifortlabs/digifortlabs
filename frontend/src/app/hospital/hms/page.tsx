@@ -73,6 +73,7 @@ export default function HMSDashboard() {
                     body: JSON.stringify({ 
                         ward_name: wardForm.ward_name, 
                         ward_type: wardForm.ward_type, 
+                        total_beds: parseInt(wardForm.total_beds) || 0,
                         floor_number: parseInt(wardForm.floor_number) || 1 
                     }) 
                 });
@@ -346,8 +347,8 @@ export default function HMSDashboard() {
                                     <option>General</option><option>ICU</option><option>Emergency</option>
                                     <option>Maternity</option><option>Pediatric</option><option>Private</option>
                                 </select></div>
-                            <div className="space-y-2"><Label>Total Beds {wardForm.ward_id ? "(Cannot change)" : ""}</Label>
-                                <Input placeholder="e.g., 20" type="number" value={wardForm.total_beds} onChange={e => setWardForm({ ...wardForm, total_beds: e.target.value })} disabled={wardForm.ward_id !== null} /></div>
+                            <div className="space-y-2"><Label>Total Beds</Label>
+                                <Input placeholder="e.g., 20" type="number" value={wardForm.total_beds} onChange={e => setWardForm({ ...wardForm, total_beds: e.target.value })} /></div>
                         </div>
                         <div className="space-y-2"><Label>Floor Number</Label>
                             <Input placeholder="e.g., 2" type="number" value={wardForm.floor_number} onChange={e => setWardForm({ ...wardForm, floor_number: e.target.value })} /></div>

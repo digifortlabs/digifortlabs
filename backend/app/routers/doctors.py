@@ -45,6 +45,8 @@ class DoctorProfileResponse(BaseModel):
     consultation_fee: float
     is_active: bool
     user_id: Optional[int] = None
+    hospital_id: Optional[int] = None
+    hospital_name: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -63,12 +65,30 @@ def get_doctors(
     if current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF] and hospital_id:
         target_hospital_id = hospital_id
 
-    doctors = db.query(DoctorProfile).filter(
-        DoctorProfile.hospital_id == target_hospital_id,
-        DoctorProfile.is_active == True
-    ).all()
+    query = db.query(DoctorProfile).filter(DoctorProfile.is_active == True)
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF] or target_hospital_id is not None:
+        query = query.filter(DoctorProfile.hospital_id == target_hospital_id)
+        
+    doctors = query.all()
     
-    return doctors
+    result = []
+    for doc in doctors:
+        doc_dict = {
+            "profile_id": doc.profile_id,
+            "full_name": doc.full_name,
+            "email": doc.email,
+            "phone": doc.phone,
+            "department_id": doc.department_id,
+            "specialization": doc.specialization,
+            "consultation_fee": doc.consultation_fee,
+            "is_active": doc.is_active,
+            "user_id": doc.user_id,
+            "hospital_id": doc.hospital_id,
+            "hospital_name": doc.hospital.legal_name if doc.hospital else "Unknown Hospital"
+        }
+        result.append(DoctorProfileResponse(**doc_dict))
+    
+    return result
 
 @router.post("/", response_model=DoctorProfileResponse)
 def create_doctor(
