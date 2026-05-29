@@ -537,7 +537,8 @@ export default function HMSBedsPage() {
 
             {/* Patient Console Modal */}
             <Dialog open={isConsoleOpen} onOpenChange={setIsConsoleOpen}>
-                <DialogContent className="max-w-4xl w-[95vw] p-0 overflow-hidden bg-slate-50 h-[85vh] flex flex-col">
+                <DialogContent aria-describedby={undefined} className="max-w-4xl w-[95vw] p-0 overflow-hidden bg-slate-50 h-[85vh] flex flex-col">
+                    <DialogTitle className="sr-only">Patient Console Modal</DialogTitle>
                     {/* Header */}
                     <div className="bg-slate-900 text-white p-6 flex-shrink-0">
                         <div className="flex justify-between items-start">
