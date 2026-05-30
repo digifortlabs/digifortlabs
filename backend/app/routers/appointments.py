@@ -187,12 +187,20 @@ def get_next_available_slot(
 @router.get("/departments", response_model=List[DepartmentResponse])
 @router.get("/departments/", response_model=List[DepartmentResponse], include_in_schema=False)
 async def get_departments(
+    hospital_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all active departments in the current user's hospital."""
+    """Get all active departments in the current user's hospital or specified hospital for admins."""
+    target_hospital_id = current_user.hospital_id
+    if current_user.role in ['superadmin', 'superadmin_staff', 'website_admin'] and hospital_id:
+        target_hospital_id = hospital_id
+
+    if not target_hospital_id:
+        return []
+
     departments = db.query(Department).filter(
-        Department.hospital_id == current_user.hospital_id,
+        Department.hospital_id == target_hospital_id,
         Department.is_active == True
     ).all()
     return departments

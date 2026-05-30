@@ -18,6 +18,7 @@ router = APIRouter(
 class DoctorCreate(BaseModel):
     full_name: str
     department_id: int
+    hospital_id: Optional[int] = None
     specialization: Optional[str] = None
     consultation_fee: float = 0.0
     email: Optional[EmailStr] = None
@@ -114,10 +115,17 @@ def create_doctor(
     current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_USERS))
 ):
     """Create a new doctor profile, optionally with a User account."""
+    target_hospital_id = current_user.hospital_id
+    if current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF] and data.hospital_id:
+        target_hospital_id = data.hospital_id
+
+    if not target_hospital_id:
+        raise HTTPException(status_code=400, detail="Hospital ID is required")
+
     # 1. Check department
     dept = db.query(Department).filter(
         Department.department_id == data.department_id,
-        Department.hospital_id == current_user.hospital_id
+        Department.hospital_id == target_hospital_id
     ).first()
     if not dept:
         raise HTTPException(status_code=404, detail="Department not found")
@@ -147,7 +155,7 @@ def create_doctor(
                 full_name=data.full_name,
                 hashed_password=get_password_hash(password_to_use),
                 role=data.role,
-                hospital_id=current_user.hospital_id,
+                hospital_id=target_hospital_id,
                 force_password_change=is_auto_generated
             )
             db.add(new_user)
@@ -168,7 +176,7 @@ def create_doctor(
 
     # 2. Create DoctorProfile
     profile = DoctorProfile(
-        hospital_id=current_user.hospital_id,
+        hospital_id=target_hospital_id,
         user_id=new_user_id,
         full_name=data.full_name,
         email=data.email,
@@ -182,7 +190,7 @@ def create_doctor(
     
     try:
         from ..audit import log_audit
-        log_audit(db, current_user.user_id, "DOCTOR_CREATED", f"Created doctor profile: {data.full_name}", hospital_id=current_user.hospital_id)
+        log_audit(db, current_user.user_id, "DOCTOR_CREATED", f"Created doctor profile: {data.full_name}", hospital_id=target_hospital_id)
     except:
         pass
         
@@ -197,10 +205,14 @@ def update_doctor(
     db: Session = Depends(get_db), 
     current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_USERS))
 ):
-    profile = db.query(DoctorProfile).filter(
-        DoctorProfile.profile_id == profile_id, 
-        DoctorProfile.hospital_id == current_user.hospital_id
-    ).first()
+    if current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+        profile = db.query(DoctorProfile).filter(DoctorProfile.profile_id == profile_id).first()
+    else:
+        profile = db.query(DoctorProfile).filter(
+            DoctorProfile.profile_id == profile_id, 
+            DoctorProfile.hospital_id == current_user.hospital_id
+        ).first()
+
     if not profile:
         raise HTTPException(status_code=404, detail="Doctor profile not found")
         
@@ -222,7 +234,7 @@ def update_doctor(
         profile.is_residential = data.is_residential
         
     if data.department_id is not None:
-        dept = db.query(Department).filter(Department.department_id == data.department_id, Department.hospital_id == current_user.hospital_id).first()
+        dept = db.query(Department).filter(Department.department_id == data.department_id, Department.hospital_id == profile.hospital_id).first()
         if not dept:
             raise HTTPException(status_code=404, detail="Department not found")
         profile.department_id = data.department_id

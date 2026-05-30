@@ -130,7 +130,7 @@ export default function AccountingPage() {
                 setIsAuthorized(true);
                 fetchInvoices();
             } else {
-                router.push('/dashboard');
+                router.push('/admin');
             }
         }
     }, [router]);

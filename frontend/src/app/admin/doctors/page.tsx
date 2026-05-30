@@ -10,17 +10,18 @@ import { apiFetch } from '@/config/api';
 export default function DoctorsManagement() {
     const [doctors, setDoctors] = useState<any[]>([]);
     const [departments, setDepartments] = useState<any[]>([]);
+    const [hospitals, setHospitals] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [scheduleModal, setScheduleModal] = useState({ isOpen: false, doctorId: null as number | null, doctorName: '' });
     
     const [newDoctor, setNewDoctor] = useState({ 
         email: '', password: '', full_name: '', role: 'doctor_opd', phone: '',
-        department_id: '', specialization: '', consultation_fee: 0, create_login_account: false
+        hospital_id: '', department_id: '', specialization: '', consultation_fee: 0, create_login_account: false
     });
     const [editDoctor, setEditDoctor] = useState({ 
         profile_id: 0, role: '', password: '', full_name: '', email: '', phone: '',
-        department_id: '', specialization: '', consultation_fee: 0, is_active: true
+        hospital_id: '', department_id: '', specialization: '', consultation_fee: 0, is_active: true
     });
     
     const [isEditing, setIsEditing] = useState(false);
@@ -40,7 +41,7 @@ export default function DoctorsManagement() {
 
     useEffect(() => {
         fetchDoctors();
-        fetchDepartments();
+        fetchHospitals();
     }, []);
 
     const fetchDoctors = async () => {
@@ -54,9 +55,22 @@ export default function DoctorsManagement() {
         }
     };
 
-    const fetchDepartments = async () => {
+    const fetchHospitals = async () => {
         try {
-            const data = await apiFetch(`appointments/departments`);
+            const data = await apiFetch(`hospitals/?status=active`);
+            if (data) setHospitals(data);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const fetchDepartments = async (hospitalId?: string) => {
+        if (!hospitalId) {
+            setDepartments([]);
+            return;
+        }
+        try {
+            const data = await apiFetch(`appointments/departments?hospital_id=${hospitalId}`);
             if (data) setDepartments(data);
         } catch (err) {
             console.error(err);
@@ -70,6 +84,7 @@ export default function DoctorsManagement() {
         try {
             const payload: any = {
                 ...newDoctor,
+                hospital_id: parseInt(newDoctor.hospital_id),
                 department_id: parseInt(newDoctor.department_id),
                 consultation_fee: parseFloat(newDoctor.consultation_fee.toString())
             };
@@ -85,7 +100,7 @@ export default function DoctorsManagement() {
                 setShowModal(false);
                 setNewDoctor({ 
                     email: '', password: '', full_name: '', role: 'doctor_opd', phone: '',
-                    department_id: '', specialization: '', consultation_fee: 0, create_login_account: false
+                    hospital_id: '', department_id: '', specialization: '', consultation_fee: 0, create_login_account: false
                 });
                 fetchDoctors();
             }
@@ -124,11 +139,17 @@ export default function DoctorsManagement() {
             full_name: doc.full_name || '',
             email: doc.email || '',
             phone: doc.phone || '',
+            hospital_id: doc.hospital_id?.toString() || '',
             department_id: doc.department_id?.toString() || '',
             specialization: doc.specialization || '',
             consultation_fee: doc.consultation_fee || 0,
             is_active: doc.is_active !== false
         });
+        if (doc.hospital_id) {
+            fetchDepartments(doc.hospital_id.toString());
+        } else {
+            setDepartments([]);
+        }
         setIsEditing(true);
         setShowModal(true);
         setError('');
@@ -144,6 +165,7 @@ export default function DoctorsManagement() {
                 full_name: editDoctor.full_name,
                 email: editDoctor.email,
                 phone: editDoctor.phone,
+                hospital_id: parseInt(editDoctor.hospital_id),
                 department_id: parseInt(editDoctor.department_id),
                 specialization: editDoctor.specialization,
                 consultation_fee: parseFloat(editDoctor.consultation_fee.toString()),
@@ -355,12 +377,35 @@ export default function DoctorsManagement() {
                                 <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Briefcase size={18} className="text-slate-400" /> Professional Details</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">Hospital</label>
+                                        <select
+                                            required
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition font-medium"
+                                            value={isEditing ? editDoctor.hospital_id : newDoctor.hospital_id}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (isEditing) {
+                                                    setEditDoctor({ ...editDoctor, hospital_id: val, department_id: '' });
+                                                } else {
+                                                    setNewDoctor({ ...newDoctor, hospital_id: val, department_id: '' });
+                                                }
+                                                fetchDepartments(val);
+                                            }}
+                                        >
+                                            <option value="">Select Hospital...</option>
+                                            {hospitals.map(h => (
+                                                <option key={h.hospital_id} value={h.hospital_id}>{h.legal_name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
                                         <label className="block text-sm font-bold text-slate-700 mb-2">Department</label>
                                         <select
                                             required
                                             className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition font-medium"
                                             value={isEditing ? editDoctor.department_id : newDoctor.department_id}
                                             onChange={(e) => isEditing ? setEditDoctor({ ...editDoctor, department_id: e.target.value }) : setNewDoctor({ ...newDoctor, department_id: e.target.value })}
+                                            disabled={isEditing ? !editDoctor.hospital_id : !newDoctor.hospital_id}
                                         >
                                             <option value="">Select Department...</option>
                                             {departments.map(dept => (

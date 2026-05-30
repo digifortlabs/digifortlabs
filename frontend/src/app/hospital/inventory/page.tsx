@@ -38,7 +38,7 @@ export default function InventoryDashboard() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <div>
                     <button 
-                        onClick={() => router.push('/dashboard')}
+                        onClick={() => router.push('/hospital')}
                         className="flex items-center gap-1 text-slate-500 hover:text-indigo-600 transition-colors text-sm font-bold mb-2"
                     >
                         <ArrowLeft size={16} /> Back to Dashboard

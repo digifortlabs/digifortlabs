@@ -600,6 +600,14 @@ class PatientInvoice(Base):
     dental_treatments = relationship("DentalTreatment", back_populates="patient_invoice")
     ipd_admissions = relationship("IPDAdmission", back_populates="patient_invoice")
 
+    @property
+    def patient_name(self) -> str:
+        return self.patient.full_name if self.patient else ""
+
+    @property
+    def mrd_number(self) -> str:
+        return self.patient.patient_u_id if self.patient else ""
+
 
 class PatientInvoiceItem(Base):
     __tablename__ = "patient_invoice_items"

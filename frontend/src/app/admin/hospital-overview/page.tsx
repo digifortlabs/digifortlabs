@@ -36,7 +36,7 @@ export default function HospitalOverview() {
 
     useEffect(() => {
         if (!hospitalId) {
-            router.push('/dashboard');
+            router.push('/admin');
             return;
         }
 
@@ -78,7 +78,7 @@ export default function HospitalOverview() {
                 <div>
                     <div className="flex items-center gap-2 mb-1">
                         <button 
-                            onClick={() => router.push('/dashboard')}
+                            onClick={() => router.push('/admin')}
                             className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-indigo-500 transition-colors"
                         >
                             Global Platform

@@ -207,7 +207,7 @@ export default function QAMonitorPage() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <div>
                     <button
-                        onClick={() => router.push('/dashboard')}
+                        onClick={() => router.push('/admin')}
                         className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 transition mb-3 group"
                     >
                         <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
