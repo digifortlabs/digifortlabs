@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { apiFetch } from '@/config/api';
 import { format } from 'date-fns';
 import { Search, Download, Clock, User, Activity, Filter } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface AuditLog {
     log_id: number;
@@ -68,7 +69,7 @@ export default function AuditPage() {
             link.remove();
         } catch (error) {
             console.error(error);
-            alert('Export failed');
+            toast.error('Export failed');
         }
     };
 

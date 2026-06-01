@@ -710,14 +710,21 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
                 detail="Your trial period has expired. Please upgrade your subscription to continue.",
             )
             
-    # Dynamic Hospital Scoping for Global Doctors
-    if not user.hospital_id and user.subdomain and user.role.startswith("doctor"):
+    # Dynamic Hospital Scoping for Global Doctors and Super Admins
+    if not user.hospital_id and (user.role.startswith("doctor") or user.role in ["superadmin", "superadmin_staff"]):
         requested_hospital = request.headers.get("X-Hospital-Id")
         if requested_hospital and requested_hospital.isdigit():
             requested_hospital_id = int(requested_hospital)
-            # Verify they are allowed
-            allowed_ids = [p.hospital_id for p in user.doctor_profile if p.hospital_id]
-            if requested_hospital_id in allowed_ids:
+            # Verify they are allowed (Super Admins bypass, global doctors checked)
+            is_allowed = False
+            if user.role in ["superadmin", "superadmin_staff"]:
+                is_allowed = True
+            else:
+                allowed_ids = [p.hospital_id for p in user.doctor_profile if p.hospital_id]
+                if requested_hospital_id in allowed_ids:
+                    is_allowed = True
+            
+            if is_allowed:
                 from ..models import Hospital
                 user.is_global_mocked = True # type: ignore
                 user.hospital_id = requested_hospital_id # type: ignore[assignment]

@@ -17,11 +17,11 @@ export default function DoctorsManagement() {
     
     const [newDoctor, setNewDoctor] = useState({ 
         email: '', password: '', full_name: '', role: 'doctor_opd', phone: '',
-        hospital_id: '', department_id: '', specialization: '', consultation_fee: 0, create_login_account: false
+        hospital_id: '', department_id: '', specialization: '', consultation_fee: 0, ipd_charge: 0, create_login_account: false
     });
     const [editDoctor, setEditDoctor] = useState({ 
         profile_id: 0, role: '', password: '', full_name: '', email: '', phone: '',
-        hospital_id: '', department_id: '', specialization: '', consultation_fee: 0, is_active: true
+        hospital_id: '', department_id: '', specialization: '', consultation_fee: 0, ipd_charge: 0, is_active: true
     });
     
     const [isEditing, setIsEditing] = useState(false);
@@ -86,7 +86,8 @@ export default function DoctorsManagement() {
                 ...newDoctor,
                 hospital_id: parseInt(newDoctor.hospital_id),
                 department_id: parseInt(newDoctor.department_id),
-                consultation_fee: parseFloat(newDoctor.consultation_fee.toString())
+                consultation_fee: parseFloat(newDoctor.consultation_fee.toString()),
+                ipd_charge: parseFloat(newDoctor.ipd_charge.toString())
             };
             if (!payload.email) delete payload.email;
             if (!payload.password) delete payload.password;
@@ -100,7 +101,7 @@ export default function DoctorsManagement() {
                 setShowModal(false);
                 setNewDoctor({ 
                     email: '', password: '', full_name: '', role: 'doctor_opd', phone: '',
-                    hospital_id: '', department_id: '', specialization: '', consultation_fee: 0, create_login_account: false
+                    hospital_id: '', department_id: '', specialization: '', consultation_fee: 0, ipd_charge: 0, create_login_account: false
                 });
                 fetchDoctors();
             }
@@ -143,6 +144,7 @@ export default function DoctorsManagement() {
             department_id: doc.department_id?.toString() || '',
             specialization: doc.specialization || '',
             consultation_fee: doc.consultation_fee || 0,
+            ipd_charge: doc.ipd_charge || 0,
             is_active: doc.is_active !== false
         });
         if (doc.hospital_id) {
@@ -169,6 +171,7 @@ export default function DoctorsManagement() {
                 department_id: parseInt(editDoctor.department_id),
                 specialization: editDoctor.specialization,
                 consultation_fee: parseFloat(editDoctor.consultation_fee.toString()),
+                ipd_charge: parseFloat(editDoctor.ipd_charge.toString()),
                 is_active: editDoctor.is_active
             };
             
@@ -429,6 +432,15 @@ export default function DoctorsManagement() {
                                             className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition font-medium"
                                             value={isEditing ? editDoctor.consultation_fee : newDoctor.consultation_fee}
                                             onChange={e => isEditing ? setEditDoctor({ ...editDoctor, consultation_fee: parseFloat(e.target.value) }) : setNewDoctor({ ...newDoctor, consultation_fee: parseFloat(e.target.value) })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">IPD Visit Charge (₹)</label>
+                                        <input
+                                            type="number" min="0" required
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition font-medium"
+                                            value={isEditing ? editDoctor.ipd_charge : newDoctor.ipd_charge}
+                                            onChange={e => isEditing ? setEditDoctor({ ...editDoctor, ipd_charge: parseFloat(e.target.value) }) : setNewDoctor({ ...newDoctor, ipd_charge: parseFloat(e.target.value) })}
                                         />
                                     </div>
                                 </div>

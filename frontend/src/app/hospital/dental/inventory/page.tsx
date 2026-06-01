@@ -11,6 +11,7 @@ import { ChevronLeft, Package, Plus, AlertTriangle, PlusCircle, MinusCircle } fr
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/config/api';
 import { Badge } from '@/components/ui/badge';
+import toast from 'react-hot-toast';
 
 interface InventoryItem {
     item_id: number;
@@ -50,11 +51,11 @@ export default function DentalInventory() {
     const handleAddItem = async () => {
         try {
             await apiFetch('dental/inventory', { method: 'POST', body: JSON.stringify(newItem) });
-            alert("Item added successfully.");
+            toast.success("Item added successfully.");
             setIsAddModalOpen(false);
             fetchInventory();
         } catch (error) {
-            alert("Failed to add item.");
+            toast.error("Failed to add item.");
         }
     };
 

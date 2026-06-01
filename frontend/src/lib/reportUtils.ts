@@ -3,6 +3,7 @@
  * Provides CSV and PDF export capabilities for dashboard data
  */
 import { formatDate, formatDateTime } from './dateFormatter';
+import toast from 'react-hot-toast';
 
 /**
  * Convert array of objects to CSV string
@@ -138,7 +139,7 @@ export function generatePDFReport(stats: any, hospitalName?: string): void {
     // Create a new window for printing
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-        alert('Please allow popups to generate PDF reports');
+        toast.error('Please allow popups to generate PDF reports');
         return;
     }
 

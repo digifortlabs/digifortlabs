@@ -14,6 +14,7 @@ import {
     X
 } from 'lucide-react';
 import { apiFetch } from '@/config/api';
+import toast from 'react-hot-toast';
 
 interface Vendor {
     vendor_id: number;
@@ -72,7 +73,7 @@ export default function VendorManager() {
             setFormData({ name: '', contact_person: '', email: '', phone: '', category: 'Outsource Lab', gst_number: '' });
             fetchVendors();
         } catch (error) {
-            alert("Failed to add vendor");
+            toast.error("Failed to add vendor");
         }
     };
 

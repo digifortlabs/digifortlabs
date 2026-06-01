@@ -15,6 +15,7 @@ import {
     Zap
 } from 'lucide-react';
 import { apiFetch } from '@/config/api';
+import toast from 'react-hot-toast';
 
 const InputField = ({ label, icon: Icon, value, onChange, placeholder, type = "text", uppercase = false }: any) => (
     <div>
@@ -62,7 +63,7 @@ export default function AccountingSettings() {
             setSuccess(true);
             setTimeout(() => setSuccess(false), 3000);
         } catch (error) {
-            alert("Failed to save settings");
+            toast.error("Failed to save settings");
         } finally {
             setSaving(false);
         }
@@ -278,7 +279,7 @@ export default function AccountingSettings() {
                                                 await apiFetch('/accounting/config/reset-counters', { method: 'POST' });
                                                 const data = await apiFetch('/accounting/config');
                                                 setConfig(data);
-                                            } catch (error) { alert("Failed to reset"); }
+                                            } catch (error) { toast.error("Failed to reset"); }
                                         }}
                                         className="w-full py-3 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
                                     >

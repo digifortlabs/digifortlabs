@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/config/api';
 import { format } from 'date-fns';
+import toast from 'react-hot-toast';
 
 interface ReceivePaymentModalProps {
     isOpen: boolean;
@@ -73,7 +74,7 @@ export default function ReceivePaymentModal({
         } catch (error: any) {
             console.error("Error deleting payment:", error);
             const errMsg = error?.message || "Failed to delete payment.";
-            alert(errMsg);
+            toast.error(errMsg);
         } finally {
             setDeleteLoading(false);
         }
@@ -138,7 +139,7 @@ export default function ReceivePaymentModal({
         } catch (error: any) {
             console.error("Error recording payment:", error);
             const errMsg = error?.message || "Failed to record payment. Please check implementation.";
-            alert(errMsg);
+            toast.error(errMsg);
         } finally {
             setLoading(false);
         }

@@ -3,6 +3,7 @@ import { Camera, X, Check, Trash2, RefreshCw, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import toast from 'react-hot-toast';
 
 interface LiveScannerProps {
     isOpen: boolean;
@@ -40,7 +41,7 @@ export default function LiveScanner({ isOpen, onClose, onSave }: LiveScannerProp
             }
         } catch (err) {
             console.error("Error accessing camera:", err);
-            alert("Could not access camera. Please allow permissions.");
+            toast.error("Could not access camera. Please allow permissions.");
         }
     };
 

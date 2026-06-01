@@ -11,6 +11,7 @@ import ICD11Search from '@/components/ICD11/ICD11Search';
 
 import { apiFetch, API_URL } from '@/config/api';
 import { formatDate } from '@/lib/dateFormatter';
+import toast from 'react-hot-toast';
 
 interface FileData {
     file_id: number;
@@ -258,7 +259,7 @@ function PatientDetailContent() {
         }
 
         setIsUploading(false);
-        alert("Batch Upload Complete!");
+        toast.error("Batch Upload Complete!");
         setFileQueue([]); // Clear queue or keep completed? Let's clear for now to refresh list
         if (id) {
             fetchPatient(id);
@@ -316,7 +317,7 @@ function PatientDetailContent() {
                 setDiagNotes('');
                 setDiagSearch('');
                 fetchDiagnoses();
-                alert("Diagnosis Added!");
+                toast.error("Diagnosis Added!");
             }
         } catch (e) { console.error(e); }
     };
@@ -338,7 +339,7 @@ function PatientDetailContent() {
                 setProcNotes('');
                 setProcSearch('');
                 fetchProcedures();
-                alert("Procedure Added!");
+                toast.error("Procedure Added!");
             }
         } catch (e) { console.error(e); }
     };
@@ -469,12 +470,12 @@ function PatientDetailContent() {
             });
 
             if (data) {
-                alert(data.message || "Operation successful.");
+                toast.success(data.message || "Operation successful.");
                 if (id) fetchPatient(id);
             }
         } catch (e: any) {
             console.error(e);
-            alert(`Failed: ${e.message || "Unknown error"}`);
+            toast.error(`Failed: ${e.message || "Unknown error"}`);
         }
     };
 
@@ -485,7 +486,7 @@ function PatientDetailContent() {
                 method: 'POST'
             });
             if (data) {
-                alert("File confirmed and published!");
+                toast.error("File confirmed and published!");
                 if (id) fetchPatient(id);
             }
         } catch (e) { console.error(e); }
@@ -498,7 +499,7 @@ function PatientDetailContent() {
                 method: 'DELETE'
             });
             if (data !== undefined) {
-                alert("Draft discarded successfully");
+                toast.success("Draft discarded successfully");
                 if (id) fetchPatient(id);
             }
         } catch (e) { console.error(e); }
@@ -522,18 +523,18 @@ function PatientDetailContent() {
             });
 
             if (data) {
-                alert("Assigned to Box Successfully");
+                toast.success("Assigned to Box Successfully");
                 setShowBoxModal(false);
                 if (id) fetchPatient(id);
             } else {
-                alert("Failed to assign box");
+                toast.error("Failed to assign box");
             }
         } catch (e) { console.error(e); }
     };
 
     const handleRequestPhysicalFile = async () => {
         if (!patient?.physical_box_id) {
-            alert("This patient is not assigned to any physical box.");
+            toast.error("This patient is not assigned to any physical box.");
             return;
         }
         if (!confirm("Request the physical box containing this file?")) return;
@@ -548,18 +549,18 @@ function PatientDetailContent() {
             });
 
             if (data) {
-                alert("Request sent successfully! Check the 'File Requests' page.");
+                toast.success("Request sent successfully! Check the 'File Requests' page.");
             }
         } catch (e: any) {
             console.error(e);
-            alert(`Failed: ${e.message || "Could not send request"}`);
+            toast.error(`Failed: ${e.message || "Could not send request"}`);
         }
     };
 
     const handleDeletePatient = async () => {
         const input = prompt(`DANGER ZONE \n\nTo PERMANENTLY delete this ${terms.patient.toLowerCase()} and ALL their files, type "delete" below:`);
         if (input !== "delete") {
-            if (input !== null) alert("Deletion cancelled. You must type 'delete' exactly.");
+            if (input !== null) toast.error("Deletion cancelled. You must type 'delete' exactly.");
             return;
         }
 
@@ -569,12 +570,12 @@ function PatientDetailContent() {
             });
 
             if (data !== undefined) {
-                alert(`${terms.patient} record deleted successfully.`);
+                toast.success(`${terms.patient} record deleted successfully.`);
                 router.replace('/hospital/records');
             }
         } catch (e: any) {
             console.error(e);
-            alert(e.message || "Network error.");
+            toast.error(e.message || "Network error.");
         }
     };
 
@@ -765,7 +766,7 @@ function PatientDetailContent() {
                                                         method: 'PUT',
                                                         body: JSON.stringify({ tags: newTags })
                                                     }).then(() => {
-                                                        alert("Tags saved!");
+                                                        toast.error("Tags saved!");
                                                         if (id) fetchPatient(id);
                                                     }).catch(e => console.error(e));
                                                 }
@@ -792,7 +793,7 @@ function PatientDetailContent() {
                                                             severity: 'medium'
                                                         })
                                                     });
-                                                    if (data) alert("Issue reported to QA Monitor");
+                                                    if (data) toast.error("Issue reported to QA Monitor");
                                                 } catch (e) { console.error(e); }
                                             }}
                                             className="text-[10px] font-bold text-red-400 hover:text-red-600 flex items-center gap-1 transition"
@@ -817,7 +818,7 @@ function PatientDetailContent() {
                                                     // Pass skip_token=1 to backend if needed, or assume backend handles session via cookie
                                                     window.open(data.url, '_blank');
                                                 } else {
-                                                    alert("Could not access file");
+                                                    toast.error("Could not access file");
                                                 }
                                             } catch (e) { console.error(e); }
                                         }}
@@ -1265,7 +1266,7 @@ function PatientDetailContent() {
                                     };
                                     setFileQueue(prev => [...prev, queueItem]);
                                     setShowScanner(false);
-                                    alert(`Scanned PDF added to queue! Click "Start Batch" to upload.`);
+                                    toast.error(`Scanned PDF added to queue! Click "Start Batch" to upload.`);
                                 }}
                                 onCancel={() => setShowScanner(false)}
                             />

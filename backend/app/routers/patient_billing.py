@@ -57,7 +57,7 @@ class PatientInvoiceResponse(BaseModel):
     invoice_number: str
     patient_id: int
     patient_name: str
-    mrd_number: str
+    mrd_number: Optional[str] = None
     bill_date: datetime
     due_date: Optional[datetime] = None
     subtotal: float
@@ -140,13 +140,8 @@ def get_unbilled_records(
         delta = end_date - adm.admission_date
         days = max(1, delta.days) # minimum 1 day charge
         
-        # Default rate estimation based on ward type (ICU: 2000, General: 500, Private: 1500)
-        rate = 500.0
-        ward_type = adm.ward.ward_type.upper() if adm.ward else "GENERAL"
-        if "ICU" in ward_type:
-            rate = 2000.0
-        elif "PRIVATE" in ward_type:
-            rate = 1500.0
+        # Dynamic rate from the ward configuration
+        rate = adm.ward.daily_charge if adm.ward and getattr(adm.ward, "daily_charge", None) else 500.0
             
         ward_name = adm.ward.ward_name if adm.ward else "General Ward"
         bed_num = adm.bed.bed_number if adm.bed else "-"
@@ -179,6 +174,31 @@ def get_unbilled_records(
                 "reference_id": adm.admission_id, # Link back to the admission
                 "date": log_date
             })
+
+        # Process Doctor Notes as Billable IPD Visits
+        from app.models import DoctorProfile
+        doctor_notes = adm.doctor_notes or []
+        for dnote in doctor_notes:
+            log_date = dnote.get("timestamp", datetime.now().isoformat())
+            d_user_id = dnote.get("doctor_id")
+            
+            doc_profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == d_user_id).first() if d_user_id else None
+            ipd_charge = getattr(doc_profile, "ipd_charge", 0.0) if doc_profile else 0.0
+            
+            if ipd_charge > 0:
+                desc = f"Doctor IPD Visit: {dnote.get('doctor_name', 'Unknown')}"
+                if dnote.get("note_type"):
+                    desc += f" ({dnote.get('note_type')})"
+                    
+                items.append({
+                    "description": desc,
+                    "qty": 1,
+                    "unit_price": ipd_charge,
+                    "discount": 0.0,
+                    "charge_type": "IPD_DOCTOR_VISIT",
+                    "reference_id": adm.admission_id,
+                    "date": log_date
+                })
 
     return {
         "patient": {

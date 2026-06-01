@@ -10,7 +10,11 @@ from sqlalchemy import text
 
 db = SessionLocal()
 try:
-    patient_id = 1  # Assuming record_id 1 is the one causing the issue (MRD-0001)
+    patient = db.query(Patient).filter(Patient.full_name == 'Anita').first()
+    if not patient:
+        print("Patient Anita not found")
+        sys.exit(0)
+    patient_id = patient.record_id
     print(f"Attempting to delete patient {patient_id}...")
     
     # Simulate the manual cascade
@@ -46,7 +50,8 @@ try:
         "dental_treatments": "patient_id",
         "patient_invoices": "patient_id",
         "patient_doctor_assignments": "patient_id",
-        "qa_issues": "record_id"
+        "qa_issues": "record_id",
+        "emergency_visits": "patient_id"
     }
     for t, col in tables_to_delete.items():
         print(f"Deleting from {t}...")

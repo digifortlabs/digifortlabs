@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/config/api';
 import HospitalSelectionPrompt from '@/components/HospitalSelectionPrompt';
+import toast from 'react-hot-toast';
 
 export default function HMSDashboard() {
     const router = useRouter();
@@ -69,7 +70,7 @@ export default function HMSDashboard() {
             setIsAddWardOpen(false);
             setWardForm({ ward_name: '', ward_type: 'General', total_beds: '', floor_number: '' });
             loadData();
-        } catch (e: any) { alert(e.message || 'Failed'); }
+        } catch (e: any) { toast.error(e.message || 'Failed'); }
     };
 
     const totalBeds = wards.reduce((s, w) => s + (w.total_beds || 0), 0);

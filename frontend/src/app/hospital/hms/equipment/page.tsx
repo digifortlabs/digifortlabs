@@ -1,16 +1,18 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, RefreshCw, Activity, Plus, ShieldCheck, Cpu, MapPin, Truck, AlertTriangle, User } from 'lucide-react';
+import { ChevronLeft, RefreshCw, Activity, Plus, ShieldCheck, Cpu, MapPin, Truck, AlertTriangle, User, MoreVertical, Edit, Trash2, Tool, Wrench } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/config/api';
+import toast from 'react-hot-toast';
 
 export default function EquipmentPage() {
     const router = useRouter();
@@ -22,11 +24,13 @@ export default function EquipmentPage() {
     
     const [loading, setLoading] = useState(true);
     const [isAddOpen, setIsAddOpen] = useState(false);
+    const [isEditOpen, setIsEditOpen] = useState(false);
     const [isDeployOpen, setIsDeployOpen] = useState(false);
     const [selectedEq, setSelectedEq] = useState<any>(null);
     
     // Forms
     const [eqForm, setEqForm] = useState({ name: '', equipment_type: 'Ventilator' });
+    const [editEqForm, setEditEqForm] = useState({ name: '', equipment_type: '' });
     const [deployForm, setDeployForm] = useState({ destination: 'bed', ward_id: '', bed_id: '', ot_id: '', patient_id: '' });
 
     useEffect(() => {
@@ -63,7 +67,7 @@ export default function EquipmentPage() {
             setEqForm({ name: '', equipment_type: 'Ventilator' });
             loadData();
         } catch (e: any) {
-            alert(e.message || 'Failed to register device');
+            toast.error(e.message || 'Failed to register device');
         }
     };
 
@@ -99,7 +103,7 @@ export default function EquipmentPage() {
             setSelectedEq(null);
             loadData();
         } catch (e: any) {
-            alert(e.message || 'Failed to deploy device');
+            toast.error(e.message || 'Failed to deploy device');
         }
     };
 
@@ -109,7 +113,44 @@ export default function EquipmentPage() {
             await apiFetch(`hms/equipment/${eqId}/retrieve`, { method: 'POST' });
             loadData();
         } catch (e: any) {
-            alert(e.message || 'Failed to retrieve device');
+            toast.error(e.message || 'Failed to retrieve device');
+        }
+    };
+
+    const handleUpdate = async () => {
+        if (!selectedEq) return;
+        try {
+            await apiFetch(`hms/equipment/${selectedEq.equipment_id}`, {
+                method: 'PUT',
+                body: JSON.stringify(editEqForm)
+            });
+            setIsEditOpen(false);
+            setSelectedEq(null);
+            loadData();
+        } catch (e: any) {
+            toast.error(e.message || 'Failed to update device');
+        }
+    };
+
+    const handleDelete = async (eqId: number) => {
+        if (!confirm("Are you sure you want to delete this device? This action cannot be undone.")) return;
+        try {
+            await apiFetch(`hms/equipment/${eqId}`, { method: 'DELETE' });
+            loadData();
+        } catch (e: any) {
+            toast.error(e.message || 'Failed to delete device');
+        }
+    };
+
+    const handleUpdateStatus = async (eqId: number, status: string) => {
+        try {
+            await apiFetch(`hms/equipment/${eqId}/status`, {
+                method: 'PATCH',
+                body: JSON.stringify({ status })
+            });
+            loadData();
+        } catch (e: any) {
+            toast.error(e.message || 'Failed to update device status');
         }
     };
 
@@ -220,15 +261,50 @@ export default function EquipmentPage() {
                                                     ) : <span className="text-slate-400 font-medium">N/A</span>}
                                                 </td>
                                                 <td className="p-4 pr-6 text-right">
-                                                    {isAvailable ? (
-                                                        <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700" onClick={() => { setSelectedEq(eq); setIsDeployOpen(true); }}>
-                                                            Deploy Device
-                                                        </Button>
-                                                    ) : (
-                                                        <Button size="sm" variant="outline" className="text-rose-600 hover:bg-rose-50 border-rose-200" onClick={() => handleRetrieve(eq.equipment_id)}>
-                                                            Retrieve
-                                                        </Button>
-                                                    )}
+                                                    <div className="flex justify-end items-center gap-2">
+                                                        {isAvailable ? (
+                                                            <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700" onClick={() => { setSelectedEq(eq); setIsDeployOpen(true); }}>
+                                                                Deploy Device
+                                                            </Button>
+                                                        ) : eq.status === 'in_use' ? (
+                                                            <Button size="sm" variant="outline" className="text-rose-600 hover:bg-rose-50 border-rose-200" onClick={() => handleRetrieve(eq.equipment_id)}>
+                                                                Retrieve
+                                                            </Button>
+                                                        ) : (
+                                                            <Button size="sm" variant="outline" className="text-amber-600 hover:bg-amber-50 border-amber-200" disabled>
+                                                                In Maintenance
+                                                            </Button>
+                                                        )}
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-900">
+                                                                    <MoreVertical size={16} />
+                                                                </Button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end">
+                                                                <DropdownMenuItem onClick={() => {
+                                                                    setSelectedEq(eq);
+                                                                    setEditEqForm({ name: eq.name, equipment_type: eq.equipment_type });
+                                                                    setIsEditOpen(true);
+                                                                }}>
+                                                                    <Edit size={14} className="mr-2" /> Edit Device
+                                                                </DropdownMenuItem>
+                                                                {eq.status === 'available' && (
+                                                                    <DropdownMenuItem onClick={() => handleUpdateStatus(eq.equipment_id, 'maintenance')}>
+                                                                        <Wrench size={14} className="mr-2" /> Set to Maintenance
+                                                                    </DropdownMenuItem>
+                                                                )}
+                                                                {eq.status === 'maintenance' && (
+                                                                    <DropdownMenuItem onClick={() => handleUpdateStatus(eq.equipment_id, 'available')}>
+                                                                        <ShieldCheck size={14} className="mr-2 text-emerald-600" /> Mark Available
+                                                                    </DropdownMenuItem>
+                                                                )}
+                                                                <DropdownMenuItem className="text-rose-600 focus:text-rose-600 focus:bg-rose-50" onClick={() => handleDelete(eq.equipment_id)}>
+                                                                    <Trash2 size={14} className="mr-2" /> Delete Device
+                                                                </DropdownMenuItem>
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -258,13 +334,62 @@ export default function EquipmentPage() {
                                 <option>Defibrillator</option>
                                 <option>ECG Machine</option>
                                 <option>Infusion Pump</option>
+                                <option>Syringe Pump</option>
                                 <option>Portable X-Ray</option>
+                                <option>Ultrasound Machine</option>
+                                <option>Oxygen Concentrator</option>
+                                <option>CPAP / BiPAP</option>
+                                <option>Suction Machine</option>
+                                <option>Pulse Oximeter</option>
+                                <option>Dialysis Machine</option>
+                                <option>Anesthesia Machine</option>
+                                <option>Patient Warmer</option>
+                                <option>C-Arm Machine</option>
                             </select>
                         </div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsAddOpen(false)}>Cancel</Button>
                         <Button onClick={handleCreate} disabled={!eqForm.name} className="bg-indigo-600">Register Device</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit Device Modal */}
+            <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader><DialogTitle>Edit Medical Device</DialogTitle></DialogHeader>
+                    <div className="space-y-3 py-2">
+                        <div className="space-y-2">
+                            <Label>Device Identifier Name *</Label>
+                            <Input placeholder="e.g., Ventilator V-102" value={editEqForm.name} onChange={e => setEditEqForm({ ...editEqForm, name: e.target.value })} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Device Type</Label>
+                            <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm"
+                                value={editEqForm.equipment_type} onChange={e => setEditEqForm({ ...editEqForm, equipment_type: e.target.value })}>
+                                <option>Ventilator</option>
+                                <option>ICU Monitor</option>
+                                <option>Defibrillator</option>
+                                <option>ECG Machine</option>
+                                <option>Infusion Pump</option>
+                                <option>Syringe Pump</option>
+                                <option>Portable X-Ray</option>
+                                <option>Ultrasound Machine</option>
+                                <option>Oxygen Concentrator</option>
+                                <option>CPAP / BiPAP</option>
+                                <option>Suction Machine</option>
+                                <option>Pulse Oximeter</option>
+                                <option>Dialysis Machine</option>
+                                <option>Anesthesia Machine</option>
+                                <option>Patient Warmer</option>
+                                <option>C-Arm Machine</option>
+                            </select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
+                        <Button onClick={handleUpdate} disabled={!editEqForm.name} className="bg-indigo-600">Save Changes</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

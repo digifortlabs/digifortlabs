@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/config/api';
 import { format } from 'date-fns';
+import toast from 'react-hot-toast';
 
 interface Hospital {
     hospital_id: number;
@@ -154,7 +155,7 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
         const hasRegFee = includeRegFee && parseFloat(regFeeAmount) > 0;
 
         if (!hasFiles && !hasCustomItems && !hasRegFee) {
-            alert("Please select at least one item (file, custom item, or registration fee) to generate an invoice.");
+            toast.error("Please select at least one item (file, custom item, or registration fee) to generate an invoice.");
             return;
         }
 
@@ -182,7 +183,7 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
             setCustomItems([]);
         } catch (error) {
             console.error("Error generating invoice:", error);
-            alert("Failed to generate invoice. Please try again.");
+            toast.error("Failed to generate invoice. Please try again.");
         } finally {
             setLoading(false);
         }

@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/dateFormatter';
 import PatientEditModal from './PatientEditModal';
+import toast from 'react-hot-toast';
 
 export default function PatientProfile() {
     const params = useParams();
@@ -49,7 +50,7 @@ export default function PatientProfile() {
                 router.push('/hospital/patients');
             } catch (error) {
                 console.error('Failed to delete patient', error);
-                alert('Failed to delete patient.');
+                toast.error('Failed to delete patient.');
                 setIsDeleting(false);
             }
         }

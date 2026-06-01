@@ -1,6 +1,7 @@
 import React, { useRef, useState, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import { Camera, RefreshCw, Check, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface CameraModalProps {
     isOpen: boolean;
@@ -64,7 +65,7 @@ const CameraModal: React.FC<CameraModalProps> = ({ isOpen, onClose, onCapture })
                                 height: { ideal: 720 }
                             }} // Use back camera on mobile with higher res
                             className="w-full h-full object-contain"
-                            onUserMediaError={(err) => alert("Camera Error: " + (typeof err === 'string' ? err : err.message || "Could not access camera."))}
+                            onUserMediaError={(err) => toast.error("Camera Error: " + (typeof err === 'string' ? err : err.message || "Could not access camera."))}
                         />
                     )}
                 </div>

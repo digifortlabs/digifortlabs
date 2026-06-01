@@ -7,7 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { apiFetch } from '@/config/api';
+import toast from 'react-hot-toast';
 
 interface IPDAdmissionModalProps {
     isOpen: boolean;
@@ -30,7 +32,9 @@ export default function IPDAdmissionModal({ isOpen, onClose, patientId, patientN
         admitting_doctor_id: '',
         admission_date: new Date().toISOString().split('T')[0],
         diagnosis: '',
-        treatment_plan: ''
+        treatment_plan: '',
+        is_mediclaim: false,
+        mediclaim_details: ''
     });
 
     useEffect(() => {
@@ -43,7 +47,9 @@ export default function IPDAdmissionModal({ isOpen, onClose, patientId, patientN
                 admitting_doctor_id: '',
                 admission_date: new Date().toISOString().split('T')[0],
                 diagnosis: '',
-                treatment_plan: ''
+                treatment_plan: '',
+                is_mediclaim: false,
+                mediclaim_details: ''
             });
         }
     }, [isOpen]);
@@ -79,7 +85,7 @@ export default function IPDAdmissionModal({ isOpen, onClose, patientId, patientN
         e.preventDefault();
         
         if (!formData.ward_id || !formData.bed_id) {
-            alert("Please select both a Ward and a Bed.");
+            toast.error("Please select both a Ward and a Bed.");
             return;
         }
 
@@ -92,7 +98,9 @@ export default function IPDAdmissionModal({ isOpen, onClose, patientId, patientN
                 admitting_doctor_id: formData.admitting_doctor_id ? parseInt(formData.admitting_doctor_id) : null,
                 diagnosis: formData.diagnosis,
                 treatment_plan: formData.treatment_plan,
-                admission_date: formData.admission_date ? `${formData.admission_date}T00:00:00Z` : null
+                admission_date: formData.admission_date ? `${formData.admission_date}T00:00:00Z` : null,
+                is_mediclaim: formData.is_mediclaim,
+                mediclaim_details: formData.mediclaim_details || null
             };
 
             await apiFetch('/hms/admissions', {
@@ -103,12 +111,12 @@ export default function IPDAdmissionModal({ isOpen, onClose, patientId, patientN
             // Dispatch event so dashboards refresh
             window.dispatchEvent(new Event('ipd-admissions-updated'));
             
-            alert(`Patient ${patientName} successfully admitted to IPD!`);
+            toast.success(`Patient ${patientName} successfully admitted to IPD!`);
             if (onSuccess) onSuccess();
             onClose();
         } catch (error: any) {
             console.error("Failed to admit patient:", error);
-            alert(`Admission failed: ${error.message || "Unknown error"}`);
+            toast.error(`Admission failed: ${error.message || "Unknown error"}`);
         } finally {
             setIsSaving(false);
         }
@@ -252,6 +260,34 @@ export default function IPDAdmissionModal({ isOpen, onClose, patientId, patientN
                                     className="bg-slate-50/50 border-slate-200 focus-visible:ring-blue-500 min-h-[100px] resize-y"
                                 />
                             </div>
+                        </div>
+
+                        {/* Mediclaim Info */}
+                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <Label className="text-base font-bold text-slate-800">Mediclaim / Insurance</Label>
+                                    <p className="text-xs text-slate-500">Enable this if the admission is covered by Mediclaim.</p>
+                                </div>
+                                <Switch 
+                                    checked={formData.is_mediclaim} 
+                                    onCheckedChange={(c: boolean) => setFormData(prev => ({...prev, is_mediclaim: c}))}
+                                />
+                            </div>
+
+                            {formData.is_mediclaim && (
+                                <div className="pt-2 animate-in fade-in slide-in-from-top-2">
+                                    <div className="space-y-2">
+                                        <Label className="text-slate-700">Mediclaim Details</Label>
+                                        <Input 
+                                            placeholder="E.g., Policy Number, TPA Name, Approval Status" 
+                                            value={formData.mediclaim_details} 
+                                            onChange={e => setFormData(prev => ({...prev, mediclaim_details: e.target.value}))} 
+                                            className="bg-white border-slate-200 focus:ring-blue-500/20" 
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </form>
                 </div>

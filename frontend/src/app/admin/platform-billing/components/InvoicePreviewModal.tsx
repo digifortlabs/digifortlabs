@@ -19,6 +19,7 @@ import { format } from 'date-fns';
 import { apiFetch } from '@/config/api';
 
 import InvoiceRenderer from '@/components/InvoiceRenderer';
+import toast from 'react-hot-toast';
 
 interface InvoicePreviewModalProps {
     isOpen: boolean;
@@ -60,9 +61,9 @@ export default function InvoicePreviewModal({ isOpen, onClose, invoiceId }: Invo
         setEmailLoading(true);
         try {
             await apiFetch(`/accounting/${invoiceId}/send-email`, { method: 'POST' });
-            alert("Invoice email sent successfully!");
+            toast.success("Invoice email sent successfully!");
         } catch (error) {
-            alert("Failed to send invoice email.");
+            toast.error("Failed to send invoice email.");
         } finally {
             setEmailLoading(false);
         }

@@ -15,6 +15,7 @@ import PatientDetailView from '@/app/hospital/records/components/PatientDetailVi
 import DentalPatientDetail from '@/app/hospital/dental/components/PatientDetail';
 import PatientCreateModal from '@/app/hospital/records/components/PatientCreateModal';
 import HospitalSelectionPrompt from '@/components/HospitalSelectionPrompt';
+import toast from 'react-hot-toast';
 
 interface RecordManagerProps {
     mode: 'patients' | 'corporate';
@@ -295,7 +296,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
             if (!newPatient.contact_number) missing.push('Contact Number');
             if (missing.length > 0) {
                 setActiveTab('identity');
-                alert(`Please fill required fields in Identity tab:\n• ${missing.join('\n• ')}`);
+                toast.error(`Please fill required fields in Identity tab:\n• ${missing.join('\n• ')}`);
                 return;
             }
 
@@ -335,7 +336,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
 
                 if (isEditing) {
                     setPatients(patients.map(p => (p.record_id || p.patient_id) === selectedPatientId ? data : p));
-                    alert(`${mode === 'patients' ? terms.patient : 'Document'} Updated Successfully!`);
+                    toast.success(`${mode === 'patients' ? terms.patient : 'Document'} Updated Successfully!`);
                     setShowCreateModal(false);
                     resetForm();
                 } else {
@@ -344,7 +345,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
                 }
             }
         } catch (err: any) {
-            alert(`Error: ${err.message || "Network error occurred."}`);
+            toast.error(`Error: ${err.message || "Network error occurred."}`);
         }
     };
 

@@ -15,6 +15,7 @@ import {
     Hash
 } from 'lucide-react';
 import { apiFetch } from '@/config/api';
+import toast from 'react-hot-toast';
 
 interface InvoiceItem {
     item_id?: number;
@@ -108,7 +109,7 @@ export default function EditInvoiceModal({ isOpen, onClose, onSuccess, invoice }
         } catch (error: any) {
             console.error("Error updating invoice:", error);
             const errMsg = error?.message || "Failed to update invoice.";
-            alert(errMsg);
+            toast.error(errMsg);
         } finally {
             setLoading(false);
         }

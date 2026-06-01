@@ -5,6 +5,7 @@ import { X, Shield, Lock, AlertCircle, Loader2, Download, ZoomIn, ZoomOut, Maxim
 import { API_URL, apiFetch } from '@/config/api';
 import { Document, Page, pdfjs } from 'react-pdf';
 import ConfirmationModal from './ConfirmationModal';
+import toast from 'react-hot-toast';
 
 // Core PDF worker setup for Next.js
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -102,7 +103,7 @@ const SecurePDFViewer: React.FC<SecurePDFViewerProps> = ({ fileId, filename, onC
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.ctrlKey && (e.key === 'p' || e.key === 's' || e.key === 'u')) {
                 e.preventDefault();
-                alert("Security Protocol: Saving and Printing is disabled.");
+                toast.error("Security Protocol: Saving and Printing is disabled.");
             }
         };
 

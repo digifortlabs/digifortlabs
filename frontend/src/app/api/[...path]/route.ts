@@ -48,23 +48,28 @@ async function proxy(req: NextRequest) {
         return NextResponse.json({ error: 'Blocked: Target URL is not in the allowed list.' }, { status: 403 });
     }
 
-    const backendRes = await fetch(url, {
-        method: req.method,
-        headers,
-        body,
-    });
+    try {
+        const backendRes = await fetch(url, {
+            method: req.method,
+            headers,
+            body,
+        });
 
-    const resHeaders = new Headers();
-    backendRes.headers.forEach((value, key) => {
-        if (key.toLowerCase() !== 'transfer-encoding') {
-            resHeaders.set(key, value);
-        }
-    });
+        const resHeaders = new Headers();
+        backendRes.headers.forEach((value, key) => {
+            if (key.toLowerCase() !== 'transfer-encoding') {
+                resHeaders.set(key, value);
+            }
+        });
 
-    return new NextResponse(backendRes.body, {
-        status: backendRes.status,
-        headers: resHeaders,
-    });
+        return new NextResponse(backendRes.body, {
+            status: backendRes.status,
+            headers: resHeaders,
+        });
+    } catch (error) {
+        console.error("Next.js Proxy Error fetching", url, ":", error);
+        return NextResponse.json({ error: "Proxy Fetch Error", details: String(error) }, { status: 500 });
+    }
 }
 
 export async function GET(req: NextRequest) { return proxy(req); }

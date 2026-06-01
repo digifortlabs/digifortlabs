@@ -240,9 +240,8 @@ export default function Odontogram({
 
     return (
         <div className="bg-white p-6 rounded-lg shadow-sm border space-y-8">
-
-            <div className="flex flex-col xl:flex-row gap-8">
-                {/* LEFT: Chart */}
+            <div className="flex flex-col gap-8">
+                {/* Chart & Actions */}
                 <div className="flex-1 space-y-8">
                     {/* Header */}
                     <div className="flex items-center justify-between border-b pb-4">
@@ -301,8 +300,49 @@ export default function Odontogram({
                         <Button variant="secondary" className="bg-blue-900 text-white hover:bg-blue-800">Notes - Lower</Button>
                     </div>
 
+                    {/* Conditions Section (Moved Below Tooth Graph) */}
+                    <div className="pt-6 space-y-3">
+                        <h3 className="font-bold text-gray-700">Conditions</h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                            {CONDITIONS.map(condition => (
+                                <div
+                                    key={condition.id}
+                                    onClick={() => applyCondition(condition.id)}
+                                    className={cn(
+                                        "flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-gray-50 transition-all bg-white shadow-sm",
+                                        selectedTeeth.length > 0 ? "opacity-100 hover:border-blue-300 hover:shadow-md" : "opacity-50 cursor-not-allowed"
+                                    )}
+                                >
+                                    <div className={cn("w-10 h-10 flex items-center justify-center text-xl bg-gray-50 rounded-lg border flex-shrink-0", condition.color.replace('bg-', 'text-'))}>
+                                        {condition.icon}
+                                    </div>
+                                    <div className="flex flex-col overflow-hidden">
+                                        <span className="font-bold text-sm text-gray-800 truncate">{condition.label}</span>
+                                        <span className="text-[10px] text-gray-400 uppercase tracking-wider truncate">Global Code</span>
+                                    </div>
+
+                                    {/* Active Indicator if any selected tooth has this condition */}
+                                    {selectedTeeth.some(id => toothStatus[id]?.includes(condition.id)) && (
+                                        <div className="ml-auto w-2 h-2 bg-blue-500 rounded-full animate-pulse flex-shrink-0" />
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="mt-4 p-4 bg-gray-50 rounded-lg border text-xs text-gray-500 flex flex-wrap gap-x-6 gap-y-2">
+                        <span className="font-bold text-gray-700 w-full md:w-auto">Legend:</span>
+                        <div className="flex items-center gap-1"><span className="font-bold">Missing:</span> Marked with 'X'</div>
+                        <div className="flex items-center gap-1"><span className="font-bold">Impacted:</span> Tilted 45°</div>
+                        <div className="flex items-center gap-1"><span className="font-bold">Root Stump:</span> Crown hidden</div>
+                        <div className="flex items-center gap-1"><span className="font-bold">Caries:</span> Dark spot on crown</div>
+                        <div className="flex items-center gap-1"><span className="font-bold">Fracture:</span> Red zigzag line</div>
+                        <div className="flex items-center gap-1"><span className="font-bold">Abscess:</span> Red pulse at root</div>
+                    </div>
+
                     {/* Inputs Section */}
-                    <div className="grid gap-6 pt-4">
+                    <div className="grid gap-6 pt-6 border-t mt-6">
                         <div className="space-y-2">
                             <Label htmlFor="complaints" className="text-gray-500 uppercase text-xs font-bold tracking-wider">Clinical Notes</Label>
                             <Textarea
@@ -325,49 +365,6 @@ export default function Odontogram({
                                 />
                             </div>
                         </div>
-                    </div>
-
-                </div>
-
-                {/* RIGHT: Sidebar */}
-                <div className="w-full xl:w-72 space-y-3">
-                    <h3 className="font-bold text-gray-700 mb-2">Conditions</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-3">
-                        {CONDITIONS.map(condition => (
-                            <div
-                                key={condition.id}
-                                onClick={() => applyCondition(condition.id)}
-                                className={cn(
-                                    "flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-gray-50 transition-all bg-white shadow-sm",
-                                    selectedTeeth.length > 0 ? "opacity-100 hover:border-blue-300 hover:shadow-md" : "opacity-50 cursor-not-allowed"
-                                )}
-                            >
-                                <div className={cn("w-10 h-10 flex items-center justify-center text-xl bg-gray-50 rounded-lg border", condition.color.replace('bg-', 'text-'))}>
-                                    {condition.icon}
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="font-bold text-sm text-gray-800">{condition.label}</span>
-                                    <span className="text-[10px] text-gray-400 uppercase tracking-wider">Global Code</span>
-                                </div>
-
-                                {/* Active Indicator if any selected tooth has this condition */}
-                                {selectedTeeth.some(id => toothStatus[id]?.includes(condition.id)) && (
-                                    <div className="ml-auto w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                                )}
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="mt-8 p-4 bg-gray-50 rounded-lg border text-xs text-gray-500 space-y-2">
-                        <p className="font-bold text-gray-700">Legend:</p>
-                        <ul className="list-disc pl-4 space-y-1">
-                            <li><span className="font-bold">Missing:</span> Marked with 'X'</li>
-                            <li><span className="font-bold">Impacted:</span> Tilted 45°</li>
-                            <li><span className="font-bold">Root Stump:</span> Crown hidden</li>
-                            <li><span className="font-bold">Caries:</span> Dark spot on crown</li>
-                            <li><span className="font-bold">Fracture:</span> Red zigzag line</li>
-                            <li><span className="font-bold">Abscess:</span> Red pulse at root</li>
-                        </ul>
                     </div>
                 </div>
             </div>

@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/config/api';
+import toast from 'react-hot-toast';
 
 export default function HMSBedsPage() {
     const router = useRouter();
@@ -84,7 +85,7 @@ export default function HMSBedsPage() {
             setSearchQuery('');
             setSelectedBed(null);
             loadData();
-        } catch (e: any) { alert(e.message || 'Failed to admit patient'); }
+        } catch (e: any) { toast.error(e.message || 'Failed to admit patient'); }
     };
 
     const handleSelectPatient = (patient: any) => {

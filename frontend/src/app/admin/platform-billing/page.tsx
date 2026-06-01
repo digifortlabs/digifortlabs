@@ -67,6 +67,7 @@ import AccountingSettings from './components/AccountingSettings';
 import VendorManager from './components/VendorManager';
 import InventoryManager from './components/InventoryManager';
 import AgingReport from './components/AgingReport';
+import toast from 'react-hot-toast';
 
 export default function AccountingPage() {
     const router = useRouter();
@@ -139,10 +140,10 @@ export default function AccountingPage() {
         setEmailLoading(invoiceId);
         try {
             await apiFetch(`/accounting/${invoiceId}/send-email`, { method: 'POST' });
-            alert("Invoice email sent successfully!");
+            toast.success("Invoice email sent successfully!");
         } catch (error) {
             console.error("Error sending email:", error);
-            alert("Failed to send invoice email.");
+            toast.error("Failed to send invoice email.");
         } finally {
             setEmailLoading(null);
         }
@@ -171,7 +172,7 @@ export default function AccountingPage() {
             fetchInvoices();
         } catch (error) {
             console.error("Error deleting invoice:", error);
-            alert("Failed to delete invoice.");
+            toast.error("Failed to delete invoice.");
         } finally {
             setDeleteLoading(null);
         }

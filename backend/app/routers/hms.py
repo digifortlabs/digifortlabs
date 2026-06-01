@@ -17,6 +17,7 @@ class WardCreate(BaseModel):
     ward_name: str
     ward_type: str  # ICU, General, Private, Semi-Private
     total_beds: int
+    daily_charge: float = 500.0
     floor_number: Optional[int] = 1
 
 class BedCreate(BaseModel):
@@ -41,6 +42,8 @@ class AdmissionCreate(BaseModel):
     diagnosis: Optional[str] = None
     treatment_plan: Optional[str] = None
     admission_date: Optional[datetime] = None
+    is_mediclaim: bool = False
+    mediclaim_details: Optional[str] = None
 
 class DischargeUpdate(BaseModel):
     discharge_date: Optional[datetime] = None
@@ -84,12 +87,14 @@ class BedTransfer(BaseModel):
 
 class BedStatusUpdate(BaseModel):
     status: str
+    is_occupied: Optional[bool] = None
 
 class WardUpdate(BaseModel):
     ward_name: Optional[str] = None
     ward_type: Optional[str] = None
     floor_number: Optional[int] = None
     total_beds: Optional[int] = None
+    daily_charge: Optional[float] = None
 
 class VitalsRecord(BaseModel):
     temp: Optional[str] = None
@@ -118,6 +123,13 @@ class EquipmentCreate(BaseModel):
     name: str
     equipment_type: str  # Ventilator, Monitor, Defibrillator, ECG
 
+class EquipmentUpdate(BaseModel):
+    name: Optional[str] = None
+    equipment_type: Optional[str] = None
+
+class EquipmentStatusUpdate(BaseModel):
+    status: str
+
 class EquipmentDeploy(BaseModel):
     ward_id: Optional[int] = None
     bed_id: Optional[int] = None
@@ -145,6 +157,7 @@ def create_ward(
         ward_name=ward.ward_name,
         ward_type=ward.ward_type,
         total_beds=ward.total_beds,
+        daily_charge=ward.daily_charge,
         occupied_beds=0
     )
     db.add(new_ward)
@@ -197,6 +210,7 @@ def get_wards(
             "total_beds": w.total_beds,
             "occupied_beds": occupied_count,
             "available_beds": max(0, available_beds),
+            "daily_charge": getattr(w, "daily_charge", 500.0),
             "floor_number": getattr(w, "floor_number", 1) or 1,
             "occupancy_rate": (occupied_count / w.total_beds * 100) if w.total_beds > 0 else 0
         })
@@ -243,6 +257,8 @@ def update_ward(
         ward.ward_type = ward_update.ward_type  # type: ignore
     if ward_update.floor_number is not None:
         ward.floor_number = ward_update.floor_number  # type: ignore
+    if ward_update.daily_charge is not None:
+        ward.daily_charge = ward_update.daily_charge  # type: ignore
     if ward_update.total_beds is not None and ward_update.total_beds != ward.total_beds:
         if ward_update.total_beds > ward.total_beds:
             # Add new beds
@@ -391,14 +407,17 @@ def update_bed_status(
     if not bed:
         raise HTTPException(status_code=404, detail="Bed not found")
         
-    if bed.is_occupied:
-        raise HTTPException(status_code=400, detail="Cannot change status of an occupied bed")
+    if bed.is_occupied and status_update.is_occupied is not False:
+        raise HTTPException(status_code=400, detail="Cannot change status of an occupied bed without resetting occupation flag")
         
     status_val = status_update.status.upper()
     if status_val not in ["AVAILABLE", "MAINTENANCE"]:
         raise HTTPException(status_code=400, detail="Invalid status")
         
     bed.status = status_val  # type: ignore
+    if status_update.is_occupied is not None:
+        bed.is_occupied = status_update.is_occupied
+        
     db.commit()
     db.refresh(bed)
     return bed
@@ -547,6 +566,8 @@ def admit_patient(
         admitting_doctor_id=admission.admitting_doctor_id or current_user.user_id,
         diagnosis=admission.diagnosis,
         treatment_plan=admission.treatment_plan,
+        is_mediclaim=admission.is_mediclaim,
+        mediclaim_details=admission.mediclaim_details,
         status="admitted",
         vitals_log=[]
     )
@@ -1378,6 +1399,77 @@ def retrieve_equipment(
     eq.current_ot_id = None  # type: ignore
     eq.current_patient_id = None  # type: ignore
     eq.status = "AVAILABLE"  # type: ignore
+    db.commit()
+    return eq
+
+@router.put("/equipment/{equipment_id}")
+def update_equipment(
+    equipment_id: int,
+    eq_update: EquipmentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update medical device details"""
+    eq = db.query(MedicalEquipment).filter(
+        MedicalEquipment.equipment_id == equipment_id,
+        MedicalEquipment.hospital_id == current_user.hospital_id
+    ).first()
+    if not eq:
+        raise HTTPException(status_code=404, detail="Medical device not found")
+    
+    if eq_update.name is not None:
+        eq.name = eq_update.name
+    if eq_update.equipment_type is not None:
+        eq.equipment_type = eq_update.equipment_type
+    
+    db.commit()
+    db.refresh(eq)
+    return eq
+
+@router.delete("/equipment/{equipment_id}")
+def delete_equipment(
+    equipment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete medical device"""
+    eq = db.query(MedicalEquipment).filter(
+        MedicalEquipment.equipment_id == equipment_id,
+        MedicalEquipment.hospital_id == current_user.hospital_id
+    ).first()
+    if not eq:
+        raise HTTPException(status_code=404, detail="Medical device not found")
+    
+    if eq.status == "IN_USE":
+        raise HTTPException(status_code=400, detail="Cannot delete device currently in use. Retrieve it first.")
+        
+    db.delete(eq)
+    db.commit()
+    return {"message": "Device deleted successfully"}
+
+@router.patch("/equipment/{equipment_id}/status")
+def update_equipment_status(
+    equipment_id: int,
+    status_update: EquipmentStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Mark device as available or maintenance"""
+    eq = db.query(MedicalEquipment).filter(
+        MedicalEquipment.equipment_id == equipment_id,
+        MedicalEquipment.hospital_id == current_user.hospital_id
+    ).first()
+    if not eq:
+        raise HTTPException(status_code=404, detail="Medical device not found")
+    
+    status = status_update.status.upper()
+    if status not in ["AVAILABLE", "MAINTENANCE"]:
+        raise HTTPException(status_code=400, detail="Invalid status. Must be AVAILABLE or MAINTENANCE")
+        
+    if eq.status == "IN_USE" and status == "MAINTENANCE":
+        raise HTTPException(status_code=400, detail="Cannot mark device in use for maintenance. Retrieve it first.")
+        
+    eq.status = status # type: ignore
     db.commit()
     return eq
 

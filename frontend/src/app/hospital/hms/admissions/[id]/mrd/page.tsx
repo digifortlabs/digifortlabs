@@ -1,17 +1,18 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, use } from 'react';
 import { apiFetch } from '@/config/api';
 import { Loader2 } from 'lucide-react';
 
-export default function MRDFilePage({ params }: { params: { id: string } }) {
+export default function MRDFilePage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = use(params);
     const [admission, setAdmission] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const loadAdmission = async () => {
             try {
-                const data = await apiFetch(`hms/admissions/${params.id}`);
+                const data = await apiFetch(`hms/admissions/${id}`);
                 setAdmission(data.admission);
             } catch (e) {
                 console.error(e);
@@ -20,7 +21,7 @@ export default function MRDFilePage({ params }: { params: { id: string } }) {
             }
         };
         loadAdmission();
-    }, [params.id]);
+    }, [id]);
 
     useEffect(() => {
         if (!loading && admission) {

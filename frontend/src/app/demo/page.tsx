@@ -7,6 +7,7 @@ import { apiFetch } from '@/lib/api';
 // @ts-ignore
 import NextLink from 'next/link';
 import { User, Mail, Phone, Building, ArrowRight, Home, Activity, ChevronDown } from 'lucide-react';
+import toast from 'react-hot-toast';
 const Link = NextLink as any;
 
 
@@ -38,7 +39,7 @@ export default function DemoRegistration() {
                 throw new Error(data.detail || 'Registration failed');
             }
 
-            alert('Demo account created! Check your email for login credentials.');
+            toast.error('Demo account created! Check your email for login credentials.');
             router.push('/login');
         } catch (err: any) {
             setError(err.message || 'Registration failed');

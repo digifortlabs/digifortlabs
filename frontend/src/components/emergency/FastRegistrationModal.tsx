@@ -34,7 +34,9 @@ export default function FastRegistrationModal({ isOpen, onClose, onSuccess }: Fa
         is_medico_legal: false,
         police_station: '',
         ambulance_driver: '',
-        chief_complaint: ''
+        chief_complaint: '',
+        is_mediclaim: false,
+        mediclaim_details: ''
     });
 
     if (!isOpen) return null;
@@ -69,7 +71,9 @@ export default function FastRegistrationModal({ isOpen, onClose, onSuccess }: Fa
                 is_medico_legal: emergencyData.is_medico_legal,
                 police_station: emergencyData.police_station || null,
                 ambulance_driver: emergencyData.ambulance_driver || null,
-                chief_complaint: emergencyData.chief_complaint || null
+                chief_complaint: emergencyData.chief_complaint || null,
+                is_mediclaim: emergencyData.is_mediclaim,
+                mediclaim_details: emergencyData.mediclaim_details || null
             };
 
             const visitRes = await apiFetch('emergency/', {
@@ -222,6 +226,29 @@ export default function FastRegistrationModal({ isOpen, onClose, onSuccess }: Fa
                                         <div className="space-y-2">
                                             <Label>Ambulance / Driver Details (Optional)</Label>
                                             <Input placeholder="E.g., License Plate, Driver Name" value={emergencyData.ambulance_driver} onChange={e => setEmergencyData({...emergencyData, ambulance_driver: e.target.value})} className="border-slate-200 focus:border-red-500 focus:ring-red-500/20" />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Mediclaim Info */}
+                            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4 mt-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <Label className="text-base font-bold text-slate-800">Mediclaim / Insurance</Label>
+                                        <p className="text-xs text-slate-500">Flag this if the visit is covered under Mediclaim.</p>
+                                    </div>
+                                    <Switch 
+                                        checked={emergencyData.is_mediclaim} 
+                                        onCheckedChange={(c: boolean) => setEmergencyData({...emergencyData, is_mediclaim: c})}
+                                    />
+                                </div>
+
+                                {emergencyData.is_mediclaim && (
+                                    <div className="pt-2 animate-in fade-in slide-in-from-top-2">
+                                        <div className="space-y-2">
+                                            <Label>Mediclaim Details</Label>
+                                            <Input placeholder="E.g., Policy Number, TPA Name, Approval Status" value={emergencyData.mediclaim_details} onChange={e => setEmergencyData({...emergencyData, mediclaim_details: e.target.value})} className="border-slate-200 focus:border-red-500 focus:ring-red-500/20" />
                                         </div>
                                     </div>
                                 )}

@@ -9,10 +9,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { MedicineAutocomplete } from '@/components/pharmacy/MedicineAutocomplete';
 import { apiFetch } from '@/config/api';
 import { formatDate } from '@/lib/dateFormatter';
 import { toast } from 'sonner';
@@ -37,7 +39,9 @@ export default function ClinicPatientDetail() {
         diagnosis: '',
         treatment: '',
         consultation_fee: 500,
-        is_paid: false
+        is_paid: false,
+        is_mediclaim: false,
+        mediclaim_details: ''
     });
 
     // Prescription State inside Consultation
@@ -83,6 +87,8 @@ export default function ClinicPatientDetail() {
                     temperature: consultForm.temperature ? parseFloat(consultForm.temperature) : null,
                     pulse_rate: consultForm.pulse_rate ? parseInt(consultForm.pulse_rate) : null,
                     weight: consultForm.weight ? parseFloat(consultForm.weight) : null,
+                    is_mediclaim: consultForm.is_mediclaim,
+                    mediclaim_details: consultForm.mediclaim_details || null
                 })
             });
 
@@ -109,7 +115,7 @@ export default function ClinicPatientDetail() {
             // Reset Form
             setConsultForm({
                 temperature: '', blood_pressure: '', pulse_rate: '', weight: '',
-                chief_complaint: '', diagnosis: '', treatment: '', consultation_fee: 500, is_paid: false
+                chief_complaint: '', diagnosis: '', treatment: '', consultation_fee: 500, is_paid: false, is_mediclaim: false, mediclaim_details: ''
             });
             setPrescriptions([]);
 
@@ -327,7 +333,7 @@ export default function ClinicPatientDetail() {
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="col-span-2">
                                             <Label className="text-xs">Medicine Name *</Label>
-                                            <Input size={1} className="h-8 text-sm" value={newRx.medicine_name} onChange={e => setNewRx({ ...newRx, medicine_name: e.target.value })} />
+                                            <MedicineAutocomplete className="h-8 text-sm" value={newRx.medicine_name} onChange={val => setNewRx({ ...newRx, medicine_name: val })} />
                                         </div>
                                         <div>
                                             <Label className="text-xs">Dosage *</Label>
@@ -431,6 +437,26 @@ export default function ClinicPatientDetail() {
                                         <input type="checkbox" id="is_paid" className="w-4 h-4" checked={consultForm.is_paid} onChange={e => setConsultForm({ ...consultForm, is_paid: e.target.checked })} />
                                         <Label htmlFor="is_paid" className="cursor-pointer">Fee Collected</Label>
                                     </div>
+                                </div>
+
+                                <div className="pt-4 border-t border-slate-100">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <Label className="font-semibold text-slate-800">Mediclaim / Insurance Coverage</Label>
+                                        <Switch 
+                                            checked={consultForm.is_mediclaim} 
+                                            onCheckedChange={(c: boolean) => setConsultForm({...consultForm, is_mediclaim: c})}
+                                        />
+                                    </div>
+                                    {consultForm.is_mediclaim && (
+                                        <div className="mt-2 animate-in fade-in slide-in-from-top-2">
+                                            <Label className="text-xs text-slate-500 mb-1 block">Mediclaim Details</Label>
+                                            <Input 
+                                                placeholder="e.g. Policy Number, TPA Approval..." 
+                                                value={consultForm.mediclaim_details} 
+                                                onChange={e => setConsultForm({ ...consultForm, mediclaim_details: e.target.value })} 
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

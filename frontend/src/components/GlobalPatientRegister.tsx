@@ -17,6 +17,7 @@ import { useTerminology } from '@/hooks/useTerminology';
 import { toTitleCase, toUpperCaseMRD } from '@/lib/formatters';
 import QuickAssignDoctorModal from './QuickAssignDoctorModal';
 import IPDAdmissionModal from './IPDAdmissionModal';
+import toast from 'react-hot-toast';
 
 const calculateAgeFromDob = (dobString: string) => {
     if (!dobString) return null;
@@ -67,7 +68,7 @@ export default function GlobalPatientRegister() {
         abha_id: '',
         ayushman_id: '',
         maa_card: '',
-        patient_category: 'IPD',
+        patient_category: 'OPD',
         admission_date: '',
         discharge_date: '',
         doctor_name: '',
@@ -137,7 +138,7 @@ export default function GlobalPatientRegister() {
             abha_id: '',
             ayushman_id: '',
             maa_card: '',
-            patient_category: 'IPD',
+            patient_category: 'OPD',
             admission_date: '',
             discharge_date: '',
             doctor_name: '',
@@ -165,12 +166,12 @@ export default function GlobalPatientRegister() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.full_name || !formData.contact_number) {
-            alert("Name and Contact Number are required.");
+            toast.error("Name and Contact Number are required.");
             return;
         }
 
         if (formData.contact_number.length !== 10) {
-            alert("Contact Number must be exactly 10 digits.");
+            toast.error("Contact Number must be exactly 10 digits.");
             return;
         }
 
@@ -217,7 +218,7 @@ export default function GlobalPatientRegister() {
                     }
                 }
             } else {
-                alert(`Error: ${error.message || "Data formatting error in server response."}`);
+                toast.error(`Error: ${error.message || "Data formatting error in server response."}`);
             }
         } finally {
             setIsSaving(false);
@@ -305,7 +306,7 @@ export default function GlobalPatientRegister() {
                                             />
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                                         <div className="space-y-2">
                                             <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Date of Birth</Label>
                                             <Input 
@@ -364,6 +365,18 @@ export default function GlobalPatientRegister() {
                                                 <option value="Male">Male</option>
                                                 <option value="Female">Female</option>
                                                 <option value="Other">Other</option>
+                                            </select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Category *</Label>
+                                            <select 
+                                                className="w-full h-11 border border-slate-200 rounded-xl bg-white text-sm px-3 outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                                                value={formData.patient_category}
+                                                onChange={e => setFormData({...formData, patient_category: e.target.value})}
+                                                required
+                                            >
+                                                <option value="OPD">OPD</option>
+                                                <option value="IPD">IPD</option>
                                             </select>
                                         </div>
                                     </div>

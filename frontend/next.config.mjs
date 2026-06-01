@@ -10,10 +10,6 @@ const nextConfig = {
         // Disabling type checking during production builds prevents OOM/swapping hangs on AWS EC2 micro instances.
         ignoreBuildErrors: true,
     },
-    eslint: {
-        // Disabling ESLint during production builds speeds up deployment compile times.
-        ignoreDuringBuilds: true,
-    },
 };
 
 export default nextConfig;

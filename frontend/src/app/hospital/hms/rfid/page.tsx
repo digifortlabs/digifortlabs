@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/config/api';
+import toast from 'react-hot-toast';
 
 export default function RFIDPage() {
     const router = useRouter();
@@ -61,7 +62,7 @@ export default function RFIDPage() {
             setRegForm({ card_number: '' });
             loadData();
         } catch (e: any) {
-            alert(e.message || 'Failed to register RFID card');
+            toast.error(e.message || 'Failed to register RFID card');
         }
     };
 
@@ -82,7 +83,7 @@ export default function RFIDPage() {
                 handleScan(linkForm.card_number);
             }
         } catch (e: any) {
-            alert(e.message || 'Failed to assign card to patient');
+            toast.error(e.message || 'Failed to assign card to patient');
         }
     };
 
@@ -127,10 +128,10 @@ export default function RFIDPage() {
                     }
                 });
                 setVitalsForm({ temp: '', bp: '', pulse: '', spo2: '', respiratory_rate: '', notes: '' });
-                alert("Vitals successfully logged completely paperless!");
+                toast.success("Vitals successfully logged completely paperless!");
             }
         } catch (e: any) {
-            alert(e.message || 'Failed to record vitals');
+            toast.error(e.message || 'Failed to record vitals');
         }
     };
 

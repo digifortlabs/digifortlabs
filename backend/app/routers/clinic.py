@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -127,6 +127,8 @@ class VisitCreate(BaseModel):
     treatment: Optional[str] = None
     consultation_fee: Optional[float] = 0.0
     is_paid: Optional[bool] = False
+    is_mediclaim: bool = False
+    mediclaim_details: Optional[str] = None
 
 class PrescriptionCreate(BaseModel):
     visit_id: int
@@ -167,7 +169,9 @@ def create_visit(
         diagnosis=payload.diagnosis,
         treatment=payload.treatment,
         consultation_fee=payload.consultation_fee,
-        is_paid=payload.is_paid
+        is_paid=payload.is_paid,
+        is_mediclaim=payload.is_mediclaim,
+        mediclaim_details=payload.mediclaim_details
     )
     db.add(new_visit)
     db.commit()

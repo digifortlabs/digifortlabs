@@ -21,6 +21,7 @@ import {
     CheckCircle
 } from 'lucide-react';
 import { API_URL, apiFetch } from '../../../config/api';
+import toast from 'react-hot-toast';
 
 interface QAIssueNormalized {
     id: number;
@@ -123,10 +124,10 @@ export default function QAMonitorPage() {
                 resolved: prev.resolved + 1
             }));
             setSelectedIssue(null);
-            alert('QA issue successfully resolved and archived!');
+            toast.success('QA issue successfully resolved and archived!');
         } catch (err: any) {
             console.error(err);
-            alert(err.message || 'Failed to resolve QA issue');
+            toast.error(err.message || 'Failed to resolve QA issue');
         } finally {
             setActionLoading(false);
         }
@@ -146,17 +147,17 @@ export default function QAMonitorPage() {
                 ignored: prev.ignored + 1
             }));
             setSelectedIssue(null);
-            alert('QA issue has been ignored and minimized.');
+            toast.error('QA issue has been ignored and minimized.');
         } catch (err: any) {
             console.error(err);
-            alert(err.message || 'Failed to ignore QA issue');
+            toast.error(err.message || 'Failed to ignore QA issue');
         } finally {
             setActionLoading(false);
         }
     };
 
     const handleFlagRescan = (issue: QAIssueNormalized) => {
-        alert(`Record "${issue.file}" has been successfully flagged for a rescan queue. The scanning station will receive a high-priority alert.`);
+        toast.success(`Record "${issue.file}" has been successfully flagged for a rescan queue. The scanning station will receive a high-priority alert.`);
         setSelectedIssue(null);
     };
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Bed, ChevronLeft, RefreshCw, UserPlus, AlertCircle, Activity, FileText, Pill, Stethoscope, Cpu, Syringe, Plus, Info, Users, Edit2, Trash2, History, Printer } from 'lucide-react';
+import { Bed, ChevronLeft, RefreshCw, UserPlus, AlertCircle, Activity, FileText, Pill, Stethoscope, Cpu, Syringe, Plus, Info, Users, Edit2, Trash2, History, Printer, MessageCircle, Share2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,9 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/config/api';
+import { format } from 'date-fns';
+import { MedicineAutocomplete } from '@/components/pharmacy/MedicineAutocomplete';
+import toast from 'react-hot-toast';
 
 export default function HMSBedsPage() {
     const router = useRouter();
@@ -48,6 +51,7 @@ export default function HMSBedsPage() {
     const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
     const [medLogForm, setMedLogForm] = useState({ order_id: '', medicine_name: '', notes: '' });
     const [noteForm, setNoteForm] = useState({ note_type: 'Ward Round', content: '' });
+    const [vitalsForm, setVitalsForm] = useState({ temp: '', bp: '', pulse: '', respiratory_rate: '', spo2: '' });
     const [isEditingDoctor, setIsEditingDoctor] = useState(false);
     const [editDoctorName, setEditDoctorName] = useState('');
 
@@ -129,7 +133,7 @@ export default function HMSBedsPage() {
             setSearchQuery('');
             setSelectedBed(null);
             loadData();
-        } catch (e: any) { alert(e.message || 'Failed to admit patient'); }
+        } catch (e: any) { toast.error(e.message || 'Failed to admit patient'); }
     };
 
     const handleSelectPatient = (patient: any) => {
@@ -164,10 +168,20 @@ export default function HMSBedsPage() {
                     setActivePatient(data.patient);
                     setIsConsoleOpen(true);
                 } catch (e) {
-                    alert("Could not load patient details.");
+                    toast.error("Could not load patient details.");
                 }
             } else {
-                alert("Bed is occupied but no active admission record found.");
+                if (confirm("Bed is occupied but no active admission record found. Would you like to mark it as available?")) {
+                    try {
+                        await apiFetch(`hms/beds/${bed.bed_id}/status`, {
+                            method: 'PUT',
+                            body: JSON.stringify({ is_occupied: false, status: 'AVAILABLE' })
+                        });
+                        loadData();
+                    } catch (e) {
+                        toast.error("Failed to update bed status.");
+                    }
+                }
             }
         }
     };
@@ -195,7 +209,7 @@ export default function HMSBedsPage() {
             });
             setOrderForm({ medicine_name: '', dosage: '', frequency: '', frequency_hours: '12', notes: '' });
             refreshAdmission();
-        } catch (e: any) { alert(e.message || "Failed to add order"); }
+        } catch (e: any) { toast.error(e.message || "Failed to add order"); }
     };
 
     const handleSaveEditOrder = async (orderId: string) => {
@@ -210,7 +224,7 @@ export default function HMSBedsPage() {
             });
             setEditingOrderId(null);
             refreshAdmission();
-        } catch (e: any) { alert(e.message || "Failed to update order"); }
+        } catch (e: any) { toast.error(e.message || "Failed to update order"); }
     };
 
     const handleDeleteOrder = async (orderId: string) => {
@@ -220,7 +234,7 @@ export default function HMSBedsPage() {
                 method: 'DELETE'
             });
             refreshAdmission();
-        } catch (e: any) { alert(e.message || "Failed to delete order"); }
+        } catch (e: any) { toast.error(e.message || "Failed to delete order"); }
     };
 
     const handleLogMedication = async () => {
@@ -232,7 +246,7 @@ export default function HMSBedsPage() {
             });
             setMedLogForm({ order_id: '', medicine_name: '', notes: '' });
             refreshAdmission();
-        } catch (e: any) { alert(e.message || "Failed to log medication"); }
+        } catch (e: any) { toast.error(e.message || "Failed to log medication"); }
     };
 
     const handleAddNote = async () => {
@@ -244,7 +258,19 @@ export default function HMSBedsPage() {
             });
             setNoteForm({ note_type: 'Ward Round', content: '' });
             refreshAdmission();
-        } catch (e: any) { alert(e.message || "Failed to add note"); }
+        } catch (e: any) { toast.error(e.message || "Failed to add note"); }
+    };
+
+    const handleLogVitals = async () => {
+        if (!activeAdmission) return;
+        try {
+            await apiFetch(`hms/admissions/${activeAdmission.admission_id}/vitals`, {
+                method: 'POST',
+                body: JSON.stringify(vitalsForm)
+            });
+            setVitalsForm({ temp: '', bp: '', pulse: '', respiratory_rate: '', spo2: '' });
+            refreshAdmission();
+        } catch (e: any) { toast.error(e.message || "Failed to log vitals"); }
     };
 
     const handleUpdateDoctor = async () => {
@@ -256,7 +282,53 @@ export default function HMSBedsPage() {
             });
             setIsEditingDoctor(false);
             refreshAdmission();
-        } catch (e: any) { alert(e.message || "Failed to update doctor"); }
+        } catch (e: any) { toast.error(e.message || "Failed to update doctor"); }
+    };
+
+    const handleShareMedications = async () => {
+        if (!activeAdmission || !activeAdmission.medication_orders) return;
+        const activeOrders = activeAdmission.medication_orders.filter((o: any) => o.status !== 'deleted');
+        if (activeOrders.length === 0) {
+            toast.error("No active medications to share.");
+            return;
+        }
+        
+        const phone = activeAdmission.contact_phone || activePatient?.contact_number || activePatient?.phone || '';
+        if (!phone) {
+            toast.error("No phone number registered for this patient.");
+            return;
+        }
+
+        let text = `*Medication List for ${activePatient?.full_name || 'Patient'}*\n`;
+        text += `Admission Date: ${new Date(activeAdmission.admission_date).toLocaleDateString()}\n\n`;
+        
+        activeOrders.forEach((order: any, index: number) => {
+            text += `${index + 1}. *${order.medicine_name}*\n`;
+            text += `   Dosage: ${order.dosage}\n`;
+            text += `   Frequency: ${order.frequency}\n`;
+            if (order.notes) text += `   Note: ${order.notes}\n`;
+            text += `\n`;
+        });
+        
+        text += `Please purchase these medications and submit them to the nursing station.\n`;
+        
+        let targetPhone = phone.replace(/\D/g, '');
+        if (targetPhone.length === 10) {
+            targetPhone = '91' + targetPhone; // Default to India country code if 10 digits
+        }
+
+        try {
+            await apiFetch('whatsapp/queue', {
+                method: 'POST',
+                body: JSON.stringify({
+                    phone_number: targetPhone,
+                    message_text: text
+                })
+            });
+            toast.error("Message has been queued for background sending via WhatsApp!");
+        } catch (e: any) {
+            toast.error(e.message || "Failed to queue WhatsApp message");
+        }
     };
 
     const wardBeds = beds
@@ -629,16 +701,16 @@ export default function HMSBedsPage() {
                     </div>
 
                     {/* Content */}
-                    <div className="flex-1 overflow-hidden flex flex-col p-6">
-                        <Tabs defaultValue="orders" className="flex-1 flex flex-col">
-                            <TabsList className="grid grid-cols-4 bg-slate-200/50 p-1 rounded-xl w-full">
+                    <div className="flex-1 overflow-hidden flex flex-col p-6 min-h-0">
+                        <Tabs defaultValue="orders" className="flex-1 flex flex-col min-h-0">
+                            <TabsList className="grid grid-cols-4 bg-slate-200/50 p-1 rounded-xl w-full flex-shrink-0">
                                 <TabsTrigger value="orders" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-indigo-600 font-bold"><Stethoscope className="w-4 h-4 mr-2" /> Doctor Orders</TabsTrigger>
                                 <TabsTrigger value="medication" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-rose-600 font-bold"><Syringe className="w-4 h-4 mr-2" /> Nurse Log</TabsTrigger>
                                 <TabsTrigger value="vitals" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-amber-600 font-bold"><Activity className="w-4 h-4 mr-2" /> Vitals & Notes</TabsTrigger>
                                 <TabsTrigger value="equipment" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-teal-600 font-bold"><Cpu className="w-4 h-4 mr-2" /> Equipment</TabsTrigger>
                             </TabsList>
 
-                            <div className="flex-1 mt-6 overflow-y-auto pr-2">
+                            <div className="flex-1 mt-6 overflow-y-auto pr-2 min-h-0">
                                  {/* Doctor Orders Tab */}
                                                                 <TabsContent value="orders" className="m-0 space-y-6 h-full">
                                                                     {['doctor', 'doctor_ipd', 'doctor_both', 'superadmin', 'superadmin_staff', 'website_admin', 'hospital_admin'].includes(userRole) ? (
@@ -650,7 +722,7 @@ export default function HMSBedsPage() {
                                                                                 <div className="grid grid-cols-12 gap-3 items-end">
                                                                                     <div className="col-span-12 md:col-span-3">
                                                                                         <Label className="text-xs mb-1">Medicine Name</Label>
-                                                                                        <Input placeholder="e.g., Paracetamol" value={orderForm.medicine_name} onChange={e => setOrderForm({...orderForm, medicine_name: e.target.value})} />
+                                                                                        <MedicineAutocomplete value={orderForm.medicine_name} onChange={val => setOrderForm({...orderForm, medicine_name: val})} />
                                                                                     </div>
                                                                                     <div className="col-span-6 md:col-span-2">
                                                                                         <Label className="text-xs mb-1">Dosage</Label>
@@ -687,7 +759,14 @@ export default function HMSBedsPage() {
                                                                     )}
 
                                     <div className="space-y-3">
-                                        <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Active Orders</h3>
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Active Orders</h3>
+                                            {(activeAdmission?.medication_orders || []).filter((o: any) => o.status !== 'deleted').length > 0 && (
+                                                <Button size="sm" variant="outline" className="gap-2 text-green-600 border-green-200 hover:bg-green-50" onClick={handleShareMedications}>
+                                                    <MessageCircle className="w-4 h-4" /> Share via WhatsApp
+                                                </Button>
+                                            )}
+                                        </div>
                                         {(activeAdmission?.medication_orders || []).length === 0 ? (
                                             <div className="p-8 text-center bg-slate-100/50 rounded-xl border border-dashed border-slate-300">
                                                 <FileText className="w-8 h-8 mx-auto text-slate-400 mb-2" />
@@ -702,7 +781,7 @@ export default function HMSBedsPage() {
                                                         <div className="grid grid-cols-12 gap-3 items-end">
                                                             <div className="col-span-12 md:col-span-3">
                                                                 <Label className="text-xs mb-1">Medicine Name</Label>
-                                                                <Input value={editOrderForm.medicine_name} onChange={e => setEditOrderForm({...editOrderForm, medicine_name: e.target.value})} className="bg-white" />
+                                                                <MedicineAutocomplete className="bg-white" value={editOrderForm.medicine_name} onChange={val => setEditOrderForm({...editOrderForm, medicine_name: val})} />
                                                             </div>
                                                             <div className="col-span-6 md:col-span-2">
                                                                 <Label className="text-xs mb-1">Dosage</Label>
@@ -832,6 +911,34 @@ export default function HMSBedsPage() {
                                         {/* Administration Panel */}
                                         <div className="space-y-4">
                                             <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Administer Medication</h3>
+                                            
+                                            {/* Due Now Summary */}
+                                            {(() => {
+                                                const dueOrders = (activeAdmission?.medication_orders || []).filter((o: any) => {
+                                                    const logs = (activeAdmission?.medication_log || []).filter((l: any) => l.order_id === o.id);
+                                                    if (logs.length === 0) return true;
+                                                    if (!o.frequency_hours) return false;
+                                                    const lastLog = logs.reduce((a: any, b: any) => new Date(a.timestamp) > new Date(b.timestamp) ? a : b);
+                                                    return (new Date().getTime() - new Date(lastLog.timestamp).getTime()) / (1000 * 60 * 60) >= o.frequency_hours;
+                                                });
+                                                if (dueOrders.length === 0) return null;
+                                                return (
+                                                    <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex flex-col gap-2">
+                                                        <div className="flex items-center gap-2 text-rose-700 font-bold text-sm">
+                                                            <AlertCircle className="w-4 h-4" />
+                                                            <span>Medications Due Now</span>
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {dueOrders.map((o: any) => (
+                                                                <Badge key={o.id} variant="secondary" className="bg-white border-rose-200 text-rose-700 font-bold shadow-sm cursor-pointer hover:bg-rose-100" onClick={() => setMedLogForm({ ...medLogForm, order_id: o.id, medicine_name: o.medicine_name })}>
+                                                                    {o.medicine_name}
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+
                                             <Card className="border-rose-100 shadow-sm">
                                                 <CardContent className="p-4 space-y-4 bg-white">
                                                     <div className="space-y-2">
@@ -849,9 +956,22 @@ export default function HMSBedsPage() {
                                                             }}
                                                         >
                                                             <option value="">-- Select Order --</option>
-                                                            {(activeAdmission?.medication_orders || []).map((o: any) => (
-                                                                <option key={o.id} value={o.id}>{o.medicine_name} ({o.dosage}) - {o.frequency}</option>
-                                                            ))}
+                                                            {(activeAdmission?.medication_orders || []).map((o: any) => {
+                                                                const logs = (activeAdmission?.medication_log || []).filter((l: any) => l.order_id === o.id);
+                                                                let isDue = false;
+                                                                if (logs.length === 0) {
+                                                                    isDue = true;
+                                                                } else if (o.frequency_hours) {
+                                                                    const lastLog = logs.reduce((a: any, b: any) => new Date(a.timestamp) > new Date(b.timestamp) ? a : b);
+                                                                    const hoursSince = (new Date().getTime() - new Date(lastLog.timestamp).getTime()) / (1000 * 60 * 60);
+                                                                    isDue = hoursSince >= o.frequency_hours;
+                                                                }
+                                                                return (
+                                                                    <option key={o.id} value={o.id} className={isDue ? "font-bold text-rose-600" : ""}>
+                                                                        {isDue ? '🚨 DUE NOW: ' : ''}{o.medicine_name} ({o.dosage}) - {o.frequency}
+                                                                    </option>
+                                                                );
+                                                            })}
                                                         </select>
                                                     </div>
                                                     <div className="space-y-2">
@@ -896,32 +1016,67 @@ export default function HMSBedsPage() {
                                 {/* Vitals & Notes */}
                                 <TabsContent value="vitals" className="m-0 space-y-6 h-full">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="space-y-4">
-                                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Add Doctor Note</h3>
-                                            <Card className="border-amber-100 shadow-sm">
-                                                <CardContent className="p-4 space-y-4 bg-white">
-                                                    <div className="space-y-2">
-                                                        <Label className="text-xs">Note Type</Label>
-                                                        <select className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm font-medium bg-slate-50"
-                                                            value={noteForm.note_type} onChange={e => setNoteForm({...noteForm, note_type: e.target.value})}>
-                                                            <option>Ward Round</option>
-                                                            <option>Progress Note</option>
-                                                            <option>Consultation</option>
-                                                            <option>Nursing Note</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <Label className="text-xs">Content</Label>
-                                                        <textarea 
-                                                            className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm bg-slate-50 min-h-[100px] resize-y"
-                                                            placeholder="Observations, patient condition..."
-                                                            value={noteForm.content}
-                                                            onChange={e => setNoteForm({...noteForm, content: e.target.value})}
-                                                        />
-                                                    </div>
-                                                    <Button onClick={handleAddNote} disabled={!noteForm.content} className="w-full bg-amber-500 hover:bg-amber-600 h-10 text-white font-bold">Add Note</Button>
-                                                </CardContent>
-                                            </Card>
+                                        <div className="space-y-6">
+                                            {/* Log Vitals Form */}
+                                            <div className="space-y-4">
+                                                <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Log Vitals</h3>
+                                                <Card className="border-blue-100 shadow-sm">
+                                                    <CardContent className="p-4 space-y-4 bg-white">
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div className="space-y-2">
+                                                                <Label className="text-xs">Temp (°F)</Label>
+                                                                <Input placeholder="98.6" value={vitalsForm.temp} onChange={e => setVitalsForm({...vitalsForm, temp: e.target.value})} className="bg-slate-50" />
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <Label className="text-xs">BP (mmHg)</Label>
+                                                                <Input placeholder="120/80" value={vitalsForm.bp} onChange={e => setVitalsForm({...vitalsForm, bp: e.target.value})} className="bg-slate-50" />
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <Label className="text-xs">Pulse (bpm)</Label>
+                                                                <Input placeholder="72" value={vitalsForm.pulse} onChange={e => setVitalsForm({...vitalsForm, pulse: e.target.value})} className="bg-slate-50" />
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <Label className="text-xs">SpO2 (%)</Label>
+                                                                <Input placeholder="98" value={vitalsForm.spo2} onChange={e => setVitalsForm({...vitalsForm, spo2: e.target.value})} className="bg-slate-50" />
+                                                            </div>
+                                                            <div className="space-y-2 col-span-2">
+                                                                <Label className="text-xs">Resp Rate (breaths/min)</Label>
+                                                                <Input placeholder="16" value={vitalsForm.respiratory_rate} onChange={e => setVitalsForm({...vitalsForm, respiratory_rate: e.target.value})} className="bg-slate-50" />
+                                                            </div>
+                                                        </div>
+                                                        <Button onClick={handleLogVitals} disabled={!vitalsForm.temp && !vitalsForm.bp && !vitalsForm.pulse} className="w-full bg-blue-600 hover:bg-blue-700 h-10 font-bold">Log Vitals</Button>
+                                                    </CardContent>
+                                                </Card>
+                                            </div>
+
+                                            {/* Add Doctor Note Form */}
+                                            <div className="space-y-4">
+                                                <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Add Doctor Note</h3>
+                                                <Card className="border-amber-100 shadow-sm">
+                                                    <CardContent className="p-4 space-y-4 bg-white">
+                                                        <div className="space-y-2">
+                                                            <Label className="text-xs">Note Type</Label>
+                                                            <select className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm font-medium bg-slate-50"
+                                                                value={noteForm.note_type} onChange={e => setNoteForm({...noteForm, note_type: e.target.value})}>
+                                                                <option>Ward Round</option>
+                                                                <option>Progress Note</option>
+                                                                <option>Consultation</option>
+                                                                <option>Nursing Note</option>
+                                                            </select>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <Label className="text-xs">Content</Label>
+                                                            <textarea 
+                                                                className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm bg-slate-50 min-h-[100px] resize-y"
+                                                                placeholder="Observations, patient condition..."
+                                                                value={noteForm.content}
+                                                                onChange={e => setNoteForm({...noteForm, content: e.target.value})}
+                                                            />
+                                                        </div>
+                                                        <Button onClick={handleAddNote} disabled={!noteForm.content} className="w-full bg-amber-500 hover:bg-amber-600 h-10 text-white font-bold">Add Note</Button>
+                                                    </CardContent>
+                                                </Card>
+                                            </div>
                                         </div>
 
                                         <div className="space-y-4">

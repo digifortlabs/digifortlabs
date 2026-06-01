@@ -215,19 +215,43 @@ async def global_exception_handler(request: Request, exc: Exception):
 
     except Exception as dbe:
         logger.info(f"WARNING: Failed to write to system_error_logs: {dbe}")
+        
+    try:
+        with open("error_dump.txt", "w") as f:
+            f.write(tb_str)
+    except Exception:
+        pass
+    
+    import secrets
+    err_ref = f"ERR-{secrets.token_hex(2).upper()}-{secrets.token_hex(2).upper()}"
     
     status_code = 500
-    detail_msg = str(exc)
+    detail_msg = f"An internal server error occurred. (Ref: {err_ref})"
 
     if isinstance(exc, HTTPException): 
         status_code = exc.status_code
         detail_msg = exc.detail
-    elif settings.ENVIRONMENT == "production":
-        detail_msg = "An internal server error occurred. Please try again later."
+    elif "sqlalchemy" in type(exc).__module__ or "psycopg2" in type(exc).__module__:
+        exc_name = type(exc).__name__
+        if "TimeoutError" in exc_name:
+            detail_msg = f"Database connection timeout. The server is under heavy load. (Ref: {err_ref})"
+        elif "IntegrityError" in exc_name or "NotNullViolation" in exc_name:
+            detail_msg = f"Database constraint violation. The data submitted is invalid or conflicting. (Ref: {err_ref})"
+        elif "OperationalError" in exc_name:
+            detail_msg = f"Database operational error. Please try again later. (Ref: {err_ref})"
+        else:
+            detail_msg = f"A database error occurred. (Ref: {err_ref})"
+        
+        logger.error(f"[{err_ref}] Database Error: {exc_name} - {str(exc)}")
+    elif settings.ENVIRONMENT != "production":
+        # Only show raw errors in non-production if it's not a DB error
+        detail_msg = str(exc)
+    
+    logger.error(f"[{err_ref}] Traceback:\n{tb_str}")
     
     response = JSONResponse(
         status_code=status_code,
-        content={"detail": detail_msg, "type": type(exc).__name__}
+        content={"detail": detail_msg, "type": type(exc).__name__, "ref": err_ref}
     )
     
     # Manually add CORS headers since middleware might be bypassed on error
@@ -330,6 +354,15 @@ app.include_router(clinic.router, dependencies=[Depends(require_module("clinic")
 
 from .routers import emergency
 app.include_router(emergency.router)
+
+from .routers import tpa, nursing, pharmacy, lab
+app.include_router(tpa.router)
+app.include_router(nursing.router)
+app.include_router(pharmacy.router)
+app.include_router(lab.router)
+
+from .routers import whatsapp
+app.include_router(whatsapp.router)
 
 try:
     from .routers import scanner

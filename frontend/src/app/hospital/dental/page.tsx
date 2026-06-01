@@ -30,6 +30,7 @@ import { API_URL, apiFetch } from '@/config/api';
 import { formatDate } from '@/lib/dateFormatter';
 import PatientDetail from './components/PatientDetail';
 import HospitalSelectionPrompt from '@/components/HospitalSelectionPrompt';
+import toast from 'react-hot-toast';
 // import AppointmentModal from './components/AppointmentModal'; // Deprecated
 
 // --- Components ---
@@ -139,7 +140,7 @@ export default function DentalDashboard() {
                     medications: p.medications || prev.medications,
                     chief_complaint: p.chief_complaint || prev.chief_complaint
                 }));
-                alert(`✨ Patient found! Details from ${data.source} records have been auto-filled.`);
+                toast.error(`✨ Patient found! Details from ${data.source} records have been auto-filled.`);
             }
         } catch (err) {
             console.error("Error checking UHID:", err);
@@ -177,17 +178,17 @@ export default function DentalDashboard() {
             if (res === null) {
                 setPatients(patients.filter(p => p.patient_id !== patientId));
                 if (selectedPatient?.patient_id === patientId) setSelectedPatient(null);
-                alert("Patient deleted successfully.");
+                toast.success("Patient deleted successfully.");
             }
         } catch (error: any) {
             console.error("Delete error:", error);
-            alert(error.message || "Error deleting patient.");
+            toast.error(error.message || "Error deleting patient.");
         }
     };
 
     const handleCreatePatient = async () => {
         if (!newPatientData.full_name || !newPatientData.phone) {
-            alert("Please fill in required fields.");
+            toast.error("Please fill in required fields.");
             return;
         }
 
@@ -215,10 +216,10 @@ export default function DentalDashboard() {
             if (data) {
                 if (editingId) {
                     setPatients(patients.map(p => p.patient_id === editingId ? data : p));
-                    alert("Patient updated successfully!");
+                    toast.success("Patient updated successfully!");
                 } else {
                     setPatients([data, ...patients]);
-                    alert("Patient registered successfully!");
+                    toast.success("Patient registered successfully!");
                 }
 
                 setShowNewPatientModal(false);
@@ -240,7 +241,7 @@ export default function DentalDashboard() {
             }
         } catch (error: any) {
             console.error(error);
-            alert(error.message || "An error occurred while registering patient.");
+            toast.error(error.message || "An error occurred while registering patient.");
         } finally {
             setIsSaving(false);
         }
@@ -255,10 +256,10 @@ export default function DentalDashboard() {
 
     // Stats
     const stats_items = [
-        { label: "Today's Appointments", value: dentalStats.today_appointments, icon: Calendar, color: "text-blue-600", bg: "bg-blue-50" },
-        { label: "Total Patients", value: dentalStats.total_patients, icon: User, color: "text-teal-600", bg: "bg-teal-50" },
-        { label: "New Cases (Week)", value: dentalStats.new_cases_week, icon: Activity, color: "text-purple-600", bg: "bg-purple-50" },
-        { label: "Pending Plans", value: dentalStats.pending_plans, icon: FileText, color: "text-orange-600", bg: "bg-orange-50" },
+        { label: "Today's Appointments", value: dentalStats.today_appointments, icon: Calendar, color: "text-blue-600", bg: "bg-blue-50", gradient: "from-blue-50 to-blue-100/60", border: "border-blue-200/50" },
+        { label: "Total Patients", value: dentalStats.total_patients, icon: User, color: "text-teal-600", bg: "bg-teal-50", gradient: "from-teal-50 to-teal-100/60", border: "border-teal-200/50" },
+        { label: "New Cases (Week)", value: dentalStats.new_cases_week, icon: Activity, color: "text-violet-600", bg: "bg-violet-50", gradient: "from-violet-50 to-violet-100/60", border: "border-violet-200/50" },
+        { label: "Pending Plans", value: dentalStats.pending_plans, icon: FileText, color: "text-amber-600", bg: "bg-amber-50", gradient: "from-amber-50 to-amber-100/60", border: "border-amber-200/50" },
     ];
 
     useEffect(() => {
@@ -341,7 +342,7 @@ export default function DentalDashboard() {
                     <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Dental Dashboard</h1>
                     <p className="text-slate-500 mt-1">Manage your patients, appointments, and treatment plans.</p>
                 </div>
-                <div className="flex gap-2 items-center">
+                <div className="flex items-center gap-3">
                     {['website_admin', 'superadmin', 'superadmin_staff'].includes(userRole) && selectedHospitalId && (
                         <Button
                             onClick={() => {
@@ -354,12 +355,21 @@ export default function DentalDashboard() {
                             Change Hospital
                         </Button>
                     )}
+                    <Button onClick={() => setShowNewPatientModal(true)} className="bg-emerald-600 hover:bg-emerald-700 shadow-sm text-white hidden sm:flex">
+                        <User className="w-4 h-4 mr-2" /> Register Patient
+                    </Button>
+                    <Button
+                        onClick={() => router.push('/hospital/records')}
+                        className="bg-blue-600 hover:bg-blue-700 shadow-sm text-white hidden sm:flex"
+                    >
+                        <Plus className="w-4 h-4 mr-2" /> New Visit
+                    </Button>
                     <Button
                         onClick={() => router.push('/hospital/appointments')}
                         variant="outline"
-                        className="gap-2 bg-white shadow-sm"
+                        className="gap-2 bg-white shadow-sm border-slate-200"
                     >
-                        <Calendar className="w-4 h-4" /> Schedule
+                        <Calendar className="w-4 h-4 text-slate-500" /> Appointments
                     </Button>
                 </div>
             </div>
@@ -567,14 +577,17 @@ export default function DentalDashboard() {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {stats_items.map((stat, i) => (
-                    <Card key={i} className="border-none shadow-sm hover:shadow-md transition-shadow">
-                        <CardContent className="p-6 flex items-center gap-4">
-                            <div className={cn("p-3 rounded-xl", stat.bg)}>
-                                <stat.icon className={cn("w-6 h-6", stat.color)} />
-                            </div>
-                            <div>
-                                <p className="text-sm font-medium text-slate-500">{stat.label}</p>
-                                <h3 className="text-2xl font-bold text-slate-900">{stat.value}</h3>
+                    <Card key={i} className="bg-white rounded-3xl border border-slate-200/60 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-bl-full -z-10 group-hover:scale-110 transition-transform duration-500"></div>
+                        <CardContent className="p-6">
+                            <div className="flex items-center gap-4">
+                                <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 border bg-gradient-to-br", stat.gradient, stat.border)}>
+                                    <stat.icon size={24} strokeWidth={2.5} className={stat.color} />
+                                </div>
+                                <div>
+                                    <h3 className="text-3xl font-black text-slate-900 leading-none">{stat.value}</h3>
+                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1.5">{stat.label}</p>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
@@ -584,15 +597,18 @@ export default function DentalDashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Main Content Area: Patients & Search */}
                 <div className="lg:col-span-2 space-y-6">
-                    <Card className="border-none shadow-sm overflow-hidden">
-                        <CardHeader className="bg-white pb-2">
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="text-lg">Patients Directory</CardTitle>
-                                <div className="relative w-64">
+                    <Card className="rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden bg-white">
+                        <CardHeader className="bg-white pb-4 border-b border-slate-100 p-6">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div>
+                                    <CardTitle className="text-xl font-black text-slate-900">Patients Directory</CardTitle>
+                                    <CardDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Manage and view patient records</CardDescription>
+                                </div>
+                                <div className="relative w-full sm:w-72">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                     <Input
                                         placeholder="Search patients..."
-                                        className="pl-9 bg-slate-50 border-none focus-visible:ring-blue-500"
+                                        className="pl-10 h-11 bg-slate-50 border-slate-200 rounded-xl focus-visible:ring-indigo-500 font-medium"
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
@@ -602,109 +618,145 @@ export default function DentalDashboard() {
                         <CardContent className="p-0">
                             <div className="divide-y divide-slate-100">
                                 {loading ? (
-                                    <div className="p-8 text-center text-slate-500">Loading patients...</div>
+                                    <div className="p-12 text-center flex flex-col items-center justify-center">
+                                        <div className="w-12 h-12 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin mb-4"></div>
+                                        <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Loading patients...</p>
+                                    </div>
                                 ) : filteredPatients.length > 0 ? (
                                     filteredPatients.map(patient => (
                                         <div
                                             key={patient.patient_id}
                                             onClick={() => setSelectedPatient(patient)}
-                                            className="p-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition-colors group"
+                                            className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between hover:bg-slate-50/80 cursor-pointer transition-all group gap-4"
                                         >
                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
+                                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-50 to-blue-100/60 border border-indigo-200/50 flex items-center justify-center text-indigo-700 font-black text-lg shadow-sm shrink-0">
                                                     {patient.full_name.charAt(0)}
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors">
+                                                    <h4 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors text-base">
                                                         {patient.full_name}
                                                     </h4>
-                                                    <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
-                                                        <span className="flex items-center gap-1">
-                                                            <Phone className="w-3 h-3" /> {patient.phone}
+                                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-bold text-slate-400 mt-1 uppercase tracking-wider">
+                                                        <span className="flex items-center gap-1.5">
+                                                            <Phone className="w-3.5 h-3.5 text-slate-300" /> {patient.phone}
                                                         </span>
-                                                        <span className="flex items-center gap-1">
-                                                            <Clock className="w-3 h-3" /> Last Visit: {patient.last_visit}
+                                                        <span className="flex items-center gap-1.5">
+                                                            <Clock className="w-3.5 h-3.5 text-slate-300" /> Last Visit: {patient.last_visit || 'Never'}
                                                         </span>
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <Badge variant="secondary" className="bg-slate-100 text-slate-600 hover:bg-slate-100">
-                                                    {patient.status}
+                                            <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+                                                <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200/60 font-bold px-3 py-1 rounded-lg">
+                                                    {patient.status || 'Active'}
                                                 </Badge>
-                                                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500" />
-
-                                                <div onClick={(e) => e.stopPropagation()} className="ml-2">
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                                                <MoreVertical className="h-4 w-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuItem onClick={() => handleEditPatient(patient)}>
-                                                                <Edit className="mr-2 h-4 w-4" /> Edit
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuItem
-                                                                onClick={(e) => handleDeletePatient(e, patient.patient_id)}
-                                                                className="text-red-600 focus:text-red-600"
-                                                            >
-                                                                <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
+                                                <div className="flex items-center gap-2">
+                                                    <div onClick={(e) => e.stopPropagation()}>
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-white border border-transparent hover:border-slate-200 hover:shadow-sm transition-all text-slate-400 hover:text-slate-700">
+                                                                    <MoreVertical className="h-4 w-4" />
+                                                                </Button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end" className="w-40 rounded-xl">
+                                                                <DropdownMenuItem onClick={() => handleEditPatient(patient)} className="font-medium text-slate-700 focus:bg-slate-50 cursor-pointer">
+                                                                    <Edit className="mr-2 h-4 w-4 text-slate-400" /> Edit Details
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem
+                                                                    onClick={(e) => handleDeletePatient(e, patient.patient_id)}
+                                                                    className="text-red-600 focus:text-red-700 focus:bg-red-50 font-medium cursor-pointer"
+                                                                >
+                                                                    <Trash2 className="mr-2 h-4 w-4" /> Delete Record
+                                                                </DropdownMenuItem>
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                    </div>
+                                                    <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-indigo-500 transition-colors hidden sm:block" />
                                                 </div>
                                             </div>
                                         </div>
                                     ))
                                 ) : (
-                                    <div className="p-8 text-center text-slate-500">No patients found.</div>
+                                    <div className="p-16 text-center flex flex-col items-center justify-center">
+                                        <div className="w-16 h-16 rounded-3xl bg-slate-50 border-2 border-slate-100 flex items-center justify-center mb-4">
+                                            <Search className="w-8 h-8 text-slate-300" />
+                                        </div>
+                                        <h3 className="text-lg font-bold text-slate-900 mb-1">No patients found</h3>
+                                        <p className="text-sm font-medium text-slate-500">We couldn't find any patients matching your search criteria.</p>
+                                    </div>
                                 )}
                             </div>
                         </CardContent>
                     </Card>
                 </div>
 
-                {/* Sidebar: Appointments */}
                 <div className="space-y-6">
-                    <Card className="border-none shadow-sm">
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle className="text-lg">Appointments</CardTitle>
-                            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none">Today</Badge>
+                    <Card className="rounded-3xl border border-slate-200/60 shadow-sm bg-white overflow-hidden">
+                        <CardHeader className="flex flex-row items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50">
+                            <div>
+                                <CardTitle className="text-lg font-black text-slate-900">Appointments</CardTitle>
+                                <CardDescription className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Today's Schedule</CardDescription>
+                            </div>
+                            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
+                                <Calendar className="w-5 h-5 text-indigo-600" />
+                            </div>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                            {appointments.map(apt => (
-                                <div key={apt.appointment_id || apt.id} className="relative pl-4 border-l-2 border-blue-500 py-1">
-                                    <div className="text-xs font-bold text-blue-600 mb-1">
-                                        {apt.start_time ? new Date(apt.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : apt.time}
+                        <CardContent className="p-0">
+                            <div className="divide-y divide-slate-100">
+                                {appointments.length > 0 ? appointments.map(apt => (
+                                    <div
+                                        key={apt.appointment_id || apt.id} 
+                                        onClick={() => {
+                                            const targetId = apt.patient_id;
+                                            let p = patients.find(p => p.patient_id === targetId || p.record_id === targetId || p.main_patient_id === targetId);
+                                            
+                                            if (!p && apt.patient) {
+                                                p = { ...apt.patient, patient_id: apt.patient.record_id || targetId };
+                                            }
+                                            
+                                            if (p) {
+                                                setSelectedPatient(p);
+                                            } else {
+                                                toast.error("Patient record not found. Please search in the Patients Directory.");
+                                            }
+                                        }}
+                                        className="p-5 hover:bg-slate-50/80 transition-colors group relative overflow-hidden cursor-pointer"
+                                    >
+                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                        <div className="flex justify-between items-start mb-2 pl-2">
+                                            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider">
+                                                <Clock className="w-3 h-3" />
+                                                {apt.start_time ? new Date(apt.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : apt.time}
+                                            </div>
+                                            <Badge variant="outline" className="text-[9px] uppercase tracking-wider font-bold border-slate-200 text-slate-500">
+                                                {apt.status}
+                                            </Badge>
+                                        </div>
+                                        <div className="pl-2 flex items-center justify-between">
+                                            <div>
+                                                <h5 className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors line-clamp-1">{apt.patient?.full_name || apt.patient_name || apt.patient}</h5>
+                                                <p className="text-xs font-medium text-slate-500 mt-0.5 line-clamp-1">{apt.purpose || apt.type}</p>
+                                            </div>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-all text-indigo-600 hover:bg-indigo-100 shrink-0">
+                                                <ChevronRight className="w-4 h-4" />
+                                            </Button>
+                                        </div>
                                     </div>
-                                    <h5 className="font-semibold text-slate-900 text-sm">{apt.patient?.full_name || apt.patient_name || apt.patient}</h5>
-                                    <p className="text-xs text-slate-500">{apt.purpose || apt.type}</p>
-                                    <div className="mt-2 text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                                        Status: <span className="text-slate-600">{apt.status}</span>
+                                )) : (
+                                    <div className="p-10 text-center flex flex-col items-center">
+                                        <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center mb-3">
+                                            <Calendar className="w-6 h-6 text-slate-300" />
+                                        </div>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No appointments today</p>
                                     </div>
-                                </div>
-                            ))}
-                            <Button variant="ghost" className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-xs gap-2">
-                                View Calendar <ChevronRight className="w-3 h-3" />
-                            </Button>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-none shadow-sm bg-blue-900 text-white overflow-hidden relative">
-                        <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-2xl" />
-                        <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <Zap className="w-5 h-5 text-yellow-400 fill-yellow-400" /> AI Insights
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-sm text-blue-100 leading-relaxed">
-                                You have 3 pending treatment plans that need approval. Keval Kuvekar's RCT procedure is due for a follow-up today.
-                            </p>
-                            <Button className="mt-4 w-full bg-white text-blue-900 hover:bg-blue-50 font-semibold border-none">
-                                Review Plans
-                            </Button>
+                                )}
+                            </div>
+                            <div className="p-4 bg-slate-50/50 border-t border-slate-100">
+                                <Button variant="outline" className="w-full bg-white border-slate-200 text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 text-xs font-bold gap-2 rounded-xl h-11 transition-all" onClick={() => router.push('/hospital/appointments')}>
+                                    View Full Calendar <ChevronRight className="w-3.5 h-3.5" />
+                                </Button>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>

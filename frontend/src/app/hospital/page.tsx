@@ -11,12 +11,12 @@ import { apiFetch } from '@/config/api';
 import { formatDateTime } from '@/lib/dateFormatter';
 
 const QUICK_ACTIONS = [
-    { label: 'Patients', desc: 'View & manage patient records', icon: Users, href: '/records', color: 'blue' },
-    { label: 'Appointments', desc: 'Schedule and track appointments', icon: CalendarDays, href: '/appointments', color: 'teal' },
-    { label: 'Inventory', desc: 'Track supplies and equipment', icon: Package, href: '/inventory', color: 'violet' },
-    { label: 'Reports', desc: 'Analytics and performance data', icon: TrendingUp, href: '/reports', color: 'emerald' },
-    { label: 'Accounting', desc: 'Billing, invoices & ledger', icon: IndianRupee, href: '/accounting', color: 'amber', adminOnly: true },
-    { label: 'Settings', desc: 'Hospital configuration', icon: ShieldCheck, href: '/settings', color: 'slate', adminOnly: true },
+    { label: 'Patients', desc: 'View & manage patient records', icon: Users, href: '/hospital/patients', color: 'blue' },
+    { label: 'Appointments', desc: 'Schedule and track appointments', icon: CalendarDays, href: '/hospital/appointments', color: 'teal' },
+    { label: 'Inventory', desc: 'Track supplies and equipment', icon: Package, href: '/hospital/inventory', color: 'violet' },
+    { label: 'Reports', desc: 'Analytics and performance data', icon: TrendingUp, href: '/hospital/reports', color: 'emerald' },
+    { label: 'Accounting', desc: 'Billing, invoices & ledger', icon: IndianRupee, href: '/hospital/accounting', color: 'amber', adminOnly: true },
+    { label: 'Settings', desc: 'Hospital configuration', icon: ShieldCheck, href: '/hospital/settings', color: 'slate', adminOnly: true },
 ];
 
 const COLOR_MAP: Record<string, string> = {
@@ -153,6 +153,32 @@ export default function HospitalPage() {
                     );
                 })}
             </div>
+
+            {/* ── CLINICAL OPERATIONS ── */}
+            {stats?.clinical_ops && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {[
+                        { label: 'OPD Today', value: stats.clinical_ops.opd_today, icon: Users, color: 'blue' },
+                        { label: 'IPD Admitted', value: stats.clinical_ops.ipd_admitted, icon: Activity, color: 'emerald' },
+                        { label: 'OT In Use', value: stats.clinical_ops.ot_in_use, icon: Activity, color: 'violet' },
+                        { label: 'ER Active', value: stats.clinical_ops.er_active, icon: AlertTriangle, color: 'amber' },
+                    ].map((kpi, i) => {
+                        const Icon = kpi.icon;
+                        return (
+                            <div key={i} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4 flex items-center gap-4 hover:shadow-md transition-all">
+                                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${COLOR_MAP[kpi.color].split(' ').slice(0,3).join(' ')} border flex items-center justify-center shrink-0`}>
+                                    <Icon size={18} strokeWidth={2.5} className={COLOR_MAP[kpi.color].split(' ')[3]} />
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-black text-slate-900 leading-none">{kpi.value}</p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{kpi.label}</p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
 
             {/* ── MODULE LAUNCHER ── */}
             <div>

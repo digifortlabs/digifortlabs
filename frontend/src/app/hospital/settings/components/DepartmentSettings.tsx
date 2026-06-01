@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '@/config/api';
 import { Plus, Edit2, Trash2, ShieldAlert, CheckCircle, XCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface Department {
     department_id: number;
@@ -73,7 +74,7 @@ export default function DepartmentSettings() {
             await fetchDepartments();
             handleCloseModal();
         } catch (e: any) {
-            alert(e.message || "Failed to save department");
+            toast.error(e.message || "Failed to save department");
         } finally {
             setIsSaving(false);
         }
@@ -87,7 +88,7 @@ export default function DepartmentSettings() {
             });
             await fetchDepartments();
         } catch (e: any) {
-            alert(e.message || "Cannot delete department");
+            toast.error(e.message || "Cannot delete department");
         }
     };
 

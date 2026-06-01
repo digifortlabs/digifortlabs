@@ -134,12 +134,21 @@ export default function ENTDashboard() {
                             Change Hospital
                         </Button>
                     )}
+                    <Button onClick={() => router.push('/hospital/records')} className="bg-emerald-600 hover:bg-emerald-700 shadow-sm text-white hidden sm:flex">
+                        <User className="w-4 h-4 mr-2" /> Register Patient
+                    </Button>
+                    <Button
+                        onClick={() => router.push('/hospital/records')}
+                        className="bg-blue-600 hover:bg-blue-700 shadow-sm text-white hidden sm:flex"
+                    >
+                        <Plus className="w-4 h-4 mr-2" /> New Visit
+                    </Button>
                     <Button
                         onClick={() => router.push('/hospital/appointments')}
                         variant="outline"
-                        className="gap-2 bg-white shadow-sm"
+                        className="gap-2 bg-white shadow-sm border-slate-200"
                     >
-                        <Calendar className="w-4 h-4" /> Schedule
+                        <Calendar className="w-4 h-4 text-slate-500" /> Appointments
                     </Button>
                 </div>
             </div>

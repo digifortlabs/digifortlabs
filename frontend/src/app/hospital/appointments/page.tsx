@@ -10,6 +10,7 @@ import { Plus, Calendar as CalendarIcon, Clock, User, Filter, RefreshCcw, Buildi
 import { API_URL, apiFetch } from '@/config/api';
 import CreateAppointmentModal from './components/CreateAppointmentModal';
 import { format, parseISO, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
+import toast from 'react-hot-toast';
 
 export default function AppointmentsDashboard() {
     const [appointments, setAppointments] = useState<any[]>([]);
@@ -165,7 +166,7 @@ export default function AppointmentsDashboard() {
                 loadAppointments();
             } catch (error) {
                 console.error("Error deleting appointment:", error);
-                alert("Failed to delete appointment.");
+                toast.error("Failed to delete appointment.");
             }
         }
     };

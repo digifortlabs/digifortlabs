@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { apiFetch } from '@/config/api';
+import toast from 'react-hot-toast';
 
 interface CreateAppointmentModalProps {
     isOpen: boolean;
@@ -113,7 +114,7 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
         e.preventDefault();
 
         if (!patientId || !departmentId || !doctorId || !appointmentDate || !startTime || !endTime) {
-            alert("Please fill in all required fields.");
+            toast.error("Please fill in all required fields.");
             return;
         }
 
@@ -146,7 +147,7 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
             });
 
             if (data) {
-                alert(appointmentToEdit ? "Appointment updated successfully!" : "Appointment scheduled successfully!");
+                toast.success(appointmentToEdit ? "Appointment updated successfully!" : "Appointment scheduled successfully!");
                 // Reset form
                 setPatientId('');
                 setDepartmentId('');
@@ -160,7 +161,7 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
             }
         } catch (error: any) {
             console.error("Error saving appointment:", error);
-            alert(error.message || "Failed to save appointment.");
+            toast.error(error.message || "Failed to save appointment.");
         } finally {
             setIsSubmitting(false);
         }

@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/config/api';
+import toast from 'react-hot-toast';
 
 export default function OTPage() {
     const router = useRouter();
@@ -36,12 +37,11 @@ export default function OTPage() {
             const [o, p, d] = await Promise.all([
                 apiFetch('hms/ots').catch(() => []),
                 apiFetch('patients').catch(() => []),
-                apiFetch('users').catch(() => []),
+                apiFetch('doctors').catch(() => []),
             ]);
             setOts(o || []);
             setPatients(p || []);
-            // Filter users to get those with doctor roles
-            setDoctors((d || []).filter((u: any) => u.role.includes('doctor') || u.role === 'hospital_admin'));
+            setDoctors(d || []);
         } finally {
             setLoading(false);
         }
@@ -57,7 +57,7 @@ export default function OTPage() {
             setOtForm({ ot_name: '', ot_type: 'General' });
             loadData();
         } catch (e: any) {
-            alert(e.message || 'Failed to create OT Room');
+            toast.error(e.message || 'Failed to create OT Room');
         }
     };
 
@@ -78,7 +78,7 @@ export default function OTPage() {
             setSelectedOt(null);
             loadData();
         } catch (e: any) {
-            alert(e.message || 'Failed to schedule surgery');
+            toast.error(e.message || 'Failed to schedule surgery');
         }
     };
 
@@ -88,7 +88,7 @@ export default function OTPage() {
             await apiFetch(`hms/ots/${otId}/release`, { method: 'POST' });
             loadData();
         } catch (e: any) {
-            alert(e.message || 'Failed to release OT Room');
+            toast.error(e.message || 'Failed to release OT Room');
         }
     };
 

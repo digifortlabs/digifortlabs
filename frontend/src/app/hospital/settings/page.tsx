@@ -19,6 +19,7 @@ import LoginActivityPanel from './components/LoginActivityPanel';
 import AccountSettings from './components/AccountSettings';
 import PlatformConfig from './components/PlatformConfig';
 import DepartmentSettings from './components/DepartmentSettings';
+import toast from 'react-hot-toast';
 
 export default function SettingsPage() {
     const router = useRouter();
@@ -121,26 +122,26 @@ export default function SettingsPage() {
         try {
             await apiFetch(`platform/settings/${key}`, { method: 'POST', body: JSON.stringify({ value }) });
             setSystemSettings(prev => ({ ...prev, [key]: value }));
-        } catch (e) { alert("Failed to update setting"); }
+        } catch (e) { toast.error("Failed to update setting"); }
     };
 
     const handlePasswordChange = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (passwordData.new !== passwordData.confirm) return alert("Passwords mismatch");
+        if (passwordData.new !== passwordData.confirm) return toast.error("Passwords mismatch");
         try {
             await apiFetch(`users/change-password`, { method: 'POST', body: JSON.stringify({ old_password: passwordData.old, new_password: passwordData.new }) });
-            alert("Success! Re-login required.");
+            toast.success("Success! Re-login required.");
             localStorage.clear();
             router.push('/login');
-        } catch (e: any) { alert(e.message); }
+        } catch (e: any) { toast.error(e.message); }
     };
 
     const handleSaveProfile = async () => {
         if (!hospitalId) return;
         try {
             await apiFetch(`hospitals/${hospitalId}`, { method: 'PATCH', body: JSON.stringify(profile) });
-            alert("Profile synced.");
-        } catch (e) { alert("Update failed"); }
+            toast.error("Profile synced.");
+        } catch (e) { toast.error("Update failed"); }
     };
 
     const fetchPlatformStaff = async () => {

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { apiFetch } from '../../../config/api';
 import { formatDate, formatDateTime } from '../../../lib/dateFormatter';
 import { useTerminology } from '@/hooks/useTerminology';
+import toast from 'react-hot-toast';
 
 export default function DraftsPage() {
     const router = useRouter();
@@ -69,12 +70,12 @@ export default function DraftsPage() {
                 method: 'POST'
             });
             if (data) {
-                alert(data.message || `Successfully confirmed drafts.`);
+                toast.success(data.message || `Successfully confirmed drafts.`);
                 fetchDrafts();
             }
         } catch (e: any) {
             console.error(e);
-            alert(e.message || "An error occurred during bulk confirmation.");
+            toast.error(e.message || "An error occurred during bulk confirmation.");
         } finally {
             setIsLoading(false);
         }

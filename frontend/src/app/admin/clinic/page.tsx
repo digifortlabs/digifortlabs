@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { apiFetch } from '@/config/api';
 import { formatDate } from '@/lib/dateFormatter';
 import HospitalSelectionPrompt from '@/components/HospitalSelectionPrompt';
+import toast from 'react-hot-toast';
 
 export default function ClinicOPDDashboard() {
     const router = useRouter();
@@ -108,7 +109,7 @@ export default function ClinicOPDDashboard() {
     }, [globalSearch]);
 
     const handleRegister = async () => {
-        if (!selectedPatientId) return alert("Select a patient first.");
+        if (!selectedPatientId) return toast.error("Select a patient first.");
         try {
             let suffix = selectedHospitalId ? `?hospital_id=${selectedHospitalId}` : '';
             const data = await apiFetch(`clinic/patients${suffix}`, {
@@ -130,7 +131,7 @@ export default function ClinicOPDDashboard() {
                 if (refreshed) setPatients(refreshed);
             }
         } catch (error: any) {
-            alert(error.message || "Failed to register patient.");
+            toast.error(error.message || "Failed to register patient.");
         }
     };
 

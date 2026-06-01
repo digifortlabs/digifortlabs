@@ -2303,7 +2303,8 @@ def delete_patient_permanently(
             "dental_treatments": "patient_id",
             "patient_invoices": "patient_id",
             "patient_doctor_assignments": "patient_id",
-            "qa_issues": "record_id"
+            "qa_issues": "record_id",
+            "emergency_visits": "patient_id"
         }
         for t, col in tables_to_delete.items():
             db.execute(text(f"DELETE FROM {t} WHERE {col} = :pid"), {"pid": patient_id})

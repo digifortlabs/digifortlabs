@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/config/api';
+import toast from 'react-hot-toast';
 
 export default function HMSAdmissionsPage() {
     const router = useRouter();
@@ -102,7 +103,7 @@ export default function HMSAdmissionsPage() {
             setSelectedPatientId(null);
             setSearchQuery('');
             loadData();
-        } catch (e: any) { alert(e.message || 'Failed'); }
+        } catch (e: any) { toast.error(e.message || 'Failed'); }
     };
 
     const handleDischarge = async () => {
@@ -116,7 +117,7 @@ export default function HMSAdmissionsPage() {
             setDischargeNotes('');
             setSelectedAdmission(null);
             loadData();
-        } catch (e: any) { alert(e.message || 'Failed to discharge'); }
+        } catch (e: any) { toast.error(e.message || 'Failed to discharge'); }
     };
 
     const filtered = admissions.filter(a =>

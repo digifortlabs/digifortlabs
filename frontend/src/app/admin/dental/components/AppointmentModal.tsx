@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { X, Calendar, Clock, User, Zap } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import toast from 'react-hot-toast';
 
 interface AppointmentModalProps {
     isOpen: boolean;
@@ -31,7 +32,7 @@ export default function AppointmentModal({ isOpen, onClose, patients, onSchedule
 
     const handleSubmit = () => {
         if (!selectedPatientId || !date || !time || !type) {
-            alert("Please fill in all required fields.");
+            toast.error("Please fill in all required fields.");
             return;
         }
 

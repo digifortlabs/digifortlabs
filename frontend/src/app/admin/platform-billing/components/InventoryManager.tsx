@@ -9,6 +9,7 @@ import {
     Trash2
 } from 'lucide-react';
 import { apiFetch } from '@/config/api';
+import toast from 'react-hot-toast';
 
 interface InventoryItem {
     item_id: number;
@@ -72,7 +73,7 @@ export default function InventoryManager() {
             setNewItem({ name: '', category: 'Consumables', unit_price: '', reorder_point: '10', unit: 'units', current_stock: '0' });
             fetchInventory();
         } catch (error) {
-            alert("Failed to add item");
+            toast.error("Failed to add item");
         }
     };
 
@@ -84,7 +85,7 @@ export default function InventoryManager() {
             await apiFetch(`/inventory/${id}${suffix}`, { method: 'DELETE' });
             fetchInventory();
         } catch (e) {
-            alert("Failed to delete");
+            toast.error("Failed to delete");
         }
     };
 

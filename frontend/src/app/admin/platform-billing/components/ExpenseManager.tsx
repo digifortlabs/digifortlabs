@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/config/api';
 import { format } from 'date-fns';
+import toast from 'react-hot-toast';
 
 interface Expense {
     id?: number; // Added for unique React key
@@ -109,7 +110,7 @@ export default function ExpenseManager() {
             });
             fetchData();
         } catch (error) {
-            alert("Failed to save expense");
+            toast.error("Failed to save expense");
         } finally {
             setSubmitting(false);
         }
@@ -139,7 +140,7 @@ export default function ExpenseManager() {
             fetchData();
         } catch (error) {
             console.error(error);
-            alert("Failed to delete expense");
+            toast.error("Failed to delete expense");
         }
     };
 

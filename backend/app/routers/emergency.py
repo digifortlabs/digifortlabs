@@ -24,6 +24,8 @@ class EmergencyVisitCreate(BaseModel):
     blood_pressure: Optional[str] = None
     pulse_rate: Optional[int] = None
     weight: Optional[float] = None
+    is_mediclaim: bool = False
+    mediclaim_details: Optional[str] = None
 
 class EmergencyVisitUpdate(BaseModel):
     doctor_id: Optional[int] = None
@@ -36,6 +38,8 @@ class EmergencyVisitUpdate(BaseModel):
     blood_pressure: Optional[str] = None
     pulse_rate: Optional[int] = None
     weight: Optional[float] = None
+    is_mediclaim: Optional[bool] = None
+    mediclaim_details: Optional[str] = None
 
 class EmergencyVisitResponse(BaseModel):
     emergency_id: int
@@ -56,6 +60,8 @@ class EmergencyVisitResponse(BaseModel):
     diagnosis: Optional[str] = None
     treatment: Optional[str] = None
     notes: Optional[str] = None
+    is_mediclaim: bool = False
+    mediclaim_details: Optional[str] = None
     status: str
     
     # Nested fields for UI
@@ -94,6 +100,8 @@ def register_emergency(
         blood_pressure=data.blood_pressure,
         pulse_rate=data.pulse_rate,
         weight=data.weight,
+        is_mediclaim=data.is_mediclaim,
+        mediclaim_details=data.mediclaim_details,
         status="Active"
     )
     db.add(new_visit)

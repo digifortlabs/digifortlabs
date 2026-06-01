@@ -28,6 +28,7 @@ import {
     Settings
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
+import toast from 'react-hot-toast';
 
 // Platform Statistics Type
 interface PlatformStats {
@@ -451,11 +452,11 @@ export default function ManageClientsPage() {
                 setReviewHospital(null);
                 fetchData();
             } else {
-                alert("Failed to approve updates.");
+                toast.error("Failed to approve updates.");
             }
         } catch (err) {
             console.error(err);
-            alert("Network error.");
+            toast.error("Network error.");
         } finally {
             setReviewingUpdates(false);
         }
@@ -469,11 +470,11 @@ export default function ManageClientsPage() {
                 setReviewHospital(null);
                 fetchData();
             } else {
-                alert("Failed to reject updates.");
+                toast.error("Failed to reject updates.");
             }
         } catch (err) {
             console.error(err);
-            alert("Network error.");
+            toast.error("Network error.");
         } finally {
             setReviewingUpdates(false);
         }

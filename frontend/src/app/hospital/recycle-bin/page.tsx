@@ -5,6 +5,7 @@ import { apiFetch } from '@/config/api';
 import { Trash2, RefreshCcw, AlertTriangle } from 'lucide-react';
 import DashboardPageShell from '@/components/DashboardPageShell';
 import ConfirmationModal from '@/components/ConfirmationModal';
+import toast from 'react-hot-toast';
 
 interface RecycledPatient {
     record_id: number;
@@ -48,7 +49,7 @@ export default function RecycleBinPage() {
             setRestoreModalOpen(false);
             fetchPatients();
         } catch (err: any) {
-            alert(err.message || 'Failed to restore patient');
+            toast.error(err.message || 'Failed to restore patient');
         } finally {
             setActionLoading(false);
             setSelectedPatient(null);
@@ -63,7 +64,7 @@ export default function RecycleBinPage() {
             setDeleteModalOpen(false);
             fetchPatients();
         } catch (err: any) {
-            alert(err.message || 'Failed to permanently delete patient');
+            toast.error(err.message || 'Failed to permanently delete patient');
         } finally {
             setActionLoading(false);
             setSelectedPatient(null);
@@ -76,10 +77,10 @@ export default function RecycleBinPage() {
         }
         try {
             const res = await apiFetch('/patients/recycle-bin/cleanup', { method: 'POST' });
-            alert(res.message || 'Cleanup completed');
+            toast.error(res.message || 'Cleanup completed');
             fetchPatients();
         } catch (err: any) {
-            alert(err.message || 'Failed to run cleanup');
+            toast.error(err.message || 'Failed to run cleanup');
         }
     };
 

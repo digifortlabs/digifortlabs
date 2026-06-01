@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Search, Plus, Clock, CheckCircle2, AlertCircle, Box } from 'lucide-react';
 import { API_URL, apiFetch } from '../../../config/api';
 import { formatDate } from '@/lib/dateFormatter';
+import toast from 'react-hot-toast';
 
 export default function FileRequests() {
     const [requests, setRequests] = useState<any[]>([]);
@@ -55,7 +56,7 @@ export default function FileRequests() {
 
     const handleRequest = async (patient: any) => {
         if (!patient.physical_box_id) {
-            alert("This patient file is not physically archived yet.");
+            toast.error("This patient file is not physically archived yet.");
             return;
         }
 
@@ -71,13 +72,13 @@ export default function FileRequests() {
             });
 
             if (res !== null) {
-                alert("Request Submitted Successfully!");
+                toast.success("Request Submitted Successfully!");
                 setView('list');
                 fetchRequests();
             }
         } catch (err: any) {
             console.error(err);
-            alert(err.message || "Failed");
+            toast.error(err.message || "Failed");
         } finally {
             setProcessingId(null);
         }
@@ -89,12 +90,12 @@ export default function FileRequests() {
                 method: 'PATCH'
             });
             if (res !== null) {
-                alert(`Request ${status}`);
+                toast.error(`Request ${status}`);
                 fetchRequests();
             }
         } catch (e: any) {
             console.error(e);
-            alert(e.message || "Action Failed");
+            toast.error(e.message || "Action Failed");
         }
     };
 
@@ -109,7 +110,7 @@ export default function FileRequests() {
             }
         } catch (e: any) {
             console.error(e);
-            alert(e.message || "Failed to delete request.");
+            toast.error(e.message || "Failed to delete request.");
         }
     };
 
@@ -312,11 +313,11 @@ export default function FileRequests() {
                                                                 });
                                                                 if (res === null) {
                                                                     fetchRequests();
-                                                                    alert("Request deleted successfully");
+                                                                    toast.success("Request deleted successfully");
                                                                 }
                                                             } catch (e: any) {
                                                                 console.error(e);
-                                                                alert(e.message || "Network error");
+                                                                toast.error(e.message || "Network error");
                                                             }
                                                         }}
                                                         className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition"

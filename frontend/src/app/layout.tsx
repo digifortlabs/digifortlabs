@@ -5,6 +5,8 @@ import "./globals.css";
 import SessionMonitor from "@/components/Auth/SessionMonitor";
 import { Toaster } from "@/components/ui/sonner";
 
+import { Toaster as HotToaster } from 'react-hot-toast';
+
 export const metadata: Metadata = {
   title: "Digifort Labs | AIO Data Processor",
   description: "Enterprise-grade All-In-One Data Processing and Storage system. Secure, compliant physical and digital records management.",
@@ -27,6 +29,7 @@ export default function RootLayout({
         {children}
         <SessionMonitor />
         <Toaster />
+        <HotToaster position="top-right" />
       </body>
     </html>
   );

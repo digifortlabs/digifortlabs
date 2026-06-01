@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/config/api';
 import HospitalSelectionPrompt from '@/components/HospitalSelectionPrompt';
+import toast from 'react-hot-toast';
 
 export default function HMSDashboard() {
     const router = useRouter();
@@ -21,7 +22,7 @@ export default function HMSDashboard() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [isAddWardOpen, setIsAddWardOpen] = useState(false);
-    const [wardForm, setWardForm] = useState({ ward_id: null as number | null, ward_name: '', ward_type: 'General', total_beds: '', floor_number: '' });
+    const [wardForm, setWardForm] = useState({ ward_id: null as number | null, ward_name: '', ward_type: 'General', total_beds: '', floor_number: '', daily_charge: '500' });
     const [userRole, setUserRole] = useState<string>('');
     const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null);
 
@@ -74,7 +75,8 @@ export default function HMSDashboard() {
                         ward_name: wardForm.ward_name, 
                         ward_type: wardForm.ward_type, 
                         total_beds: parseInt(wardForm.total_beds) || 0,
-                        floor_number: parseInt(wardForm.floor_number) || 1 
+                        floor_number: parseInt(wardForm.floor_number) || 1,
+                        daily_charge: parseFloat(wardForm.daily_charge) || 0
                     }) 
                 });
             } else {
@@ -84,14 +86,15 @@ export default function HMSDashboard() {
                     body: JSON.stringify({ 
                         ...wardForm, 
                         total_beds: parseInt(wardForm.total_beds) || 0, 
-                        floor_number: parseInt(wardForm.floor_number) || 1 
+                        floor_number: parseInt(wardForm.floor_number) || 1,
+                        daily_charge: parseFloat(wardForm.daily_charge) || 0
                     }) 
                 });
             }
             setIsAddWardOpen(false);
-            setWardForm({ ward_id: null, ward_name: '', ward_type: 'General', total_beds: '', floor_number: '' });
+            setWardForm({ ward_id: null, ward_name: '', ward_type: 'General', total_beds: '', floor_number: '', daily_charge: '500' });
             loadData();
-        } catch (e: any) { alert(e.message || 'Failed'); }
+        } catch (e: any) { toast.error(e.message || 'Failed'); }
     };
 
     const handleDeleteWard = async (wardId: number, e: React.MouseEvent) => {
@@ -102,7 +105,7 @@ export default function HMSDashboard() {
             await apiFetch(`hms/wards/${wardId}${suffix}`, { method: 'DELETE' });
             loadData();
         } catch (error: any) {
-            alert(error.message || "Failed to delete ward.");
+            toast.error(error.message || "Failed to delete ward.");
         }
     };
 
@@ -113,7 +116,8 @@ export default function HMSDashboard() {
             ward_name: ward.ward_name,
             ward_type: ward.ward_type || 'General',
             total_beds: ward.total_beds.toString(),
-            floor_number: (ward.floor_number || 1).toString()
+            floor_number: (ward.floor_number || 1).toString(),
+            daily_charge: (ward.daily_charge || 500).toString()
         });
         setIsAddWardOpen(true);
     };
@@ -247,6 +251,8 @@ export default function HMSDashboard() {
                                                             <span>•</span>
                                                             <span>{wardAdmissions}/{ward.total_beds} beds</span>
                                                             <span>•</span>
+                                                            <span>₹{ward.daily_charge || 500}/day</span>
+                                                            <span>•</span>
                                                             <span className={wardOccupancy > 80 ? 'text-rose-600 font-medium' : 'text-slate-500'}>{wardOccupancy}% occupied</span>
                                                         </div>
                                                     </div>
@@ -333,7 +339,7 @@ export default function HMSDashboard() {
 
             <Dialog open={isAddWardOpen} onOpenChange={(open) => {
                 setIsAddWardOpen(open);
-                if (!open) setWardForm({ ward_id: null, ward_name: '', ward_type: 'General', total_beds: '', floor_number: '' });
+                if (!open) setWardForm({ ward_id: null, ward_name: '', ward_type: 'General', total_beds: '', floor_number: '', daily_charge: '500' });
             }}>
                 <DialogContent className="max-w-md">
                     <DialogHeader><DialogTitle>{wardForm.ward_id ? 'Edit Ward' : 'Add New Ward'}</DialogTitle></DialogHeader>
@@ -350,8 +356,12 @@ export default function HMSDashboard() {
                             <div className="space-y-2"><Label>Total Beds</Label>
                                 <Input placeholder="e.g., 20" type="number" value={wardForm.total_beds} onChange={e => setWardForm({ ...wardForm, total_beds: e.target.value })} /></div>
                         </div>
-                        <div className="space-y-2"><Label>Floor Number</Label>
-                            <Input placeholder="e.g., 2" type="number" value={wardForm.floor_number} onChange={e => setWardForm({ ...wardForm, floor_number: e.target.value })} /></div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2"><Label>Floor Number</Label>
+                                <Input placeholder="e.g., 2" type="number" value={wardForm.floor_number} onChange={e => setWardForm({ ...wardForm, floor_number: e.target.value })} /></div>
+                            <div className="space-y-2"><Label>Daily Charge (₹)</Label>
+                                <Input placeholder="e.g., 500" type="number" value={wardForm.daily_charge} onChange={e => setWardForm({ ...wardForm, daily_charge: e.target.value })} /></div>
+                        </div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsAddWardOpen(false)}>Cancel</Button>

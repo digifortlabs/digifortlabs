@@ -35,6 +35,7 @@ class DentalPatientBase(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     address: Optional[str] = None
+    main_patient_id: Optional[int] = None
     
     # Identifiers
     uhid: Optional[str] = None
@@ -347,7 +348,29 @@ class DentalInventoryItemResponse(DentalInventoryItemBase):
 
 # --- Endpoints ---
 
+
+def get_or_create_dental_patient(patient_id: int, db: Session):
+    patient = db.query(DentalPatient).filter((DentalPatient.patient_id == patient_id) | (DentalPatient.main_patient_id == patient_id)).first()
+    if not patient:
+        main_patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+        if main_patient:
+            patient = DentalPatient(
+                full_name=main_patient.full_name,
+                phone=main_patient.phone,
+                gender=main_patient.gender,
+                address=main_patient.address,
+                hospital_id=main_patient.hospital_id,
+                main_patient_id=main_patient.record_id
+            )
+            db.add(patient)
+            db.commit()
+            db.refresh(patient)
+        else:
+            raise HTTPException(status_code=404, detail="Patient not found")
+    return patient
+
 # Patients
+
 @router.get("/stats")
 def get_dental_stats(
     db: Session = Depends(get_db),
@@ -574,13 +597,43 @@ def get_patient(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id)
+    from sqlalchemy import or_
+    query = db.query(DentalPatient).filter(
+        or_(
+            DentalPatient.patient_id == patient_id,
+            DentalPatient.main_patient_id == patient_id
+        )
+    )
     if current_user.hospital_id:
         query = query.filter(DentalPatient.hospital_id == current_user.hospital_id)
         
     patient = query.first()
     if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found or access denied")
+        # Auto-create stub DentalPatient from global Patient if it exists
+        from ..models import Patient
+        global_patient = db.query(Patient).filter(
+            Patient.record_id == patient_id, 
+            Patient.hospital_id == current_user.hospital_id
+        ).first()
+        if global_patient:
+            patient = DentalPatient(
+                hospital_id=current_user.hospital_id,
+                main_patient_id=global_patient.record_id,
+                full_name=global_patient.full_name,
+                gender=global_patient.gender,
+                phone=global_patient.contact_number,
+                uhid=global_patient.uhid,
+                opd_number=global_patient.patient_u_id,
+                email=global_patient.email_id,
+                date_of_birth=global_patient.dob,
+                address=global_patient.address
+            )
+            db.add(patient)
+            db.commit()
+            db.refresh(patient)
+            return patient
+        else:
+            raise HTTPException(status_code=404, detail="Patient not found or access denied")
     return patient
 
 @router.put("/patients/{patient_id}", response_model=DentalPatientResponse)
@@ -686,9 +739,7 @@ def create_appointment(
     current_user: User = Depends(get_current_user)
 ):
     # Verify patient belongs to user's hospital
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == appointment.patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = get_or_create_dental_patient(appointment.patient_id, db)
     
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -706,9 +757,7 @@ def get_treatments(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = get_or_create_dental_patient(patient_id, db)
         
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -722,9 +771,7 @@ def create_treatment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == treatment.patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = get_or_create_dental_patient(treatment.patient_id, db)
     
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -746,9 +793,7 @@ def create_treatment_plan(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = get_or_create_dental_patient(patient_id, db)
         
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -765,9 +810,7 @@ def get_treatment_plans(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = get_or_create_dental_patient(patient_id, db)
         
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -786,9 +829,7 @@ def update_treatment_plan(
         raise HTTPException(status_code=404, detail="Treatment plan not found")
         
     # Check access via patient
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == db_plan.patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = get_or_create_dental_patient(db_plan.patient_id, db)
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
         
@@ -812,9 +853,7 @@ def create_treatment_phase(
         raise HTTPException(status_code=404, detail="Treatment plan not found")
         
     # Check access via patient
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == db_plan.patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = get_or_create_dental_patient(db_plan.patient_id, db)
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
         
@@ -839,9 +878,7 @@ def update_treatment_phase(
     db_plan = db.query(TreatmentPlan).filter(TreatmentPlan.plan_id == db_phase.plan_id).first()
     if not db_plan:
         raise HTTPException(status_code=404, detail="Plan not found")
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == db_plan.patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = get_or_create_dental_patient(db_plan.patient_id, db)
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
         
@@ -862,9 +899,7 @@ def create_periodontal_exam(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = get_or_create_dental_patient(patient_id, db)
         
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -893,9 +928,7 @@ def get_periodontal_exams(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = get_or_create_dental_patient(patient_id, db)
         
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -913,9 +946,7 @@ def get_periodontal_exam(
         raise HTTPException(status_code=404, detail="Exam not found")
         
     # Check access via patient
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == db_exam.patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = get_or_create_dental_patient(db_exam.patient_id, db)
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
         
@@ -931,9 +962,7 @@ async def upload_scan(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = get_or_create_dental_patient(patient_id, db)
         
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -1184,9 +1213,7 @@ async def upload_dental_scan(
     current_user: User = Depends(get_current_user)
 ):
     """Upload a 3D scan file (.stl, .ply, .glb, .obj, .jpg, .png) for a dental patient."""
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = get_or_create_dental_patient(patient_id, db)
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -1232,9 +1259,7 @@ def get_patient_scans(
     current_user: User = Depends(get_current_user)
 ):
     """List all scans for a patient with fresh presigned URLs."""
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = get_or_create_dental_patient(patient_id, db)
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -1278,9 +1303,7 @@ def delete_all_patient_scans(
     current_user: User = Depends(get_current_user)
 ):
     """Delete ALL scans for a patient from S3 and the database."""
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+    patient = get_or_create_dental_patient(patient_id, db)
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
 

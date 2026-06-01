@@ -9,6 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import PrintableReport from '../../../components/reports/PrintableReport';
+import toast from 'react-hot-toast';
 
 export default function ReportsPage() {
     const router = useRouter();
@@ -139,10 +140,10 @@ export default function ReportsPage() {
                 a.click();
                 a.remove();
             } else {
-                alert("CSV Export Failed");
+                toast.error("CSV Export Failed");
             }
         } catch (e) {
-            alert("Export Error");
+            toast.error("Export Error");
         }
     };
 
@@ -190,7 +191,7 @@ export default function ReportsPage() {
             pdf.save(`${activeTab}_report_${new Date().toISOString().split('T')[0]}.pdf`);
         } catch (error) {
             console.error("PDF Export failed:", error);
-            alert("Failed to generate PDF");
+            toast.error("Failed to generate PDF");
         } finally {
             setIsExportingPDF(false);
         }

@@ -8,6 +8,7 @@ import {
     Download, X, Tag, FileUp, Info
 } from 'lucide-react';
 import { apiFetch, getCsrfToken } from '@/config/api';
+import toast from 'react-hot-toast';
 
 interface AccountSettingsProps {
     userRole: string;
@@ -90,7 +91,7 @@ export default function AccountSettings({
         if (!file) return;
         
         const hospitalId = localStorage.getItem('hospital_id');
-        if (!hospitalId) return alert('Hospital ID missing');
+        if (!hospitalId) return toast.error('Hospital ID missing');
         
         const formData = new FormData();
         formData.append('file', file);
@@ -122,10 +123,10 @@ export default function AccountSettings({
             // update localStorage so navbar updates
             localStorage.setItem('hospitalLogo', getLogoUrl(data.logo_url));
             
-            alert('Logo uploaded successfully');
+            toast.success('Logo uploaded successfully');
         } catch (error) {
             console.error(error);
-            alert('Failed to upload logo');
+            toast.error('Failed to upload logo');
         } finally {
             setUploadingLogo(false);
         }
@@ -211,7 +212,7 @@ export default function AccountSettings({
             if (res?.url) window.open(res.url, '_blank');
         } catch (e) {
             console.error('Presign error', e);
-            alert('Could not open document. Please try again.');
+            toast.error('Could not open document. Please try again.');
         }
     };
 
@@ -253,7 +254,7 @@ export default function AccountSettings({
     const executeBatchUpload = async () => {
         if (uploadQueue.length === 0) return;
         const hospitalId = localStorage.getItem('hospital_id');
-        if (!hospitalId) { alert('Hospital ID missing'); return; }
+        if (!hospitalId) { toast.error('Hospital ID missing'); return; }
 
         setBatchUploading(true);
 
@@ -358,7 +359,7 @@ export default function AccountSettings({
             setProfile({ ...profile, [type]: updatedList });
         } catch (e) {
             console.error("Document deletion failed", e);
-            alert("Failed to delete document. Please try again.");
+            toast.error("Failed to delete document. Please try again.");
         } finally {
             setDeletingDocIndex(null);
         }

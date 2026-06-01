@@ -15,6 +15,7 @@ import {
     CheckCircle2
 } from 'lucide-react';
 import { apiFetch } from '@/config/api';
+import toast from 'react-hot-toast';
 
 export default function CompanyProfileSettings() {
     const [config, setConfig] = useState<any>(null);
@@ -46,7 +47,7 @@ export default function CompanyProfileSettings() {
             setSuccess(true);
             setTimeout(() => setSuccess(false), 3000);
         } catch (error) {
-            alert("Failed to save platform profile");
+            toast.error("Failed to save platform profile");
         } finally {
             setSaving(false);
         }

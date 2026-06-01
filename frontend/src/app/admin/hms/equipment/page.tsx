@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/config/api';
+import toast from 'react-hot-toast';
 
 export default function EquipmentPage() {
     const router = useRouter();
@@ -63,7 +64,7 @@ export default function EquipmentPage() {
             setEqForm({ name: '', equipment_type: 'Ventilator' });
             loadData();
         } catch (e: any) {
-            alert(e.message || 'Failed to register device');
+            toast.error(e.message || 'Failed to register device');
         }
     };
 
@@ -99,7 +100,7 @@ export default function EquipmentPage() {
             setSelectedEq(null);
             loadData();
         } catch (e: any) {
-            alert(e.message || 'Failed to deploy device');
+            toast.error(e.message || 'Failed to deploy device');
         }
     };
 
@@ -109,7 +110,7 @@ export default function EquipmentPage() {
             await apiFetch(`hms/equipment/${eqId}/retrieve`, { method: 'POST' });
             loadData();
         } catch (e: any) {
-            alert(e.message || 'Failed to retrieve device');
+            toast.error(e.message || 'Failed to retrieve device');
         }
     };
 

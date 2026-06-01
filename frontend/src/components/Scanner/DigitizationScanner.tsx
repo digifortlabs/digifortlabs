@@ -6,6 +6,7 @@ import jsPDF from 'jspdf';
 import { Camera, Settings, X, Save, Crop, RotateCw, Trash2, Check, FileText, Image as ImageIcon, Sun, Moon, Maximize, Minimize, Sparkles, Loader2 } from 'lucide-react';
 import { CapturedPage, DigitizationScannerProps } from './ScannerTypes';
 import { formatBytes, getTotalSize, detectDocumentBounds, processImage, scanDocumentAPI } from './ScannerUtils';
+import toast from 'react-hot-toast';
 
 // --- Constants ---
 
@@ -236,7 +237,7 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
 
         } catch (e) {
             console.error(e);
-            alert("Scan failed. Is backend running?");
+            toast.error("Scan failed. Is backend running?");
             setIsProcessing(false);
         }
     }, [webcamRef, resolution, liveRotation, rotation]);

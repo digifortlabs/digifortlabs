@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '../../../config/api';
 import { Folder, File, Download, ArrowLeft, RefreshCw, HardDrive, Cloud, Trash2, Power, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function ServerFileManager() {
     const router = useRouter();
@@ -37,11 +38,11 @@ export default function ServerFileManager() {
                 method: 'POST'
             });
             if (data) {
-                alert(data.message);
+                toast.error(data.message);
             }
         } catch (e: any) {
             console.error(e);
-            alert(e.message || "Failed to trigger OCR");
+            toast.error(e.message || "Failed to trigger OCR");
         } finally {
             setOcrLoading(false);
         }
@@ -220,14 +221,14 @@ export default function ServerFileManager() {
                                             <button
                                                 className="p-1.5 hover:bg-indigo-100 text-indigo-600 rounded"
                                                 title="Download"
-                                                onClick={() => window.alert("Download not yet implemented in demo")}
+                                                onClick={() => window.toast.error("Download not yet implemented in demo")}
                                             >
                                                 <Download size={16} />
                                             </button>
                                             <button
                                                 className="p-1.5 hover:bg-red-100 text-red-600 rounded"
                                                 title="Delete"
-                                                onClick={() => window.alert("Delete restricted in demo")}
+                                                onClick={() => window.toast.error("Delete restricted in demo")}
                                             >
                                                 <Trash2 size={16} />
                                             </button>

@@ -18,6 +18,10 @@ from ..models import (
     PhysicalBox,
     User,
     UserRole,
+    OPDVisit,
+    IPDAdmission,
+    OperationTheater,
+    EmergencyVisit,
 )
 from ..routers.auth import get_current_user
 
@@ -323,6 +327,44 @@ def get_dashboard_stats(
     # 14. Recent Uploads (last 24 hours)
     recent_uploads_count = todays_scans_count
     
+    # 15. Clinical Operations Breakdown (OPD, IPD, OT, ER)
+    clinical_ops = {
+        "opd_today": 0,
+        "ipd_admitted": 0,
+        "ot_in_use": 0,
+        "er_active": 0
+    }
+    try:
+        today_start_local = datetime.combine(date.today(), datetime.min.time()).replace(tzinfo=timezone.utc)
+        
+        # OPD Today
+        q_opd = db.query(OPDVisit).filter(OPDVisit.visit_date >= today_start_local)
+        if target_hospital_id:
+            q_opd = q_opd.filter(OPDVisit.hospital_id == target_hospital_id)
+        clinical_ops["opd_today"] = q_opd.count()
+        
+        # IPD Admitted
+        q_ipd = db.query(IPDAdmission).filter(IPDAdmission.status == 'admitted')
+        if target_hospital_id:
+            q_ipd = q_ipd.filter(IPDAdmission.hospital_id == target_hospital_id)
+        clinical_ops["ipd_admitted"] = q_ipd.count()
+        
+        # OT In Use
+        q_ot = db.query(OperationTheater).filter(OperationTheater.status == 'IN_USE')
+        if target_hospital_id:
+            q_ot = q_ot.filter(OperationTheater.hospital_id == target_hospital_id)
+        clinical_ops["ot_in_use"] = q_ot.count()
+        
+        # ER Active
+        q_er = db.query(EmergencyVisit).filter(EmergencyVisit.status == 'Active')
+        if target_hospital_id:
+            q_er = q_er.filter(EmergencyVisit.hospital_id == target_hospital_id)
+        clinical_ops["er_active"] = q_er.count()
+        
+    except Exception as e:
+        db.rollback()
+        logger.info(f"Stats Error (Clinical Ops): {e}")
+    
     # 9. System Metrics
     avg_latency = 0
     if app_state.total_requests > 0:
@@ -387,7 +429,8 @@ def get_dashboard_stats(
         },
         "recent_activity": audit_data_enhanced,
         "qa_issues": qa_data,
-        "traffic_data": [] 
+        "traffic_data": [],
+        "clinical_ops": clinical_ops
     }
 
 @router.get("/group")

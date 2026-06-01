@@ -66,6 +66,14 @@ class AppointmentUpdate(BaseModel):
     is_follow_up: Optional[bool] = None
     status: Optional[str] = None
 
+class PatientInfo(BaseModel):
+    record_id: int
+    full_name: str
+    phone: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 class AppointmentResponse(BaseModel):
     appointment_id: int
     patient_id: int
@@ -80,6 +88,7 @@ class AppointmentResponse(BaseModel):
     visit_type: str
     is_follow_up: bool
     opd_number: Optional[str] = None
+    patient: Optional[PatientInfo] = None
     
     class Config:
         from_attributes = True
@@ -336,6 +345,14 @@ async def create_appointment(
     
     # Check doctor availability (only if times were manually provided, auto-queue avoids conflicts)
     else:
+        from datetime import timezone
+        if payload.start_time and payload.start_time.tzinfo is None:
+            payload.start_time = payload.start_time.replace(tzinfo=timezone.utc)
+        if payload.end_time and payload.end_time.tzinfo is None:
+            payload.end_time = payload.end_time.replace(tzinfo=timezone.utc)
+        if payload.appointment_date and payload.appointment_date.tzinfo is None:
+            payload.appointment_date = payload.appointment_date.replace(tzinfo=timezone.utc)
+
         conflict = db.query(Appointment).filter(
             Appointment.doctor_id == payload.doctor_id,
             Appointment.status.in_(["Scheduled", "Arrived", "In-Consultation"]),
@@ -352,33 +369,102 @@ async def create_appointment(
                 detail="Doctor already has an appointment during this time."
             )
 
-    hospital = db.query(Hospital).filter(Hospital.hospital_id == current_user.hospital_id).first()
-    id_settings = hospital.id_generation_settings or {} if hospital else {}
-    conf_prefix = id_settings.get("opd_prefix", "OPD-")
-    conf_postfix = id_settings.get("opd_postfix", "")
-    conf_padding = int(id_settings.get("opd_padding", 4))
+    # Determine hospital_id (Super Admins might not have one)
+    import logging
+    logger = logging.getLogger(__name__)
+    hospital_id = current_user.hospital_id
+    logger.info(f"Initial hospital_id from current_user: {hospital_id}")
     
-    appts = db.query(Appointment.opd_number).filter(Appointment.hospital_id == current_user.hospital_id).all()
-    max_val = 0
-    import re
-    for a in appts:
-        if not a.opd_number: continue
-        numbers = re.findall(r'\d+', a.opd_number)
-        if numbers:
-            num_part = int(numbers[-1])
-            if num_part > max_val:
-                max_val = num_part
-                
-    next_val = max_val + 1
-    generated_opd = f"{conf_prefix}{str(next_val).zfill(conf_padding)}{conf_postfix}"
+    if not hospital_id:
+        from ..models import DoctorProfile
+        doc_profile = db.query(DoctorProfile).filter_by(profile_id=payload.doctor_id).first()
+        if doc_profile and doc_profile.hospital_id:
+            hospital_id = doc_profile.hospital_id
+            logger.info(f"Resolved hospital_id from doc_profile: {hospital_id}")
+        else:
+            logger.error("Failed to determine hospital_id from doc_profile")
+            raise HTTPException(status_code=400, detail="Cannot determine hospital_id for appointment. Doctor profile does not have a hospital_id.")
+    
+    logger.info(f"Final hospital_id to be used for appointment: {hospital_id}")
+    hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    id_settings = hospital.id_generation_settings or {} if hospital else {}
+
+    # Auto-generate OPD number if visiting OPD
+    generated_opd = None
+    if payload.visit_type == 'OPD':
+        conf_prefix = id_settings.get("opd_prefix", "OPD-")
+        conf_padding = int(id_settings.get("opd_padding", 4))
+        conf_postfix = id_settings.get("opd_postfix", "")
+
+        appts = db.query(Appointment.opd_number).filter(Appointment.hospital_id == hospital_id).all()
+        max_val = 0
+        import re
+        for a in appts:
+            if not a.opd_number: continue
+            numbers = re.findall(r'\d+', a.opd_number)
+            if numbers:
+                num_part = int(numbers[-1])
+                if num_part > max_val:
+                    max_val = num_part
+                    
+        next_val = max_val + 1
+        generated_opd = f"{conf_prefix}{str(next_val).zfill(conf_padding)}{conf_postfix}"
 
     new_appointment = Appointment(
-        hospital_id=current_user.hospital_id,
+        hospital_id=hospital_id,
         opd_number=generated_opd,
         **payload.model_dump()
     )
     
     db.add(new_appointment)
+    
+    # Auto-assign patient to doctor if not already assigned
+    from ..models import PatientDoctorAssignment
+    existing_assignment = db.query(PatientDoctorAssignment).filter(
+        PatientDoctorAssignment.patient_id == payload.patient_id,
+        PatientDoctorAssignment.doctor_profile_id == payload.doctor_id
+    ).first()
+    
+    if not existing_assignment:
+        new_assignment = PatientDoctorAssignment(
+            patient_id=payload.patient_id,
+            doctor_profile_id=payload.doctor_id
+        )
+        db.add(new_assignment)
+        
+    # Auto-initialize specialty patient profiles based on department
+    from ..models import Department, Patient
+    department = db.query(Department).filter(Department.department_id == payload.department_id).first()
+    if department:
+        dept_name = department.name.lower()
+        patient = db.query(Patient).filter(Patient.record_id == payload.patient_id).first()
+        if patient:
+            if "dental" in dept_name:
+                from ..models import DentalPatient
+                existing_dp = db.query(DentalPatient).filter_by(main_patient_id=payload.patient_id, hospital_id=hospital_id).first()
+                if not existing_dp:
+                    new_dp = DentalPatient(
+                        hospital_id=hospital_id,
+                        main_patient_id=patient.record_id,
+                        uhid=patient.uhid,
+                        full_name=patient.full_name,
+                        date_of_birth=patient.dob,
+                        gender=patient.gender,
+                        phone=patient.contact_number,
+                        email=patient.email_id,
+                        address=patient.address
+                    )
+                    db.add(new_dp)
+            elif "ent" in dept_name:
+                from ..models import ENTPatient
+                existing_ep = db.query(ENTPatient).filter_by(patient_id=payload.patient_id, hospital_id=hospital_id).first()
+                if not existing_ep:
+                    new_ep = ENTPatient(
+                        hospital_id=hospital_id,
+                        patient_id=patient.record_id
+                    )
+                    db.add(new_ep)
+        
     db.commit()
     db.refresh(new_appointment)
     
@@ -480,6 +566,14 @@ async def update_appointment(
         
     # If updating times, check doctor conflicts (excluding current appointment)
     if payload.start_time or payload.end_time or payload.doctor_id:
+        from datetime import timezone
+        if payload.start_time and payload.start_time.tzinfo is None:
+            payload.start_time = payload.start_time.replace(tzinfo=timezone.utc)
+        if payload.end_time and payload.end_time.tzinfo is None:
+            payload.end_time = payload.end_time.replace(tzinfo=timezone.utc)
+        if payload.appointment_date and payload.appointment_date.tzinfo is None:
+            payload.appointment_date = payload.appointment_date.replace(tzinfo=timezone.utc)
+            
         doc_id = payload.doctor_id or appointment.doctor_id
         start_t = payload.start_time or appointment.start_time
         end_t = payload.end_time or appointment.end_time

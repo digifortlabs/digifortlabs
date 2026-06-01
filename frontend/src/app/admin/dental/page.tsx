@@ -30,6 +30,7 @@ import { API_URL, apiFetch } from '@/config/api';
 import { formatDate } from '@/lib/dateFormatter';
 import PatientDetail from './components/PatientDetail';
 import HospitalSelectionPrompt from '@/components/HospitalSelectionPrompt';
+import toast from 'react-hot-toast';
 // import AppointmentModal from './components/AppointmentModal'; // Deprecated
 
 // --- Components ---
@@ -139,7 +140,7 @@ export default function DentalDashboard() {
                     medications: p.medications || prev.medications,
                     chief_complaint: p.chief_complaint || prev.chief_complaint
                 }));
-                alert(`✨ Patient found! Details from ${data.source} records have been auto-filled.`);
+                toast.error(`✨ Patient found! Details from ${data.source} records have been auto-filled.`);
             }
         } catch (err) {
             console.error("Error checking UHID:", err);
@@ -177,17 +178,17 @@ export default function DentalDashboard() {
             if (res === null) {
                 setPatients(patients.filter(p => p.patient_id !== patientId));
                 if (selectedPatient?.patient_id === patientId) setSelectedPatient(null);
-                alert("Patient deleted successfully.");
+                toast.success("Patient deleted successfully.");
             }
         } catch (error: any) {
             console.error("Delete error:", error);
-            alert(error.message || "Error deleting patient.");
+            toast.error(error.message || "Error deleting patient.");
         }
     };
 
     const handleCreatePatient = async () => {
         if (!newPatientData.full_name || !newPatientData.phone) {
-            alert("Please fill in required fields.");
+            toast.error("Please fill in required fields.");
             return;
         }
 
@@ -215,10 +216,10 @@ export default function DentalDashboard() {
             if (data) {
                 if (editingId) {
                     setPatients(patients.map(p => p.patient_id === editingId ? data : p));
-                    alert("Patient updated successfully!");
+                    toast.success("Patient updated successfully!");
                 } else {
                     setPatients([data, ...patients]);
-                    alert("Patient registered successfully!");
+                    toast.success("Patient registered successfully!");
                 }
 
                 setShowNewPatientModal(false);
@@ -240,7 +241,7 @@ export default function DentalDashboard() {
             }
         } catch (error: any) {
             console.error(error);
-            alert(error.message || "An error occurred while registering patient.");
+            toast.error(error.message || "An error occurred while registering patient.");
         } finally {
             setIsSaving(false);
         }
@@ -691,22 +692,7 @@ export default function DentalDashboard() {
                         </CardContent>
                     </Card>
 
-                    <Card className="border-none shadow-sm bg-blue-900 text-white overflow-hidden relative">
-                        <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-2xl" />
-                        <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <Zap className="w-5 h-5 text-yellow-400 fill-yellow-400" /> AI Insights
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-sm text-blue-100 leading-relaxed">
-                                You have 3 pending treatment plans that need approval. Keval Kuvekar's RCT procedure is due for a follow-up today.
-                            </p>
-                            <Button className="mt-4 w-full bg-white text-blue-900 hover:bg-blue-50 font-semibold border-none">
-                                Review Plans
-                            </Button>
-                        </CardContent>
-                    </Card>
+
                 </div>
             </div>
         </div >

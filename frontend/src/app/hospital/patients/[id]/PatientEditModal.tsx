@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, Loader2 } from 'lucide-react';
 import { apiFetch } from '@/config/api';
 import { useTerminology } from '@/hooks/useTerminology';
+import toast from 'react-hot-toast';
 
 const calculateAgeFromDob = (dobString: string) => {
     if (!dobString) return null;
@@ -123,7 +124,7 @@ export default function PatientEditModal({ patient, isOpen, onClose, onUpdated }
             onClose();
         } catch (error: any) {
             console.error("Update failed", error);
-            alert(error.message || "Failed to update patient");
+            toast.error(error.message || "Failed to update patient");
         } finally {
             setIsSaving(false);
         }
@@ -301,10 +302,10 @@ export default function PatientEditModal({ patient, isOpen, onClose, onUpdated }
                                 if (patient && patient.record_id) {
                                     apiFetch(`/patients/${patient.record_id}`, { method: 'DELETE' })
                                         .then(() => {
-                                            alert('Patient deleted successfully.');
+                                            toast.success('Patient deleted successfully.');
                                             window.location.href = '/hospital/patients';
                                         })
-                                        .catch(err => alert('Failed to delete patient.'));
+                                        .catch(err => toast.error('Failed to delete patient.'));
                                 }
                             }
                         }} 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Loader2, Plus, Info, CheckCircle2 } from 'lucide-react';
 import { apiFetch } from '@/config/api';
+import toast from 'react-hot-toast';
 
 interface ICD11Code {
     code: string;
@@ -67,7 +68,7 @@ export default function ICD11Search({ type, patientId, onAdded }: ICD11SearchPro
             onAdded();
         } catch (e) {
             console.error(e);
-            alert(`Failed to add ${type}`);
+            toast.error(`Failed to add ${type}`);
         } finally {
             setIsSaving(false);
         }

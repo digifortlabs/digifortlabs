@@ -17,6 +17,7 @@ import { apiFetch } from '@/config/api';
 const ITEMS_PER_PAGE = 25; // Exact count to ensure footer availability
 
 import InvoiceRenderer from '@/components/InvoiceRenderer';
+import toast from 'react-hot-toast';
 
 export default function InvoicePreviewPage() {
     const params = useParams();
@@ -55,9 +56,9 @@ export default function InvoicePreviewPage() {
         setEmailLoading(true);
         try {
             await apiFetch(`/accounting/${invoiceId}/send-email`, { method: 'POST' });
-            alert("Invoice email sent successfully!");
+            toast.success("Invoice email sent successfully!");
         } catch (error) {
-            alert("Failed to send invoice email.");
+            toast.error("Failed to send invoice email.");
         } finally {
             setEmailLoading(false);
         }
