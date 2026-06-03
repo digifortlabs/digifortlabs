@@ -18,7 +18,7 @@ class WardCreate(BaseModel):
     ward_type: str  # ICU, General, Private, Semi-Private
     total_beds: int
     daily_charge: float = 500.0
-    floor_number: Optional[int] = 1
+    floor_number: Optional[str] = "1"
 
 class BedCreate(BaseModel):
     ward_id: int
@@ -53,6 +53,7 @@ class DischargeUpdate(BaseModel):
 class MedicationOrder(BaseModel):
     medicine_name: str
     dosage: str
+    qty: Optional[str] = None
     frequency: str
     frequency_hours: Optional[int] = 12
     notes: Optional[str] = None
@@ -89,10 +90,13 @@ class BedStatusUpdate(BaseModel):
     status: str
     is_occupied: Optional[bool] = None
 
+class BedNameUpdate(BaseModel):
+    bed_number: str
+
 class WardUpdate(BaseModel):
     ward_name: Optional[str] = None
     ward_type: Optional[str] = None
-    floor_number: Optional[int] = None
+    floor_number: Optional[str] = None
     total_beds: Optional[int] = None
     daily_charge: Optional[float] = None
 
@@ -156,6 +160,7 @@ def create_ward(
         hospital_id=current_user.hospital_id,
         ward_name=ward.ward_name,
         ward_type=ward.ward_type,
+        floor_number=ward.floor_number,
         total_beds=ward.total_beds,
         daily_charge=ward.daily_charge,
         occupied_beds=0
@@ -418,6 +423,37 @@ def update_bed_status(
     if status_update.is_occupied is not None:
         bed.is_occupied = status_update.is_occupied
         
+    db.commit()
+    db.refresh(bed)
+    return bed
+
+@router.put("/beds/{bed_id}/name")
+def update_bed_name(
+    bed_id: int,
+    name_update: BedNameUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update bed name or number"""
+    bed = db.query(Bed).join(Ward).filter(
+        Bed.bed_id == bed_id,
+        Ward.hospital_id == current_user.hospital_id
+    ).first()
+    
+    if not bed:
+        raise HTTPException(status_code=404, detail="Bed not found")
+        
+    # Check for duplicate bed number in the same ward
+    existing_bed = db.query(Bed).filter(
+        Bed.ward_id == bed.ward_id,
+        Bed.bed_number == name_update.bed_number,
+        Bed.bed_id != bed_id
+    ).first()
+    
+    if existing_bed:
+        raise HTTPException(status_code=400, detail=f"Bed name/number '{name_update.bed_number}' already exists in this ward.")
+        
+    bed.bed_number = name_update.bed_number  # type: ignore
     db.commit()
     db.refresh(bed)
     return bed
@@ -824,6 +860,7 @@ def add_doctor_order(
         "id": uuid.uuid4().hex[:8],
         "medicine_name": order.medicine_name,
         "dosage": order.dosage,
+        "qty": order.qty,
         "frequency": order.frequency,
         "frequency_hours": freq_hours,
         "notes": order.notes,
@@ -867,9 +904,11 @@ def update_doctor_order(
     for o in orders:
         if o.get("id") == order_id:
             old_dosage = o.get("dosage")
+            old_qty = o.get("qty")
             old_freq = o.get("frequency")
             o["medicine_name"] = order.medicine_name
             o["dosage"] = order.dosage
+            o["qty"] = order.qty
             o["frequency"] = order.frequency
             o["frequency_hours"] = order.frequency_hours if order.frequency_hours is not None else 12
             o["notes"] = order.notes

@@ -213,27 +213,67 @@ export default function ManageClientsPage() {
 
     const toggleModuleOnboard = (moduleId: string) => {
         setNewHospital(prev => {
-            const current = [...prev.enabled_modules];
+            let current = [...prev.enabled_modules];
+            
             if (current.includes(moduleId)) {
-                if (moduleId === 'core') return prev; // Core is mandatory
-                return { ...prev, enabled_modules: current.filter(m => m !== moduleId) };
+                if (moduleId === 'core' && current.includes('hms')) {
+                    toast.error('MRD (Core) is compulsory when HMS is enabled.');
+                    return prev;
+                }
+                current = current.filter(m => m !== moduleId);
+                
+                if (moduleId === 'hms' && current.includes('clinic') && current.includes('core')) {
+                    current = current.filter(m => m !== 'core');
+                }
             } else {
-                return { ...prev, enabled_modules: [...current, moduleId] };
+                if (moduleId === 'core' && current.includes('clinic') && !current.includes('hms')) {
+                    toast.error('MRD is not applicable for Outpatient Clinics.');
+                    return prev;
+                }
+                current = [...current, moduleId];
+                
+                if (moduleId === 'hms' && !current.includes('core')) {
+                    current.push('core');
+                    toast.success('MRD automatically enabled (Compulsory for HMS).');
+                }
+                if (moduleId === 'clinic' && current.includes('core') && !current.includes('hms')) {
+                    current = current.filter(m => m !== 'core');
+                }
             }
+            return { ...prev, enabled_modules: current };
         });
     };
 
     const toggleModuleEdit = (moduleId: string) => {
         if (!editingHospital) return;
-        const current = [...(editingHospital.enabled_modules || [])];
-        let updated: string[];
+        let current = [...(editingHospital.enabled_modules || [])];
+        
         if (current.includes(moduleId)) {
-            if (moduleId === 'core') return; // Core is mandatory
-            updated = current.filter(m => m !== moduleId);
+            if (moduleId === 'core' && current.includes('hms')) {
+                toast.error('MRD (Core) is compulsory when HMS is enabled.');
+                return;
+            }
+            current = current.filter(m => m !== moduleId);
+            
+            if (moduleId === 'hms' && current.includes('clinic') && current.includes('core')) {
+                current = current.filter(m => m !== 'core');
+            }
         } else {
-            updated = [...current, moduleId];
+            if (moduleId === 'core' && current.includes('clinic') && !current.includes('hms')) {
+                toast.error('MRD is not applicable for Outpatient Clinics.');
+                return;
+            }
+            current = [...current, moduleId];
+            
+            if (moduleId === 'hms' && !current.includes('core')) {
+                current.push('core');
+                toast.success('MRD automatically enabled (Compulsory for HMS).');
+            }
+            if (moduleId === 'clinic' && current.includes('core') && !current.includes('hms')) {
+                current = current.filter(m => m !== 'core');
+            }
         }
-        setEditingHospital({ ...editingHospital, enabled_modules: updated });
+        setEditingHospital({ ...editingHospital, enabled_modules: current });
     };
 
     // Client Onboarding Trigger

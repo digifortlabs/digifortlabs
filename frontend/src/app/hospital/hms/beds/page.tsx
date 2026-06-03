@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Bed, ChevronLeft, RefreshCw, UserPlus, AlertCircle, Activity, FileText, Pill, Stethoscope, Cpu, Syringe, Plus, Info, Users, Edit2, Trash2, History, Printer, MessageCircle, Share2 } from 'lucide-react';
+import { Bed, ChevronLeft, RefreshCw, UserPlus, AlertCircle, Activity, FileText, Pill, Stethoscope, Cpu, Syringe, Plus, Info, Users, Edit2, Trash2, History, Printer, MessageCircle, Share2, Check, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,15 +45,17 @@ export default function HMSBedsPage() {
 
     // Console Forms
     const [alerts, setAlerts] = useState<any[]>([]);
-    const [orderForm, setOrderForm] = useState({ medicine_name: '', dosage: '', frequency: '', frequency_hours: '12', notes: '' });
+    const [orderForm, setOrderForm] = useState({ medicine_name: '', dosage: '', qty: '', frequency: '', frequency_hours: '12', notes: '' });
     const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
-    const [editOrderForm, setEditOrderForm] = useState({ medicine_name: '', dosage: '', frequency: '', frequency_hours: '12', notes: '' });
+    const [editOrderForm, setEditOrderForm] = useState({ medicine_name: '', dosage: '', qty: '', frequency: '', frequency_hours: '12', notes: '' });
     const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
     const [medLogForm, setMedLogForm] = useState({ order_id: '', medicine_name: '', notes: '' });
     const [noteForm, setNoteForm] = useState({ note_type: 'Ward Round', content: '' });
     const [vitalsForm, setVitalsForm] = useState({ temp: '', bp: '', pulse: '', respiratory_rate: '', spo2: '' });
     const [isEditingDoctor, setIsEditingDoctor] = useState(false);
     const [editDoctorName, setEditDoctorName] = useState('');
+    const [editingBedNameId, setEditingBedNameId] = useState<number | null>(null);
+    const [editingBedNameValue, setEditingBedNameValue] = useState<string>('');
 
     useEffect(() => {
         const role = localStorage.getItem('userRole') || '';
@@ -73,6 +75,34 @@ export default function HMSBedsPage() {
         }, 300);
         return () => clearTimeout(delayDebounce);
     }, [searchQuery]);
+
+    const handleSaveBedName = async (bedId: number) => {
+        const newName = editingBedNameValue.trim();
+        if (!newName) return;
+        
+        const isDuplicate = beds.some((b: any) => 
+            b.bed_id !== bedId && 
+            b.ward_id === selectedWard?.ward_id && 
+            b.bed_number.toLowerCase() === newName.toLowerCase()
+        );
+        
+        if (isDuplicate) {
+            toast.error(`Bed name/number '${newName}' already exists in this ward.`);
+            return;
+        }
+
+        try {
+            await apiFetch(`hms/beds/${bedId}/name`, {
+                method: 'PUT',
+                body: JSON.stringify({ bed_number: newName })
+            });
+            setEditingBedNameId(null);
+            loadData();
+        } catch (e: any) {
+            console.error("Failed to update bed name", e);
+            toast.error(e.message || "Failed to update bed name");
+        }
+    };
 
     const performSearch = async (query: string) => {
         setSearching(true);
@@ -104,12 +134,17 @@ export default function HMSBedsPage() {
             setAlerts(a || []);
             setDoctors(d || []);
             
-            if (wardList.length > 0 && !selectedWard) {
-                setSelectedWard(wardList[0]);
-            } else if (selectedWard) {
-                // Keep the current ward selected but update its reference if needed
-                const updatedWard = wardList.find((ward: any) => ward.ward_id === selectedWard.ward_id);
-                if (updatedWard) setSelectedWard(updatedWard);
+            if (wardList.length > 0) {
+                if (!selectedWard) {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const wardParam = urlParams.get('ward');
+                    const matchedWard = wardParam ? wardList.find((w: any) => w.ward_id.toString() === wardParam) : null;
+                    setSelectedWard(matchedWard || wardList[0]);
+                } else {
+                    // Keep the current ward selected but update its reference if needed
+                    const updatedWard = wardList.find((w: any) => w.ward_id === selectedWard.ward_id);
+                    if (updatedWard) setSelectedWard(updatedWard);
+                }
             }
         } finally { setLoading(false); }
     };
@@ -207,7 +242,7 @@ export default function HMSBedsPage() {
                     frequency_hours: parseInt(orderForm.frequency_hours) || 12
                 })
             });
-            setOrderForm({ medicine_name: '', dosage: '', frequency: '', frequency_hours: '12', notes: '' });
+            setOrderForm({ medicine_name: '', dosage: '', qty: '', frequency: '', frequency_hours: '12', notes: '' });
             refreshAdmission();
         } catch (e: any) { toast.error(e.message || "Failed to add order"); }
     };
@@ -299,14 +334,15 @@ export default function HMSBedsPage() {
             return;
         }
 
+        const hospitalName = localStorage.getItem('hms_hospital_name') || 'Digifort Labs Hospital';
         let text = `*Medication List for ${activePatient?.full_name || 'Patient'}*\n`;
-        text += `Admission Date: ${new Date(activeAdmission.admission_date).toLocaleDateString()}\n\n`;
+        text += `Hospital: ${hospitalName}\n`;
+        text += `Date & Time: ${new Date().toLocaleString()}\n\n`;
         
         activeOrders.forEach((order: any, index: number) => {
             text += `${index + 1}. *${order.medicine_name}*\n`;
             text += `   Dosage: ${order.dosage}\n`;
-            text += `   Frequency: ${order.frequency}\n`;
-            if (order.notes) text += `   Note: ${order.notes}\n`;
+            if (order.qty) text += `   Qty: ${order.qty}\n`;
             text += `\n`;
         });
         
@@ -427,16 +463,52 @@ export default function HMSBedsPage() {
                                                     style={{ minHeight: '120px' }}
                                                 >
                                                     {/* Top Bar: Bed Number & Status */}
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <span className="text-lg font-black text-slate-700 tracking-tight">{bed.bed_number}</span>
-                                                        <div className="flex items-center gap-1.5">
-                                                            {isOccupied && hasAlert && (
-                                                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 animate-bounce shadow-[0_0_8px_rgba(245,158,11,0.6)]" title="Medication Due Now!">
-                                                                    <Pill className="w-3 h-3 text-white animate-pulse" />
-                                                                </span>
-                                                            )}
-                                                            {isOccupied && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.6)]" />}
-                                                        </div>
+                                                    <div className="flex justify-between items-start mb-2 group/title relative">
+                                                        {editingBedNameId === bed.bed_id ? (
+                                                            <div className="flex items-center gap-1 z-10 bg-white p-1 -ml-1 rounded shadow-sm border border-blue-200">
+                                                                <Input 
+                                                                    autoFocus
+                                                                    value={editingBedNameValue} 
+                                                                    onChange={e => setEditingBedNameValue(e.target.value)}
+                                                                    className="h-7 px-2 text-sm w-24 font-bold"
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter') handleSaveBedName(bed.bed_id);
+                                                                        if (e.key === 'Escape') setEditingBedNameId(null);
+                                                                    }}
+                                                                />
+                                                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-emerald-600 hover:bg-emerald-50" onClick={(e) => { e.stopPropagation(); handleSaveBedName(bed.bed_id); }}>
+                                                                    <Check className="w-4 h-4" />
+                                                                </Button>
+                                                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-400 hover:bg-slate-50" onClick={(e) => { e.stopPropagation(); setEditingBedNameId(null); }}>
+                                                                    <X className="w-4 h-4" />
+                                                                </Button>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-lg font-black text-slate-700 tracking-tight">{/^\d+$/.test(bed.bed_number) ? `Bed ${bed.bed_number}` : bed.bed_number}</span>
+                                                                    <button 
+                                                                        onClick={(e) => { 
+                                                                            e.stopPropagation(); 
+                                                                            setEditingBedNameValue(bed.bed_number); 
+                                                                            setEditingBedNameId(bed.bed_id); 
+                                                                        }}
+                                                                        className="opacity-0 group-hover/title:opacity-100 transition-opacity p-1 text-slate-400 hover:text-blue-600 rounded bg-slate-50 hover:bg-blue-50"
+                                                                        title="Rename Bed"
+                                                                    >
+                                                                        <Edit2 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    {isOccupied && hasAlert && (
+                                                                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 animate-bounce shadow-[0_0_8px_rgba(245,158,11,0.6)]" title="Medication Due Now!">
+                                                                            <Pill className="w-3 h-3 text-white animate-pulse" />
+                                                                        </span>
+                                                                    )}
+                                                                    {isOccupied && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.6)]" />}
+                                                                </div>
+                                                            </>
+                                                        )}
                                                     </div>
 
                                                     {/* Center Graphic */}
@@ -724,9 +796,13 @@ export default function HMSBedsPage() {
                                                                                         <Label className="text-xs mb-1">Medicine Name</Label>
                                                                                         <MedicineAutocomplete value={orderForm.medicine_name} onChange={val => setOrderForm({...orderForm, medicine_name: val})} />
                                                                                     </div>
-                                                                                    <div className="col-span-6 md:col-span-2">
+                                                                                    <div className="col-span-6 md:col-span-1">
                                                                                         <Label className="text-xs mb-1">Dosage</Label>
                                                                                         <Input placeholder="500mg" value={orderForm.dosage} onChange={e => setOrderForm({...orderForm, dosage: e.target.value})} />
+                                                                                    </div>
+                                                                                    <div className="col-span-6 md:col-span-1">
+                                                                                        <Label className="text-xs mb-1">Qty</Label>
+                                                                                        <Input placeholder="10 Tabs" value={orderForm.qty} onChange={e => setOrderForm({...orderForm, qty: e.target.value})} />
                                                                                     </div>
                                                                                     <div className="col-span-6 md:col-span-2">
                                                                                         <Label className="text-xs mb-1">Frequency</Label>
@@ -783,9 +859,13 @@ export default function HMSBedsPage() {
                                                                 <Label className="text-xs mb-1">Medicine Name</Label>
                                                                 <MedicineAutocomplete className="bg-white" value={editOrderForm.medicine_name} onChange={val => setEditOrderForm({...editOrderForm, medicine_name: val})} />
                                                             </div>
-                                                            <div className="col-span-6 md:col-span-2">
+                                                            <div className="col-span-6 md:col-span-1">
                                                                 <Label className="text-xs mb-1">Dosage</Label>
                                                                 <Input value={editOrderForm.dosage} onChange={e => setEditOrderForm({...editOrderForm, dosage: e.target.value})} className="bg-white" />
+                                                            </div>
+                                                            <div className="col-span-6 md:col-span-1">
+                                                                <Label className="text-xs mb-1">Qty</Label>
+                                                                <Input value={editOrderForm.qty} onChange={e => setEditOrderForm({...editOrderForm, qty: e.target.value})} className="bg-white" />
                                                             </div>
                                                             <div className="col-span-6 md:col-span-2">
                                                                 <Label className="text-xs mb-1">Frequency</Label>
@@ -822,6 +902,7 @@ export default function HMSBedsPage() {
                                                                     <h4 className={`font-bold text-lg leading-tight ${isDeleted ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
                                                                         {order.medicine_name} 
                                                                         <span className={`font-mono text-sm ml-2 px-2 py-0.5 rounded ${isDeleted ? 'text-slate-500 bg-slate-200' : 'text-indigo-600 bg-indigo-50'}`}>{order.dosage}</span>
+                                                                        {order.qty && <span className={`font-mono text-sm ml-2 px-2 py-0.5 rounded ${isDeleted ? 'text-slate-500 bg-slate-200' : 'text-indigo-600 bg-indigo-50'}`}>Qty: {order.qty}</span>}
                                                                     </h4>
                                                                     <p className={`text-sm font-medium mt-1 ${isDeleted ? 'text-slate-400' : 'text-slate-600'}`}>Frequency: {order.frequency}</p>
                                                                     {order.notes && <p className={`text-xs mt-1 px-2 py-1 rounded inline-block border ${isDeleted ? 'text-slate-400 bg-slate-100 border-slate-200' : 'text-slate-500 bg-slate-50 border-slate-100'}`}>Note: {order.notes}</p>}
@@ -851,6 +932,7 @@ export default function HMSBedsPage() {
                                                                                     setEditOrderForm({
                                                                                         medicine_name: order.medicine_name,
                                                                                         dosage: order.dosage,
+                                                                                        qty: order.qty || '',
                                                                                         frequency: order.frequency,
                                                                                         frequency_hours: order.frequency_hours?.toString() || '12',
                                                                                         notes: order.notes || ''

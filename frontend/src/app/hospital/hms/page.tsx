@@ -75,7 +75,7 @@ export default function HMSDashboard() {
                         ward_name: wardForm.ward_name, 
                         ward_type: wardForm.ward_type, 
                         total_beds: parseInt(wardForm.total_beds) || 0,
-                        floor_number: parseInt(wardForm.floor_number) || 1,
+                        floor_number: wardForm.floor_number || "1",
                         daily_charge: parseFloat(wardForm.daily_charge) || 0
                     }) 
                 });
@@ -86,7 +86,7 @@ export default function HMSDashboard() {
                     body: JSON.stringify({ 
                         ...wardForm, 
                         total_beds: parseInt(wardForm.total_beds) || 0, 
-                        floor_number: parseInt(wardForm.floor_number) || 1,
+                        floor_number: wardForm.floor_number || "1",
                         daily_charge: parseFloat(wardForm.daily_charge) || 0
                     }) 
                 });
@@ -239,7 +239,7 @@ export default function HMSDashboard() {
                                         const wardOccupancy = ward.total_beds > 0 ? Math.round((wardAdmissions / ward.total_beds) * 100) : 0;
                                         return (
                                             <div key={ward.ward_id} className="p-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer group transition-colors"
-                                                onClick={() => router.push('/hospital/hms/beds')}>
+                                                onClick={() => router.push(`/hospital/hms/beds?ward=${ward.ward_id}`)}>
                                                 <div className="flex items-center gap-4">
                                                     <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
                                                         <Bed className="w-5 h-5 text-blue-600" />
@@ -357,8 +357,8 @@ export default function HMSDashboard() {
                                 <Input placeholder="e.g., 20" type="number" value={wardForm.total_beds} onChange={e => setWardForm({ ...wardForm, total_beds: e.target.value })} /></div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-2"><Label>Floor Number</Label>
-                                <Input placeholder="e.g., 2" type="number" value={wardForm.floor_number} onChange={e => setWardForm({ ...wardForm, floor_number: e.target.value })} /></div>
+                            <div className="space-y-2"><Label>Floor Number / Name</Label>
+                            <Input placeholder="e.g., Ground Floor, 1st Floor" type="text" value={wardForm.floor_number} onChange={e => setWardForm({ ...wardForm, floor_number: e.target.value })} /></div>
                             <div className="space-y-2"><Label>Daily Charge (₹)</Label>
                                 <Input placeholder="e.g., 500" type="number" value={wardForm.daily_charge} onChange={e => setWardForm({ ...wardForm, daily_charge: e.target.value })} /></div>
                         </div>

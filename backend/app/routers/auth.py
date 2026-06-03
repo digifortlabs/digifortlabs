@@ -663,6 +663,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
         logger.debug("[AUTH] JWT decoding failed: %s", e)
         raise credentials_exception
     
+    is_desktop_worker = payload.get("is_desktop_worker", False)
+    
     
     user = db.query(User).filter(func.lower(User.email) == func.lower(email)).first()
     if user is None:
@@ -670,7 +672,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
         raise credentials_exception
     
     # Single Session Verification
-    if user.role != UserRole.SUPER_ADMIN:
+    if user.role != UserRole.SUPER_ADMIN and not is_desktop_worker:
         if user.current_session_id and session_id != user.current_session_id:
             logger.debug("[AUTH] Session Expired for %s. Expected: %s, Got: %s", email, user.current_session_id, session_id)
             raise HTTPException(
@@ -741,23 +743,29 @@ async def get_session_token(current_user: User = Depends(get_current_user)):
         "sub": current_user.email, 
         "role": current_user.role, 
         "hospital_id": current_user.hospital_id,
-        "group_id": current_user.hospital.group_id if current_user.hospital else None,
-        "pricing_tier": current_user.hospital.pricing_tier if current_user.hospital else "C",
-        "hospital_name": current_user.hospital.legal_name if current_user.hospital else None,
-        "specialty": current_user.hospital.specialty if current_user.hospital else "General",
-        "terminology": current_user.hospital.terminology if current_user.hospital else {},
-        "enabled_modules": current_user.hospital.enabled_modules if current_user.hospital else ["core"],
-        "session_id": current_user.current_session_id,
-        "force_password_change": current_user.force_password_change or False,
-        "previous_login": current_user.previous_login_at.isoformat() if current_user.previous_login_at else None
+        "session_id": current_user.current_session_id
     }
-    
-    expires_delta = None
-    if current_user.role == UserRole.SUPER_ADMIN:
-        expires_delta = timedelta(days=30)
-
-    access_token = create_access_token(data=token_data, expires_delta=expires_delta)  # type: ignore[arg-type]
+    access_token = create_access_token(data=token_data)  # type: ignore[arg-type]
     return {"access_token": access_token}
+
+@router.get("/worker-token")
+@router.get("/worker-token/", include_in_schema=False)
+async def get_worker_token(current_user: User = Depends(get_current_user)):
+    """Returns a long-lived JWT for the desktop app that bypasses session invalidation."""
+    if current_user.role not in ["superadmin", "hospital_admin", "hospital_staff"]:
+        raise HTTPException(status_code=403, detail="Not authorized to create worker tokens")
+        
+    token_data = {
+        "sub": current_user.email, 
+        "role": current_user.role, 
+        "hospital_id": current_user.hospital_id,
+        "is_desktop_worker": True
+    }
+    # Long lived token for desktop app (10 years)
+    expires_delta = timedelta(days=3650)
+    access_token = create_access_token(data=token_data, expires_delta=expires_delta)  # type: ignore[arg-type]
+    return {"worker_token": access_token}
+
 
 
 def require_permission(required_permission: Permission):

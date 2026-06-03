@@ -1,0 +1,6 @@
+2026/06/03-14:30:27.788 40ac Reusing MANIFEST D:\Website\DIGIFORTLABS\local_whatsapp_sender\whatsapp_session\Default\Local Storage\leveldb/MANIFEST-000001
+2026/06/03-14:30:27.791 40ac Recovering log #7
+2026/06/03-14:30:27.794 40ac Reusing old log D:\Website\DIGIFORTLABS\local_whatsapp_sender\whatsapp_session\Default\Local Storage\leveldb/000007.log 
+2026/06/03-14:31:30.781 3848 Level-0 table #11: started
+2026/06/03-14:31:30.845 3848 Level-0 table #11: 19573 bytes OK
+2026/06/03-14:31:30.900 3848 Delete type=0 #7

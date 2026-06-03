@@ -1371,6 +1371,7 @@ class Ward(Base):
     
     ward_name = Column(String, nullable=False)
     ward_type = Column(String, nullable=False)
+    floor_number = Column(String, default="1")
     total_beds = Column(Integer, nullable=False)
     daily_charge = Column(Float, default=500.0)
     occupied_beds = Column(Integer, default=0)

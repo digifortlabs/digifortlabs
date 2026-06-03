@@ -220,16 +220,16 @@ export default function DoctorsManagement() {
                 {doctors.map(doc => (
                     <div key={doc.profile_id} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 group hover:shadow-md transition">
                         <div className="flex justify-between items-start mb-4">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-1 min-w-0 mr-3">
                                 <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 font-bold text-xl shrink-0">
                                     {doc.full_name ? doc.full_name[0].toUpperCase() : (doc.email?.[0].toUpperCase() || 'D')}
                                 </div>
-                                <div>
-                                    <h3 className="font-bold text-lg text-slate-900 truncate">Dr. {doc.full_name || 'Unnamed'}</h3>
-                                    <p className="text-sm text-slate-500 truncate">{doc.email || 'No email associated'}</p>
+                                <div className="min-w-0 flex-1">
+                                    <h3 className="font-bold text-lg text-slate-900 truncate" title={`Dr. ${doc.full_name || 'Unnamed'}`}>Dr. {doc.full_name || 'Unnamed'}</h3>
+                                    <p className="text-sm text-slate-500 truncate" title={doc.email || 'No email associated'}>{doc.email || 'No email associated'}</p>
                                 </div>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 shrink-0">
                                 <button onClick={() => setScheduleModal({ isOpen: true, doctorId: doc.profile_id, doctorName: doc.full_name || 'Unnamed' })} className="text-slate-300 hover:text-indigo-500 transition" title="Manage Schedule">
                                     <Calendar size={18} />
                                 </button>

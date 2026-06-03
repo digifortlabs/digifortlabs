@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import {
     Users, CalendarDays, IndianRupee, Package, FileText,
     Activity, TrendingUp, Clock, ArrowRight, ShieldCheck,
-    AlertTriangle, CheckCircle2
+    AlertTriangle, CheckCircle2, Smartphone
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { apiFetch } from '@/config/api';
 import { formatDateTime } from '@/lib/dateFormatter';
 
@@ -17,6 +18,7 @@ const QUICK_ACTIONS = [
     { label: 'Reports', desc: 'Analytics and performance data', icon: TrendingUp, href: '/hospital/reports', color: 'emerald' },
     { label: 'Accounting', desc: 'Billing, invoices & ledger', icon: IndianRupee, href: '/hospital/accounting', color: 'amber', adminOnly: true },
     { label: 'Settings', desc: 'Hospital configuration', icon: ShieldCheck, href: '/hospital/settings', color: 'slate', adminOnly: true },
+    { label: 'Link WhatsApp', desc: 'Pair Desktop App', icon: Smartphone, action: 'link_whatsapp', color: 'emerald', adminOnly: true },
 ];
 
 const COLOR_MAP: Record<string, string> = {
@@ -81,6 +83,31 @@ export default function HospitalPage() {
     const isAdmin = userRole === 'hospital_admin';
     const visibleActions = QUICK_ACTIONS.filter(a => !a.adminOnly || isAdmin);
     const firstName = userFullName || userEmail.split('@')[0]?.split('.')[0] || 'User';
+
+    const handleLinkDesktopWhatsApp = async () => {
+        try {
+            toast('Connecting to Desktop App...', { icon: 'ℹ️' });
+            const data = await apiFetch('auth/worker-token');
+            if (data && data.worker_token) {
+                const response = await fetch('http://127.0.0.1:39011/pair', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: data.worker_token })
+                });
+                
+                if (response.ok) {
+                    toast.success('Successfully linked WhatsApp Desktop App!');
+                } else {
+                    toast.error('Desktop app rejected token.');
+                }
+            } else {
+                toast.error('Failed to generate worker token');
+            }
+        } catch (e) {
+            console.error('Pairing error:', e);
+            toast.error('Ensure WhatsApp Desktop App is running and waiting for pairing.');
+        }
+    };
 
     return (
         <div className="space-y-8">
@@ -190,8 +217,14 @@ export default function HospitalPage() {
                         const [from, to, border, text] = colorClasses.split(' ');
                         return (
                             <button
-                                key={action.href}
-                                onClick={() => router.push(action.href)}
+                                key={action.href || action.action}
+                                onClick={() => {
+                                    if (action.action === 'link_whatsapp') {
+                                        handleLinkDesktopWhatsApp();
+                                    } else if (action.href) {
+                                        router.push(action.href);
+                                    }
+                                }}
                                 className="group flex flex-col items-center gap-3 p-5 bg-white rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-left"
                             >
                                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${from} ${to} ${border} border flex items-center justify-center ${text} group-hover:scale-110 transition-transform duration-300`}>

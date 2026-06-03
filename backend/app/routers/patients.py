@@ -2187,13 +2187,18 @@ def get_recycled_patients(
             delta = datetime.now(timezone.utc) - p.deleted_at
             days_left = max(0, 90 - delta.days)
             
+        hospital_name = "Unknown"
+        if is_platform and p.hospital:
+            hospital_name = p.hospital.legal_name
+            
         result.append({
             "record_id": p.record_id,
             "patient_u_id": p.patient_u_id,
             "uhid": p.uhid,
             "full_name": p.full_name,
             "deleted_at": p.deleted_at,
-            "days_until_permanent_deletion": days_left
+            "days_until_permanent_deletion": days_left,
+            "hospital_name": hospital_name
         })
         
     return result

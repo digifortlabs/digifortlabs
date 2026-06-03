@@ -8,7 +8,7 @@ import {
     HardDrive, Clock, ArrowUpRight, TrendingUp, RefreshCcw,
     CheckCircle2, XCircle, Eye, ScanLine, Building2, IndianRupee,
     Package, ChevronRight, AppWindow, Loader2, Archive, Settings,
-    BarChart3, CloudUpload, Zap, Server
+    BarChart3, CloudUpload, Zap, Server, Smartphone
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -61,6 +61,31 @@ function CommandCenter() {
                 if (key !== 'token') localStorage.removeItem(key);
             });
             setTimeout(() => window.location.reload(), 1500);
+        }
+    };
+
+    const handleLinkDesktopWhatsApp = async () => {
+        try {
+            triggerToast('Connecting to Desktop App...', 'info');
+            const data = await apiFetch('auth/worker-token');
+            if (data && data.worker_token) {
+                const response = await fetch('http://127.0.0.1:39011/pair', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: data.worker_token })
+                });
+                
+                if (response.ok) {
+                    triggerToast('Successfully linked WhatsApp Desktop App!', 'success');
+                } else {
+                    triggerToast('Desktop app rejected token.', 'error');
+                }
+            } else {
+                triggerToast('Failed to generate worker token', 'error');
+            }
+        } catch (e) {
+            console.error('Pairing error:', e);
+            triggerToast('Ensure WhatsApp Desktop App is running and waiting for pairing.', 'error');
         }
     };
 
@@ -587,6 +612,7 @@ function CommandCenter() {
                                     { icon: <IndianRupee size={18} strokeWidth={2.5} />, label: 'Global Billing', onClick: () => router.push('/admin/accounting'), color: 'emerald' },
                                     { icon: <Building2 size={18} strokeWidth={2.5} />, label: 'Manage Clients', onClick: () => router.push('/admin/hospitals'), color: 'indigo' },
                                     { icon: <Archive size={18} strokeWidth={2.5} />, label: 'Global Archives', onClick: () => router.push('/admin/archive'), color: 'slate' },
+                                    { icon: <Smartphone size={18} strokeWidth={2.5} />, label: 'Link WhatsApp', onClick: handleLinkDesktopWhatsApp, color: 'green' },
                                 ].map((a, i) => (
                                     <button key={i} onClick={a.onClick}
                                         className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:shadow-lg hover:shadow-indigo-500/10 hover:border-indigo-100 hover:-translate-y-1 text-slate-500 hover:text-indigo-600 transition-all duration-300 group">
@@ -601,6 +627,7 @@ function CommandCenter() {
                                     { icon: <IndianRupee size={18} strokeWidth={2.5} />, label: 'Financials', onClick: () => router.push('/admin/accounting') },
                                     { icon: <TrendingUp size={18} strokeWidth={2.5} />, label: 'Analytics', onClick: () => router.push('/admin/reports') },
                                     { icon: <Users size={18} strokeWidth={2.5} />, label: 'Manage Staff', onClick: () => router.push('/admin/user_mgmt') },
+                                    { icon: <Smartphone size={18} strokeWidth={2.5} />, label: 'Link WhatsApp', onClick: handleLinkDesktopWhatsApp },
                                     { icon: <Settings size={18} strokeWidth={2.5} />, label: 'Settings', onClick: () => router.push('/admin/settings') },
                                 ].map((a, i) => (
                                     <button key={i} onClick={a.onClick}

@@ -66,7 +66,7 @@ export default function HMSDashboard() {
     const handleAddWard = async () => {
         try {
             let suffix = selectedHospitalId ? `?hospital_id=${selectedHospitalId}` : '';
-            await apiFetch(`hms/wards${suffix}`, { method: 'POST', body: JSON.stringify({ ...wardForm, total_beds: parseInt(wardForm.total_beds) || 0, floor_number: parseInt(wardForm.floor_number) || 1 }) });
+            await apiFetch(`hms/wards${suffix}`, { method: 'POST', body: JSON.stringify({ ...wardForm, total_beds: parseInt(wardForm.total_beds) || 0, floor_number: wardForm.floor_number || "1" }) });
             setIsAddWardOpen(false);
             setWardForm({ ward_name: '', ward_type: 'General', total_beds: '', floor_number: '' });
             loadData();
@@ -287,8 +287,8 @@ export default function HMSDashboard() {
                             <div className="space-y-2"><Label>Total Beds</Label>
                                 <Input placeholder="e.g., 20" type="number" value={wardForm.total_beds} onChange={e => setWardForm({ ...wardForm, total_beds: e.target.value })} /></div>
                         </div>
-                        <div className="space-y-2"><Label>Floor Number</Label>
-                            <Input placeholder="e.g., 2" type="number" value={wardForm.floor_number} onChange={e => setWardForm({ ...wardForm, floor_number: e.target.value })} /></div>
+                        <div className="space-y-2"><Label>Floor Number / Name</Label>
+                            <Input placeholder="e.g., Ground Floor, 1st Floor" type="text" value={wardForm.floor_number} onChange={e => setWardForm({ ...wardForm, floor_number: e.target.value })} /></div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsAddWardOpen(false)}>Cancel</Button>

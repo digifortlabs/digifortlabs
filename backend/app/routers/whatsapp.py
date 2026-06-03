@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from datetime import datetime
 
 from app.database import get_db
-from app.models import WhatsAppMessageQueue, User
+from app.models import WhatsAppMessageQueue, User, UserRole
 from .auth import get_current_user
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
@@ -38,13 +38,16 @@ def queue_message(
     return {"message": "Message queued successfully", "id": new_message.id}
 
 @router.get("/queue/pending", response_model=List[dict])
-def get_pending_messages(db: Session = Depends(get_db)):
-    """Used by the local desktop script to fetch pending messages. No auth needed for local network/script, or add basic token if exposed to internet."""
-    # To be safe, we just return pending messages. 
-    # Since this might be exposed on a public domain, ideally we'd add a shared secret token.
-    # We will keep it simple for now, relying on the fact that reading pending messages isn't overly destructive, 
-    # but a script token would be better.
-    pending = db.query(WhatsAppMessageQueue).filter(WhatsAppMessageQueue.status == "pending").all()
+def get_pending_messages(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Used by the local desktop script to fetch pending messages securely."""
+    query = db.query(WhatsAppMessageQueue).filter(WhatsAppMessageQueue.status == "pending")
+    
+    # Securely filter by the logged-in user's hospital
+    if current_user.role != UserRole.SUPER_ADMIN:
+        if current_user.hospital_id is not None:
+            query = query.filter(WhatsAppMessageQueue.hospital_id == current_user.hospital_id)
+        
+    pending = query.all()
     
     result = []
     for p in pending:
@@ -60,7 +63,8 @@ def get_pending_messages(db: Session = Depends(get_db)):
 def update_message_status(
     message_id: int, 
     status_update: WhatsAppMessageUpdate, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Used by the local desktop script to mark a message as sent or failed."""
     msg = db.query(WhatsAppMessageQueue).filter(WhatsAppMessageQueue.id == message_id).first()

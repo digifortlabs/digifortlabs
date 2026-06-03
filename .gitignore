@@ -67,3 +67,6 @@ deploy.tar.gz
 logs/
 backend/logs/
 
+# Build outputs
+*.exe
+local_whatsapp_sender/WhatsAppSender_Setup.exe
