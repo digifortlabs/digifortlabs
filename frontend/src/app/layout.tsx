@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { GeistSans } from "geist/font/sans";
-import { GeistMono } from "geist/font/mono";
+import { Inter } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 import SessionMonitor from "@/components/Auth/SessionMonitor";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -23,7 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${GeistSans.variable} ${GeistMono.variable} antialiased text-slate-900 bg-white`}
+        className={`${inter.variable} font-sans antialiased text-slate-900 bg-white`}
         suppressHydrationWarning
       >
         {children}

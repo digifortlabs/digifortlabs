@@ -302,6 +302,8 @@ function LoginForm() {
                                     </button>
                                 </div>
  
+                                <input type="text" name="username" value={email} readOnly className="hidden" autoComplete="username" />
+
                                 <div className="relative group">
                                     <Lock className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={20} />
                                     <input
