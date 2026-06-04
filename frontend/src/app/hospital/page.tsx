@@ -18,6 +18,7 @@ const QUICK_ACTIONS = [
     { label: 'Reports', desc: 'Analytics and performance data', icon: TrendingUp, href: '/hospital/reports', color: 'emerald' },
     { label: 'Accounting', desc: 'Billing, invoices & ledger', icon: IndianRupee, href: '/hospital/accounting', color: 'amber', adminOnly: true },
     { label: 'Settings', desc: 'Hospital configuration', icon: ShieldCheck, href: '/hospital/settings', color: 'slate', adminOnly: true },
+    { label: 'WhatsApp', desc: 'Connect messaging', icon: Smartphone, href: '/hospital/whatsapp', color: 'emerald', adminOnly: true },
 ];
 
 const COLOR_MAP: Record<string, string> = {
