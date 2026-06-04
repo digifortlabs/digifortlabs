@@ -12,3 +12,18 @@ services:
     restart: always
     environment:
       - NODE_ENV=production
+
+  evolution_api:
+    image: atendai/evolution-api:v2.2.1
+    container_name: evolution_api
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./evolution_instances:/evolution/instances
+    environment:
+      - SERVER_URL=http://localhost:8080
+      - AUTH_TYPE=apikey
+      - API_KEY_GLOBAL=DIGIFORT_SECURE_KEY_123
+      - LOG_LEVEL=ERROR
+      - DATABASE_PROVIDER=sqlite

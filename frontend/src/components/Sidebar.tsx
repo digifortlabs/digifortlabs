@@ -1,7 +1,7 @@
 "use client";
 import {
     Users, LayoutDashboard, Settings, UserCircle, LogOut, FileText, ChevronDown, Activity, Calendar as CalendarIcon, Package, ShoppingBag, BrainCircuit, Ear, Factory, BarChart3, ShieldCheck,
-    Building2, DollarSign, ClipboardList, Inbox, Archive, FolderOpen, Clock, Shield, ChevronLeft, ChevronRight, Wallet, Trash2
+    Building2, DollarSign, ClipboardList, Inbox, Archive, FolderOpen, Clock, Shield, ChevronLeft, ChevronRight, Wallet, Trash2, Smartphone
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
@@ -167,6 +167,25 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             {isCollapsed && (
                                 <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
                                     Platform Billing
+                                </span>
+                            )}
+                        </Link>
+                        
+                        <Link
+                            href={getDomainUrl('admin', '/admin/whatsapp')}
+                            className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/admin/whatsapp')
+                                ? 'active bg-slate-800 text-white font-medium border-slate-700'
+                                : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
+                        >
+                            <div className="flex items-center gap-3 text-xs font-semibold">
+                                <Smartphone className="w-4 h-4 text-green-500" />
+                                {!isCollapsed && <span>WhatsApp Connections</span>}
+                            </div>
+                            
+                            {isCollapsed && (
+                                <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                    WhatsApp Connections
                                 </span>
                             )}
                         </Link>
