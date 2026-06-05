@@ -13,7 +13,7 @@ cd $PROJECT_DIR || { echo "??? Failed to change directory"; exit 1; }
 # Update Code
 echo "Updating code from GitHub..."
 git fetch --all
-git reset --hard origin/main
+git reset --hard origin/master
 # CRITICAL: Exclude .env and node_modules from clean to prevent configuration loss
 git clean -f -e .env -e .env.production -e node_modules/ -e venv/
 
