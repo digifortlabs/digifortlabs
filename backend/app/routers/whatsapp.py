@@ -132,9 +132,12 @@ def create_instance(request: WhatsAppInstanceCreate, current_user: User = Depend
             headers=headers,
             json={
                 "instanceName": instance_name,
+                "integration": "WHATSAPP-BAILEYS",
                 "qrcode": True
             }
         )
+        if response.status_code not in (200, 201):
+            raise HTTPException(status_code=response.status_code, detail=response.text)
         return response.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

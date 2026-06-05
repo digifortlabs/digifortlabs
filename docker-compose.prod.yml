@@ -22,6 +22,9 @@ services:
       - ./evolution_instances:/evolution/instances
     environment:
       - SERVER_URL=http://localhost:8080
+      - AUTHENTICATION_API_KEY=DIGIFORT_SECURE_KEY_123
+      - AUTHENTICATION_TYPE=apikey
+      - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true
       - AUTH_TYPE=apikey
       - API_KEY_GLOBAL=DIGIFORT_SECURE_KEY_123
       - LOG_LEVEL=ERROR
