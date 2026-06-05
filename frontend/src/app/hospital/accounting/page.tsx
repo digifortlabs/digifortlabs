@@ -147,7 +147,10 @@ export default function PatientBillingDashboard() {
         const text = `Hello ${inv.patient_name}, your invoice (${inv.invoice_number}) for ₹${inv.total_amount} is generated. You can view or download it here: ${invoiceLink}`;
         
         try {
-            window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`, '_blank');
+            const encodedPhone = encodeURIComponent(targetPhone);
+            const encodedText = encodeURIComponent(text);
+            const whatsappLink = `digifort-wa://send?phone=${encodedPhone}&text=${encodedText}`;
+            window.open(whatsappLink, '_self'); // Use _self for custom protocols
             toast.success("Opened WhatsApp Desktop!");
         } catch (error: any) {
             toast.error(error.message || "Failed to open WhatsApp.");

@@ -354,7 +354,10 @@ export default function HMSBedsPage() {
         }
 
         try {
-            window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`, '_blank');
+            const encodedPhone = encodeURIComponent(targetPhone);
+            const encodedText = encodeURIComponent(text);
+            const whatsappLink = `digifort-wa://send?phone=${encodedPhone}&text=${encodedText}`;
+            window.open(whatsappLink, '_self');
             toast.success("Opened WhatsApp Desktop!");
         } catch (e: any) {
             toast.error(e.message || "Failed to open WhatsApp");
