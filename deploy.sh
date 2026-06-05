@@ -37,8 +37,8 @@ fi
 pm2 restart $BACKEND_NAME || pm2 start main.py --name $BACKEND_NAME
 cd ..
 
-# Frontend Build (Docker Compose v2)
-echo "Building and restarting Frontend container..."
-docker compose -f docker-compose.prod.yml up -d --build $FRONTEND_SERVICE
+# Frontend Build and Services (Docker Compose v2)
+echo "Building and restarting Docker services..."
+docker compose -f docker-compose.prod.yml up -d --build
 
 echo "??? Deployment Successful! Check logs with: pm2 logs backend"
