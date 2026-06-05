@@ -786,7 +786,7 @@ def generate_invoice(
     except Exception as e:
         db.rollback()
         error_msg = f"ERROR in generate_invoice: {type(e).__name__}: {str(e)}"
-        logger.info(f"--- FAILED TO GENERATE INVOICE ---")
+        logger.info("--- FAILED TO GENERATE INVOICE ---")
         logger.info(error_msg)
         import traceback
         traceback.print_exc()

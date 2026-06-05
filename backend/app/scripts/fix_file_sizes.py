@@ -29,7 +29,7 @@ def fix_file_sizes():
     try:
         # Fetch all files where file_size_mb is 0 or NULL
         files = db.query(PDFFile).filter(
-            (PDFFile.file_size_mb == 0) | (PDFFile.file_size_mb == None)
+            (PDFFile.file_size_mb == 0) | (PDFFile.file_size_mb is None)
         ).all()
         
         logger.info(f"[STATS] Found {len(files)} files needing update.")

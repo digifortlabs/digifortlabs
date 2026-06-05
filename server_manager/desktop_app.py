@@ -9,7 +9,7 @@ import subprocess
 import webbrowser
 from datetime import datetime
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox, scrolledtext, filedialog
 
 # Ensure the server manager folder is in python import path for imports
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -25,7 +25,10 @@ from server import (
     stop_service, 
     get_local_ip,
     load_env_variables,
-    terminate_process_tree
+    terminate_process_tree,
+    metrics_state,
+    backup_jobs_state,
+    trigger_backup
 )
 
 # Robust Windows System Tray conditional imports
@@ -82,7 +85,7 @@ class DesktopApp:
 
         # State Variables
         self.current_tab = "all"
-        self.rendered_counts = {"all": 0, "ssh": 0, "backend": 0, "frontend": 0, "live": 0, "ocr_worker": 0}
+        self.rendered_counts = {"all": 0, "ssh": 0, "backend": 0, "frontend": 0, "live": 0, "ocr_worker": 0, "backup": 0}
         self.search_query = ""
         
         # 1. Start FastAPI server in a background thread
@@ -260,6 +263,20 @@ class DesktopApp:
             lbl_time = tk.Label(info_frame, text="-", font=("Consolas", 9), fg=COLORS["fg"], bg=COLORS["panel_inner"])
             lbl_time.grid(row=0, column=3, sticky="w", padx=(10, 0))
             
+            # Metrics block
+            metrics_frame = tk.Frame(body, bg=COLORS["panel"], pady=0)
+            metrics_frame.pack(fill=tk.X, pady=(0, 10))
+            
+            lbl_cpu_label = tk.Label(metrics_frame, text="CPU:", font=("Segoe UI", 9, "bold"), fg=COLORS["fg_dim"], bg=COLORS["panel"])
+            lbl_cpu_label.pack(side=tk.LEFT)
+            lbl_cpu = tk.Label(metrics_frame, text="0.0%", font=("Consolas", 9), fg=COLORS["fg"], bg=COLORS["panel"])
+            lbl_cpu.pack(side=tk.LEFT, padx=(5, 15))
+            
+            lbl_ram_label = tk.Label(metrics_frame, text="RAM:", font=("Segoe UI", 9, "bold"), fg=COLORS["fg_dim"], bg=COLORS["panel"])
+            lbl_ram_label.pack(side=tk.LEFT)
+            lbl_ram = tk.Label(metrics_frame, text="0 MB", font=("Consolas", 9), fg=COLORS["fg"], bg=COLORS["panel"])
+            lbl_ram.pack(side=tk.LEFT, padx=(5, 0))
+            
             # Action controls
             actions_frame = tk.Frame(body, bg=COLORS["panel"])
             actions_frame.pack(fill=tk.X)
@@ -279,6 +296,8 @@ class DesktopApp:
                     "badge": badge_status,
                     "pid": lbl_pid,
                     "uptime": lbl_time,
+                    "cpu": lbl_cpu,
+                    "ram": lbl_ram,
                     "toggle_btn": toggle_btn,
                     "accent_bar": accent_bar,
                     "color": color
@@ -309,6 +328,8 @@ class DesktopApp:
                     "badge": badge_status,
                     "pid": lbl_pid,
                     "uptime": lbl_time,
+                    "cpu": lbl_cpu,
+                    "ram": lbl_ram,
                     "btn_start": btn_start,
                     "btn_stop": btn_stop,
                     "btn_restart": btn_restart,
@@ -330,6 +351,50 @@ class DesktopApp:
         )
         self.env_box.pack(fill=tk.BOTH, expand=True)
         self.load_env_display()
+
+        # Cloud Data & Backups section
+        lbl_backup = tk.Label(scrollable_frame, text="CLOUD DATA & BACKUPS", font=("Segoe UI", 9, "bold"), fg=COLORS["fg_dim"], bg=COLORS["bg"])
+        lbl_backup.pack(anchor="w", pady=(15, 6), padx=2)
+        
+        backup_frame = tk.Frame(scrollable_frame, bg=COLORS["panel"], highlightthickness=1, highlightbackground=COLORS["border"])
+        backup_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        self.backup_widgets = {}
+        
+        backup_tasks = [
+            ("ec2-db", "Backup Live EC2 DB", "Dumps & Downloads PostgreSQL", COLORS["info"]),
+            ("ec2-files", "Backup EC2 App Files", "Archives & Downloads Codebase", COLORS["warning"]),
+            ("s3-pull", "Pull S3 Assets", "Mirrors Live S3 Data Locally", COLORS["success"])
+        ]
+        
+        for task_id, title, desc, color in backup_tasks:
+            row = tk.Frame(backup_frame, bg=COLORS["panel"], padx=10, pady=8)
+            row.pack(fill=tk.X)
+            
+            # Left info
+            info_side = tk.Frame(row, bg=COLORS["panel"])
+            info_side.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            
+            lbl_title = tk.Label(info_side, text=title, font=("Segoe UI", 9, "bold"), fg=COLORS["fg"], bg=COLORS["panel"])
+            lbl_title.pack(anchor="w")
+            
+            lbl_desc = tk.Label(info_side, text=desc, font=("Segoe UI", 8), fg=COLORS["fg_dim"], bg=COLORS["panel"])
+            lbl_desc.pack(anchor="w")
+            
+            # Action Button
+            btn_action = tk.Button(
+                row, text="▶ Run Task", font=("Segoe UI", 8, "bold"),
+                bg=COLORS["border"], fg=color, relief="flat", bd=0, padx=12, pady=4, cursor="hand2",
+                command=lambda tid=task_id: self.run_backup_action(tid)
+            )
+            btn_action.pack(side=tk.RIGHT, padx=5)
+            
+            self.backup_widgets[task_id] = btn_action
+            
+            # Separator
+            if task_id != backup_tasks[-1][0]:
+                sep = tk.Frame(backup_frame, bg=COLORS["border"], height=1)
+                sep.pack(fill=tk.X, padx=10)
 
         # Right Panel (Console Terminal View)
         right_container = tk.Frame(main_paned, bg=COLORS["bg"])
@@ -384,7 +449,8 @@ class DesktopApp:
             ("backend", "Backend API"),
             ("frontend", "Frontend Web"),
             ("live", "Live Server"),
-            ("ocr_worker", "OCR Worker")
+            ("ocr_worker", "OCR Worker"),
+            ("backup", "Backup & Sync")
         ]
         
         for tag, label in tab_configs:
@@ -463,6 +529,7 @@ class DesktopApp:
         self.console.tag_config('ch_frontend', background=COLORS["frontend_bg"], foreground=COLORS["frontend"], font=("Consolas", 8, "bold"))
         self.console.tag_config('ch_live', background="#78350f", foreground=COLORS["warning"], font=("Consolas", 8, "bold"))
         self.console.tag_config('ch_ocr_worker', background=COLORS["ocr_worker_bg"], foreground=COLORS["ocr_worker"], font=("Consolas", 8, "bold"))
+        self.console.tag_config('ch_backup', background="#064e3b", foreground=COLORS["success"], font=("Consolas", 8, "bold"))
         
         # Search highlight
         self.console.tag_config('search', background="#eab308", foreground="#000000")
@@ -647,6 +714,28 @@ class DesktopApp:
                 
             widgets["pid"].config(text=str(state["pid"]) if state["pid"] else "-")
             
+            # Metrics Updates
+            m_state = metrics_state.get(key, {})
+            if "cpu" in widgets:
+                widgets["cpu"].config(text=f"{m_state.get('cpu', 0)}%")
+            if "ram" in widgets:
+                if key == "live":
+                    ram_val = m_state.get('ram', 0)
+                    total_ram = m_state.get('total_ram', 0)
+                    widgets["ram"].config(text=f"{ram_val} GB / {total_ram} GB")
+                else:
+                    widgets["ram"].config(text=f"{m_state.get('ram', 0)} MB")
+                    
+        # Update Backup Statuses
+        for task_id, state in backup_jobs_state.items():
+            if task_id in self.backup_widgets:
+                btn = self.backup_widgets[task_id]
+                if state["status"] == "running":
+                    btn.config(text="Running...", state=tk.DISABLED, fg=COLORS["warning"])
+                else:
+                    color = COLORS["success"] if task_id == "s3-pull" else (COLORS["info"] if task_id == "ec2-db" else COLORS["warning"])
+                    btn.config(text="▶ Run Task", state=tk.NORMAL, fg=color)
+            
         self.root.after(1000, self.poll_services_status)
 
     def format_duration_hms(self, sec: int) -> str:
@@ -730,6 +819,16 @@ class DesktopApp:
         
         ch_tag = f"ch_{service}"
         ch_label = "TUNNEL" if service == "ssh" else "LIVE" if service == "live" else service.upper()
+        
+        if service == "live":
+            line_lower = line.lower()
+            if "backend" in line_lower:
+                ch_tag = "ch_backend"
+                ch_label = "LIVE:BE"
+            elif "frontend" in line_lower or "next" in line_lower:
+                ch_tag = "ch_frontend"
+                ch_label = "LIVE:FE"
+                
         self.console.insert(tk.END, f"[{ch_label:8}] ", ch_tag)
         
         # Split line by ANSI color sequences using regex
@@ -797,6 +896,7 @@ class DesktopApp:
         log_buffers["backend"].clear()
         log_buffers["frontend"].clear()
         log_buffers["live"].clear()
+        log_buffers["backup"].clear()
         
         self.console.config(state=tk.NORMAL)
         self.console.delete("1.0", tk.END)
@@ -804,6 +904,24 @@ class DesktopApp:
         
         for k in self.rendered_counts:
             self.rendered_counts[k] = 0
+
+    def run_backup_action(self, task_id: str):
+        # Open directory picker
+        target_dir = filedialog.askdirectory(title="Select Backup Destination Folder")
+        if not target_dir:
+            return # User cancelled
+
+        def async_trigger():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(trigger_backup(task_id, target_dir))
+                loop.close()
+            except Exception as e:
+                print(f"Error triggering backup {task_id}: {e}")
+        threading.Thread(target=async_trigger, daemon=True).start()
+        self.switch_console_tab("backup")
+        self.poll_services_status()
 
     def export_logs_ui(self):
         active_logs = list(log_buffers[self.current_tab])

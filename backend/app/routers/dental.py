@@ -1064,7 +1064,7 @@ def get_revenue_analytics(
     # For production PostgreSQL: .group_by(func.date_trunc('month', date))
     
     # Simple Python-side grouping for SQLite compatibility in this demo
-    completed_all = treatment_query.filter(DentalTreatment.status == "completed", DentalTreatment.date_performed != None).all()
+    completed_all = treatment_query.filter(DentalTreatment.status == "completed", DentalTreatment.date_performed is not None).all()
     
     trend_dict = {}
     for t in completed_all:

@@ -1,0 +1,13 @@
+[lint]
+extend-ignore = [
+    "E402", # Module level import not at top of file
+    "E701", # Multiple statements on one line
+    "E722", # Do not use bare except
+    "E712", # Avoid equality comparisons to False
+    "F403", # from module import *
+    "F401", # unused import
+    "F811", # redefinition of unused function
+    "F821", # undefined name boto3
+    "F841", # local variable is assigned to but never used
+    "E741"  # Ambiguous variable name
+]

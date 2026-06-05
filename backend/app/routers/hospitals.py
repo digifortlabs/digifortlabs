@@ -403,7 +403,7 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
     # 1. Count from AuditLog
     live_users_audit = db.query(AuditLog.user_id).filter(
         AuditLog.timestamp >= five_mins_ago,
-        AuditLog.user_id != None
+        AuditLog.user_id is not None
     ).distinct().count()
     
     # 2. Count from User.last_active_at
@@ -417,7 +417,7 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
     live_active_users = max(live_users_audit, live_users_active_field, 1)
     
     # Check for pending approvals
-    pending_approvals = db.query(Hospital).filter(Hospital.pending_updates != None, Hospital.is_deleted == False).count()
+    pending_approvals = db.query(Hospital).filter(Hospital.pending_updates is not None, Hospital.is_deleted == False).count()
     
     # Tier Distribution
     tiers = {
@@ -1004,7 +1004,8 @@ def _purge_hospital_cascade(db: Session, hospital_id: int) -> dict:
     caller's transaction: the caller commits on success or rolls back on error,
     so a purge is atomic ? it never leaves a hospital half-deleted.
     """
-    IN = lambda name: bindparam(name, expanding=True)
+    def IN(name):
+        return bindparam(name, expanding=True)
 
     fk_rows = db.execute(text("""
         SELECT tc.table_name AS child_t, kcu.column_name AS child_c,

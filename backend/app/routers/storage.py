@@ -808,7 +808,7 @@ def get_next_sequence(hospital_id: int, category: str = "GENERAL", db: Session =
     # 1. Get Hospital City for Code
     hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
     if not hospital:
-        return {"next_sequence": "001", "full_label": f"XX/GEN/001"}
+        return {"next_sequence": "001", "full_label": "XX/GEN/001"}
         
     # Generate Hospital Code: First 2 letters of Legal Name
     # Example: "Varun Hospital" -> "VA"
@@ -984,7 +984,7 @@ def create_request(req: RequestCreate, db: Session = Depends(get_db), current_us
                 to_email=email,
                 subject=f"New File Request - {box_label}",
                 headline="New File Request",
-                message_content=f"A new file request has been initiated.",
+                message_content="A new file request has been initiated.",
                 box_label=box_label,
                 requester=current_user.email
              )

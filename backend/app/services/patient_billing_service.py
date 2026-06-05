@@ -30,14 +30,14 @@ class PatientBillingService:
         opd_visits = db.query(OPDVisit).filter(
             OPDVisit.patient_id == patient_id,
             OPDVisit.hospital_id == hospital_id,
-            OPDVisit.patient_invoice_id == None,
+            OPDVisit.patient_invoice_id is None,
             OPDVisit.consultation_fee > 0
         ).order_by(OPDVisit.visit_date.desc()).all()
 
         # 2. Fetch unbilled Dental treatments
         dental_treatments = db.query(DentalTreatment).filter(
             DentalTreatment.patient_id == patient_id,
-            DentalTreatment.patient_invoice_id == None,
+            DentalTreatment.patient_invoice_id is None,
             DentalTreatment.cost > 0
         ).order_by(DentalTreatment.date_performed.desc()).all()
 
@@ -46,7 +46,7 @@ class PatientBillingService:
         ipd_admissions = db.query(IPDAdmission).filter(
             IPDAdmission.patient_id == patient_id,
             IPDAdmission.hospital_id == hospital_id,
-            IPDAdmission.patient_invoice_id == None
+            IPDAdmission.patient_invoice_id is None
         ).order_by(IPDAdmission.admission_date.desc()).all()
 
         return {
@@ -244,7 +244,7 @@ class PatientBillingService:
         # 2. Patient Details Panel
         patient_data = [
             [
-                Paragraph(f"<b>Billed To (Patient):</b>", bold_style),
+                Paragraph("<b>Billed To (Patient):</b>", bold_style),
                 Paragraph(f"<b>MRD Number:</b> {patient.patient_u_id}", normal_style)
             ],
             [
@@ -468,7 +468,7 @@ class PatientBillingService:
 
         # Log simulated WhatsApp send
         whatsapp_log_msg = (
-            f"\n" + "="*80 + "\n"
+            "\n" + "="*80 + "\n"
             f"[WHATSAPP SIMULATED SEND]\n"
             f"To: {patient_phone} ({patient_name})\n"
             f"From: {hospital_name}\n"

@@ -10,7 +10,7 @@ from app.database import get_db
 from app.models import WhatsAppMessageQueue, User, UserRole
 from .auth import get_current_user
 
-EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "http://localhost:8080")
+EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "http://127.0.0.1:8080")
 EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "DIGIFORT_SECURE_KEY_123")
 
 headers = {
@@ -28,6 +28,9 @@ class WhatsAppMessageCreate(BaseModel):
 class WhatsAppMessageUpdate(BaseModel):
     status: str
     error_message: Optional[str] = None
+
+class WhatsAppInstanceCreate(BaseModel):
+    hospital_id: int
 
 @router.post("/queue", response_model=dict)
 def queue_message(
@@ -117,7 +120,8 @@ def update_message_status(
 # --- Evolution API Management Endpoints ---
 
 @router.post("/instances/create")
-def create_instance(hospital_id: int, current_user: User = Depends(get_current_user)):
+def create_instance(request: WhatsAppInstanceCreate, current_user: User = Depends(get_current_user)):
+    hospital_id = request.hospital_id
     if current_user.role != UserRole.SUPER_ADMIN and current_user.hospital_id != hospital_id:
         raise HTTPException(status_code=403, detail="Not authorized")
         

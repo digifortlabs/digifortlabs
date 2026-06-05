@@ -166,7 +166,7 @@ def get_pending_ocr_jobs(db: Session = Depends(get_db), authenticated: bool = De
         PDFFile.is_searchable == False,
         PDFFile.processing_stage == 'completed',
         PDFFile.upload_status == 'confirmed',
-        or_(PDFFile.ocr_text == None, PDFFile.ocr_text == '')
+        or_(PDFFile.ocr_text is None, PDFFile.ocr_text == '')
     ).order_by(PDFFile.file_id.asc()).limit(20).all()
 
     results = []

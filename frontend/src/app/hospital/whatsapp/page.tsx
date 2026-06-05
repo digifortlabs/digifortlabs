@@ -68,7 +68,7 @@ export default function WhatsAppConnectionsPage() {
             await apiFetch('/whatsapp/instances/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(hospital.hospital_id)
+                body: JSON.stringify({ hospital_id: hospital.hospital_id })
             });
 
             // Fetch QR

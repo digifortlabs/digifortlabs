@@ -20,7 +20,7 @@ const PUBLIC_PATHS = [
   '/site-map',
 ];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const url = req.nextUrl;
 
   if (url.pathname.startsWith('/_next/') || url.pathname.startsWith('/api/')) {

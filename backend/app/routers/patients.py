@@ -272,7 +272,8 @@ def run_manual_ocr_task(file_id: int):
                 except Exception as pe:
                     log_ocr(f"[WARN] pypdf failed during recalculation: {pe}")
                     try:
-                        import tempfile, os
+                        import tempfile
+                        import os
                         from pdf2image import pdfinfo_from_path
                         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                             tmp.write(decrypted_bytes)
@@ -1118,7 +1119,7 @@ def get_unique_doctors(
     # Fetch unique strings from DB
     results = db.query(Patient.doctor_name).filter(
         Patient.hospital_id == target_hospital_id,
-        Patient.doctor_name != None
+        Patient.doctor_name is not None
     ).distinct().all()
     
     doctors = set()
@@ -1147,7 +1148,7 @@ def get_patients(
     query = db.query(Patient).options(joinedload(Patient.files), joinedload(Patient.box)).filter(Patient.is_deleted == False)
     
     if unassigned_only:
-        query = query.filter(Patient.physical_box_id == None)
+        query = query.filter(Patient.physical_box_id is None)
 
     if not is_platform:
         # Standard Staff: RESTRICT to their own hospital

@@ -78,6 +78,16 @@
                                 <span class="label">Target:</span>
                                 <span class="value" id="target-ssh">digifortlabs.com</span>
                             </div>
+                            <div class="metrics-row">
+                                <div class="metric-box">
+                                    <span class="metric-label">CPU</span>
+                                    <span class="metric-val" id="cpu-ssh">0.0%</span>
+                                </div>
+                                <div class="metric-box">
+                                    <span class="metric-label">RAM</span>
+                                    <span class="metric-val" id="ram-ssh">0 MB</span>
+                                </div>
+                            </div>
                         </div>
                         <div class="card-actions">
                             <button class="btn btn-start" onclick="controlService('ssh', 'start')" id="btn-start-ssh">
@@ -121,6 +131,16 @@
                             <div class="info-row">
                                 <span class="label">LAN URL:</span>
                                 <span class="value link-value"><a href="#" id="lan-link-backend" target="_blank">Fetching...</a></span>
+                            </div>
+                            <div class="metrics-row">
+                                <div class="metric-box">
+                                    <span class="metric-label">CPU</span>
+                                    <span class="metric-val" id="cpu-backend">0.0%</span>
+                                </div>
+                                <div class="metric-box">
+                                    <span class="metric-label">RAM</span>
+                                    <span class="metric-val" id="ram-backend">0 MB</span>
+                                </div>
                             </div>
                         </div>
                         <div class="card-actions">
@@ -166,6 +186,16 @@
                                 <span class="label">LAN URL:</span>
                                 <span class="value link-value"><a href="#" id="lan-link-frontend" target="_blank">Fetching...</a></span>
                             </div>
+                            <div class="metrics-row">
+                                <div class="metric-box">
+                                    <span class="metric-label">CPU</span>
+                                    <span class="metric-val" id="cpu-frontend">0.0%</span>
+                                </div>
+                                <div class="metric-box">
+                                    <span class="metric-label">RAM</span>
+                                    <span class="metric-val" id="ram-frontend">0 MB</span>
+                                </div>
+                            </div>
                         </div>
                         <div class="card-actions">
                             <button class="btn btn-start" onclick="controlService('frontend', 'start')" id="btn-start-frontend">
@@ -210,6 +240,16 @@
                                 <span class="label">Target:</span>
                                 <span class="value" id="target-live">digifortlabs.com</span>
                             </div>
+                            <div class="metrics-row">
+                                <div class="metric-box">
+                                    <span class="metric-label">AWS CPU</span>
+                                    <span class="metric-val" id="cpu-live">0.0%</span>
+                                </div>
+                                <div class="metric-box">
+                                    <span class="metric-label">AWS RAM</span>
+                                    <span class="metric-val" id="ram-live">0 GB / 0 GB</span>
+                                </div>
+                            </div>
                         </div>
                         <div class="card-actions">
                             <button class="btn btn-start" onclick="controlService('live', 'start')" id="btn-start-live">
@@ -251,6 +291,16 @@
                                 <span class="label">Target:</span>
                                 <span class="value" id="target-ocr_worker">Live Server Job Queue</span>
                             </div>
+                            <div class="metrics-row">
+                                <div class="metric-box">
+                                    <span class="metric-label">CPU</span>
+                                    <span class="metric-val" id="cpu-ocr_worker">0.0%</span>
+                                </div>
+                                <div class="metric-box">
+                                    <span class="metric-label">RAM</span>
+                                    <span class="metric-val" id="ram-ocr_worker">0 MB</span>
+                                </div>
+                            </div>
                         </div>
                         <div class="card-actions">
                             <button class="btn btn-start" onclick="controlService('ocr_worker', 'start')" id="btn-start-ocr_worker">
@@ -276,6 +326,35 @@
                 <div class="env-card glass-panel">
                     <div id="env-list">
                         <div class="loading-small">Fetching environmental attributes...</div>
+                    </div>
+                </div>
+
+                <h2 class="section-title">Cloud Data & Backups</h2>
+                <div class="backup-card glass-panel">
+                    <div class="backup-grid">
+                        <div class="backup-item">
+                            <div class="backup-info">
+                                <h4 class="text-info">Backup Live EC2 DB</h4>
+                                <span class="backup-desc">Dumps & Downloads PostgreSQL</span>
+                            </div>
+                            <button class="btn backup-btn btn-info" id="btn-backup-ec2-db" onclick="triggerBackup('ec2-db')">▶ Run Task</button>
+                        </div>
+                        <div class="backup-divider"></div>
+                        <div class="backup-item">
+                            <div class="backup-info">
+                                <h4 class="text-warning">Backup EC2 App Files</h4>
+                                <span class="backup-desc">Archives & Downloads Codebase</span>
+                            </div>
+                            <button class="btn backup-btn btn-warning" id="btn-backup-ec2-files" onclick="triggerBackup('ec2-files')">▶ Run Task</button>
+                        </div>
+                        <div class="backup-divider"></div>
+                        <div class="backup-item">
+                            <div class="backup-info">
+                                <h4 class="text-success">Pull S3 Assets</h4>
+                                <span class="backup-desc">Mirrors Live S3 Data Locally</span>
+                            </div>
+                            <button class="btn backup-btn btn-success" id="btn-backup-s3-pull" onclick="triggerBackup('s3-pull')">▶ Run Task</button>
+                        </div>
                     </div>
                 </div>
 
@@ -316,6 +395,7 @@
                         <button class="tab-btn" onclick="switchTab('frontend')" id="tab-frontend">Frontend Web</button>
                         <button class="tab-btn" onclick="switchTab('live')" id="tab-live">Live Server</button>
                         <button class="tab-btn" onclick="switchTab('ocr_worker')" id="tab-ocr_worker">OCR Worker</button>
+                        <button class="tab-btn" onclick="switchTab('backup')" id="tab-backup">Backup & Sync</button>
                     </div>
 
                     <!-- Log Filters & Toolbar -->

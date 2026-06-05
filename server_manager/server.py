@@ -5,6 +5,8 @@ import socket
 import asyncio
 import threading
 import subprocess
+import time
+import psutil
 from datetime import datetime
 from typing import Dict, List, Optional
 from collections import deque
@@ -87,6 +89,80 @@ services_state: Dict[str, Dict] = {
     }
 }
 
+# Metrics State Management
+metrics_state: Dict[str, Dict] = {
+    "local": {"cpu": 0, "ram": 0, "total_ram": 0},
+    "ssh": {"cpu": 0, "ram": 0},
+    "backend": {"cpu": 0, "ram": 0},
+    "frontend": {"cpu": 0, "ram": 0},
+    "live": {"cpu": 0, "ram": 0, "total_ram": 0, "status": "offline"},
+    "ocr_worker": {"cpu": 0, "ram": 0}
+}
+
+aws_metrics_process = None
+
+def start_aws_metrics_thread(target_ip: str):
+    global aws_metrics_process
+    if aws_metrics_process:
+        try:
+            aws_metrics_process.kill()
+        except:
+            pass
+            
+    cmd_args = [
+        "ssh", "-i", KEY_FILE, 
+        "-o", "StrictHostKeyChecking=no", 
+        f"ec2-user@{target_ip}",
+        "while true; do echo '---METRICS---'; top -b -n 1 | grep 'Cpu(s)'; free -m | grep Mem; sleep 5; done"
+    ]
+    
+    aws_metrics_process = subprocess.Popen(
+        cmd_args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        bufsize=1,
+        text=True,
+        cwd=BASE_DIR,
+        creationflags=subprocess.CREATE_NO_WINDOW
+    )
+    
+    def reader():
+        try:
+            for line in iter(aws_metrics_process.stdout.readline, ""):
+                if "Cpu(s):" in line:
+                    parts = line.split(",")
+                    try:
+                        us_part = parts[0].split(":")[1].strip().split()[0]
+                        sy_part = parts[1].strip().split()[0]
+                        metrics_state["live"]["cpu"] = round(float(us_part) + float(sy_part), 1)
+                    except:
+                        pass
+                elif "Mem:" in line:
+                    parts = line.split()
+                    try:
+                        total = float(parts[1])
+                        used = float(parts[2])
+                        metrics_state["live"]["total_ram"] = round(total / 1024, 2)
+                        metrics_state["live"]["ram"] = round(used / 1024, 2)
+                        metrics_state["live"]["status"] = "online"
+                    except:
+                        pass
+        except Exception:
+            pass
+            
+    t = threading.Thread(target=reader, daemon=True)
+    t.start()
+
+def stop_aws_metrics_thread():
+    global aws_metrics_process
+    if aws_metrics_process:
+        try:
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(aws_metrics_process.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except:
+            pass
+        aws_metrics_process = None
+        metrics_state["live"]["status"] = "offline"
+
 # Deque logs buffer (Ring buffers)
 log_buffers = {
     "ssh": deque(maxlen=5000),
@@ -94,7 +170,14 @@ log_buffers = {
     "frontend": deque(maxlen=5000),
     "live": deque(maxlen=5000),
     "ocr_worker": deque(maxlen=5000),
+    "backup": deque(maxlen=5000),
     "all": deque(maxlen=20000)
+}
+
+backup_jobs_state = {
+    "ec2-db": {"status": "idle"},
+    "ec2-files": {"status": "idle"},
+    "s3-pull": {"status": "idle"}
 }
 
 # Persistent log file path
@@ -288,6 +371,7 @@ async def start_service(service: str) -> bool:
             cmd_args = [
                 "ssh", "-i", KEY_FILE, "-N", 
                 "-L", f"{local_db_port}:localhost:5432", 
+                "-L", "8080:localhost:8080",
                 f"ec2-user@{target_ip}", 
                 "-o", "StrictHostKeyChecking=no", 
                 "-o", "ServerAliveInterval=60"
@@ -404,9 +488,12 @@ async def start_service(service: str) -> bool:
                 "-o", "StrictHostKeyChecking=no", 
                 "-o", "ServerAliveInterval=60",
                 f"ec2-user@{target_ip}",
-                "pm2 logs backend --raw"
+                "pm2 logs --raw"
             ]
             state["command"] = " ".join(cmd_args)
+            
+            # Start background metrics stream
+            start_aws_metrics_thread(target_ip)
             
             p = subprocess.Popen(
                 cmd_args,
@@ -482,6 +569,9 @@ async def stop_service(service: str) -> bool:
     state["process"] = None
     state["start_time"] = None
     
+    if service == "live":
+        stop_aws_metrics_thread()
+    
     await broadcast_log_entry(service, f">>> Service '{state['name']}' stopped successfully.\n")
     return True
 
@@ -550,7 +640,46 @@ def health_checker_worker():
 
         time.sleep(3)
 
+def metrics_checker_worker():
+    while True:
+        try:
+            # Overall local CPU / RAM
+            metrics_state["local"]["cpu"] = psutil.cpu_percent(interval=None)
+            mem = psutil.virtual_memory()
+            metrics_state["local"]["ram"] = round(mem.used / (1024*1024*1024), 2)
+            metrics_state["local"]["total_ram"] = round(mem.total / (1024*1024*1024), 2)
+            
+            # Per-service CPU/RAM
+            for s_name in ["ssh", "backend", "frontend", "ocr_worker"]:
+                pid = services_state[s_name].get("pid")
+                if pid:
+                    try:
+                        p = psutil.Process(pid)
+                        cpu = p.cpu_percent(interval=None)
+                        mem_info = p.memory_info().rss
+                        for child in p.children(recursive=True):
+                            try:
+                                cpu += child.cpu_percent(interval=None)
+                                mem_info += child.memory_info().rss
+                            except psutil.NoSuchProcess:
+                                pass
+                        metrics_state[s_name]["cpu"] = round(cpu, 1)
+                        metrics_state[s_name]["ram"] = round(mem_info / (1024*1024), 1)
+                    except psutil.NoSuchProcess:
+                        metrics_state[s_name]["cpu"] = 0
+                        metrics_state[s_name]["ram"] = 0
+                else:
+                    metrics_state[s_name]["cpu"] = 0
+                    metrics_state[s_name]["ram"] = 0
+        except Exception:
+            pass
+        time.sleep(2)
+
 # API Endpoints
+@app.get("/api/metrics")
+async def get_metrics():
+    return JSONResponse(content=metrics_state)
+
 @app.get("/api/status")
 async def get_status():
     local_ip = get_local_ip()
@@ -617,7 +746,6 @@ async def get_log_file_path():
 @app.get("/api/config")
 async def get_config():
     env = load_env_variables()
-    # Filter config key variables to present nicely in the UI
     display_keys = [
         "POSTGRES_USER", "POSTGRES_DB", "AWS_ACCESS_KEY_ID", 
         "AWS_REGION", "S3_BUCKET_NAME", "PROJECT_NAME", "ENVIRONMENT"
@@ -627,6 +755,99 @@ async def get_config():
         if key in env:
             safe_config[key] = env[key]
     return JSONResponse(content=safe_config)
+
+@app.get("/api/backup/status")
+async def get_backup_status():
+    return JSONResponse(content=backup_jobs_state)
+
+def run_backup_task_sync(task_id: str, cmd_lists: List[List[str]], cwd: str):
+    backup_jobs_state[task_id]["status"] = "running"
+    def log_sync(msg):
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(broadcast_log_entry("backup", msg))
+            loop.close()
+        except: pass
+
+    log_sync(f">>> Starting Backup Task: {task_id}\n")
+    try:
+        for cmd_list in cmd_lists:
+            p = subprocess.Popen(
+                cmd_list,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                cwd=cwd,
+                text=True,
+                bufsize=1,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            )
+            for line in iter(p.stdout.readline, ""):
+                log_sync(line)
+            p.wait()
+            if p.returncode != 0:
+                log_sync(f"\x1b[31m>>> Task {task_id} failed with exit code {p.returncode}\x1b[0m\n")
+                backup_jobs_state[task_id]["status"] = "idle"
+                return
+        log_sync(f">>> Task {task_id} completed successfully.\n")
+    except Exception as e:
+        log_sync(f"\x1b[31m>>> Error executing {task_id}: {str(e)}\x1b[0m\n")
+    backup_jobs_state[task_id]["status"] = "idle"
+
+@app.post("/api/backup/{task_id}")
+async def trigger_backup(task_id: str, target_dir: str = None):
+    if task_id not in backup_jobs_state:
+        return JSONResponse(status_code=400, content={"error": "Invalid task ID"})
+    if backup_jobs_state[task_id]["status"] == "running":
+        return JSONResponse(status_code=400, content={"error": "Task already running"})
+        
+    if target_dir:
+        backup_dir = target_dir
+    else:
+        now_str = datetime.now().strftime("%Y-%m-%d")
+        backup_dir = os.path.join("E:\\", f"Backup_{now_str}")
+        
+    if not os.path.exists(backup_dir):
+        os.makedirs(backup_dir, exist_ok=True)
+        
+    pem_file = os.path.join(BASE_DIR, "digifort-prod-key.pem")
+    ec2_user = "ec2-user@15.206.86.130"
+    
+    cmd_lists = []
+    if task_id == "ec2-db":
+        cmd_lists = [
+            [
+                "ssh", "-i", pem_file, "-o", "StrictHostKeyChecking=no", ec2_user, 
+                "pg_dump postgresql://digifort_admin:'Digif0rtlab$'@127.0.0.1:5432/digifort_db > digifort_db_backup.sql"
+            ],
+            [
+                "scp", "-i", pem_file, "-o", "StrictHostKeyChecking=no", 
+                f"{ec2_user}:/home/ec2-user/digifort_db_backup.sql", os.path.join(backup_dir, "digifort_db_backup.sql")
+            ]
+        ]
+    elif task_id == "ec2-files":
+        cmd_lists = [
+            [
+                "ssh", "-i", pem_file, "-o", "StrictHostKeyChecking=no", ec2_user, 
+                "tar -czf digifortlabs_code_backup.tar.gz digifortlabs/"
+            ],
+            [
+                "scp", "-i", pem_file, "-o", "StrictHostKeyChecking=no", 
+                f"{ec2_user}:/home/ec2-user/digifortlabs_code_backup.tar.gz", os.path.join(backup_dir, "digifortlabs_code_backup.tar.gz")
+            ]
+        ]
+    elif task_id == "s3-pull":
+        s3_dir = os.path.join(backup_dir, "S3_Decrypted")
+        if not os.path.exists(s3_dir):
+            os.makedirs(s3_dir, exist_ok=True)
+        py_exe = os.path.join(BASE_DIR, "backend", ".venv", "Scripts", "python.exe")
+        s3_script = os.path.join(BASE_DIR, "backend", "s3_backup.py")
+        cmd_lists = [
+            [py_exe, s3_script, s3_dir, "a1z-3mNXYRp0yKAcP6xVpX6pjK6O38h039zisZMjE1U="]
+        ]
+        
+    threading.Thread(target=run_backup_task_sync, args=(task_id, cmd_lists, BASE_DIR), daemon=True).start()
+    return JSONResponse(content={"status": "started"})
 
 # WebSocket Endpoint for streaming logs in real time
 @app.websocket("/ws/logs")
@@ -671,6 +892,7 @@ async def on_startup():
     
     # Start background health checker thread
     threading.Thread(target=health_checker_worker, daemon=True).start()
+    threading.Thread(target=metrics_checker_worker, daemon=True).start()
 
 # Shutdown cleanup
 @app.on_event("shutdown")

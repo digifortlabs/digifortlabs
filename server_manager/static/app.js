@@ -5,7 +5,8 @@ let logDatabase = {
     backend: [],
     frontend: [],
     live: [],
-    ocr_worker: []
+    ocr_worker: [],
+    backup: []
 };
 
 let currentTab = "all";
@@ -32,6 +33,7 @@ async function fetchLogs() {
         logDatabase.frontend = [];
         logDatabase.live = [];
         logDatabase.ocr_worker = [];
+        logDatabase.backup = [];
         
         data.forEach(entry => {
             logDatabase.all.push(entry);
@@ -51,12 +53,14 @@ window.addEventListener("DOMContentLoaded", () => {
     // Perform initial hydration
     fetchStatus();
     fetchConfig();
+    fetchMetrics();
     fetchLogs().then(() => {
         connectWebSocket();
     });
     
     // Set status poller interval
     statusInterval = setInterval(fetchStatus, 2000);
+    setInterval(fetchMetrics, 2000);
 });
 
 // ANSI Escape Code colors map to CSS styles
@@ -116,9 +120,19 @@ function renderLogLine(entry) {
     } else if (entry.service === "live") {
         chClass = "ch-live";
         chLabel = "Live";
+        if (entry.line.toLowerCase().includes("backend")) {
+            chClass = "ch-be";
+            chLabel = "Live:BE";
+        } else if (entry.line.toLowerCase().includes("frontend") || entry.line.toLowerCase().includes("next")) {
+            chClass = "ch-fe";
+            chLabel = "Live:FE";
+        }
     } else if (entry.service === "ocr_worker") {
         chClass = "ch-ocr";
         chLabel = "OCR";
+    } else if (entry.service === "backup") {
+        chClass = "term-green";
+        chLabel = "Backup";
     }
     
     const channelSpan = `<span class="log-channel ${chClass}">${chLabel}</span>`;
@@ -181,7 +195,8 @@ function connectWebSocket() {
             backend: logDatabase.backend.length,
             frontend: logDatabase.frontend.length,
             live: logDatabase.live.length,
-            ocr_worker: logDatabase.ocr_worker.length
+            ocr_worker: logDatabase.ocr_worker.length,
+            backup: logDatabase.backup.length
         });
 
         // If current active tab matches, append live line
@@ -218,6 +233,40 @@ function connectWebSocket() {
     };
 }
 
+// Fetch Hardware Metrics
+async function fetchMetrics() {
+    try {
+        const res = await fetch("/api/metrics");
+        const data = await res.json();
+        
+        for (const [key, metrics] of Object.entries(data)) {
+            if (key === "local") continue;
+            
+            const cpuEl = document.getElementById(`cpu-${key}`);
+            const ramEl = document.getElementById(`ram-${key}`);
+            
+            if (cpuEl) {
+                cpuEl.innerText = metrics.cpu ? `${metrics.cpu}%` : "0.0%";
+            }
+            if (ramEl) {
+                if (key === "live") {
+                    const ramUsed = metrics.ram || 0;
+                    const ramTotal = metrics.total_ram || 0;
+                    if (ramTotal > 0) {
+                        ramEl.innerText = `${ramUsed} GB / ${ramTotal} GB`;
+                    } else {
+                        ramEl.innerText = "0 GB / 0 GB";
+                    }
+                } else {
+                    ramEl.innerText = metrics.ram ? `${metrics.ram} MB` : "0 MB";
+                }
+            }
+        }
+    } catch (e) {
+        // console.error("Error fetching metrics:", e);
+    }
+}
+
 // Fetch REST Service Status Statuses
 async function fetchStatus() {
     try {
@@ -233,8 +282,36 @@ async function fetchStatus() {
         for (const [key, svc] of Object.entries(data.services)) {
             updateCardUI(key, svc);
         }
+        
+        // Update Backup Jobs
+        const backupRes = await fetch("/api/backup/status");
+        const backupData = await backupRes.json();
+        for (const [key, state] of Object.entries(backupData)) {
+            const btn = document.getElementById(`btn-backup-${key}`);
+            if (!btn) continue;
+            if (state.status === "running") {
+                btn.innerText = "Running...";
+                btn.disabled = true;
+            } else {
+                btn.innerText = "▶ Run Task";
+                btn.disabled = false;
+            }
+        }
     } catch (e) {
         console.error("Error fetching state status: ", e);
+    }
+}
+
+async function triggerBackup(taskId) {
+    const targetDir = window.prompt("Enter the full absolute path for the backup destination folder:", "E:\\Backups");
+    if (!targetDir) return; // User cancelled
+    
+    try {
+        await fetch(`/api/backup/${taskId}?target_dir=${encodeURIComponent(targetDir)}`, { method: "POST" });
+        fetchStatus();
+        switchTab("backup");
+    } catch(e) {
+        console.error("Error triggering backup", e);
     }
 }
 
@@ -390,7 +467,7 @@ function formatDuration(seconds) {
 
 // Update tab count badges
 function updateTabCounts(counts) {
-    const tabMap = { all: "tab-all", ssh: "tab-ssh", backend: "tab-backend", frontend: "tab-frontend", live: "tab-live", ocr_worker: "tab-ocr_worker" };
+    const tabMap = { all: "tab-all", ssh: "tab-ssh", backend: "tab-backend", frontend: "tab-frontend", live: "tab-live", ocr_worker: "tab-ocr_worker", backup: "tab-backup" };
     for (const [key, tabId] of Object.entries(tabMap)) {
         const btn = document.getElementById(tabId);
         if (!btn) continue;
@@ -466,7 +543,8 @@ function clearConsoleLogs() {
     logDatabase.backend = [];
     logDatabase.frontend = [];
     logDatabase.live = [];
-    updateTabCounts({ all: 0, ssh: 0, backend: 0, frontend: 0, live: 0 });
+    logDatabase.backup = [];
+    updateTabCounts({ all: 0, ssh: 0, backend: 0, frontend: 0, live: 0, backup: 0 });
     redrawLogContainer();
 }
 

@@ -45,7 +45,7 @@ def test_full_pipeline(file_path: str):
         # The trigger doesn't return input_file name in the response I wrote, 
         # let's extract it from the path or just use a fixed name if we know it.
         # Wait, I should have included it.
-        logger.info(f"? Downloading optimized file...")
+        logger.info("? Downloading optimized file...")
         dl_url = f"{BASE_URL}/optimization/download/{job_id}/test_input.pdf"
         dl_resp = requests.get(dl_url)
         
