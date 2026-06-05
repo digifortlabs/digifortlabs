@@ -72,16 +72,13 @@ export default function WhatsAppConnectionsPage() {
             });
 
             // Fetch QR
-            const res = await apiFetch(`/whatsapp/instances/${hospital.hospital_id}/qr`);
+            const data = await apiFetch(`/whatsapp/instances/${hospital.hospital_id}/qr`);
             
-            if (res.ok) {
-                const data = await res.json();
-                if (data.base64) {
-                    setQrCode(data.base64);
-                } else {
-                    toast.error("Instance is already connected or loading.");
-                    fetchStatus(hospital.hospital_id);
-                }
+            if (data && data.base64) {
+                setQrCode(data.base64);
+            } else {
+                toast.error("Instance is already connected or loading.");
+                fetchStatus(hospital.hospital_id);
             }
         } catch (error) {
             console.error("Failed to connect", error);

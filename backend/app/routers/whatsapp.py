@@ -134,7 +134,8 @@ def create_instance(request: WhatsAppInstanceCreate, current_user: User = Depend
                 "instanceName": instance_name,
                 "integration": "WHATSAPP-BAILEYS",
                 "qrcode": True
-            }
+            },
+            timeout=15
         )
         if response.status_code == 403 and "already in use" in response.text:
             return {"message": "Instance already exists"}
@@ -153,13 +154,24 @@ def get_instance_qr(hospital_id: int, current_user: User = Depends(get_current_u
         
     instance_name = f"hospital_{hospital_id}"
     try:
-        response = requests.get(
-            f"{EVOLUTION_API_URL}/instance/connect/{instance_name}",
-            headers=headers
-        )
-        if response.status_code == 404:
-            raise HTTPException(status_code=404, detail="Instance not found. Create it first.")
-        return response.json()
+        import time
+        for _ in range(10):
+            response = requests.get(
+                f"{EVOLUTION_API_URL}/instance/connect/{instance_name}",
+                headers=headers,
+                timeout=15
+            )
+            if response.status_code == 404:
+                raise HTTPException(status_code=404, detail="Instance not found. Create it first.")
+            
+            data = response.json()
+            qr_base64 = data.get("base64") or (data.get("qrcode") or {}).get("base64")
+            if qr_base64:
+                return {"base64": qr_base64}
+                
+            time.sleep(1.5)
+            
+        return {"error": "QR code generation timed out. Please try again."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
