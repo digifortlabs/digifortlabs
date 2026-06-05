@@ -58,6 +58,7 @@ class PatientInvoiceResponse(BaseModel):
     patient_id: int
     patient_name: str
     mrd_number: Optional[str] = None
+    patient_phone: Optional[str] = None
     bill_date: datetime
     due_date: Optional[datetime] = None
     subtotal: float
@@ -240,6 +241,7 @@ def create_patient_invoice(
     res = PatientInvoiceResponse.model_validate(invoice)
     res.patient_name = invoice.patient.full_name
     res.mrd_number = invoice.patient.patient_u_id
+    res.patient_phone = invoice.patient.phone
     return res
 
 
@@ -267,6 +269,7 @@ def list_patient_invoices(
         res = PatientInvoiceResponse.model_validate(inv)
         res.patient_name = inv.patient.full_name
         res.mrd_number = inv.patient.patient_u_id
+        res.patient_phone = inv.patient.phone
         results.append(res)
         
     return results
@@ -292,6 +295,7 @@ def get_patient_invoice(
     res = PatientInvoiceResponse.model_validate(invoice)
     res.patient_name = invoice.patient.full_name
     res.mrd_number = invoice.patient.patient_u_id
+    res.patient_phone = invoice.patient.phone
     return res
 
 

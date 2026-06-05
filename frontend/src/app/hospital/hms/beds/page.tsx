@@ -354,16 +354,10 @@ export default function HMSBedsPage() {
         }
 
         try {
-            await apiFetch('whatsapp/queue', {
-                method: 'POST',
-                body: JSON.stringify({
-                    phone_number: targetPhone,
-                    message_text: text
-                })
-            });
-            toast.error("Message has been queued for background sending via WhatsApp!");
+            window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`, '_blank');
+            toast.success("Opened WhatsApp Desktop!");
         } catch (e: any) {
-            toast.error(e.message || "Failed to queue WhatsApp message");
+            toast.error(e.message || "Failed to open WhatsApp");
         }
     };
 

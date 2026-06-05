@@ -60,15 +60,28 @@ export default function PatientInvoicePreviewPage() {
     };
 
     const handleSendWhatsApp = async () => {
-        if (!invoiceId) return;
-        setWhatsappLoading(true);
+        if (!invoiceId || !invoice) return;
+        
+        const phone = invoice.patient_phone || '';
+        
+        if (!phone) {
+            toast.error("No phone number registered for this patient.");
+            return;
+        }
+        
+        let targetPhone = phone.replace(/\D/g, '');
+        if (targetPhone.length === 10) {
+            targetPhone = '91' + targetPhone;
+        }
+        
+        const invoiceLink = window.location.href;
+        const text = `Hello ${invoice.patient_name}, your invoice (${invoice.invoice_number}) for ₹${invoice.total_amount} is generated. You can view or download it here: ${invoiceLink}`;
+        
         try {
-            await apiFetch(`/patient-billing/invoices/${invoiceId}/send-whatsapp`, { method: 'POST' });
-            toast.success("Invoice PDF statement link sent via WhatsApp!");
+            window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`, '_blank');
+            toast.success("Opened WhatsApp Desktop!");
         } catch (error: any) {
-            toast.error(error.message || "Failed to send WhatsApp message.");
-        } finally {
-            setWhatsappLoading(false);
+            toast.error(error.message || "Failed to open WhatsApp.");
         }
     };
 

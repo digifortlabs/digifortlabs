@@ -24,6 +24,7 @@ interface PatientInvoice {
     patient_id: number;
     patient_name: string;
     mrd_number: string;
+    patient_phone?: string;
     bill_date: string;
     total_amount: number;
     status: string;
@@ -127,14 +128,29 @@ export default function PatientBillingDashboard() {
     };
 
     const handleSendWhatsApp = async (invoiceId: number) => {
-        setWhatsappLoading(invoiceId);
+        const inv = invoices.find(i => i.invoice_id === invoiceId);
+        if (!inv) return;
+        
+        const phone = inv.patient_phone || '';
+        
+        if (!phone) {
+            toast.error("No phone number registered for this patient.");
+            return;
+        }
+        
+        let targetPhone = phone.replace(/\D/g, '');
+        if (targetPhone.length === 10) {
+            targetPhone = '91' + targetPhone;
+        }
+        
+        const invoiceLink = `${window.location.origin}/hospital/accounting/invoices/${invoiceId}`;
+        const text = `Hello ${inv.patient_name}, your invoice (${inv.invoice_number}) for ₹${inv.total_amount} is generated. You can view or download it here: ${invoiceLink}`;
+        
         try {
-            await apiFetch(`/patient-billing/invoices/${invoiceId}/send-whatsapp`, { method: 'POST' });
-            toast.success("Invoice PDF statement link sent via WhatsApp!");
+            window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`, '_blank');
+            toast.success("Opened WhatsApp Desktop!");
         } catch (error: any) {
-            toast.error(error.message || "Failed to send WhatsApp message.");
-        } finally {
-            setWhatsappLoading(null);
+            toast.error(error.message || "Failed to open WhatsApp.");
         }
     };
 
