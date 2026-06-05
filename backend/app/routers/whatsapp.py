@@ -136,9 +136,13 @@ def create_instance(request: WhatsAppInstanceCreate, current_user: User = Depend
                 "qrcode": True
             }
         )
+        if response.status_code == 403 and "already in use" in response.text:
+            return {"message": "Instance already exists"}
         if response.status_code not in (200, 201):
             raise HTTPException(status_code=response.status_code, detail=response.text)
         return response.json()
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
