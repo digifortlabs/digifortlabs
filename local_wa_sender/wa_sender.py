@@ -108,15 +108,54 @@ def send_whatsapp(phone, text):
         except:
             pass
 
+def login_whatsapp():
+    logging.info("Opening WhatsApp for Login...")
+    user_data_dir = os.path.join(os.getenv('LOCALAPPDATA'), 'DigifortWASender', 'ChromeProfile')
+    os.makedirs(user_data_dir, exist_ok=True)
+
+    options = Options()
+    options.add_argument(f"user-data-dir={user_data_dir}")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    
+    try:
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
+        driver.get("https://web.whatsapp.com")
+        
+        logging.info("Please scan the QR code in the Chrome window if you aren't logged in.")
+        logging.info("You can close the window once you are logged in.")
+        
+        # Keep window open until user closes it
+        while True:
+            try:
+                _ = driver.window_handles
+                time.sleep(1)
+            except Exception:
+                # Browser was closed
+                break
+                
+        logging.info("Browser closed. Login process finished.")
+    except Exception as e:
+        logging.error(f"Error during login: {e}")
+
 if __name__ == "__main__":
     check_updates()
     
     params = parse_args(sys.argv)
+    
+    # If the URL is digifort-wa://login, the path might be parsed differently.
+    # We will just check if action=login or if no phone is provided.
     phone = params.get('phone')
     text = params.get('text', '')
+    action = params.get('action')
     
-    if phone:
+    # Check if the uri was just digifort-wa://login
+    uri = sys.argv[1] if len(sys.argv) > 1 else ""
+    if "login" in uri or action == "login":
+        login_whatsapp()
+    elif phone:
         send_whatsapp(phone, text)
     else:
-        logging.error("No phone number provided.")
-        input("Press Enter to exit...")
+        # Default behavior if double-clicked directly: Open login
+        login_whatsapp()

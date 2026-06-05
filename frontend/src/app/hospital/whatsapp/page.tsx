@@ -27,7 +27,14 @@ export default function WhatsAppDownloadsPage() {
                             <Download size={20} />
                             Download for Windows
                         </a>
-                        <div className="text-xs text-slate-500 font-mono">
+                        <button
+                            onClick={() => window.open('digifort-wa://login', '_self')}
+                            className="flex items-center gap-3 px-6 py-3.5 bg-emerald-800 text-white border border-emerald-700 rounded-xl font-bold hover:bg-emerald-700 transition-all hover:scale-105 shadow-xl"
+                        >
+                            <Smartphone size={20} />
+                            Connect WhatsApp
+                        </button>
+                        <div className="text-xs text-slate-500 font-mono hidden lg:block">
                             v1.0 • 64-bit • Auto-Updates
                         </div>
                     </div>
