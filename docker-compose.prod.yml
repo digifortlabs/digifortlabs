@@ -13,30 +13,4 @@ services:
     environment:
       - NODE_ENV=production
 
-  evolution_api:
-    image: atendai/evolution-api:v2.2.1
-    container_name: evolution_api
-    network_mode: "host"
-    restart: always
-    volumes:
-      - ./evolution_instances:/evolution/instances
-    environment:
-      - SERVER_URL=http://localhost:8080
-      - AUTHENTICATION_API_KEY=DIGIFORT_SECURE_KEY_123
-      - AUTHENTICATION_TYPE=apikey
-      - AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true
-      - AUTH_TYPE=apikey
-      - API_KEY_GLOBAL=DIGIFORT_SECURE_KEY_123
-      - CONFIG_SESSION_PHONE_CLIENT=Digifort
-      - CONFIG_SESSION_PHONE_NAME=Chrome
-      - CONFIG_SESSION_PHONE_VERSION=2.3000.1015901307
-      - CACHE_REDIS_ENABLED=false
-      - CACHE_LOCAL_ENABLED=true
-      - DATABASE_SAVE_DATA_CHATS=false
-      - DATABASE_SAVE_DATA_CONTACTS=false
-      - DATABASE_SAVE_DATA_HISTORIC=false
-      - DATABASE_SAVE_DATA_LABELS=false
-      - LOG_LEVEL=ERROR
-      - DATABASE_ENABLED=true
-      - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://digifort_admin:Digif0rtlab$$@127.0.0.1:5432/digifort_db?schema=evolution
+
