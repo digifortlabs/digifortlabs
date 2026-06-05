@@ -3,6 +3,8 @@ import os
 import urllib.parse
 import time
 import logging
+import requests
+import subprocess
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -11,7 +13,37 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
+APP_VERSION = "1.0"
+UPDATE_URL = "https://digifortlabs.com/downloads/wa_sender/version.json"
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+
+def check_updates():
+    try:
+        logging.info(f"Checking for updates... Current version: {APP_VERSION}")
+        resp = requests.get(UPDATE_URL, timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            remote_version = data.get("version", "1.0")
+            download_url = data.get("download_url", "")
+            
+            if remote_version > APP_VERSION and download_url:
+                logging.info(f"New version {remote_version} found! Downloading...")
+                
+                # Download the new installer
+                installer_path = os.path.join(os.getenv('TEMP'), 'DigifortWA_Setup.exe')
+                installer_data = requests.get(download_url)
+                
+                with open(installer_path, 'wb') as f:
+                    f.write(installer_data.content)
+                    
+                logging.info("Update downloaded. Launching installer...")
+                # Launch installer silently and exit current process
+                subprocess.Popen([installer_path, "/SILENT", "/SUPPRESSMSGBOXES", "/SP-"])
+                sys.exit(0)
+    except Exception as e:
+        logging.error(f"Update check failed: {e}")
+
 
 def parse_args(args):
     params = {}
@@ -77,6 +109,8 @@ def send_whatsapp(phone, text):
             pass
 
 if __name__ == "__main__":
+    check_updates()
+    
     params = parse_args(sys.argv)
     phone = params.get('phone')
     text = params.get('text', '')
