@@ -27,4 +27,4 @@ services:
       - LOG_LEVEL=ERROR
       - DATABASE_ENABLED=true
       - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://digifort_admin:Digif0rtlab$@127.0.0.1:5432/digifort_db
+      - DATABASE_CONNECTION_URI=postgresql://digifort_admin:Digif0rtlab$$@127.0.0.1:5432/digifort_db
