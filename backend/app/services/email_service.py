@@ -7,10 +7,12 @@ from datetime import datetime
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from app.core.config import settings
 
-# Setup Jinja2 Environment for Email Templates
-# We use a standalone environment to avoid dependency on FastAPI Request object
+import os
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # gets 'app' dir
+TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
+
 template_env = Environment(
-    loader=FileSystemLoader("backend/app/templates"), # Path relative to project root
+    loader=FileSystemLoader(TEMPLATE_DIR),
     autoescape=select_autoescape(["html", "xml"])
 )
 
