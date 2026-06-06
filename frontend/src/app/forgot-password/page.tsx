@@ -173,8 +173,8 @@ export default function ForgotPasswordPage() {
                                             value={otp}
                                             onChange={(e) => setOtp(e.target.value)}
                                             className="appearance-none block w-full px-4 py-3 border border-slate-200 rounded-xl shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition text-center tracking-[0.5em] font-mono text-lg"
-                                            placeholder="••••••"
-                                            maxLength={6}
+                                            placeholder="••••••••"
+                                            maxLength={8}
                                         />
                                     </div>
                                 </div>
