@@ -32,8 +32,8 @@ if ($gitStatus) {
 
 # Step 2: Push to GitHub
 Write-Host ""
-Write-Host "[2/4] Pushing code to GitHub (origin/main)..." -ForegroundColor Yellow
-git push origin master:main
+Write-Host "[2/4] Pushing code to GitHub (origin/master)..." -ForegroundColor Yellow
+git push origin master
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Failed to push to GitHub. Aborting deployment." -ForegroundColor Red
     exit 1
