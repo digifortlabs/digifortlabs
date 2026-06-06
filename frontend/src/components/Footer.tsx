@@ -33,7 +33,7 @@ export default function Footer() {
                         <ul className="space-y-2 text-sm">
                             <li><Link href="/services" className="hover:text-white transition">Physical Storage</Link></li>
                             <li><Link href="/services" className="hover:text-white transition">Digitization</Link></li>
-                            <li><Link href="/dashboard" className="hover:text-white transition">Client Portal</Link></li>
+                            <li><Link href="/login" className="hover:text-white transition">Client Portal</Link></li>
                         </ul>
                     </div>
                     <div>
