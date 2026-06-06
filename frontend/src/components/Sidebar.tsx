@@ -371,7 +371,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                         )}
 
                         {/* MRD Dashboard */}
-                        {(isPlatformAdmin || isHospitalAdmin || isGroupAdmin || userRole === 'mrd_staff') && (
+                        {(!isPlatformAdmin && (isHospitalAdmin || isGroupAdmin || userRole === 'mrd_staff')) && (
                             <Link
                                 href={getDomainUrl(dashboardSubdomain, '/mrd')}
                                 className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/mrd')
