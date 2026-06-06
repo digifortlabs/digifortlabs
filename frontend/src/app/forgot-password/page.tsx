@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '../../config/api';
+import { getDomainUrl, getCurrentSubdomain } from '@/lib/utils';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
@@ -48,7 +49,7 @@ export default function ForgotPasswordPage() {
         setMessage(null);
 
         try {
-            await apiFetch('/auth/reset-password', {
+            const data = await apiFetch('/auth/reset-password', {
                 method: 'POST',
                 body: {
                     email,
@@ -59,7 +60,18 @@ export default function ForgotPasswordPage() {
 
             setMessage({ type: 'success', text: 'Password reset successfully! Redirecting to login...' });
             setTimeout(() => {
-                router.push('/login');
+                const targetSubdomain = data?.target_subdomain || 'dashboard';
+                const currentSubdomain = getCurrentSubdomain();
+                if (currentSubdomain === targetSubdomain || !data?.target_subdomain) {
+                    router.push('/login');
+                } else {
+                    const targetUrl = getDomainUrl(targetSubdomain, `/login?email=${encodeURIComponent(email)}`);
+                    if (targetUrl.startsWith('http')) {
+                        window.location.href = targetUrl;
+                    } else {
+                        router.push(targetUrl);
+                    }
+                }
             }, 2000);
 
         } catch (err: any) {

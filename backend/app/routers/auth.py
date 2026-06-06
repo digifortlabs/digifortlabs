@@ -623,7 +623,15 @@ async def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_d
     
     db.commit()
 
-    return {"message": "Password updated successfully"}
+    import re
+    subdomain = user.subdomain
+    if not subdomain and user.hospital:
+        subdomain = user.hospital.hospital_slug or re.sub(r'[^a-z0-9]', '', user.hospital.legal_name.lower())
+
+    return {
+        "message": "Password updated successfully",
+        "target_subdomain": subdomain
+    }
 
 
 def get_current_user(request: Request, db: Session = Depends(get_db)):
