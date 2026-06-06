@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { API_URL } from '../../config/api';
+import { apiFetch } from '../../config/api';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
@@ -23,21 +23,10 @@ export default function ForgotPasswordPage() {
         setMessage(null);
 
         try {
-            const res = await fetch(`${API_URL}/auth/request-password-reset`, {
+            await apiFetch('/auth/request-password-reset', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email }),
+                body: { email },
             });
-
-            const data = await res.json();
-
-            if (!res.ok) {
-                // Determine if it was a generic error or specific
-                // Security wise, the backend might return 200 even if user doesn't exist
-                // But if it returns generic "If email registered...", that's fine.
-                // If it returns 500, we show error.
-                throw new Error(data.detail || 'Failed to send OTP');
-            }
 
             setMessage({ type: 'success', text: 'OTP sent! Please check your email (and spam folder).' });
             setStep(2);
@@ -59,21 +48,14 @@ export default function ForgotPasswordPage() {
         setMessage(null);
 
         try {
-            const res = await fetch(`${API_URL}/auth/reset-password`, {
+            await apiFetch('/auth/reset-password', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+                body: {
                     email,
                     otp,
                     new_password: newPassword
-                }),
+                },
             });
-
-            const data = await res.json();
-
-            if (!res.ok) {
-                throw new Error(data.detail || 'Failed to reset password');
-            }
 
             setMessage({ type: 'success', text: 'Password reset successfully! Redirecting to login...' });
             setTimeout(() => {
