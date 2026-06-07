@@ -33,6 +33,7 @@ export default function NewPatientInvoicePage() {
 
     const [loading, setLoading] = useState(true);
     const [patientInfo, setPatientInfo] = useState<any>(null);
+    const [hospitalHasGst, setHospitalHasGst] = useState<boolean>(true);
     
     // Unbilled items fetched from server
     const [serverItems, setServerItems] = useState<UnbilledItem[]>([]);
@@ -64,6 +65,10 @@ export default function NewPatientInvoicePage() {
             setLoading(true);
             const data = await apiFetch(`/patient-billing/unbilled/${patientId}`);
             setPatientInfo(data.patient);
+            setHospitalHasGst(data.hospital_has_gst ?? true);
+            if (data.hospital_has_gst === false) {
+                setGstRate(0);
+            }
             setServerItems(data.unbilled_items || []);
             // Auto-select all unbilled items by default
             setSelectedIndices((data.unbilled_items || []).map((_: any, idx: number) => idx));
@@ -353,27 +358,31 @@ export default function NewPatientInvoicePage() {
                             </div>
                             
                             {/* GST Rate */}
-                            <div className="flex items-center justify-between gap-4 py-1.5 border-y border-slate-50">
-                                <span className="text-slate-500">GST Rate (%)</span>
-                                <div className="w-20">
-                                    <select 
-                                        value={gstRate}
-                                        onChange={(e) => setGstRate(Number(e.target.value))}
-                                        className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm text-center font-bold focus:outline-none"
-                                    >
-                                        <option value="0">0%</option>
-                                        <option value="5">5%</option>
-                                        <option value="12">12%</option>
-                                        <option value="18">18%</option>
-                                        <option value="28">28%</option>
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div className="flex justify-between text-slate-500">
-                                <span>Calculated GST</span>
-                                <span className="font-bold text-slate-900">₹ {taxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                            </div>
+                            {hospitalHasGst && (
+                                <>
+                                    <div className="flex items-center justify-between gap-4 py-1.5 border-y border-slate-50">
+                                        <span className="text-slate-500">GST Rate (%)</span>
+                                        <div className="w-20">
+                                            <select 
+                                                value={gstRate}
+                                                onChange={(e) => setGstRate(Number(e.target.value))}
+                                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm text-center font-bold focus:outline-none"
+                                            >
+                                                <option value="0">0%</option>
+                                                <option value="5">5%</option>
+                                                <option value="12">12%</option>
+                                                <option value="18">18%</option>
+                                                <option value="28">28%</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex justify-between text-slate-500">
+                                        <span>Calculated GST</span>
+                                        <span className="font-bold text-slate-900">₹ {taxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                </>
+                            )}
 
                             {/* Overall Discount */}
                             <div className="flex items-center justify-between gap-4 py-1.5 border-b border-slate-50">

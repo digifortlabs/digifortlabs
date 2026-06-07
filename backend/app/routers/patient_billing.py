@@ -208,6 +208,7 @@ def get_unbilled_records(
             "phone": patient.phone,
             "email": patient.email_id
         },
+        "hospital_has_gst": bool(patient.hospital and patient.hospital.gst_number),
         "unbilled_items": items
     }
 

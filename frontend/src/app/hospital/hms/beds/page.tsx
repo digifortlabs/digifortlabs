@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Bed, ChevronLeft, RefreshCw, UserPlus, AlertCircle, Activity, FileText, Pill, Stethoscope, Cpu, Syringe, Plus, Info, Users, Edit2, Trash2, History, Printer, MessageCircle, Share2, Check, X } from 'lucide-react';
+import { Bed, ChevronLeft, RefreshCw, UserPlus, AlertCircle, Activity, FileText, Pill, Stethoscope, Cpu, Syringe, Plus, Info, Users, Edit2, Trash2, History, Printer, MessageCircle, Share2, Check, X, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,17 +45,29 @@ export default function HMSBedsPage() {
 
     // Console Forms
     const [alerts, setAlerts] = useState<any[]>([]);
-    const [orderForm, setOrderForm] = useState({ medicine_name: '', dosage: '', qty: '', frequency: '', frequency_hours: '12', notes: '' });
+    const [orderForm, setOrderForm] = useState({ medicine_name: '', dosage: '', qty: '', frequency: '', frequency_hours: '12', notes: '', route: '', dosage_unit: '', duration_days: '', special_instructions: '' });
     const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
-    const [editOrderForm, setEditOrderForm] = useState({ medicine_name: '', dosage: '', qty: '', frequency: '', frequency_hours: '12', notes: '' });
+    const [editOrderForm, setEditOrderForm] = useState({ medicine_name: '', dosage: '', qty: '', frequency: '', frequency_hours: '12', notes: '', route: '', dosage_unit: '', duration_days: '', special_instructions: '' });
     const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
     const [medLogForm, setMedLogForm] = useState({ order_id: '', medicine_name: '', notes: '' });
     const [noteForm, setNoteForm] = useState({ note_type: 'Ward Round', content: '' });
     const [vitalsForm, setVitalsForm] = useState({ temp: '', bp: '', pulse: '', respiratory_rate: '', spo2: '' });
+    const [fluidForm, setFluidForm] = useState({ type: 'intake', fluid_type: '', amount_ml: '' });
     const [isEditingDoctor, setIsEditingDoctor] = useState(false);
     const [editDoctorName, setEditDoctorName] = useState('');
     const [editingBedNameId, setEditingBedNameId] = useState<number | null>(null);
     const [editingBedNameValue, setEditingBedNameValue] = useState<string>('');
+    const [isDischargeOpen, setIsDischargeOpen] = useState(false);
+    const [dischargeForm, setDischargeForm] = useState({ discharge_summary: '' });
+
+    // Lab Forms & States
+    const [labCatalog, setLabCatalog] = useState<any[]>([]);
+    const [labOrders, setLabOrders] = useState<any[]>([]);
+    const [isOrderingLab, setIsOrderingLab] = useState(false);
+    const [selectedTestIds, setSelectedTestIds] = useState<number[]>([]);
+    const [surgeries, setSurgeries] = useState<any[]>([]);
+    const [isSurgeryModalOpen, setIsSurgeryModalOpen] = useState(false);
+    const [surgeryForm, setSurgeryForm] = useState({ surgery_name: '', doctor_id: '', anesthesiologist_id: '' });
 
     useEffect(() => {
         const role = localStorage.getItem('userRole') || '';
@@ -75,6 +87,25 @@ export default function HMSBedsPage() {
         }, 300);
         return () => clearTimeout(delayDebounce);
     }, [searchQuery]);
+    useEffect(() => {
+        const fh = parseInt(orderForm.frequency_hours);
+        const dd = parseInt(orderForm.duration_days);
+        if (fh > 0 && dd > 0) {
+            const dosesPerDay = 24 / fh;
+            const totalQty = Math.ceil(dosesPerDay * dd);
+            setOrderForm(prev => prev.qty === totalQty.toString() ? prev : { ...prev, qty: totalQty.toString() });
+        }
+    }, [orderForm.frequency_hours, orderForm.duration_days]);
+
+    useEffect(() => {
+        const fh = parseInt(editOrderForm.frequency_hours);
+        const dd = parseInt(editOrderForm.duration_days);
+        if (fh > 0 && dd > 0) {
+            const dosesPerDay = 24 / fh;
+            const totalQty = Math.ceil(dosesPerDay * dd);
+            setEditOrderForm(prev => prev.qty === totalQty.toString() ? prev : { ...prev, qty: totalQty.toString() });
+        }
+    }, [editOrderForm.frequency_hours, editOrderForm.duration_days]);
 
     const handleSaveBedName = async (bedId: number) => {
         const newName = editingBedNameValue.trim();
@@ -120,12 +151,13 @@ export default function HMSBedsPage() {
         setLoading(true);
         try {
             let suffix = hId ? `?hospital_id=${hId}` : '';
-            const [w, b, e, a, d] = await Promise.all([
+            const [w, b, e, a, d, c] = await Promise.all([
                 apiFetch(`hms/wards${suffix}`).catch(() => []),
                 apiFetch(`hms/beds${suffix}`).catch(() => []),
                 apiFetch(`hms/equipment${suffix}`).catch(() => []),
                 apiFetch(`hms/admissions/alerts${suffix}`).catch(() => []),
                 apiFetch(`doctors${suffix}`).catch(() => []),
+                apiFetch(`lab/catalog${suffix}`).catch(() => []),
             ]);
             const wardList = w || [];
             setWards(wardList);
@@ -133,6 +165,7 @@ export default function HMSBedsPage() {
             setEquipments(e || []);
             setAlerts(a || []);
             setDoctors(d || []);
+            setLabCatalog(c || []);
             
             if (wardList.length > 0) {
                 if (!selectedWard) {
@@ -198,9 +231,15 @@ export default function HMSBedsPage() {
             // Load admission details
             if (bed.admission_id) {
                 try {
-                    const data = await apiFetch(`hms/admissions/${bed.admission_id}`);
+                    const [data, labData, surgeriesData] = await Promise.all([
+                        apiFetch(`hms/admissions/${bed.admission_id}`),
+                        apiFetch(`hms/admissions/${bed.admission_id}/lab-results`).catch(() => []),
+                        apiFetch(`hms/surgeries?admission_id=${bed.admission_id}`).catch(() => [])
+                    ]);
                     setActiveAdmission(data.admission);
                     setActivePatient(data.patient);
+                    setLabOrders(labData || []);
+                    setSurgeries(surgeriesData || []);
                     setIsConsoleOpen(true);
                 } catch (e) {
                     toast.error("Could not load patient details.");
@@ -224,11 +263,40 @@ export default function HMSBedsPage() {
     const refreshAdmission = async () => {
         if (!activeAdmission?.admission_id) return;
         try {
-            const data = await apiFetch(`hms/admissions/${activeAdmission.admission_id}`);
+            const [data, labData, surgeriesData] = await Promise.all([
+                apiFetch(`hms/admissions/${activeAdmission.admission_id}`),
+                apiFetch(`hms/admissions/${activeAdmission.admission_id}/lab-results`).catch(() => []),
+                apiFetch(`hms/surgeries?admission_id=${activeAdmission.admission_id}`).catch(() => [])
+            ]);
             setActiveAdmission(data.admission);
             setActivePatient(data.patient);
+            setLabOrders(labData || []);
+            setSurgeries(surgeriesData || []);
         } catch (e) {
             console.error(e);
+        }
+    };
+
+    const handleOrderLabTest = async () => {
+        if (!activeAdmission || selectedTestIds.length === 0) return;
+        setIsOrderingLab(true);
+        try {
+            await apiFetch('lab/orders', {
+                method: 'POST',
+                body: JSON.stringify({
+                    patient_id: activePatient.record_id,
+                    test_ids: selectedTestIds,
+                    visit_type: 'IPD',
+                    visit_id: activeAdmission.admission_id
+                })
+            });
+            toast.success("Lab tests ordered successfully! Cost added to Running Bill.");
+            setSelectedTestIds([]);
+            refreshAdmission();
+        } catch (e: any) {
+            toast.error(e.message || "Failed to order lab tests");
+        } finally {
+            setIsOrderingLab(false);
         }
     };
 
@@ -239,10 +307,11 @@ export default function HMSBedsPage() {
                 method: 'POST',
                 body: JSON.stringify({
                     ...orderForm,
-                    frequency_hours: parseInt(orderForm.frequency_hours) || 12
+                    frequency_hours: parseInt(orderForm.frequency_hours) || 12,
+                    duration_days: parseInt(orderForm.duration_days) || null
                 })
             });
-            setOrderForm({ medicine_name: '', dosage: '', qty: '', frequency: '', frequency_hours: '12', notes: '' });
+            setOrderForm({ medicine_name: '', dosage: '', qty: '', frequency: '', frequency_hours: '12', notes: '', route: '', dosage_unit: '', duration_days: '', special_instructions: '' });
             refreshAdmission();
         } catch (e: any) { toast.error(e.message || "Failed to add order"); }
     };
@@ -254,12 +323,24 @@ export default function HMSBedsPage() {
                 method: 'PUT',
                 body: JSON.stringify({
                     ...editOrderForm,
-                    frequency_hours: parseInt(editOrderForm.frequency_hours) || 12
+                    frequency_hours: parseInt(editOrderForm.frequency_hours) || 12,
+                    duration_days: parseInt(editOrderForm.duration_days) || null
                 })
             });
             setEditingOrderId(null);
             refreshAdmission();
         } catch (e: any) { toast.error(e.message || "Failed to update order"); }
+    };
+
+    const handleMarkPurchased = async (orderId: string) => {
+        if (!activeAdmission) return;
+        try {
+            await apiFetch(`hms/admissions/${activeAdmission.admission_id}/orders/${orderId}/purchase`, {
+                method: 'POST'
+            });
+            refreshAdmission();
+            toast.success("Order marked as purchased/sent to pharmacy");
+        } catch (e: any) { toast.error(e.message || "Failed to mark as purchased"); }
     };
 
     const handleDeleteOrder = async (orderId: string) => {
@@ -308,6 +389,22 @@ export default function HMSBedsPage() {
         } catch (e: any) { toast.error(e.message || "Failed to log vitals"); }
     };
 
+    const handleLogFluid = async () => {
+        if (!activeAdmission || !fluidForm.fluid_type || !fluidForm.amount_ml) return;
+        try {
+            await apiFetch(`hms/admissions/${activeAdmission.admission_id}/fluid-balance`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    ...fluidForm,
+                    amount_ml: parseInt(fluidForm.amount_ml)
+                })
+            });
+            setFluidForm({ type: 'intake', fluid_type: '', amount_ml: '' });
+            refreshAdmission();
+            toast.success("Fluid balance logged");
+        } catch (e: any) { toast.error(e.message || "Failed to log fluid balance"); }
+    };
+
     const handleUpdateDoctor = async () => {
         if (!activePatient?.record_id) return;
         try {
@@ -328,39 +425,46 @@ export default function HMSBedsPage() {
             return;
         }
         
-        const phone = activeAdmission.contact_phone || activePatient?.contact_number || activePatient?.phone || '';
-        if (!phone) {
-            toast.error("No phone number registered for this patient.");
+        const unsentOrders = activeOrders.filter((o: any) => !o.whatsapp_sent);
+        if (unsentOrders.length === 0) {
+            toast.error("All active medications have already been sent via WhatsApp.");
             return;
         }
-
-        const hospitalName = localStorage.getItem('hms_hospital_name') || 'Digifort Labs Hospital';
-        let text = `*Medication List for ${activePatient?.full_name || 'Patient'}*\n`;
-        text += `Hospital: ${hospitalName}\n`;
-        text += `Date & Time: ${new Date().toLocaleString()}\n\n`;
         
-        activeOrders.forEach((order: any, index: number) => {
-            text += `${index + 1}. *${order.medicine_name}*\n`;
-            text += `   Dosage: ${order.dosage}\n`;
-            if (order.qty) text += `   Qty: ${order.qty}\n`;
-            text += `\n`;
-        });
-        
-        text += `Please purchase these medications and submit them to the nursing station.\n`;
-        
-        let targetPhone = phone.replace(/\D/g, '');
-        if (targetPhone.length === 10) {
-            targetPhone = '91' + targetPhone; // Default to India country code if 10 digits
-        }
-
+        const toastId = toast.loading("Sending via WhatsApp...");
         try {
-            const encodedPhone = encodeURIComponent(targetPhone);
-            const encodedText = encodeURIComponent(text);
-            const whatsappLink = `digifort-wa://send?phone=${encodedPhone}&text=${encodedText}`;
-            window.open(whatsappLink, '_self');
-            toast.success("Opened WhatsApp Desktop!");
+            await apiFetch(`hms/admissions/${activeAdmission.admission_id}/orders/whatsapp`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    order_ids: unsentOrders.map((o: any) => o.id)
+                })
+            });
+            toast.success(`Sent ${unsentOrders.length} prescriptions to WhatsApp!`, { id: toastId });
+            refreshAdmission();
         } catch (e: any) {
-            toast.error(e.message || "Failed to open WhatsApp");
+            toast.error(e.message || "Failed to send WhatsApp message", { id: toastId });
+        }
+    };
+
+    const handleDischarge = async () => {
+        if (!activeAdmission) return;
+        const toastId = toast.loading("Discharging patient...");
+        try {
+            const res = await apiFetch(`hms/admissions/${activeAdmission.admission_id}/discharge`, {
+                method: 'POST',
+                body: JSON.stringify({ discharge_summary: dischargeForm.discharge_summary })
+            });
+            toast.success("Patient discharged successfully!", { id: toastId });
+            setIsDischargeOpen(false);
+            setIsConsoleOpen(false);
+            loadData(selectedHospitalId);
+            
+            if (res.admission_id) {
+                // Open the discharge summary
+                window.open(`/hospital/hms/admissions/${res.admission_id}/discharge-summary`, '_blank');
+            }
+        } catch (e: any) {
+            toast.error(e.message || "Failed to discharge patient", { id: toastId });
         }
     };
 
@@ -369,6 +473,28 @@ export default function HMSBedsPage() {
         .sort((a, b) => a.bed_number.localeCompare(b.bed_number, undefined, { numeric: true, sensitivity: 'base' }));
     const occupiedCount = wardBeds.filter(b => b.status === 'occupied').length;
     const availableCount = wardBeds.filter(b => b.status === 'available').length;
+
+    const handleRequestSurgery = async () => {
+        if (!activeAdmission) return;
+        const toastId = toast.loading("Requesting surgery...");
+        try {
+            await apiFetch(`hms/surgeries`, {
+                method: 'POST',
+                body: JSON.stringify({ 
+                    admission_id: activeAdmission.admission_id,
+                    surgery_name: surgeryForm.surgery_name,
+                    doctor_id: surgeryForm.doctor_id ? parseInt(surgeryForm.doctor_id) : null,
+                    anesthesiologist_id: surgeryForm.anesthesiologist_id ? parseInt(surgeryForm.anesthesiologist_id) : null,
+                })
+            });
+            toast.success("Surgery requested successfully", { id: toastId });
+            setIsSurgeryModalOpen(false);
+            setSurgeryForm({ surgery_name: '', doctor_id: '', anesthesiologist_id: '' });
+            refreshAdmission();
+        } catch (e: any) {
+            toast.error(e.message || "Failed to request surgery", { id: toastId });
+        }
+    };
 
     return (
         <div className="p-6 space-y-6 max-w-[1600px] mx-auto pb-24">
@@ -702,11 +828,29 @@ export default function HMSBedsPage() {
                                           <Button 
                                               variant="outline" 
                                               size="sm" 
+                                              className="bg-white/10 border-white/20 text-white hover:bg-white/20 font-semibold h-8 transition-colors"
+                                              onClick={() => setIsSurgeryModalOpen(true)}
+                                          >
+                                              <Activity className="w-4 h-4 mr-2" />
+                                              Request Surgery
+                                          </Button>
+                                          <Button 
+                                              variant="outline" 
+                                              size="sm" 
                                               className="bg-white/10 border-white/20 hover:bg-white/20 text-white font-semibold h-8"
                                               onClick={() => window.open(`/hospital/hms/admissions/${activeAdmission.admission_id}/mrd`, '_blank')}
                                           >
                                               <Printer className="w-4 h-4 mr-2" />
                                               Print MRD File
+                                          </Button>
+                                          <Button 
+                                              variant="outline" 
+                                              size="sm" 
+                                              className="bg-rose-500/20 border-rose-500/30 hover:bg-rose-500/40 text-rose-100 font-semibold h-8"
+                                              onClick={() => setIsDischargeOpen(true)}
+                                          >
+                                              <LogOut className="w-4 h-4 mr-2" />
+                                              Discharge Patient
                                           </Button>
                                       </div>
                                   )}
@@ -769,13 +913,28 @@ export default function HMSBedsPage() {
                         </div>
                     </div>
 
+                    {/* Requested Surgeries Indicator */}
+                    {surgeries.length > 0 && (
+                        <div className="bg-indigo-50 px-6 py-2 border-b border-indigo-100 flex items-center gap-4 overflow-x-auto shrink-0">
+                            <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider whitespace-nowrap">Requested Surgeries:</span>
+                            {surgeries.map(s => (
+                                <Badge key={s.surgery_id} variant="outline" className="bg-white border-indigo-200 text-indigo-800 whitespace-nowrap">
+                                    <Activity className="w-3 h-3 mr-1" />
+                                    {s.surgery_name} 
+                                    <span className="ml-1 opacity-70">({s.status})</span>
+                                </Badge>
+                            ))}
+                        </div>
+                    )}
+
                     {/* Content */}
                     <div className="flex-1 overflow-hidden flex flex-col p-6 min-h-0">
                         <Tabs defaultValue="orders" className="flex-1 flex flex-col min-h-0">
-                            <TabsList className="grid grid-cols-4 bg-slate-200/50 p-1 rounded-xl w-full flex-shrink-0">
+                            <TabsList className="grid grid-cols-5 bg-slate-200/50 p-1 rounded-xl w-full flex-shrink-0">
                                 <TabsTrigger value="orders" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-indigo-600 font-bold"><Stethoscope className="w-4 h-4 mr-2" /> Doctor Orders</TabsTrigger>
                                 <TabsTrigger value="medication" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-rose-600 font-bold"><Syringe className="w-4 h-4 mr-2" /> Nurse Log</TabsTrigger>
                                 <TabsTrigger value="vitals" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-amber-600 font-bold"><Activity className="w-4 h-4 mr-2" /> Vitals & Notes</TabsTrigger>
+                                <TabsTrigger value="diagnostics" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600 font-bold"><Activity className="w-4 h-4 mr-2" /> Diagnostics</TabsTrigger>
                                 <TabsTrigger value="equipment" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-teal-600 font-bold"><Cpu className="w-4 h-4 mr-2" /> Equipment</TabsTrigger>
                             </TabsList>
 
@@ -793,23 +952,56 @@ export default function HMSBedsPage() {
                                                                                         <Label className="text-xs mb-1">Medicine Name</Label>
                                                                                         <MedicineAutocomplete value={orderForm.medicine_name} onChange={val => setOrderForm({...orderForm, medicine_name: val})} />
                                                                                     </div>
-                                                                                    <div className="col-span-6 md:col-span-1">
+                                                                                    <div className="col-span-6 md:col-span-2">
                                                                                         <Label className="text-xs mb-1">Dosage</Label>
-                                                                                        <Input placeholder="500mg" value={orderForm.dosage} onChange={e => setOrderForm({...orderForm, dosage: e.target.value})} />
+                                                                                        <Input placeholder="500" value={orderForm.dosage} onChange={e => setOrderForm({...orderForm, dosage: e.target.value})} />
                                                                                     </div>
-                                                                                    <div className="col-span-6 md:col-span-1">
-                                                                                        <Label className="text-xs mb-1">Qty</Label>
+                                                                                    <div className="col-span-6 md:col-span-2">
+                                                                                        <Label className="text-xs mb-1">Unit</Label>
+                                                                                        <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={orderForm.dosage_unit} onChange={e => setOrderForm({...orderForm, dosage_unit: e.target.value})}>
+                                                                                            <option value="">-- Unit --</option>
+                                                                                            <option value="mg">mg</option>
+                                                                                            <option value="g">g</option>
+                                                                                            <option value="ml">ml</option>
+                                                                                            <option value="mcg">mcg</option>
+                                                                                            <option value="drops">drops</option>
+                                                                                            <option value="units">units</option>
+                                                                                            <option value="puffs">puffs</option>
+                                                                                            <option value="tab">tab</option>
+                                                                                            <option value="cap">cap</option>
+                                                                                        </select>
+                                                                                    </div>
+                                                                                    <div className="col-span-12 md:col-span-3">
+                                                                                        <Label className="text-xs mb-1">Route</Label>
+                                                                                        <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={orderForm.route} onChange={e => setOrderForm({...orderForm, route: e.target.value})}>
+                                                                                            <option value="">-- Select Route --</option>
+                                                                                            <option value="Oral (PO)">Oral (PO)</option>
+                                                                                            <option value="Intravenous (IV)">Intravenous (IV)</option>
+                                                                                            <option value="Intramuscular (IM)">Intramuscular (IM)</option>
+                                                                                            <option value="Subcutaneous (SC)">Subcutaneous (SC)</option>
+                                                                                            <option value="Topical">Topical</option>
+                                                                                            <option value="Drops">Drops</option>
+                                                                                            <option value="Inhalation">Inhalation</option>
+                                                                                        </select>
+                                                                                    </div>
+                                                                                    <div className="col-span-6 md:col-span-2">
+                                                                                        <Label className="text-xs mb-1">Qty (Total)</Label>
                                                                                         <Input placeholder="10 Tabs" value={orderForm.qty} onChange={e => setOrderForm({...orderForm, qty: e.target.value})} />
                                                                                     </div>
+                                                                                    
                                                                                     <div className="col-span-6 md:col-span-2">
                                                                                         <Label className="text-xs mb-1">Frequency</Label>
                                                                                         <Input placeholder="BID / TDS" value={orderForm.frequency} onChange={e => setOrderForm({...orderForm, frequency: e.target.value})} />
                                                                                     </div>
                                                                                     <div className="col-span-6 md:col-span-2">
-                                                                                        <Label className="text-xs mb-1">Hours Interval</Label>
+                                                                                        <Label className="text-xs mb-1">Interval (Hrs)</Label>
                                                                                         <Input placeholder="12" type="number" value={orderForm.frequency_hours} onChange={e => setOrderForm({...orderForm, frequency_hours: e.target.value})} />
                                                                                     </div>
-                                                                                    <div className="col-span-12 md:col-span-2">
+                                                                                    <div className="col-span-6 md:col-span-2">
+                                                                                        <Label className="text-xs mb-1">Duration (Days)</Label>
+                                                                                        <Input placeholder="5" type="number" value={orderForm.duration_days} onChange={e => setOrderForm({...orderForm, duration_days: e.target.value})} />
+                                                                                    </div>
+                                                                                    <div className="col-span-6 md:col-span-2">
                                                                                         <Label className="text-xs mb-1">Meal Timing</Label>
                                                                                         <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={orderForm.notes} onChange={e => setOrderForm({...orderForm, notes: e.target.value})}>
                                                                                             <option value="">-- Select --</option>
@@ -819,6 +1011,10 @@ export default function HMSBedsPage() {
                                                                                             <option value="Empty stomach">Empty stomach</option>
                                                                                         </select>
                                                                                     </div>
+                                                                                    <div className="col-span-12 md:col-span-3">
+                                                                                        <Label className="text-xs mb-1">Special Instructions</Label>
+                                                                                        <Input placeholder="e.g. mix with water" value={orderForm.special_instructions} onChange={e => setOrderForm({...orderForm, special_instructions: e.target.value})} />
+                                                                                    </div>
                                                                                     <div className="col-span-12 md:col-span-1">
                                                                                         <Button onClick={handleAddOrder} disabled={!orderForm.medicine_name || !orderForm.dosage} className="w-full bg-indigo-600 hover:bg-indigo-700 h-10"><Plus className="w-4 h-4" /></Button>
                                                                                     </div>
@@ -826,20 +1022,20 @@ export default function HMSBedsPage() {
                                                                             </CardContent>
                                                                         </Card>
                                                                     ) : (
-                                                                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm font-semibold flex items-center gap-2">
-                                                                            <AlertCircle className="w-5 h-5 text-amber-600" /> Only Doctors can write or prescribe new medication orders.
+                                                                        <div className="flex justify-between items-center mb-4">
+                                                                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Active Prescriptions</h3>
+                                                                            <Button 
+                                                                                variant="outline" 
+                                                                                size="sm" 
+                                                                                className="border-green-200 text-green-700 hover:bg-green-50 font-bold"
+                                                                                onClick={handleShareMedications}
+                                                                            >
+                                                                                <Share2 className="w-4 h-4 mr-2" /> Share via WhatsApp
+                                                                            </Button>
                                                                         </div>
                                                                     )}
 
                                     <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Active Orders</h3>
-                                            {(activeAdmission?.medication_orders || []).filter((o: any) => o.status !== 'deleted').length > 0 && (
-                                                <Button size="sm" variant="outline" className="gap-2 text-green-600 border-green-200 hover:bg-green-50" onClick={handleShareMedications}>
-                                                    <MessageCircle className="w-4 h-4" /> Share via WhatsApp
-                                                </Button>
-                                            )}
-                                        </div>
                                         {(activeAdmission?.medication_orders || []).length === 0 ? (
                                             <div className="p-8 text-center bg-slate-100/50 rounded-xl border border-dashed border-slate-300">
                                                 <FileText className="w-8 h-8 mx-auto text-slate-400 mb-2" />
@@ -856,21 +1052,54 @@ export default function HMSBedsPage() {
                                                                 <Label className="text-xs mb-1">Medicine Name</Label>
                                                                 <MedicineAutocomplete className="bg-white" value={editOrderForm.medicine_name} onChange={val => setEditOrderForm({...editOrderForm, medicine_name: val})} />
                                                             </div>
-                                                            <div className="col-span-6 md:col-span-1">
+                                                            <div className="col-span-6 md:col-span-2">
                                                                 <Label className="text-xs mb-1">Dosage</Label>
                                                                 <Input value={editOrderForm.dosage} onChange={e => setEditOrderForm({...editOrderForm, dosage: e.target.value})} className="bg-white" />
                                                             </div>
-                                                            <div className="col-span-6 md:col-span-1">
-                                                                <Label className="text-xs mb-1">Qty</Label>
+                                                            <div className="col-span-6 md:col-span-2">
+                                                                <Label className="text-xs mb-1">Unit</Label>
+                                                                <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={editOrderForm.dosage_unit} onChange={e => setEditOrderForm({...editOrderForm, dosage_unit: e.target.value})}>
+                                                                    <option value="">-- Unit --</option>
+                                                                    <option value="mg">mg</option>
+                                                                    <option value="g">g</option>
+                                                                    <option value="ml">ml</option>
+                                                                    <option value="mcg">mcg</option>
+                                                                    <option value="drops">drops</option>
+                                                                    <option value="units">units</option>
+                                                                    <option value="puffs">puffs</option>
+                                                                    <option value="tab">tab</option>
+                                                                    <option value="cap">cap</option>
+                                                                </select>
+                                                            </div>
+                                                            <div className="col-span-12 md:col-span-3">
+                                                                <Label className="text-xs mb-1">Route</Label>
+                                                                <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={editOrderForm.route} onChange={e => setEditOrderForm({...editOrderForm, route: e.target.value})}>
+                                                                    <option value="">-- Select Route --</option>
+                                                                    <option value="Oral (PO)">Oral (PO)</option>
+                                                                    <option value="Intravenous (IV)">Intravenous (IV)</option>
+                                                                    <option value="Intramuscular (IM)">Intramuscular (IM)</option>
+                                                                    <option value="Subcutaneous (SC)">Subcutaneous (SC)</option>
+                                                                    <option value="Topical">Topical</option>
+                                                                    <option value="Drops">Drops</option>
+                                                                    <option value="Inhalation">Inhalation</option>
+                                                                </select>
+                                                            </div>
+                                                            <div className="col-span-6 md:col-span-2">
+                                                                <Label className="text-xs mb-1">Qty (Total)</Label>
                                                                 <Input value={editOrderForm.qty} onChange={e => setEditOrderForm({...editOrderForm, qty: e.target.value})} className="bg-white" />
                                                             </div>
+                                                            
                                                             <div className="col-span-6 md:col-span-2">
                                                                 <Label className="text-xs mb-1">Frequency</Label>
                                                                 <Input value={editOrderForm.frequency} onChange={e => setEditOrderForm({...editOrderForm, frequency: e.target.value})} className="bg-white" />
                                                             </div>
                                                             <div className="col-span-6 md:col-span-2">
-                                                                <Label className="text-xs mb-1">Hours Interval</Label>
+                                                                <Label className="text-xs mb-1">Interval (Hrs)</Label>
                                                                 <Input type="number" value={editOrderForm.frequency_hours} onChange={e => setEditOrderForm({...editOrderForm, frequency_hours: e.target.value})} className="bg-white" />
+                                                            </div>
+                                                            <div className="col-span-6 md:col-span-2">
+                                                                <Label className="text-xs mb-1">Duration (Days)</Label>
+                                                                <Input type="number" value={editOrderForm.duration_days} onChange={e => setEditOrderForm({...editOrderForm, duration_days: e.target.value})} className="bg-white" />
                                                             </div>
                                                             <div className="col-span-6 md:col-span-3">
                                                                 <Label className="text-xs mb-1">Meal Timing / Notes</Label>
@@ -881,6 +1110,10 @@ export default function HMSBedsPage() {
                                                                     <option value="With meals">With meals</option>
                                                                     <option value="Empty stomach">Empty stomach</option>
                                                                 </select>
+                                                            </div>
+                                                            <div className="col-span-12 md:col-span-3">
+                                                                <Label className="text-xs mb-1">Special Instructions</Label>
+                                                                <Input value={editOrderForm.special_instructions} onChange={e => setEditOrderForm({...editOrderForm, special_instructions: e.target.value})} className="bg-white" />
                                                             </div>
                                                         </div>
                                                         <div className="flex justify-end gap-2 pt-2 border-t border-indigo-100">
@@ -896,13 +1129,28 @@ export default function HMSBedsPage() {
                                                                     <Pill className="w-5 h-5" />
                                                                 </div>
                                                                 <div>
-                                                                    <h4 className={`font-bold text-lg leading-tight ${isDeleted ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
-                                                                        {order.medicine_name} 
-                                                                        <span className={`font-mono text-sm ml-2 px-2 py-0.5 rounded ${isDeleted ? 'text-slate-500 bg-slate-200' : 'text-indigo-600 bg-indigo-50'}`}>{order.dosage}</span>
-                                                                        {order.qty && <span className={`font-mono text-sm ml-2 px-2 py-0.5 rounded ${isDeleted ? 'text-slate-500 bg-slate-200' : 'text-indigo-600 bg-indigo-50'}`}>Qty: {order.qty}</span>}
-                                                                    </h4>
-                                                                    <p className={`text-sm font-medium mt-1 ${isDeleted ? 'text-slate-400' : 'text-slate-600'}`}>Frequency: {order.frequency}</p>
-                                                                    {order.notes && <p className={`text-xs mt-1 px-2 py-1 rounded inline-block border ${isDeleted ? 'text-slate-400 bg-slate-100 border-slate-200' : 'text-slate-500 bg-slate-50 border-slate-100'}`}>Note: {order.notes}</p>}
+                                                                    <div className="flex items-center flex-wrap gap-2 mb-1">
+                                                                        <h4 className={`font-bold text-lg leading-tight ${isDeleted ? 'text-slate-500 line-through' : 'text-slate-900'}`}>{order.medicine_name}</h4>
+                                                                        <span className={`font-mono text-sm px-2 py-0.5 rounded ${isDeleted ? 'text-slate-500 bg-slate-200' : 'text-indigo-600 bg-indigo-50'}`}>{order.dosage} {order.dosage_unit}</span>
+                                                                        {order.qty && <span className={`font-mono text-sm px-2 py-0.5 rounded ${isDeleted ? 'text-slate-500 bg-slate-200' : 'text-indigo-600 bg-indigo-50'}`}>Qty: {order.qty}</span>}
+                                                                        {isDeleted && <Badge variant="secondary" className="bg-slate-200 text-slate-500 hover:bg-slate-200">Stopped</Badge>}
+                                                                        {order.whatsapp_sent && !isDeleted && (
+                                                                            <Badge variant="outline" className="border-green-200 text-green-700 bg-green-50" title={`Sent on ${new Date(order.whatsapp_sent_at).toLocaleString()}`}>
+                                                                                <Share2 className="w-3 h-3 mr-1" /> Sent
+                                                                            </Badge>
+                                                                        )}
+                                                                        {order.purchased && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-none ml-2 text-[10px] uppercase">Purchased ✓</Badge>}
+                                                                    </div>
+                                                                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm font-medium">
+                                                                        <p className={isDeleted ? 'text-slate-400' : 'text-slate-600'}>Freq: {order.frequency}</p>
+                                                                        {order.route && <p className={isDeleted ? 'text-slate-400' : 'text-slate-600'}>Route: {order.route}</p>}
+                                                                        {order.duration_days && <p className={isDeleted ? 'text-slate-400' : 'text-slate-600'}>Duration: {order.duration_days} days</p>}
+                                                                    </div>
+                                                                    <div className="flex flex-wrap gap-2 mt-1">
+                                                                        {order.notes && <p className={`text-xs px-2 py-1 rounded inline-block border ${isDeleted ? 'text-slate-400 bg-slate-100 border-slate-200' : 'text-slate-500 bg-slate-50 border-slate-100'}`}>Note: {order.notes}</p>}
+                                                                        {order.special_instructions && <p className={`text-xs px-2 py-1 rounded inline-block border ${isDeleted ? 'text-slate-400 bg-rose-50 border-rose-100' : 'text-rose-600 bg-rose-50 border-rose-100'}`}>Inst: {order.special_instructions}</p>}
+                                                                        {order.purchased && order.purchased_at && <p className="text-[10px] text-emerald-600 font-mono flex items-center mt-1">Sent to Pharmacy/Purchased on {new Date(order.purchased_at).toLocaleString()}</p>}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                             <div className="text-right flex flex-col justify-between h-full items-end gap-2">
@@ -932,7 +1180,11 @@ export default function HMSBedsPage() {
                                                                                         qty: order.qty || '',
                                                                                         frequency: order.frequency,
                                                                                         frequency_hours: order.frequency_hours?.toString() || '12',
-                                                                                        notes: order.notes || ''
+                                                                                        notes: order.notes || '',
+                                                                                        route: order.route || '',
+                                                                                        dosage_unit: order.dosage_unit || '',
+                                                                                        duration_days: order.duration_days?.toString() || '',
+                                                                                        special_instructions: order.special_instructions || ''
                                                                                     });
                                                                                     setEditingOrderId(order.id);
                                                                                 }}
@@ -944,9 +1196,21 @@ export default function HMSBedsPage() {
                                                                                 variant="ghost" 
                                                                                 className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
                                                                                 onClick={() => handleDeleteOrder(order.id)}
+                                                                                title="Delete/Stop Order"
                                                                             >
                                                                                 <Trash2 className="w-4 h-4" />
                                                                             </Button>
+                                                                            {!order.purchased && (
+                                                                                <Button 
+                                                                                    size="sm" 
+                                                                                    variant="outline" 
+                                                                                    className="h-7 px-2 text-[10px] border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                                                                                    onClick={() => handleMarkPurchased(order.id)}
+                                                                                    title="Mark as purchased or sent to pharmacy"
+                                                                                >
+                                                                                    <Check className="w-3 h-3 mr-1" /> Mark Purchased
+                                                                                </Button>
+                                                                            )}
                                                                         </>
                                                                     )}
                                                                 </div>
@@ -1128,8 +1392,43 @@ export default function HMSBedsPage() {
                                                 </Card>
                                             </div>
 
+                                            {/* Log Fluid Balance Form */}
+                                            <div className="space-y-4 mt-6">
+                                                <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Fluid Balance</h3>
+                                                <Card className="border-teal-100 shadow-sm">
+                                                    <CardContent className="p-4 space-y-4 bg-white">
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div className="space-y-2 col-span-2">
+                                                                <Label className="text-xs">Type</Label>
+                                                                <div className="flex gap-2">
+                                                                    <Button 
+                                                                        variant={fluidForm.type === 'intake' ? 'default' : 'outline'} 
+                                                                        className={`flex-1 ${fluidForm.type === 'intake' ? 'bg-teal-600 hover:bg-teal-700' : ''}`}
+                                                                        onClick={() => setFluidForm({...fluidForm, type: 'intake'})}
+                                                                    >Intake (IV/Oral)</Button>
+                                                                    <Button 
+                                                                        variant={fluidForm.type === 'output' ? 'default' : 'outline'} 
+                                                                        className={`flex-1 ${fluidForm.type === 'output' ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
+                                                                        onClick={() => setFluidForm({...fluidForm, type: 'output'})}
+                                                                    >Output (Urine/Drain)</Button>
+                                                                </div>
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <Label className="text-xs">Fluid Name</Label>
+                                                                <Input placeholder="e.g. Normal Saline, Urine" value={fluidForm.fluid_type} onChange={e => setFluidForm({...fluidForm, fluid_type: e.target.value})} className="bg-slate-50" />
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <Label className="text-xs">Amount (ml)</Label>
+                                                                <Input placeholder="500" type="number" value={fluidForm.amount_ml} onChange={e => setFluidForm({...fluidForm, amount_ml: e.target.value})} className="bg-slate-50" />
+                                                            </div>
+                                                        </div>
+                                                        <Button onClick={handleLogFluid} disabled={!fluidForm.fluid_type || !fluidForm.amount_ml} className="w-full bg-teal-600 hover:bg-teal-700 h-10 font-bold">Log Fluid</Button>
+                                                    </CardContent>
+                                                </Card>
+                                            </div>
+
                                             {/* Add Doctor Note Form */}
-                                            <div className="space-y-4">
+                                            <div className="space-y-4 mt-6">
                                                 <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Add Doctor Note</h3>
                                                 <Card className="border-amber-100 shadow-sm">
                                                     <CardContent className="p-4 space-y-4 bg-white">
@@ -1159,27 +1458,87 @@ export default function HMSBedsPage() {
                                         </div>
 
                                         <div className="space-y-4">
-                                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Clinical Notes</h3>
-                                            <div className="space-y-3 h-[400px] overflow-y-auto pr-2">
-                                                {(activeAdmission?.doctor_notes || []).length === 0 ? (
-                                                    <div className="p-8 text-center bg-slate-100/50 rounded-xl border border-dashed border-slate-300">
-                                                        <p className="text-sm text-slate-500">No notes recorded.</p>
+                                            <Tabs defaultValue="vitals_chart" className="w-full">
+                                                <TabsList className="w-full grid grid-cols-3 bg-slate-100">
+                                                    <TabsTrigger value="vitals_chart">TPR Chart</TabsTrigger>
+                                                    <TabsTrigger value="fluid_chart">Fluid Balance</TabsTrigger>
+                                                    <TabsTrigger value="notes">Clinical Notes</TabsTrigger>
+                                                </TabsList>
+                                                
+                                                <TabsContent value="vitals_chart" className="mt-4">
+                                                    <div className="h-[400px] overflow-y-auto pr-2 space-y-3">
+                                                        {(activeAdmission?.vitals_log || []).length === 0 ? (
+                                                            <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                                                <p className="text-sm text-slate-500">No vitals recorded.</p>
+                                                            </div>
+                                                        ) : (
+                                                            (activeAdmission?.vitals_log || []).map((v: any, idx: number) => (
+                                                                <div key={idx} className="bg-white border-l-4 border-l-blue-500 border border-slate-200 rounded-r-xl p-3 shadow-sm flex flex-col gap-2">
+                                                                    <div className="flex justify-between items-center">
+                                                                        <span className="text-xs font-bold text-slate-700">{new Date(v.timestamp).toLocaleString()}</span>
+                                                                        <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded text-slate-600">{v.recorded_by}</span>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                                                                        {v.temp && <div><span className="text-slate-400 text-xs block">Temp</span><span className="font-mono">{v.temp}°F</span></div>}
+                                                                        {v.bp && <div><span className="text-slate-400 text-xs block">BP</span><span className="font-mono">{v.bp}</span></div>}
+                                                                        {v.pulse && <div><span className="text-slate-400 text-xs block">Pulse</span><span className="font-mono">{v.pulse}</span></div>}
+                                                                        {v.respiratory_rate && <div><span className="text-slate-400 text-xs block">RR</span><span className="font-mono">{v.respiratory_rate}</span></div>}
+                                                                    </div>
+                                                                </div>
+                                                            )).reverse()
+                                                        )}
                                                     </div>
-                                                ) : (
-                                                    (activeAdmission?.doctor_notes || []).map((note: any, idx: number) => (
-                                                        <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                                                            <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
-                                                                <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-100">{note.note_type}</Badge>
-                                                                <span className="text-[10px] text-slate-400 font-mono">{new Date(note.timestamp).toLocaleString()}</span>
+                                                </TabsContent>
+
+                                                <TabsContent value="fluid_chart" className="mt-4">
+                                                    <div className="h-[400px] overflow-y-auto pr-2 space-y-3">
+                                                        {(activeAdmission?.fluid_balance_log || []).length === 0 ? (
+                                                            <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                                                <p className="text-sm text-slate-500">No fluid balance recorded.</p>
                                                             </div>
-                                                            <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{note.content}</p>
-                                                            <div className="mt-3 text-right">
-                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Dr. {note.doctor_name}</span>
+                                                        ) : (
+                                                            (activeAdmission?.fluid_balance_log || []).map((f: any, idx: number) => (
+                                                                <div key={idx} className={`bg-white border-l-4 ${f.type === 'intake' ? 'border-l-teal-500' : 'border-l-amber-500'} border border-slate-200 rounded-r-xl p-3 shadow-sm flex flex-col gap-1`}>
+                                                                    <div className="flex justify-between items-center">
+                                                                        <Badge variant="secondary" className={f.type === 'intake' ? 'bg-teal-50 text-teal-700 hover:bg-teal-100' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}>
+                                                                            {f.type.toUpperCase()}
+                                                                        </Badge>
+                                                                        <span className="text-[10px] font-mono text-slate-400">{new Date(f.timestamp).toLocaleString()}</span>
+                                                                    </div>
+                                                                    <div className="flex justify-between items-end mt-2">
+                                                                        <div className="font-medium text-slate-800">{f.fluid_type}</div>
+                                                                        <div className="font-mono font-bold text-lg">{f.amount_ml} <span className="text-xs text-slate-500">ml</span></div>
+                                                                    </div>
+                                                                    <div className="text-[10px] text-right text-slate-400 mt-1">by {f.recorded_by}</div>
+                                                                </div>
+                                                            )).reverse()
+                                                        )}
+                                                    </div>
+                                                </TabsContent>
+
+                                                <TabsContent value="notes" className="mt-4">
+                                                    <div className="space-y-3 h-[400px] overflow-y-auto pr-2">
+                                                        {(activeAdmission?.doctor_notes || []).length === 0 ? (
+                                                            <div className="p-8 text-center bg-slate-100/50 rounded-xl border border-dashed border-slate-300">
+                                                                <p className="text-sm text-slate-500">No notes recorded.</p>
                                                             </div>
-                                                        </div>
-                                                    )).reverse()
-                                                )}
-                                            </div>
+                                                        ) : (
+                                                            (activeAdmission?.doctor_notes || []).map((note: any, idx: number) => (
+                                                                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                                                                    <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
+                                                                        <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-100">{note.note_type}</Badge>
+                                                                        <span className="text-[10px] text-slate-400 font-mono">{new Date(note.timestamp).toLocaleString()}</span>
+                                                                    </div>
+                                                                    <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{note.content}</p>
+                                                                    <div className="mt-3 text-right">
+                                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Dr. {note.doctor_name}</span>
+                                                                    </div>
+                                                                </div>
+                                                            )).reverse()
+                                                        )}
+                                                    </div>
+                                                </TabsContent>
+                                            </Tabs>
                                         </div>
                                     </div>
                                 </TabsContent>
@@ -1212,11 +1571,170 @@ export default function HMSBedsPage() {
                                         </div>
                                     </div>
                                 </TabsContent>
+                                
+                                {/* Diagnostics (Labs & Radiology) */}
+                                <TabsContent value="diagnostics" className="m-0 space-y-6 h-full">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+                                        {/* Order Tests */}
+                                        <Card className="border-blue-100 shadow-sm flex flex-col min-h-[400px]">
+                                            <div className="bg-blue-50/50 px-4 py-3 border-b border-blue-100 flex justify-between items-center">
+                                                <h3 className="font-bold text-blue-900">Order Lab Tests</h3>
+                                                <Button 
+                                                    size="sm" 
+                                                    className="bg-blue-600 hover:bg-blue-700" 
+                                                    onClick={handleOrderLabTest}
+                                                    disabled={selectedTestIds.length === 0 || isOrderingLab}
+                                                >
+                                                    {isOrderingLab ? "Ordering..." : `Order ${selectedTestIds.length} Test(s)`}
+                                                </Button>
+                                            </div>
+                                            <CardContent className="p-4 flex-1 overflow-y-auto">
+                                                <div className="space-y-2">
+                                                    {labCatalog.length === 0 ? (
+                                                        <p className="text-sm text-slate-500">No tests available in catalog.</p>
+                                                    ) : (
+                                                        labCatalog.map(test => {
+                                                            const isSelected = selectedTestIds.includes(test.test_id);
+                                                            return (
+                                                                <div 
+                                                                    key={test.test_id}
+                                                                    onClick={() => {
+                                                                        if (isSelected) {
+                                                                            setSelectedTestIds(selectedTestIds.filter(id => id !== test.test_id));
+                                                                        } else {
+                                                                            setSelectedTestIds([...selectedTestIds, test.test_id]);
+                                                                        }
+                                                                    }}
+                                                                    className={`p-3 rounded-lg border cursor-pointer transition-colors flex justify-between items-center ${isSelected ? 'bg-blue-50 border-blue-300' : 'bg-white border-slate-200 hover:border-blue-300'}`}
+                                                                >
+                                                                    <div>
+                                                                        <div className="font-bold text-slate-800">{test.test_name}</div>
+                                                                        <div className="text-xs text-slate-500">₹{test.price}</div>
+                                                                    </div>
+                                                                    {isSelected && <Check className="w-5 h-5 text-blue-600" />}
+                                                                </div>
+                                                            );
+                                                        })
+                                                    )}
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+
+                                        {/* Results */}
+                                        <Card className="border-slate-200 shadow-sm flex flex-col min-h-[400px]">
+                                            <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+                                                <h3 className="font-bold text-slate-800">Test Results</h3>
+                                            </div>
+                                            <CardContent className="p-4 flex-1 overflow-y-auto">
+                                                {labOrders.length === 0 ? (
+                                                    <div className="text-center py-12 text-slate-400">
+                                                        <Activity className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                                        <p>No tests ordered for this admission.</p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-3">
+                                                        {labOrders.map(order => (
+                                                            <div key={order.order_id} className="p-4 rounded-lg border border-slate-200 bg-white">
+                                                                <div className="flex justify-between items-start mb-2">
+                                                                    <div>
+                                                                        <h4 className="font-bold text-slate-900">{order.test_name}</h4>
+                                                                        <p className="text-xs text-slate-500">{new Date(order.ordered_at).toLocaleString()}</p>
+                                                                    </div>
+                                                                    <Badge className={order.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}>
+                                                                        {order.status}
+                                                                    </Badge>
+                                                                </div>
+                                                                
+                                                                {order.status === 'Completed' ? (
+                                                                    <div className="mt-3 p-3 bg-slate-50 rounded border border-slate-100">
+                                                                        <div className="grid grid-cols-2 gap-4">
+                                                                            <div>
+                                                                                <div className="text-xs font-bold text-slate-500 uppercase">Result</div>
+                                                                                <div className="font-mono font-bold text-slate-900 text-lg">{order.result_value}</div>
+                                                                            </div>
+                                                                            {order.reference_range && (
+                                                                                <div>
+                                                                                    <div className="text-xs font-bold text-slate-500 uppercase">Ref Range</div>
+                                                                                    <div className="font-mono text-slate-600">{order.reference_range}</div>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                        {order.remarks && (
+                                                                            <div className="mt-2 text-sm text-slate-600">
+                                                                                <span className="font-bold">Remarks:</span> {order.remarks}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-sm text-slate-500 mt-2 italic">Awaiting technician to enter results...</p>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </CardContent>
+                                        </Card>
+                                    </div>
+                                </TabsContent>
                             </div>
                         </Tabs>
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Surgery Modal */}
+            <Dialog open={isSurgeryModalOpen} onOpenChange={setIsSurgeryModalOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Request Surgery</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                        <div className="space-y-2">
+                            <Label>Surgery Name / Diagnosis *</Label>
+                            <Input 
+                                placeholder="e.g. Appendectomy" 
+                                value={surgeryForm.surgery_name} 
+                                onChange={e => setSurgeryForm({ ...surgeryForm, surgery_name: e.target.value })} 
+                            />
+                        </div>
+                        <p className="text-xs text-slate-500">
+                            You can assign a surgeon and anesthesiologist later from the Operation Theater dashboard.
+                        </p>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsSurgeryModalOpen(false)}>Cancel</Button>
+                        <Button onClick={handleRequestSurgery} disabled={!surgeryForm.surgery_name} className="bg-blue-600">Submit Request</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Discharge Modal */}
+            <Dialog open={isDischargeOpen} onOpenChange={setIsDischargeOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Discharge Patient</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                        <div className="bg-rose-50 p-4 rounded-lg text-sm text-rose-800 border border-rose-100">
+                            <strong>Note:</strong> Discharging this patient will automatically generate an IPD Bill based on the ward's daily bed charges and free up the bed.
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Discharge Summary / Remarks</Label>
+                            <textarea 
+                                className="w-full border border-slate-200 rounded-md p-2 text-sm min-h-[100px]"
+                                placeholder="Enter final clinical summary, advice on discharge, and next follow-up dates..."
+                                value={dischargeForm.discharge_summary}
+                                onChange={e => setDischargeForm({ discharge_summary: e.target.value })}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsDischargeOpen(false)}>Cancel</Button>
+                        <Button onClick={handleDischarge} className="bg-rose-600 hover:bg-rose-700">Confirm Discharge</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
         </div>
     );
 }

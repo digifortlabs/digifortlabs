@@ -60,11 +60,18 @@ def create_orders(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    from ..models import IPDAdmission, PatientInvoice, PatientInvoiceItem
+    
     # Determine doctor if applicable
     doctor = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user.user_id).first()
     
     created_orders = []
+    total_ipd_charge = 0.0
+    
     for t_id in payload.test_ids:
+        test_info = db.query(LabTestCatalog).filter(LabTestCatalog.test_id == t_id).first()
+        test_price = test_info.price if test_info else 0.0
+        
         order = LabOrder(
             patient_id=payload.patient_id,
             hospital_id=current_user.hospital_id,
@@ -85,6 +92,33 @@ def create_orders(
         db.add(res)
         created_orders.append(order)
         
+        # Accumulate IPD charges
+        if payload.visit_type == "IPD" and payload.visit_id:
+            total_ipd_charge += test_price
+            
+            # Add line item immediately
+            adm = db.query(IPDAdmission).filter(IPDAdmission.admission_id == payload.visit_id).first()
+            if adm and adm.patient_invoice_id:
+                invoice_item = PatientInvoiceItem(
+                    invoice_id=adm.patient_invoice_id,
+                    description=f"Lab Test: {test_info.test_name if test_info else 'Unknown'}",
+                    qty=1,
+                    unit_price=test_price,
+                    amount=test_price,
+                    charge_type="LAB_TEST",
+                    reference_id=order.order_id
+                )
+                db.add(invoice_item)
+                
+    # Finalize IPD Invoice subtotal
+    if payload.visit_type == "IPD" and payload.visit_id and total_ipd_charge > 0:
+        adm = db.query(IPDAdmission).filter(IPDAdmission.admission_id == payload.visit_id).first()
+        if adm and adm.patient_invoice_id:
+            invoice = db.query(PatientInvoice).filter(PatientInvoice.invoice_id == adm.patient_invoice_id).first()
+            if invoice:
+                invoice.subtotal = float(invoice.subtotal or 0) + total_ipd_charge
+                invoice.total_amount = float(invoice.total_amount or 0) + total_ipd_charge
+
     db.commit()
     return {"message": f"Created {len(created_orders)} lab orders"}
 

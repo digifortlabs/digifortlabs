@@ -25,7 +25,8 @@ import {
     ShieldAlert,
     LayoutGrid,
     CheckCircle2,
-    Settings
+    Settings,
+    Pill
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -208,7 +209,8 @@ export default function ManageClientsPage() {
         { id: 'accounting', label: 'SaaS Accounting & Ledger', desc: 'Billing invoices, payments, financial control', icon: DollarSign, color: 'text-emerald-400 bg-emerald-950/40 border-emerald-800' },
         { id: 'clinic', label: 'Outpatient Clinic (OPD)', desc: 'Appointments scheduling, lightweight clinic EMR', icon: Activity, color: 'text-rose-400 bg-rose-950/40 border-rose-800' },
         { id: 'dental', label: 'Dental Specialty Module', desc: 'Tooth mapping, dental treatments charting', icon: Sparkles, color: 'text-sky-400 bg-sky-950/40 border-sky-800' },
-        { id: 'ent', label: 'ENT Specialty Module', desc: 'Ear, Nose & Throat custom diagnostics panel', icon: Settings, color: 'text-teal-400 bg-teal-950/40 border-teal-800' }
+        { id: 'ent', label: 'ENT Specialty Module', desc: 'Ear, Nose & Throat custom diagnostics panel', icon: Settings, color: 'text-teal-400 bg-teal-950/40 border-teal-800' },
+        { id: 'pharmacy', label: 'Pharmacy & Prescriptions', desc: 'Standalone medicine dispensing & pharmacy', icon: Pill, color: 'text-pink-400 bg-pink-950/40 border-pink-800' }
     ];
 
     const toggleModuleOnboard = (moduleId: string) => {

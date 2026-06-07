@@ -226,10 +226,11 @@ class PatientBillingService:
         patient = invoice.patient
 
         # 1. Header Info (Hospital & Invoice details side by side)
+        invoice_title = "TAX INVOICE" if invoice.tax_amount > 0 else "BILL OF SUPPLY"
         header_data = [
             [
                 Paragraph(f"<b>{hospital.legal_name}</b><br/>{hospital.address or ''}<br/>{hospital.city or ''}, {hospital.state or ''} {hospital.pincode or ''}<br/>Phone: {hospital.phone or '-'}<br/>Email: {hospital.email or '-'}", normal_style),
-                Paragraph(f"<font size=14><b>PATIENT INVOICE</b></font><br/><br/><b>Invoice No:</b> {invoice.invoice_number}<br/><b>Date:</b> {invoice.bill_date.strftime('%d-%b-%Y %I:%M %p')}<br/><b>Status:</b> {invoice.status}<br/><b>GSTIN:</b> {hospital.gst_number or 'URD'}", normal_style)
+                Paragraph(f"<font size=14><b>{invoice_title}</b></font><br/><br/><b>Invoice No:</b> {invoice.invoice_number}<br/><b>Date:</b> {invoice.bill_date.strftime('%d-%b-%Y %I:%M %p')}<br/><b>Status:</b> {invoice.status}<br/><b>GSTIN:</b> {hospital.gst_number or 'URD'}", normal_style)
             ]
         ]
         

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
     LayoutDashboard, Users, CalendarDays, IndianRupee, Settings,
     LogOut, Menu, X, ChevronDown, Building2, Activity, Package, UserPlus, Bed, Trash2,
-    ChevronLeft, ChevronRight, Stethoscope, Ear
+    ChevronLeft, ChevronRight, Stethoscope, Ear, Scissors, Pill
 } from 'lucide-react';
 import { getCurrentSubdomain } from '@/lib/utils';
 
@@ -54,6 +54,8 @@ const CATEGORIZED_NAV_ITEMS = [
             { label: 'Clinic OPD', href: '/hospital/clinic', icon: Stethoscope, roles: ['hospital_admin', 'doctor_opd'], module: 'clinic' },
             { label: 'Dental Portal', href: '/hospital/dental', icon: Tooth, roles: ['hospital_admin', 'doctor_opd'], module: 'dental' },
             { label: 'ENT Specialty', href: '/hospital/ent', icon: Ear, roles: ['hospital_admin', 'doctor_opd'], module: 'ent' },
+            { label: 'Operation Theater', href: '/hospital/ot', icon: Scissors, roles: ['hospital_admin', 'doctor_opd', 'doctor_ipd', 'nurse_ipd'], module: 'hms' },
+            { label: 'Pharmacy', href: '/hospital/pharmacy', icon: Pill, roles: ['hospital_admin', 'pharmacy_staff'], module: 'pharmacy' },
         ]
     },
     {

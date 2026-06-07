@@ -1,43 +1,11 @@
 Traceback (most recent call last):
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 143, in __init__
-    self._dbapi_connection = engine.raw_connection()
-                             ^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 3317, in raw_connection
-    return self.pool.connect()
-           ^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\pool\base.py", line 448, in connect
-    return _ConnectionFairy._checkout(self)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\pool\base.py", line 1272, in _checkout
-    fairy = _ConnectionRecord.checkout(pool)
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\pool\base.py", line 717, in checkout
-    with util.safe_reraise():
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\util\langhelpers.py", line 121, in __exit__
-    raise exc_value.with_traceback(exc_tb)
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\pool\base.py", line 715, in checkout
-    dbapi_connection = rec.get_connection()
-                       ^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\pool\base.py", line 866, in get_connection
-    self.__connect()
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\pool\base.py", line 900, in __connect
-    with util.safe_reraise():
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\util\langhelpers.py", line 121, in __exit__
-    raise exc_value.with_traceback(exc_tb)
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\pool\base.py", line 896, in __connect
-    self.dbapi_connection = connection = pool._invoke_creator(self)
-                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\create.py", line 667, in connect
-    return dialect.connect(*cargs_tup, **cparams)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 630, in connect
-    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\psycopg2\__init__.py", line 135, in connect
-    conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-psycopg2.OperationalError: connection to server at "localhost" (::1), port 5433 failed: timeout expired
-connection to server at "localhost" (127.0.0.1), port 5433 failed: timeout expired
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedColumn: column ipd_admissions.fluid_balance_log does not exist
+LINE 1: ...ions.doctor_notes AS ipd_admissions_doctor_notes, ipd_admiss...
+                                                             ^
 
 
 The above exception was the direct cause of the following exception:
@@ -150,12 +118,12 @@ Traceback (most recent call last):
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\fastapi\routing.py", line 120, in app
     response = await f(request)
                ^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\fastapi\routing.py", line 457, in app
-    solved_result = await solve_dependencies(
-                    ^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\fastapi\dependencies\utils.py", line 680, in solve_dependencies
-    solved = await run_in_threadpool(call, **solved_result.values)
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\fastapi\routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\fastapi\routing.py", line 330, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\concurrency.py", line 32, in run_in_threadpool
     return await anyio.to_thread.run_sync(func)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -168,76 +136,50 @@ Traceback (most recent call last):
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
     result = context.run(func, *args)
              ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\app\routers\auth.py", line 669, in get_current_user
-    user = db.query(User).filter(func.lower(User.email) == func.lower(email)).first()
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2766, in first
-    return self.limit(1)._iter().first()  # type: ignore
-           ^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Website\DIGIFORTLABS\backend\app\routers\hms.py", line 382, in get_beds
+    ).all()
+      ^^^^^
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2711, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2864, in _iter
     result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
                                                   ^^^^^^^^^^^^^^^^^^^^^
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2351, in execute
     return self._execute_internal(
            ^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2239, in _execute_internal
-    conn = self._connection_for_bind(bind)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2108, in _connection_for_bind
-    return trans._connection_for_bind(engine, execution_options)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<string>", line 2, in _connection_for_bind
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 137, in _go
-    ret_value = fn(self, *arg, **kw)
-                ^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 1187, in _connection_for_bind
-    conn = bind.connect()
-           ^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 3293, in connect
-    return self._connection_cls(self)
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2249, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\context.py", line 306, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+           ^^^^^
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
            ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 145, in __init__
-    Connection._handle_dbapi_exception_noconnection(
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2448, in _handle_dbapi_exception_noconnection
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2363, in _handle_dbapi_exception
     raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 143, in __init__
-    self._dbapi_connection = engine.raw_connection()
-                             ^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 3317, in raw_connection
-    return self.pool.connect()
-           ^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\pool\base.py", line 448, in connect
-    return _ConnectionFairy._checkout(self)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\pool\base.py", line 1272, in _checkout
-    fairy = _ConnectionRecord.checkout(pool)
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\pool\base.py", line 717, in checkout
-    with util.safe_reraise():
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\util\langhelpers.py", line 121, in __exit__
-    raise exc_value.with_traceback(exc_tb)
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\pool\base.py", line 715, in checkout
-    dbapi_connection = rec.get_connection()
-                       ^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\pool\base.py", line 866, in get_connection
-    self.__connect()
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\pool\base.py", line 900, in __connect
-    with util.safe_reraise():
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\util\langhelpers.py", line 121, in __exit__
-    raise exc_value.with_traceback(exc_tb)
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\pool\base.py", line 896, in __connect
-    self.dbapi_connection = connection = pool._invoke_creator(self)
-                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\create.py", line 667, in connect
-    return dialect.connect(*cargs_tup, **cparams)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 630, in connect
-    return self.loaded_dbapi.connect(*cargs, **cparams)  # type: ignore[no-any-return]  # NOQA: E501
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\psycopg2\__init__.py", line 135, in connect
-    conn = _connect(dsn, connection_factory=connection_factory, **kwasync)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) connection to server at "localhost" (::1), port 5433 failed: timeout expired
-connection to server at "localhost" (127.0.0.1), port 5433 failed: timeout expired
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column ipd_admissions.fluid_balance_log does not exist
+LINE 1: ...ions.doctor_notes AS ipd_admissions_doctor_notes, ipd_admiss...
+                                                             ^
 
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
+[SQL: SELECT ipd_admissions.admission_id AS ipd_admissions_admission_id, ipd_admissions.patient_id AS ipd_admissions_patient_id, ipd_admissions.hospital_id AS ipd_admissions_hospital_id, ipd_admissions.admission_date AS ipd_admissions_admission_date, ipd_admissions.discharge_date AS ipd_admissions_discharge_date, ipd_admissions.ward_id AS ipd_admissions_ward_id, ipd_admissions.bed_id AS ipd_admissions_bed_id, ipd_admissions.admitting_doctor_id AS ipd_admissions_admitting_doctor_id, ipd_admissions.diagnosis AS ipd_admissions_diagnosis, ipd_admissions.treatment_plan AS ipd_admissions_treatment_plan, ipd_admissions.status AS ipd_admissions_status, ipd_admissions.vitals_log AS ipd_admissions_vitals_log, ipd_admissions.medication_orders AS ipd_admissions_medication_orders, ipd_admissions.medication_log AS ipd_admissions_medication_log, ipd_admissions.doctor_notes AS ipd_admissions_doctor_notes, ipd_admissions.fluid_balance_log AS ipd_admissions_fluid_balance_log, ipd_admissions.patient_invoice_id AS ipd_admissions_patient_invoice_id, ipd_admissions.is_mediclaim AS ipd_admissions_is_mediclaim, ipd_admissions.mediclaim_details AS ipd_admissions_mediclaim_details 
+FROM ipd_admissions 
+WHERE ipd_admissions.hospital_id = %(hospital_id_1)s AND ipd_admissions.status IN (%(status_1_1)s, %(status_1_2)s)]
+[parameters: {'hospital_id_1': 14, 'status_1_1': 'admitted', 'status_1_2': 'recovery'}]
+(Background on this error at: https://sqlalche.me/e/20/f405)

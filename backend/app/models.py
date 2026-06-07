@@ -33,6 +33,7 @@ class UserRole(str, enum.Enum):
     DOCTOR_OPD = "doctor_opd"
     DOCTOR_BOTH = "doctor_both"
     RECEPTION_STAFF = "reception_staff"
+    PHARMACIST = "pharmacist"
 
 class Permission(str, enum.Enum):
     # Platform
@@ -107,7 +108,11 @@ ROLE_PERMISSIONS = {
         Permission.MANAGE_ADMISSIONS, Permission.MANAGE_WARDS_BEDS
     ],
     UserRole.RECEPTION_STAFF: [
-        Permission.MANAGE_PATIENTS, Permission.VIEW_RECORDS
+        Permission.MANAGE_PATIENTS, Permission.VIEW_RECORDS,
+        Permission.MANAGE_ADMISSIONS, Permission.VIEW_BILLING
+    ],
+    UserRole.PHARMACIST: [
+        Permission.VIEW_RECORDS, Permission.MANAGE_PATIENTS
     ]
 }
 
@@ -1413,6 +1418,13 @@ class IPDAdmission(Base):
     medication_orders = Column(JSON, default=list) # [{id, medicine_name, dosage, frequency, start_date, end_date, prescribed_by, notes}]
     medication_log = Column(JSON, default=list) # [{timestamp, order_id, medicine_name, administered_by, notes}]
     doctor_notes = Column(JSON, default=list) # [{timestamp, doctor_id, doctor_name, note_type, content}]
+    fluid_balance_log = Column(JSON, default=list) # [{timestamp, type: 'intake'|'output', fluid_type, amount_ml, recorded_by}]
+    
+    pre_op_assessment = Column(JSON, nullable=True) # {bp, pulse, temp, weight, allergies, comorbidities, fitness_status, notes, consent_signed, assessed_by, timestamp}
+    post_op_assessment = Column(JSON, nullable=True) # {bp, pulse, temp, recovery_status, notes, assessed_by, timestamp}
+    
+    ot_required = Column(Boolean, default=False)
+    
     
     patient_invoice_id = Column(Integer, ForeignKey("patient_invoices.invoice_id"), nullable=True)
     is_mediclaim = Column(Boolean, default=False)
@@ -1437,9 +1449,42 @@ class OperationTheater(Base):
     scheduled_start = Column(DateTime, nullable=True)
     scheduled_end = Column(DateTime, nullable=True)
     
+    current_surgery_name = Column(String, nullable=True)
+    current_anesthesia_type = Column(String, nullable=True)
+    anesthesiologist_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
+    current_diagnosis = Column(Text, nullable=True)
+    special_requirements = Column(Text, nullable=True)
+    
     hospital = relationship("Hospital")
     patient = relationship("Patient")
-    doctor = relationship("DoctorProfile")
+    doctor = relationship("DoctorProfile", foreign_keys=[current_doctor_id])
+    anesthesiologist = relationship("DoctorProfile", foreign_keys=[anesthesiologist_id])
+
+class Surgery(Base):
+    __tablename__ = "surgeries"
+    surgery_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    admission_id = Column(Integer, ForeignKey("ipd_admissions.admission_id"), nullable=False)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    ot_id = Column(Integer, ForeignKey("operation_theaters.ot_id"), nullable=True)
+    
+    surgery_name = Column(String, nullable=False)
+    status = Column(String, default="Requested") # Requested, PAC Pending, PAC Cleared, Scheduled, In Progress, Completed, Cancelled
+    
+    pre_op_assessment = Column(JSON, nullable=True)
+    post_op_assessment = Column(JSON, nullable=True)
+    
+    doctor_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
+    anesthesiologist_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    hospital = relationship("Hospital")
+    admission = relationship("IPDAdmission")
+    patient = relationship("Patient")
+    ot = relationship("OperationTheater")
+    doctor = relationship("DoctorProfile", foreign_keys=[doctor_id])
+    anesthesiologist = relationship("DoctorProfile", foreign_keys=[anesthesiologist_id])
 
 class MedicalEquipment(Base):
     __tablename__ = "medical_equipments"

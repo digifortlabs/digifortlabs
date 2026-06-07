@@ -291,6 +291,7 @@ export default function StaffManagement() {
                                     <option value="nurse_ipd">Nurse IPD (Ward & Bed Manager)</option>
                                     <option value="doctor_ipd">Doctor (IPD & OPD Access)</option>
                                     <option value="reception_staff">Receptionist (Registration & Intake)</option>
+                                    <option value="pharmacy_staff">Pharmacy Staff (Prescriptions)</option>
                                     <option value="hospital_admin">Client Admin (Full Access)</option>
                                 </select>
                             </div>

@@ -74,7 +74,10 @@ def send_whatsapp(phone, text):
     
     logging.info("Starting Chrome...")
     try:
-        service = Service(ChromeDriverManager().install())
+        driver_path = ChromeDriverManager().install()
+        if "THIRD_PARTY_NOTICES" in driver_path or not driver_path.endswith(".exe"):
+            driver_path = os.path.join(os.path.dirname(driver_path), "chromedriver.exe")
+        service = Service(driver_path)
         driver = webdriver.Chrome(service=service, options=options)
         
         # Load WhatsApp Web
@@ -119,7 +122,10 @@ def login_whatsapp():
     options.add_experimental_option('useAutomationExtension', False)
     
     try:
-        service = Service(ChromeDriverManager().install())
+        driver_path = ChromeDriverManager().install()
+        if "THIRD_PARTY_NOTICES" in driver_path or not driver_path.endswith(".exe"):
+            driver_path = os.path.join(os.path.dirname(driver_path), "chromedriver.exe")
+        service = Service(driver_path)
         driver = webdriver.Chrome(service=service, options=options)
         driver.get("https://web.whatsapp.com")
         

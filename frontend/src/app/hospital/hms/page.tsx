@@ -180,7 +180,7 @@ export default function HMSDashboard() {
                     <Button onClick={() => router.push('/hospital/hms/beds')} variant="outline" className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50">
                         <Bed className="w-4 h-4" /> Bed Status
                     </Button>
-                    <Button onClick={() => router.push('/hospital/hms/ot')} variant="outline" className="gap-2 border-purple-200 text-purple-700 hover:bg-purple-50">
+                    <Button onClick={() => router.push('/hospital/ot')} variant="outline" className="gap-2 border-purple-200 text-purple-700 hover:bg-purple-50">
                         <Activity className="w-4 h-4 animate-pulse" /> Operation Theater
                     </Button>
                 </div>
@@ -321,7 +321,7 @@ export default function HMSDashboard() {
                             {[
                                 { label: 'Bed Status Grid', icon: Bed, path: '/hospital/hms/beds', color: 'text-blue-600 bg-blue-50' },
                                 { label: 'New Admission', icon: UserPlus, path: '/hospital/hms/admissions', color: 'text-emerald-600 bg-emerald-50' },
-                                { label: 'Operation Theater', icon: Activity, path: '/hospital/hms/ot', color: 'text-purple-600 bg-purple-50' },
+                                { label: 'Operation Theater', icon: Activity, path: '/hospital/ot', color: 'text-purple-600 bg-purple-50' },
                                 { label: 'Equipment Tracking', icon: Cpu, path: '/hospital/hms/equipment', color: 'text-indigo-600 bg-indigo-50' },
                                 { label: 'RFID Paperless Card', icon: CreditCard, path: '/hospital/hms/rfid', color: 'text-teal-600 bg-teal-50' },
                             ].map(a => (
