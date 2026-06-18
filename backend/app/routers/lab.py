@@ -29,6 +29,7 @@ class ResultRequest(BaseModel):
 
 class LabTestCreate(BaseModel):
     test_name: str
+    category: str = "Pathology"
     price: float = 0.0
 
 @router.get("/catalog")
@@ -149,6 +150,7 @@ def add_catalog_item(
     new_test = LabTestCatalog(
         hospital_id=target_hospital,
         test_name=payload.test_name,
+        category=payload.category,
         price=payload.price
     )
     db.add(new_test)
@@ -174,6 +176,7 @@ def update_catalog_item(
         raise HTTPException(status_code=404, detail="Test not found in catalog")
         
     existing.test_name = payload.test_name
+    existing.category = payload.category
     existing.price = payload.price
     
     db.commit()
@@ -276,25 +279,63 @@ def get_pending_orders(
 ):
     target_hospital = hospital_id if hospital_id else current_user.hospital_id
     
-    orders = db.query(LabOrder, LabResult, LabTestCatalog, Patient)\
+    orders = db.query(LabOrder, LabResult, LabTestCatalog, Patient, DoctorProfile)\
         .join(LabResult, LabOrder.order_id == LabResult.order_id)\
         .join(LabTestCatalog, LabResult.test_id == LabTestCatalog.test_id)\
         .join(Patient, LabOrder.patient_id == Patient.record_id)\
+        .outerjoin(DoctorProfile, LabOrder.doctor_id == DoctorProfile.profile_id)\
         .filter(LabOrder.hospital_id == target_hospital)\
         .filter(LabOrder.status.in_(["Pending", "Sample Collected"]))\
         .order_by(LabOrder.ordered_at.desc())\
         .all()
         
     result = []
-    for order, res, test, pat in orders:
+    for order, res, test, pat, doc in orders:
         result.append({
             "order_id": order.order_id,
             "patient_name": pat.full_name,
             "mrd_number": pat.patient_u_id,
             "test_name": test.test_name,
             "test_id": test.test_id,
+            "category": test.category,
             "status": order.status,
-            "ordered_at": order.ordered_at
+            "ordered_at": order.ordered_at,
+            "doctor_name": doc.user.full_name if (doc and doc.user) else "Self / Walk-in"
+        })
+    return result
+
+@router.get("/orders/completed")
+def get_completed_orders(
+    hospital_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    target_hospital = hospital_id if hospital_id else current_user.hospital_id
+    
+    orders = db.query(LabOrder, LabResult, LabTestCatalog, Patient, DoctorProfile)\
+        .join(LabResult, LabOrder.order_id == LabResult.order_id)\
+        .join(LabTestCatalog, LabResult.test_id == LabTestCatalog.test_id)\
+        .join(Patient, LabOrder.patient_id == Patient.record_id)\
+        .outerjoin(DoctorProfile, LabOrder.doctor_id == DoctorProfile.profile_id)\
+        .filter(LabOrder.hospital_id == target_hospital)\
+        .filter(LabOrder.status == "Completed")\
+        .order_by(LabOrder.ordered_at.desc())\
+        .all()
+        
+    result = []
+    for order, res, test, pat, doc in orders:
+        result.append({
+            "order_id": order.order_id,
+            "patient_name": pat.full_name,
+            "mrd_number": pat.patient_u_id,
+            "test_name": test.test_name,
+            "test_id": test.test_id,
+            "category": test.category,
+            "status": order.status,
+            "ordered_at": order.ordered_at,
+            "completed_at": res.completed_at,
+            "doctor_name": doc.user.full_name if (doc and doc.user) else "Self / Walk-in",
+            "pdf_file_id": res.pdf_file_id
         })
     return result
 
