@@ -56,7 +56,8 @@ def get_catalog(
             db.add(t)
         db.commit()
         catalog = db.query(LabTestCatalog).filter(LabTestCatalog.hospital_id == target_hospital).all()
-        return catalog
+        
+    return catalog
 
 @router.post("/catalog/seed-comprehensive")
 def seed_comprehensive_catalog(
