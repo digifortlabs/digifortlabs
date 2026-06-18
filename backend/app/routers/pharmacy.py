@@ -253,7 +253,9 @@ def dispense_ipd_prescription(
     target_order["dispensed_by"] = current_user.full_name
     
     # SQLAlchemy requires re-assignment for JSON changes
+    from sqlalchemy.orm.attributes import flag_modified
     adm.medication_orders = list(orders)
+    flag_modified(adm, "medication_orders")
     
     # Add cost to IPD Running Bill
     if adm.patient_invoice_id:
