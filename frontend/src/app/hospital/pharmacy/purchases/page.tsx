@@ -221,6 +221,27 @@ export default function PurchasesPage() {
                                         </Button>
                                     </div>
                                 ))}
+                                {searchTerm.length >= 2 && searchResults.length === 0 && (
+                                    <div className="p-3 text-center border rounded-md border-dashed border-slate-300 bg-slate-50">
+                                        <p className="text-sm text-slate-500 mb-2">"{searchTerm}" not found.</p>
+                                        <Button 
+                                            size="sm" 
+                                            variant="secondary"
+                                            className="w-full text-xs font-bold text-indigo-700 bg-indigo-100 hover:bg-indigo-200"
+                                            onClick={async () => {
+                                                try {
+                                                    const newMed = await apiFetch(`/pharmacy/medicines/auto-add?name=${encodeURIComponent(searchTerm)}`, { method: 'POST' });
+                                                    toast.success(`${newMed.name} added to catalog`);
+                                                    addItem(newMed);
+                                                } catch (e: any) {
+                                                    toast.error(e.message || "Failed to add medicine");
+                                                }
+                                            }}
+                                        >
+                                            <Plus className="w-3 h-3 mr-1" /> Quick Add to Catalog
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         </CardContent>
                     </Card>
