@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Stethoscope, Plus, Trash2, Edit2, Shield, AlertTriangle, Building, Briefcase, DollarSign, Calendar } from 'lucide-react';
+import { Stethoscope, Plus, Trash2, Edit2, Shield, AlertTriangle, Building, Briefcase, DollarSign, Calendar, Search } from 'lucide-react';
 import ContentSkeleton from '@/components/ui/ContentSkeleton';
 import ConfirmationModal from '@/components/ConfirmationModal';
 import DoctorScheduleModal from '@/components/DoctorScheduleModal';
@@ -37,6 +37,8 @@ export default function DoctorsManagement() {
     }>({
         isOpen: false, title: '', message: '', onConfirm: () => {}, type: 'danger'
     });
+
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         fetchDoctors();
@@ -174,6 +176,13 @@ export default function DoctorsManagement() {
         return dept ? dept.name : 'Unknown Department';
     };
 
+    const filteredDoctors = doctors.filter(doc => 
+        (doc.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (doc.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (doc.specialization || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (doc.department_id ? getDepartmentName(doc.department_id).toLowerCase().includes(searchTerm.toLowerCase()) : false)
+    );
+
     if (loading) return <ContentSkeleton />;
 
     return (
@@ -193,8 +202,21 @@ export default function DoctorsManagement() {
                 </button>
             </div>
 
+            <div className="mb-6 relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Search className="h-5 w-5 text-slate-400" />
+                </div>
+                <input
+                    type="text"
+                    className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition font-medium text-slate-700 shadow-sm"
+                    placeholder="Search doctors by name, email, specialty, or department..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {doctors.map(doc => (
+                {filteredDoctors.map(doc => (
                     <div key={doc.profile_id} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 group hover:shadow-md transition">
                         <div className="flex justify-between items-start mb-4">
                             <div className="flex items-center gap-3">

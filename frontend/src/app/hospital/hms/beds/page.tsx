@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { Bed, ChevronLeft, RefreshCw, UserPlus, AlertCircle, Activity, FileText, Pill, Stethoscope, Cpu, Syringe, Plus, Info, Users, Edit2, Trash2, History, Printer, MessageCircle, Share2, Check, X, LogOut } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Bed, ChevronLeft, RefreshCw, UserPlus, AlertCircle, Activity, FileText, Pill, Stethoscope, Cpu, Syringe, Plus, Info, Users, Edit2, Trash2, History, Printer, MessageCircle, Share2, Check, X, LogOut, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/config/api';
 import { format } from 'date-fns';
@@ -30,12 +31,12 @@ export default function HMSBedsPage() {
     // Modals
     const [isAdmitOpen, setIsAdmitOpen] = useState(false);
     const [isConsoleOpen, setIsConsoleOpen] = useState(false);
-    
+
     // State for Bed selection
     const [selectedBed, setSelectedBed] = useState<any>(null);
     const [activeAdmission, setActiveAdmission] = useState<any>(null);
     const [activePatient, setActivePatient] = useState<any>(null);
-    
+
     // Forms
     const [admitForm, setAdmitForm] = useState({ patient_name: '', age: '', gender: 'Male', diagnosis: '', doctor_name: '', contact_phone: '' });
     const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
@@ -52,19 +53,36 @@ export default function HMSBedsPage() {
     const [medLogForm, setMedLogForm] = useState({ order_id: '', medicine_name: '', notes: '' });
     const [noteForm, setNoteForm] = useState({ note_type: 'Ward Round', content: '' });
     const [vitalsForm, setVitalsForm] = useState({ temp: '', bp: '', pulse: '', respiratory_rate: '', spo2: '' });
-    const [fluidForm, setFluidForm] = useState({ type: 'intake', fluid_type: '', amount_ml: '' });
+    const [fluidForm, setFluidForm] = useState({ type: 'output', fluid_type: '', amount_ml: '' });
     const [isEditingDoctor, setIsEditingDoctor] = useState(false);
     const [editDoctorName, setEditDoctorName] = useState('');
     const [editingBedNameId, setEditingBedNameId] = useState<number | null>(null);
     const [editingBedNameValue, setEditingBedNameValue] = useState<string>('');
     const [isDischargeOpen, setIsDischargeOpen] = useState(false);
-    const [dischargeForm, setDischargeForm] = useState({ discharge_summary: '' });
+    const [dischargeForm, setDischargeForm] = useState({
+        history: '',
+        final_diagnosis: '',
+        operative_note: '',
+        advice_on_discharge: '',
+        general_advice: '',
+        follow_up_plan: '',
+        include_investigations: false,
+        discharge_notes: ''
+    });
 
     // Lab Forms & States
     const [labCatalog, setLabCatalog] = useState<any[]>([]);
+    const [labSearchQuery, setLabSearchQuery] = useState('');
     const [labOrders, setLabOrders] = useState<any[]>([]);
-    const [isOrderingLab, setIsOrderingLab] = useState(false);
     const [selectedTestIds, setSelectedTestIds] = useState<number[]>([]);
+    const [isOrderingLab, setIsOrderingLab] = useState(false);
+    
+    // Diagnostic Result Upload States
+    const [isResultModalOpen, setIsResultModalOpen] = useState(false);
+    const [selectedOrder, setSelectedOrder] = useState<any>(null);
+    const [resultForm, setResultForm] = useState({ result_value: '', reference_range: '', remarks: '' });
+    const [reportFile, setReportFile] = useState<File | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [surgeries, setSurgeries] = useState<any[]>([]);
     const [isSurgeryModalOpen, setIsSurgeryModalOpen] = useState(false);
     const [surgeryForm, setSurgeryForm] = useState({ surgery_name: '', doctor_id: '', anesthesiologist_id: '' });
@@ -110,13 +128,13 @@ export default function HMSBedsPage() {
     const handleSaveBedName = async (bedId: number) => {
         const newName = editingBedNameValue.trim();
         if (!newName) return;
-        
-        const isDuplicate = beds.some((b: any) => 
-            b.bed_id !== bedId && 
-            b.ward_id === selectedWard?.ward_id && 
+
+        const isDuplicate = beds.some((b: any) =>
+            b.bed_id !== bedId &&
+            b.ward_id === selectedWard?.ward_id &&
             b.bed_number.toLowerCase() === newName.toLowerCase()
         );
-        
+
         if (isDuplicate) {
             toast.error(`Bed name/number '${newName}' already exists in this ward.`);
             return;
@@ -166,7 +184,7 @@ export default function HMSBedsPage() {
             setAlerts(a || []);
             setDoctors(d || []);
             setLabCatalog(c || []);
-            
+
             if (wardList.length > 0) {
                 if (!selectedWard) {
                     const urlParams = new URLSearchParams(window.location.search);
@@ -187,12 +205,12 @@ export default function HMSBedsPage() {
         try {
             await apiFetch('hms/admissions', {
                 method: 'POST',
-                body: JSON.stringify({ 
-                    ...admitForm, 
+                body: JSON.stringify({
+                    ...admitForm,
                     patient_id: selectedPatientId,
-                    bed_id: selectedBed.bed_id, 
-                    ward_id: selectedBed.ward_id, 
-                    age: parseInt(admitForm.age) || 0 
+                    bed_id: selectedBed.bed_id,
+                    ward_id: selectedBed.ward_id,
+                    age: parseInt(admitForm.age) || 0
                 })
             });
             setIsAdmitOpen(false);
@@ -399,7 +417,7 @@ export default function HMSBedsPage() {
                     amount_ml: parseInt(fluidForm.amount_ml)
                 })
             });
-            setFluidForm({ type: 'intake', fluid_type: '', amount_ml: '' });
+            setFluidForm({ type: 'output', fluid_type: '', amount_ml: '' });
             refreshAdmission();
             toast.success("Fluid balance logged");
         } catch (e: any) { toast.error(e.message || "Failed to log fluid balance"); }
@@ -424,13 +442,13 @@ export default function HMSBedsPage() {
             toast.error("No active medications to share.");
             return;
         }
-        
+
         const unsentOrders = activeOrders.filter((o: any) => !o.whatsapp_sent);
         if (unsentOrders.length === 0) {
             toast.error("All active medications have already been sent via WhatsApp.");
             return;
         }
-        
+
         const toastId = toast.loading("Sending via WhatsApp...");
         try {
             await apiFetch(`hms/admissions/${activeAdmission.admission_id}/orders/whatsapp`, {
@@ -446,22 +464,46 @@ export default function HMSBedsPage() {
         }
     };
 
+    const handleOpenDischarge = async () => {
+        if (!activeAdmission) return;
+        setIsDischargeOpen(true);
+        setDischargeForm({
+            history: '',
+            final_diagnosis: activeAdmission.diagnosis || '',
+            operative_note: '',
+            advice_on_discharge: '',
+            general_advice: '',
+            follow_up_plan: '',
+            include_investigations: false,
+            discharge_notes: ''
+        });
+        try {
+            const data = await apiFetch(`hms/admissions/${activeAdmission.admission_id}`);
+            const surgeries = data.surgeries || [];
+            if (surgeries.length > 0) {
+                const opNote = surgeries.map((s: any) => s.surgery_name).join(', ');
+                setDischargeForm(prev => ({ ...prev, operative_note: opNote }));
+            }
+        } catch (e) { console.error(e); }
+    };
+
     const handleDischarge = async () => {
         if (!activeAdmission) return;
         const toastId = toast.loading("Discharging patient...");
         try {
             const res = await apiFetch(`hms/admissions/${activeAdmission.admission_id}/discharge`, {
                 method: 'POST',
-                body: JSON.stringify({ discharge_summary: dischargeForm.discharge_summary })
+                body: JSON.stringify({ ...dischargeForm, discharge_date: new Date().toISOString() })
             });
             toast.success("Patient discharged successfully!", { id: toastId });
             setIsDischargeOpen(false);
             setIsConsoleOpen(false);
             loadData(selectedHospitalId);
-            
-            if (res.admission_id) {
+
+            const dischargeId = res.admission_id || activeAdmission.admission_id;
+            if (dischargeId) {
                 // Open the discharge summary
-                window.open(`/hospital/hms/admissions/${res.admission_id}/discharge-summary`, '_blank');
+                window.open(`/hospital/hms/admissions/${dischargeId}/discharge-summary`, '_blank');
             }
         } catch (e: any) {
             toast.error(e.message || "Failed to discharge patient", { id: toastId });
@@ -480,7 +522,7 @@ export default function HMSBedsPage() {
         try {
             await apiFetch(`hms/surgeries`, {
                 method: 'POST',
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     admission_id: activeAdmission.admission_id,
                     surgery_name: surgeryForm.surgery_name,
                     doctor_id: surgeryForm.doctor_id ? parseInt(surgeryForm.doctor_id) : null,
@@ -568,20 +610,20 @@ export default function HMSBedsPage() {
                                         {wardBeds.map(bed => {
                                             const isOccupied = bed.status?.toLowerCase() === 'occupied';
                                             const isMaintenance = bed.status?.toLowerCase() === 'maintenance';
-                                            
-                                                                            // Find equipment attached to this bed
+
+                                            // Find equipment attached to this bed
                                             const bedEquipments = equipments.filter(e => e.bed_id === bed.bed_id && e.status === 'in_use');
                                             const bedAlerts = alerts.filter(a => a.admission_id === bed.admission_id);
                                             const hasAlert = bedAlerts.length > 0;
-                                            
+
                                             return (
-                                                <div key={bed.bed_id} 
+                                                <div key={bed.bed_id}
                                                     onClick={() => handleBedClick(bed)}
                                                     className={cn(
                                                         'group relative flex flex-col p-4 rounded-xl border-[2px] transition-all cursor-pointer hover:shadow-md overflow-hidden',
                                                         isOccupied ? 'bg-white border-rose-300 hover:border-rose-400' :
-                                                        isMaintenance ? 'bg-amber-50 border-amber-200' :
-                                                        'bg-white border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50'
+                                                            isMaintenance ? 'bg-amber-50 border-amber-200' :
+                                                                'bg-white border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50'
                                                     )}
                                                     style={{ minHeight: '120px' }}
                                                 >
@@ -589,9 +631,9 @@ export default function HMSBedsPage() {
                                                     <div className="flex justify-between items-start mb-2 group/title relative">
                                                         {editingBedNameId === bed.bed_id ? (
                                                             <div className="flex items-center gap-1 z-10 bg-white p-1 -ml-1 rounded shadow-sm border border-blue-200">
-                                                                <Input 
+                                                                <Input
                                                                     autoFocus
-                                                                    value={editingBedNameValue} 
+                                                                    value={editingBedNameValue}
                                                                     onChange={e => setEditingBedNameValue(e.target.value)}
                                                                     className="h-7 px-2 text-sm w-24 font-bold"
                                                                     onKeyDown={(e) => {
@@ -610,11 +652,11 @@ export default function HMSBedsPage() {
                                                             <>
                                                                 <div className="flex items-center gap-2">
                                                                     <span className="text-lg font-black text-slate-700 tracking-tight">{/^\d+$/.test(bed.bed_number) ? `Bed ${bed.bed_number}` : bed.bed_number}</span>
-                                                                    <button 
-                                                                        onClick={(e) => { 
-                                                                            e.stopPropagation(); 
-                                                                            setEditingBedNameValue(bed.bed_number); 
-                                                                            setEditingBedNameId(bed.bed_id); 
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setEditingBedNameValue(bed.bed_number);
+                                                                            setEditingBedNameId(bed.bed_id);
                                                                         }}
                                                                         className="opacity-0 group-hover/title:opacity-100 transition-opacity p-1 text-slate-400 hover:text-blue-600 rounded bg-slate-50 hover:bg-blue-50"
                                                                         title="Rename Bed"
@@ -695,23 +737,23 @@ export default function HMSBedsPage() {
                     <DialogHeader>
                         <DialogTitle>Admit Patient — Bed {selectedBed?.bed_number}</DialogTitle>
                     </DialogHeader>
-                    
+
                     <div className="space-y-4 py-2">
                         {/* Search registered patients */}
                         <div className="space-y-1.5 relative">
                             <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Search Registered Patient (Optional)</Label>
-                            <Input 
-                                placeholder="Type patient name or MRD..." 
+                            <Input
+                                placeholder="Type patient name or MRD..."
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
                                 className="border-indigo-100 focus:border-indigo-500 font-medium"
                             />
                             {searching && <span className="absolute right-3 bottom-2.5 text-xs text-slate-400">Searching...</span>}
-                            
+
                             {searchResults.length > 0 && (
                                 <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto divide-y divide-slate-100">
                                     {searchResults.map(p => (
-                                        <button 
+                                        <button
                                             key={p.record_id}
                                             onClick={() => handleSelectPatient(p)}
                                             className="w-full text-left px-4 py-2.5 hover:bg-indigo-50/50 flex flex-col justify-center transition-colors"
@@ -730,9 +772,9 @@ export default function HMSBedsPage() {
                                     <span className="text-[10px] font-black uppercase text-emerald-600 tracking-wider">Selected Existing Patient</span>
                                     <p className="font-extrabold text-emerald-900 text-sm leading-tight mt-0.5">{admitForm.patient_name}</p>
                                 </div>
-                                <Button 
-                                    size="sm" 
-                                    variant="ghost" 
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
                                     onClick={() => {
                                         setSelectedPatientId(null);
                                         setAdmitForm({ patient_name: '', age: '', gender: 'Male', diagnosis: '', doctor_name: '', contact_phone: '' });
@@ -747,29 +789,29 @@ export default function HMSBedsPage() {
                         <div className="border-t border-slate-100 pt-3 space-y-3">
                             <div className="space-y-2">
                                 <Label>Patient Name *</Label>
-                                <Input 
-                                    placeholder="Full name" 
-                                    value={admitForm.patient_name} 
-                                    onChange={e => setAdmitForm({ ...admitForm, patient_name: e.target.value })} 
+                                <Input
+                                    placeholder="Full name"
+                                    value={admitForm.patient_name}
+                                    onChange={e => setAdmitForm({ ...admitForm, patient_name: e.target.value })}
                                     disabled={selectedPatientId !== null}
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-2">
                                     <Label>Age</Label>
-                                    <Input 
-                                        placeholder="Age" 
-                                        type="number" 
-                                        value={admitForm.age} 
-                                        onChange={e => setAdmitForm({ ...admitForm, age: e.target.value })} 
+                                    <Input
+                                        placeholder="Age"
+                                        type="number"
+                                        value={admitForm.age}
+                                        onChange={e => setAdmitForm({ ...admitForm, age: e.target.value })}
                                         disabled={selectedPatientId !== null}
                                     />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Gender</Label>
-                                    <select 
+                                    <select
                                         className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm"
-                                        value={admitForm.gender} 
+                                        value={admitForm.gender}
                                         onChange={e => setAdmitForm({ ...admitForm, gender: e.target.value })}
                                         disabled={selectedPatientId !== null}
                                     >
@@ -822,92 +864,92 @@ export default function HMSBedsPage() {
                                     <span>Admitted: {new Date(activeAdmission?.admission_date).toLocaleDateString()}</span>
                                 </div>
                             </div>
-                              <div className="text-right flex flex-col items-end gap-3">
-                                  {['hospital_admin', 'superadmin', 'mrd_staff'].includes(userRole) && (
-                                      <div className="flex gap-2">
-                                          <Button 
-                                              variant="outline" 
-                                              size="sm" 
-                                              className="bg-white/10 border-white/20 text-white hover:bg-white/20 font-semibold h-8 transition-colors"
-                                              onClick={() => setIsSurgeryModalOpen(true)}
-                                          >
-                                              <Activity className="w-4 h-4 mr-2" />
-                                              Request Surgery
-                                          </Button>
-                                          <Button 
-                                              variant="outline" 
-                                              size="sm" 
-                                              className="bg-white/10 border-white/20 hover:bg-white/20 text-white font-semibold h-8"
-                                              onClick={() => window.open(`/hospital/hms/admissions/${activeAdmission.admission_id}/mrd`, '_blank')}
-                                          >
-                                              <Printer className="w-4 h-4 mr-2" />
-                                              Print MRD File
-                                          </Button>
-                                          <Button 
-                                              variant="outline" 
-                                              size="sm" 
-                                              className="bg-rose-500/20 border-rose-500/30 hover:bg-rose-500/40 text-rose-100 font-semibold h-8"
-                                              onClick={() => setIsDischargeOpen(true)}
-                                          >
-                                              <LogOut className="w-4 h-4 mr-2" />
-                                              Discharge Patient
-                                          </Button>
-                                      </div>
-                                  )}
-                                  <div>
-                                      <div className="text-xs font-black uppercase text-slate-400 tracking-wider mb-1">Attending Doctor</div>
-                                {isEditingDoctor ? (
-                                    <div className="flex items-start gap-2 relative">
-                                        <div className="relative">
-                                            <Input 
-                                                value={editDoctorName} 
-                                                onChange={e => setEditDoctorName(e.target.value)} 
-                                                className="h-8 text-sm w-56 text-slate-900 bg-white" 
-                                                placeholder="e.g. Dr. Smith, Dr. Patel"
-                                                autoComplete="off"
-                                                autoFocus
-                                            />
-                                            {isEditingDoctor && editDoctorName && doctors.length > 0 && (
-                                                <div className="absolute top-full right-0 mt-1 w-56 bg-white rounded-md shadow-xl border border-slate-200 z-50 max-h-48 overflow-y-auto text-left">
-                                                    {doctors.filter(d => (d.full_name || '').toLowerCase().includes(editDoctorName.split(',').pop()?.trim().toLowerCase() || '')).length > 0 ? (
-                                                        doctors.filter(d => (d.full_name || '').toLowerCase().includes(editDoctorName.split(',').pop()?.trim().toLowerCase() || '')).map(d => (
-                                                            <div 
-                                                                key={d.profile_id} 
-                                                                className="p-2 text-sm text-slate-700 hover:bg-indigo-50 cursor-pointer border-b border-slate-100 last:border-0"
-                                                                onClick={() => {
-                                                                    const parts = editDoctorName.split(',');
-                                                                    parts.pop(); // remove the partial term
-                                                                    const prefix = parts.length > 0 ? parts.join(',').trim() + (parts.length > 0 ? ', ' : '') : '';
-                                                                    setEditDoctorName(prefix + d.full_name + ', ');
-                                                                    document.querySelector('input')?.focus();
-                                                                }}
-                                                            >
-                                                                <span className="font-medium text-slate-900">{d.full_name || 'Unknown Doctor'}</span>
-                                                                {d.specialization && <span className="text-xs text-slate-500 block">{d.specialization}</span>}
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        <div className="p-3 text-xs text-slate-500 text-center">No doctors found. Press Save to enter custom text.</div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <Button size="sm" onClick={handleUpdateDoctor} className="h-8 bg-indigo-600 hover:bg-indigo-700">Save</Button>
-                                        <Button size="sm" variant="ghost" onClick={() => setIsEditingDoctor(false)} className="h-8 text-slate-400 hover:text-white hover:bg-slate-800">Cancel</Button>
-                                    </div>
-                                ) : (
-                                    <div 
-                                        className="font-medium text-slate-200 cursor-pointer hover:text-indigo-300 flex items-center justify-end gap-2 group"
-                                        onClick={() => {
-                                            setEditDoctorName(activePatient?.doctor_name || '');
-                                            setIsEditingDoctor(true);
-                                        }}
-                                        title="Click to assign multiple doctors"
-                                    >
-                                        {activePatient?.doctor_name || 'Unassigned'}
-                                        <span className="opacity-0 group-hover:opacity-100 text-xs text-slate-400">(Edit)</span>
+                            <div className="text-right flex flex-col items-end gap-3">
+                                {['hospital_admin', 'superadmin', 'mrd_staff'].includes(userRole) && (
+                                    <div className="flex gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="bg-white/10 border-white/20 text-white hover:bg-white/20 font-semibold h-8 transition-colors"
+                                            onClick={() => setIsSurgeryModalOpen(true)}
+                                        >
+                                            <Activity className="w-4 h-4 mr-2" />
+                                            Request Surgery
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="bg-white/10 border-white/20 hover:bg-white/20 text-white font-semibold h-8"
+                                            onClick={() => window.open(`/hospital/hms/admissions/${activeAdmission.admission_id}/mrd`, '_blank')}
+                                        >
+                                            <Printer className="w-4 h-4 mr-2" />
+                                            Print MRD File
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="bg-rose-500/20 border-rose-500/30 hover:bg-rose-500/40 text-rose-100 font-semibold h-8"
+                                            onClick={() => handleOpenDischarge()}
+                                        >
+                                            <LogOut className="w-4 h-4 mr-2" />
+                                            Discharge Patient
+                                        </Button>
                                     </div>
                                 )}
+                                <div>
+                                    <div className="text-xs font-black uppercase text-slate-400 tracking-wider mb-1">Attending Doctor</div>
+                                    {isEditingDoctor ? (
+                                        <div className="flex items-start gap-2 relative">
+                                            <div className="relative">
+                                                <Input
+                                                    value={editDoctorName}
+                                                    onChange={e => setEditDoctorName(e.target.value)}
+                                                    className="h-8 text-sm w-56 text-slate-900 bg-white"
+                                                    placeholder="e.g. Dr. Smith, Dr. Patel"
+                                                    autoComplete="off"
+                                                    autoFocus
+                                                />
+                                                {isEditingDoctor && editDoctorName && doctors.length > 0 && (
+                                                    <div className="absolute top-full right-0 mt-1 w-56 bg-white rounded-md shadow-xl border border-slate-200 z-50 max-h-48 overflow-y-auto text-left">
+                                                        {doctors.filter(d => (d.full_name || '').toLowerCase().includes(editDoctorName.split(',').pop()?.trim().toLowerCase() || '')).length > 0 ? (
+                                                            doctors.filter(d => (d.full_name || '').toLowerCase().includes(editDoctorName.split(',').pop()?.trim().toLowerCase() || '')).map(d => (
+                                                                <div
+                                                                    key={d.profile_id}
+                                                                    className="p-2 text-sm text-slate-700 hover:bg-indigo-50 cursor-pointer border-b border-slate-100 last:border-0"
+                                                                    onClick={() => {
+                                                                        const parts = editDoctorName.split(',');
+                                                                        parts.pop(); // remove the partial term
+                                                                        const prefix = parts.length > 0 ? parts.join(',').trim() + (parts.length > 0 ? ', ' : '') : '';
+                                                                        setEditDoctorName(prefix + d.full_name + ', ');
+                                                                        document.querySelector('input')?.focus();
+                                                                    }}
+                                                                >
+                                                                    <span className="font-medium text-slate-900">{d.full_name || 'Unknown Doctor'}</span>
+                                                                    {d.specialization && <span className="text-xs text-slate-500 block">{d.specialization}</span>}
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <div className="p-3 text-xs text-slate-500 text-center">No doctors found. Press Save to enter custom text.</div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <Button size="sm" onClick={handleUpdateDoctor} className="h-8 bg-indigo-600 hover:bg-indigo-700">Save</Button>
+                                            <Button size="sm" variant="ghost" onClick={() => setIsEditingDoctor(false)} className="h-8 text-slate-400 hover:text-white hover:bg-slate-800">Cancel</Button>
+                                        </div>
+                                    ) : (
+                                        <div
+                                            className="font-medium text-slate-200 cursor-pointer hover:text-indigo-300 flex items-center justify-end gap-2 group"
+                                            onClick={() => {
+                                                setEditDoctorName(activePatient?.doctor_name || '');
+                                                setIsEditingDoctor(true);
+                                            }}
+                                            title="Click to assign multiple doctors"
+                                        >
+                                            {activePatient?.doctor_name || 'Unassigned'}
+                                            <span className="opacity-0 group-hover:opacity-100 text-xs text-slate-400">(Edit)</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -920,7 +962,7 @@ export default function HMSBedsPage() {
                             {surgeries.map(s => (
                                 <Badge key={s.surgery_id} variant="outline" className="bg-white border-indigo-200 text-indigo-800 whitespace-nowrap">
                                     <Activity className="w-3 h-3 mr-1" />
-                                    {s.surgery_name} 
+                                    {s.surgery_name}
                                     <span className="ml-1 opacity-70">({s.status})</span>
                                 </Badge>
                             ))}
@@ -939,101 +981,101 @@ export default function HMSBedsPage() {
                             </TabsList>
 
                             <div className="flex-1 mt-6 overflow-y-auto pr-2 min-h-0">
-                                 {/* Doctor Orders Tab */}
-                                                                <TabsContent value="orders" className="m-0 space-y-6 h-full">
-                                                                    {['doctor', 'doctor_ipd', 'doctor_both', 'superadmin', 'superadmin_staff', 'website_admin', 'hospital_admin'].includes(userRole) ? (
-                                                                        <Card className="border-indigo-100 shadow-sm overflow-hidden">
-                                                                            <div className="bg-indigo-50/50 px-4 py-3 border-b border-indigo-100 flex items-center justify-between">
-                                                                                <h3 className="font-bold text-indigo-900 flex items-center gap-2"><Plus className="w-4 h-4" /> New Medication Order</h3>
-                                                                            </div>
-                                                                            <CardContent className="p-4 bg-white">
-                                                                                <div className="grid grid-cols-12 gap-3 items-end">
-                                                                                    <div className="col-span-12 md:col-span-3">
-                                                                                        <Label className="text-xs mb-1">Medicine Name</Label>
-                                                                                        <MedicineAutocomplete value={orderForm.medicine_name} onChange={val => setOrderForm({...orderForm, medicine_name: val})} />
-                                                                                    </div>
-                                                                                    <div className="col-span-6 md:col-span-2">
-                                                                                        <Label className="text-xs mb-1">Dosage</Label>
-                                                                                        <Input placeholder="500" value={orderForm.dosage} onChange={e => setOrderForm({...orderForm, dosage: e.target.value})} />
-                                                                                    </div>
-                                                                                    <div className="col-span-6 md:col-span-2">
-                                                                                        <Label className="text-xs mb-1">Unit</Label>
-                                                                                        <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={orderForm.dosage_unit} onChange={e => setOrderForm({...orderForm, dosage_unit: e.target.value})}>
-                                                                                            <option value="">-- Unit --</option>
-                                                                                            <option value="mg">mg</option>
-                                                                                            <option value="g">g</option>
-                                                                                            <option value="ml">ml</option>
-                                                                                            <option value="mcg">mcg</option>
-                                                                                            <option value="drops">drops</option>
-                                                                                            <option value="units">units</option>
-                                                                                            <option value="puffs">puffs</option>
-                                                                                            <option value="tab">tab</option>
-                                                                                            <option value="cap">cap</option>
-                                                                                        </select>
-                                                                                    </div>
-                                                                                    <div className="col-span-12 md:col-span-3">
-                                                                                        <Label className="text-xs mb-1">Route</Label>
-                                                                                        <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={orderForm.route} onChange={e => setOrderForm({...orderForm, route: e.target.value})}>
-                                                                                            <option value="">-- Select Route --</option>
-                                                                                            <option value="Oral (PO)">Oral (PO)</option>
-                                                                                            <option value="Intravenous (IV)">Intravenous (IV)</option>
-                                                                                            <option value="Intramuscular (IM)">Intramuscular (IM)</option>
-                                                                                            <option value="Subcutaneous (SC)">Subcutaneous (SC)</option>
-                                                                                            <option value="Topical">Topical</option>
-                                                                                            <option value="Drops">Drops</option>
-                                                                                            <option value="Inhalation">Inhalation</option>
-                                                                                        </select>
-                                                                                    </div>
-                                                                                    <div className="col-span-6 md:col-span-2">
-                                                                                        <Label className="text-xs mb-1">Qty (Total)</Label>
-                                                                                        <Input placeholder="10 Tabs" value={orderForm.qty} onChange={e => setOrderForm({...orderForm, qty: e.target.value})} />
-                                                                                    </div>
-                                                                                    
-                                                                                    <div className="col-span-6 md:col-span-2">
-                                                                                        <Label className="text-xs mb-1">Frequency</Label>
-                                                                                        <Input placeholder="BID / TDS" value={orderForm.frequency} onChange={e => setOrderForm({...orderForm, frequency: e.target.value})} />
-                                                                                    </div>
-                                                                                    <div className="col-span-6 md:col-span-2">
-                                                                                        <Label className="text-xs mb-1">Interval (Hrs)</Label>
-                                                                                        <Input placeholder="12" type="number" value={orderForm.frequency_hours} onChange={e => setOrderForm({...orderForm, frequency_hours: e.target.value})} />
-                                                                                    </div>
-                                                                                    <div className="col-span-6 md:col-span-2">
-                                                                                        <Label className="text-xs mb-1">Duration (Days)</Label>
-                                                                                        <Input placeholder="5" type="number" value={orderForm.duration_days} onChange={e => setOrderForm({...orderForm, duration_days: e.target.value})} />
-                                                                                    </div>
-                                                                                    <div className="col-span-6 md:col-span-2">
-                                                                                        <Label className="text-xs mb-1">Meal Timing</Label>
-                                                                                        <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={orderForm.notes} onChange={e => setOrderForm({...orderForm, notes: e.target.value})}>
-                                                                                            <option value="">-- Select --</option>
-                                                                                            <option value="Before meals (AC)">Before meals</option>
-                                                                                            <option value="After meals (PC)">After meals</option>
-                                                                                            <option value="With meals">With meals</option>
-                                                                                            <option value="Empty stomach">Empty stomach</option>
-                                                                                        </select>
-                                                                                    </div>
-                                                                                    <div className="col-span-12 md:col-span-3">
-                                                                                        <Label className="text-xs mb-1">Special Instructions</Label>
-                                                                                        <Input placeholder="e.g. mix with water" value={orderForm.special_instructions} onChange={e => setOrderForm({...orderForm, special_instructions: e.target.value})} />
-                                                                                    </div>
-                                                                                    <div className="col-span-12 md:col-span-1">
-                                                                                        <Button onClick={handleAddOrder} disabled={!orderForm.medicine_name || !orderForm.dosage} className="w-full bg-indigo-600 hover:bg-indigo-700 h-10"><Plus className="w-4 h-4" /></Button>
-                                                                                    </div>
-                                                                                </div>
-                                                                            </CardContent>
-                                                                        </Card>
-                                                                    ) : (
-                                                                        <div className="flex justify-between items-center mb-4">
-                                                                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Active Prescriptions</h3>
-                                                                            <Button 
-                                                                                variant="outline" 
-                                                                                size="sm" 
-                                                                                className="border-green-200 text-green-700 hover:bg-green-50 font-bold"
-                                                                                onClick={handleShareMedications}
-                                                                            >
-                                                                                <Share2 className="w-4 h-4 mr-2" /> Share via WhatsApp
-                                                                            </Button>
-                                                                        </div>
-                                                                    )}
+                                {/* Doctor Orders Tab */}
+                                <TabsContent value="orders" className="m-0 space-y-6 h-full">
+                                    {['doctor', 'doctor_ipd', 'doctor_both', 'superadmin', 'superadmin_staff', 'website_admin', 'hospital_admin'].includes(userRole) ? (
+                                        <Card className="border-indigo-100 shadow-sm overflow-hidden">
+                                            <div className="bg-indigo-50/50 px-4 py-3 border-b border-indigo-100 flex items-center justify-between">
+                                                <h3 className="font-bold text-indigo-900 flex items-center gap-2"><Plus className="w-4 h-4" /> New Medication Order</h3>
+                                            </div>
+                                            <CardContent className="p-4 bg-white">
+                                                <div className="grid grid-cols-12 gap-3 items-end">
+                                                    <div className="col-span-12 md:col-span-3">
+                                                        <Label className="text-xs mb-1">Medicine Name</Label>
+                                                        <MedicineAutocomplete value={orderForm.medicine_name} onChange={val => setOrderForm({ ...orderForm, medicine_name: val })} />
+                                                    </div>
+                                                    <div className="col-span-6 md:col-span-2">
+                                                        <Label className="text-xs mb-1">Dosage</Label>
+                                                        <Input placeholder="500" value={orderForm.dosage} onChange={e => setOrderForm({ ...orderForm, dosage: e.target.value })} />
+                                                    </div>
+                                                    <div className="col-span-6 md:col-span-2">
+                                                        <Label className="text-xs mb-1">Unit</Label>
+                                                        <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={orderForm.dosage_unit} onChange={e => setOrderForm({ ...orderForm, dosage_unit: e.target.value })}>
+                                                            <option value="">-- Unit --</option>
+                                                            <option value="mg">mg</option>
+                                                            <option value="g">g</option>
+                                                            <option value="ml">ml</option>
+                                                            <option value="mcg">mcg</option>
+                                                            <option value="drops">drops</option>
+                                                            <option value="units">units</option>
+                                                            <option value="puffs">puffs</option>
+                                                            <option value="tab">tab</option>
+                                                            <option value="cap">cap</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="col-span-12 md:col-span-3">
+                                                        <Label className="text-xs mb-1">Route</Label>
+                                                        <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={orderForm.route} onChange={e => setOrderForm({ ...orderForm, route: e.target.value })}>
+                                                            <option value="">-- Select Route --</option>
+                                                            <option value="Oral (PO)">Oral (PO)</option>
+                                                            <option value="Intravenous (IV)">Intravenous (IV)</option>
+                                                            <option value="Intramuscular (IM)">Intramuscular (IM)</option>
+                                                            <option value="Subcutaneous (SC)">Subcutaneous (SC)</option>
+                                                            <option value="Topical">Topical</option>
+                                                            <option value="Drops">Drops</option>
+                                                            <option value="Inhalation">Inhalation</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="col-span-6 md:col-span-2">
+                                                        <Label className="text-xs mb-1">Qty (Total)</Label>
+                                                        <Input placeholder="10 Tabs" value={orderForm.qty} onChange={e => setOrderForm({ ...orderForm, qty: e.target.value })} />
+                                                    </div>
+
+                                                    <div className="col-span-6 md:col-span-2">
+                                                        <Label className="text-xs mb-1">Frequency</Label>
+                                                        <Input placeholder="BID / TDS" value={orderForm.frequency} onChange={e => setOrderForm({ ...orderForm, frequency: e.target.value })} />
+                                                    </div>
+                                                    <div className="col-span-6 md:col-span-2">
+                                                        <Label className="text-xs mb-1">Interval (Hrs)</Label>
+                                                        <Input placeholder="12" type="number" value={orderForm.frequency_hours} onChange={e => setOrderForm({ ...orderForm, frequency_hours: e.target.value })} />
+                                                    </div>
+                                                    <div className="col-span-6 md:col-span-2">
+                                                        <Label className="text-xs mb-1">Duration (Days)</Label>
+                                                        <Input placeholder="5" type="number" value={orderForm.duration_days} onChange={e => setOrderForm({ ...orderForm, duration_days: e.target.value })} />
+                                                    </div>
+                                                    <div className="col-span-6 md:col-span-2">
+                                                        <Label className="text-xs mb-1">Meal Timing</Label>
+                                                        <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={orderForm.notes} onChange={e => setOrderForm({ ...orderForm, notes: e.target.value })}>
+                                                            <option value="">-- Select --</option>
+                                                            <option value="Before meals (AC)">Before meals</option>
+                                                            <option value="After meals (PC)">After meals</option>
+                                                            <option value="With meals">With meals</option>
+                                                            <option value="Empty stomach">Empty stomach</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="col-span-12 md:col-span-3">
+                                                        <Label className="text-xs mb-1">Special Instructions</Label>
+                                                        <Input placeholder="e.g. mix with water" value={orderForm.special_instructions} onChange={e => setOrderForm({ ...orderForm, special_instructions: e.target.value })} />
+                                                    </div>
+                                                    <div className="col-span-12 md:col-span-1">
+                                                        <Button onClick={handleAddOrder} disabled={!orderForm.medicine_name || !orderForm.dosage} className="w-full bg-indigo-600 hover:bg-indigo-700 h-10"><Plus className="w-4 h-4" /></Button>
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    ) : (
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Active Prescriptions</h3>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="border-green-200 text-green-700 hover:bg-green-50 font-bold"
+                                                onClick={handleShareMedications}
+                                            >
+                                                <Share2 className="w-4 h-4 mr-2" /> Share via WhatsApp
+                                            </Button>
+                                        </div>
+                                    )}
 
                                     <div className="space-y-3">
                                         {(activeAdmission?.medication_orders || []).length === 0 ? (
@@ -1050,15 +1092,15 @@ export default function HMSBedsPage() {
                                                         <div className="grid grid-cols-12 gap-3 items-end">
                                                             <div className="col-span-12 md:col-span-3">
                                                                 <Label className="text-xs mb-1">Medicine Name</Label>
-                                                                <MedicineAutocomplete className="bg-white" value={editOrderForm.medicine_name} onChange={val => setEditOrderForm({...editOrderForm, medicine_name: val})} />
+                                                                <MedicineAutocomplete className="bg-white" value={editOrderForm.medicine_name} onChange={val => setEditOrderForm({ ...editOrderForm, medicine_name: val })} />
                                                             </div>
                                                             <div className="col-span-6 md:col-span-2">
                                                                 <Label className="text-xs mb-1">Dosage</Label>
-                                                                <Input value={editOrderForm.dosage} onChange={e => setEditOrderForm({...editOrderForm, dosage: e.target.value})} className="bg-white" />
+                                                                <Input value={editOrderForm.dosage} onChange={e => setEditOrderForm({ ...editOrderForm, dosage: e.target.value })} className="bg-white" />
                                                             </div>
                                                             <div className="col-span-6 md:col-span-2">
                                                                 <Label className="text-xs mb-1">Unit</Label>
-                                                                <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={editOrderForm.dosage_unit} onChange={e => setEditOrderForm({...editOrderForm, dosage_unit: e.target.value})}>
+                                                                <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={editOrderForm.dosage_unit} onChange={e => setEditOrderForm({ ...editOrderForm, dosage_unit: e.target.value })}>
                                                                     <option value="">-- Unit --</option>
                                                                     <option value="mg">mg</option>
                                                                     <option value="g">g</option>
@@ -1073,7 +1115,7 @@ export default function HMSBedsPage() {
                                                             </div>
                                                             <div className="col-span-12 md:col-span-3">
                                                                 <Label className="text-xs mb-1">Route</Label>
-                                                                <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={editOrderForm.route} onChange={e => setEditOrderForm({...editOrderForm, route: e.target.value})}>
+                                                                <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={editOrderForm.route} onChange={e => setEditOrderForm({ ...editOrderForm, route: e.target.value })}>
                                                                     <option value="">-- Select Route --</option>
                                                                     <option value="Oral (PO)">Oral (PO)</option>
                                                                     <option value="Intravenous (IV)">Intravenous (IV)</option>
@@ -1086,24 +1128,24 @@ export default function HMSBedsPage() {
                                                             </div>
                                                             <div className="col-span-6 md:col-span-2">
                                                                 <Label className="text-xs mb-1">Qty (Total)</Label>
-                                                                <Input value={editOrderForm.qty} onChange={e => setEditOrderForm({...editOrderForm, qty: e.target.value})} className="bg-white" />
+                                                                <Input value={editOrderForm.qty} onChange={e => setEditOrderForm({ ...editOrderForm, qty: e.target.value })} className="bg-white" />
                                                             </div>
-                                                            
+
                                                             <div className="col-span-6 md:col-span-2">
                                                                 <Label className="text-xs mb-1">Frequency</Label>
-                                                                <Input value={editOrderForm.frequency} onChange={e => setEditOrderForm({...editOrderForm, frequency: e.target.value})} className="bg-white" />
+                                                                <Input value={editOrderForm.frequency} onChange={e => setEditOrderForm({ ...editOrderForm, frequency: e.target.value })} className="bg-white" />
                                                             </div>
                                                             <div className="col-span-6 md:col-span-2">
                                                                 <Label className="text-xs mb-1">Interval (Hrs)</Label>
-                                                                <Input type="number" value={editOrderForm.frequency_hours} onChange={e => setEditOrderForm({...editOrderForm, frequency_hours: e.target.value})} className="bg-white" />
+                                                                <Input type="number" value={editOrderForm.frequency_hours} onChange={e => setEditOrderForm({ ...editOrderForm, frequency_hours: e.target.value })} className="bg-white" />
                                                             </div>
                                                             <div className="col-span-6 md:col-span-2">
                                                                 <Label className="text-xs mb-1">Duration (Days)</Label>
-                                                                <Input type="number" value={editOrderForm.duration_days} onChange={e => setEditOrderForm({...editOrderForm, duration_days: e.target.value})} className="bg-white" />
+                                                                <Input type="number" value={editOrderForm.duration_days} onChange={e => setEditOrderForm({ ...editOrderForm, duration_days: e.target.value })} className="bg-white" />
                                                             </div>
                                                             <div className="col-span-6 md:col-span-3">
                                                                 <Label className="text-xs mb-1">Meal Timing / Notes</Label>
-                                                                <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={editOrderForm.notes} onChange={e => setEditOrderForm({...editOrderForm, notes: e.target.value})}>
+                                                                <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm bg-white" value={editOrderForm.notes} onChange={e => setEditOrderForm({ ...editOrderForm, notes: e.target.value })}>
                                                                     <option value="">-- Select --</option>
                                                                     <option value="Before meals (AC)">Before meals</option>
                                                                     <option value="After meals (PC)">After meals</option>
@@ -1113,7 +1155,7 @@ export default function HMSBedsPage() {
                                                             </div>
                                                             <div className="col-span-12 md:col-span-3">
                                                                 <Label className="text-xs mb-1">Special Instructions</Label>
-                                                                <Input value={editOrderForm.special_instructions} onChange={e => setEditOrderForm({...editOrderForm, special_instructions: e.target.value})} className="bg-white" />
+                                                                <Input value={editOrderForm.special_instructions} onChange={e => setEditOrderForm({ ...editOrderForm, special_instructions: e.target.value })} className="bg-white" />
                                                             </div>
                                                         </div>
                                                         <div className="flex justify-end gap-2 pt-2 border-t border-indigo-100">
@@ -1156,11 +1198,11 @@ export default function HMSBedsPage() {
                                                             <div className="text-right flex flex-col justify-between h-full items-end gap-2">
                                                                 <Badge variant="outline" className={`text-[10px] font-mono ${isDeleted ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-slate-50'}`}>{new Date(order.start_date).toLocaleString()}</Badge>
                                                                 <span className={`text-xs font-bold ${isDeleted ? 'text-slate-400' : 'text-slate-400'}`}>{order.prescribed_by ? `Dr. ${order.prescribed_by}` : ''}</span>
-                                                                
+
                                                                 <div className="flex gap-1 mt-1">
-                                                                    <Button 
-                                                                        size="sm" 
-                                                                        variant="ghost" 
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="ghost"
                                                                         className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600"
                                                                         onClick={() => setExpandedHistoryId(expandedHistoryId === order.id ? null : order.id)}
                                                                         title="View History"
@@ -1169,9 +1211,9 @@ export default function HMSBedsPage() {
                                                                     </Button>
                                                                     {!isDeleted && (
                                                                         <>
-                                                                            <Button 
-                                                                                size="sm" 
-                                                                                variant="ghost" 
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="ghost"
                                                                                 className="h-7 w-7 p-0 text-slate-400 hover:text-indigo-600"
                                                                                 onClick={() => {
                                                                                     setEditOrderForm({
@@ -1191,9 +1233,9 @@ export default function HMSBedsPage() {
                                                                             >
                                                                                 <Edit2 className="w-4 h-4" />
                                                                             </Button>
-                                                                            <Button 
-                                                                                size="sm" 
-                                                                                variant="ghost" 
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="ghost"
                                                                                 className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600"
                                                                                 onClick={() => handleDeleteOrder(order.id)}
                                                                                 title="Delete/Stop Order"
@@ -1201,9 +1243,9 @@ export default function HMSBedsPage() {
                                                                                 <Trash2 className="w-4 h-4" />
                                                                             </Button>
                                                                             {!order.purchased && (
-                                                                                <Button 
-                                                                                    size="sm" 
-                                                                                    variant="outline" 
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    variant="outline"
                                                                                     className="h-7 px-2 text-[10px] border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
                                                                                     onClick={() => handleMarkPurchased(order.id)}
                                                                                     title="Mark as purchased or sent to pharmacy"
@@ -1216,7 +1258,7 @@ export default function HMSBedsPage() {
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        
+
                                                         {expandedHistoryId === order.id && (
                                                             <div className="mt-4 pt-3 border-t border-slate-100">
                                                                 <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Change History</h5>
@@ -1224,7 +1266,7 @@ export default function HMSBedsPage() {
                                                                     {(order.history || []).map((hist: any, hIdx: number) => (
                                                                         <div key={hIdx} className="flex gap-3 text-sm items-start">
                                                                             <div className="w-24 flex-shrink-0 text-xs text-slate-400 font-mono pt-0.5">
-                                                                                {new Date(hist.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                                                {new Date(hist.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                             </div>
                                                                             <div className="flex-1">
                                                                                 <span className={`font-semibold mr-2 ${hist.action === 'created' ? 'text-green-600' : hist.action === 'deleted' ? 'text-rose-600' : 'text-blue-600'}`}>
@@ -1254,7 +1296,7 @@ export default function HMSBedsPage() {
                                         {/* Administration Panel */}
                                         <div className="space-y-4">
                                             <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Administer Medication</h3>
-                                            
+
                                             {/* Due Now Summary */}
                                             {(() => {
                                                 const dueOrders = (activeAdmission?.medication_orders || []).filter((o: any) => {
@@ -1286,13 +1328,13 @@ export default function HMSBedsPage() {
                                                 <CardContent className="p-4 space-y-4 bg-white">
                                                     <div className="space-y-2">
                                                         <Label className="text-xs">Select Ordered Medicine</Label>
-                                                        <select 
+                                                        <select
                                                             className="w-full border-2 border-slate-200 focus:border-rose-500 rounded-lg p-2.5 text-sm font-medium bg-slate-50"
                                                             value={medLogForm.order_id}
                                                             onChange={e => {
                                                                 const order = (activeAdmission?.medication_orders || []).find((o: any) => o.id === e.target.value);
-                                                                setMedLogForm({ 
-                                                                    ...medLogForm, 
+                                                                setMedLogForm({
+                                                                    ...medLogForm,
                                                                     order_id: e.target.value,
                                                                     medicine_name: order ? order.medicine_name : ''
                                                                 });
@@ -1319,12 +1361,12 @@ export default function HMSBedsPage() {
                                                     </div>
                                                     <div className="space-y-2">
                                                         <Label className="text-xs">Nurse Notes (Optional)</Label>
-                                                        <Input placeholder="Given orally, patient reacted well..." value={medLogForm.notes} onChange={e => setMedLogForm({...medLogForm, notes: e.target.value})} className="bg-slate-50" />
+                                                        <Input placeholder="Given orally, patient reacted well..." value={medLogForm.notes} onChange={e => setMedLogForm({ ...medLogForm, notes: e.target.value })} className="bg-slate-50" />
                                                     </div>
                                                     <Button onClick={handleLogMedication} disabled={!medLogForm.order_id} className="w-full bg-rose-600 hover:bg-rose-700 h-10 font-bold"><Syringe className="w-4 h-4 mr-2" /> Log Administration</Button>
                                                 </CardContent>
                                             </Card>
-                                            
+
                                             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
                                                 <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                                                 <p className="text-sm text-blue-800">Logging a medication automatically creates a billing hook in the background to charge the patient if pharmacy integration is enabled.</p>
@@ -1368,23 +1410,23 @@ export default function HMSBedsPage() {
                                                         <div className="grid grid-cols-2 gap-3">
                                                             <div className="space-y-2">
                                                                 <Label className="text-xs">Temp (°F)</Label>
-                                                                <Input placeholder="98.6" value={vitalsForm.temp} onChange={e => setVitalsForm({...vitalsForm, temp: e.target.value})} className="bg-slate-50" />
+                                                                <Input placeholder="98.6" value={vitalsForm.temp} onChange={e => setVitalsForm({ ...vitalsForm, temp: e.target.value })} className="bg-slate-50" />
                                                             </div>
                                                             <div className="space-y-2">
                                                                 <Label className="text-xs">BP (mmHg)</Label>
-                                                                <Input placeholder="120/80" value={vitalsForm.bp} onChange={e => setVitalsForm({...vitalsForm, bp: e.target.value})} className="bg-slate-50" />
+                                                                <Input placeholder="120/80" value={vitalsForm.bp} onChange={e => setVitalsForm({ ...vitalsForm, bp: e.target.value })} className="bg-slate-50" />
                                                             </div>
                                                             <div className="space-y-2">
                                                                 <Label className="text-xs">Pulse (bpm)</Label>
-                                                                <Input placeholder="72" value={vitalsForm.pulse} onChange={e => setVitalsForm({...vitalsForm, pulse: e.target.value})} className="bg-slate-50" />
+                                                                <Input placeholder="72" value={vitalsForm.pulse} onChange={e => setVitalsForm({ ...vitalsForm, pulse: e.target.value })} className="bg-slate-50" />
                                                             </div>
                                                             <div className="space-y-2">
                                                                 <Label className="text-xs">SpO2 (%)</Label>
-                                                                <Input placeholder="98" value={vitalsForm.spo2} onChange={e => setVitalsForm({...vitalsForm, spo2: e.target.value})} className="bg-slate-50" />
+                                                                <Input placeholder="98" value={vitalsForm.spo2} onChange={e => setVitalsForm({ ...vitalsForm, spo2: e.target.value })} className="bg-slate-50" />
                                                             </div>
                                                             <div className="space-y-2 col-span-2">
                                                                 <Label className="text-xs">Resp Rate (breaths/min)</Label>
-                                                                <Input placeholder="16" value={vitalsForm.respiratory_rate} onChange={e => setVitalsForm({...vitalsForm, respiratory_rate: e.target.value})} className="bg-slate-50" />
+                                                                <Input placeholder="16" value={vitalsForm.respiratory_rate} onChange={e => setVitalsForm({ ...vitalsForm, respiratory_rate: e.target.value })} className="bg-slate-50" />
                                                             </div>
                                                         </div>
                                                         <Button onClick={handleLogVitals} disabled={!vitalsForm.temp && !vitalsForm.bp && !vitalsForm.pulse} className="w-full bg-blue-600 hover:bg-blue-700 h-10 font-bold">Log Vitals</Button>
@@ -1398,28 +1440,14 @@ export default function HMSBedsPage() {
                                                 <Card className="border-teal-100 shadow-sm">
                                                     <CardContent className="p-4 space-y-4 bg-white">
                                                         <div className="grid grid-cols-2 gap-3">
-                                                            <div className="space-y-2 col-span-2">
-                                                                <Label className="text-xs">Type</Label>
-                                                                <div className="flex gap-2">
-                                                                    <Button 
-                                                                        variant={fluidForm.type === 'intake' ? 'default' : 'outline'} 
-                                                                        className={`flex-1 ${fluidForm.type === 'intake' ? 'bg-teal-600 hover:bg-teal-700' : ''}`}
-                                                                        onClick={() => setFluidForm({...fluidForm, type: 'intake'})}
-                                                                    >Intake (IV/Oral)</Button>
-                                                                    <Button 
-                                                                        variant={fluidForm.type === 'output' ? 'default' : 'outline'} 
-                                                                        className={`flex-1 ${fluidForm.type === 'output' ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
-                                                                        onClick={() => setFluidForm({...fluidForm, type: 'output'})}
-                                                                    >Output (Urine/Drain)</Button>
-                                                                </div>
-                                                            </div>
+
                                                             <div className="space-y-2">
                                                                 <Label className="text-xs">Fluid Name</Label>
-                                                                <Input placeholder="e.g. Normal Saline, Urine" value={fluidForm.fluid_type} onChange={e => setFluidForm({...fluidForm, fluid_type: e.target.value})} className="bg-slate-50" />
+                                                                <Input placeholder="e.g. Normal Saline, Urine" value={fluidForm.fluid_type} onChange={e => setFluidForm({ ...fluidForm, fluid_type: e.target.value })} className="bg-slate-50" />
                                                             </div>
                                                             <div className="space-y-2">
                                                                 <Label className="text-xs">Amount (ml)</Label>
-                                                                <Input placeholder="500" type="number" value={fluidForm.amount_ml} onChange={e => setFluidForm({...fluidForm, amount_ml: e.target.value})} className="bg-slate-50" />
+                                                                <Input placeholder="500" type="number" value={fluidForm.amount_ml} onChange={e => setFluidForm({ ...fluidForm, amount_ml: e.target.value })} className="bg-slate-50" />
                                                             </div>
                                                         </div>
                                                         <Button onClick={handleLogFluid} disabled={!fluidForm.fluid_type || !fluidForm.amount_ml} className="w-full bg-teal-600 hover:bg-teal-700 h-10 font-bold">Log Fluid</Button>
@@ -1435,7 +1463,7 @@ export default function HMSBedsPage() {
                                                         <div className="space-y-2">
                                                             <Label className="text-xs">Note Type</Label>
                                                             <select className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm font-medium bg-slate-50"
-                                                                value={noteForm.note_type} onChange={e => setNoteForm({...noteForm, note_type: e.target.value})}>
+                                                                value={noteForm.note_type} onChange={e => setNoteForm({ ...noteForm, note_type: e.target.value })}>
                                                                 <option>Ward Round</option>
                                                                 <option>Progress Note</option>
                                                                 <option>Consultation</option>
@@ -1444,11 +1472,11 @@ export default function HMSBedsPage() {
                                                         </div>
                                                         <div className="space-y-2">
                                                             <Label className="text-xs">Content</Label>
-                                                            <textarea 
+                                                            <textarea
                                                                 className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm bg-slate-50 min-h-[100px] resize-y"
                                                                 placeholder="Observations, patient condition..."
                                                                 value={noteForm.content}
-                                                                onChange={e => setNoteForm({...noteForm, content: e.target.value})}
+                                                                onChange={e => setNoteForm({ ...noteForm, content: e.target.value })}
                                                             />
                                                         </div>
                                                         <Button onClick={handleAddNote} disabled={!noteForm.content} className="w-full bg-amber-500 hover:bg-amber-600 h-10 text-white font-bold">Add Note</Button>
@@ -1464,7 +1492,7 @@ export default function HMSBedsPage() {
                                                     <TabsTrigger value="fluid_chart">Fluid Balance</TabsTrigger>
                                                     <TabsTrigger value="notes">Clinical Notes</TabsTrigger>
                                                 </TabsList>
-                                                
+
                                                 <TabsContent value="vitals_chart" className="mt-4">
                                                     <div className="h-[400px] overflow-y-auto pr-2 space-y-3">
                                                         {(activeAdmission?.vitals_log || []).length === 0 ? (
@@ -1571,7 +1599,7 @@ export default function HMSBedsPage() {
                                         </div>
                                     </div>
                                 </TabsContent>
-                                
+
                                 {/* Diagnostics (Labs & Radiology) */}
                                 <TabsContent value="diagnostics" className="m-0 space-y-6 h-full">
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
@@ -1579,24 +1607,85 @@ export default function HMSBedsPage() {
                                         <Card className="border-blue-100 shadow-sm flex flex-col min-h-[400px]">
                                             <div className="bg-blue-50/50 px-4 py-3 border-b border-blue-100 flex justify-between items-center">
                                                 <h3 className="font-bold text-blue-900">Order Lab Tests</h3>
-                                                <Button 
-                                                    size="sm" 
-                                                    className="bg-blue-600 hover:bg-blue-700" 
+                                                <Button
+                                                    size="sm"
+                                                    className="bg-blue-600 hover:bg-blue-700"
                                                     onClick={handleOrderLabTest}
                                                     disabled={selectedTestIds.length === 0 || isOrderingLab}
                                                 >
                                                     {isOrderingLab ? "Ordering..." : `Order ${selectedTestIds.length} Test(s)`}
                                                 </Button>
                                             </div>
-                                            <CardContent className="p-4 flex-1 overflow-y-auto">
-                                                <div className="space-y-2">
-                                                    {labCatalog.length === 0 ? (
-                                                        <p className="text-sm text-slate-500">No tests available in catalog.</p>
-                                                    ) : (
-                                                        labCatalog.map(test => {
+                                            <CardContent className="p-4 flex-1 flex flex-col min-h-0">
+                                                <div className="mb-4">
+                                                    <Input 
+                                                        placeholder="Search lab tests..." 
+                                                        value={labSearchQuery}
+                                                        onChange={e => setLabSearchQuery(e.target.value)}
+                                                        className="w-full"
+                                                    />
+                                                </div>
+                                                
+                                                {/* Seed Comprehensive List Button */}
+                                                {labCatalog.length < 20 && !labSearchQuery && (
+                                                    <div className="mb-4 text-center">
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm" 
+                                                            className="text-purple-600 border-purple-200 hover:bg-purple-50 w-full"
+                                                            onClick={async () => {
+                                                                try {
+                                                                    await apiFetch('lab/catalog/seed-comprehensive', { method: 'POST' });
+                                                                    toast.success("Comprehensive tests added successfully");
+                                                                    const data = await apiFetch('lab/catalog');
+                                                                    setLabCatalog(data);
+                                                                } catch(e: any) {
+                                                                    toast.error(e.message || "Failed to add comprehensive tests");
+                                                                }
+                                                            }}
+                                                        >
+                                                            <Plus className="w-4 h-4 mr-2" /> Load Comprehensive Diagnostic Tests (CT, MRI, Path, etc.)
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                                <div className="space-y-2 overflow-y-auto flex-1 pr-2">
+                                                    {(() => {
+                                                        const filtered = labCatalog.filter(t => t.test_name.toLowerCase().includes(labSearchQuery.toLowerCase()));
+                                                        
+                                                        if (filtered.length === 0) {
+                                                            return (
+                                                                <div className="text-center p-6 border-2 border-dashed border-slate-200 rounded-lg">
+                                                                    <p className="text-sm text-slate-500 mb-3">No tests found for "{labSearchQuery}"</p>
+                                                                    {labSearchQuery.trim() && (
+                                                                        <Button 
+                                                                            variant="outline" 
+                                                                            onClick={async () => {
+                                                                                try {
+                                                                                    const data = await apiFetch('lab/catalog', {
+                                                                                        method: 'POST',
+                                                                                        body: JSON.stringify({ test_name: labSearchQuery.trim(), price: 0 })
+                                                                                    });
+                                                                                    setLabCatalog(prev => [...prev, data]);
+                                                                                    setSelectedTestIds(prev => [...prev, data.test_id]);
+                                                                                    setLabSearchQuery('');
+                                                                                    toast.success(`Custom test "${data.test_name}" added and selected.`);
+                                                                                } catch(e: any) {
+                                                                                    toast.error("Failed to add custom test");
+                                                                                }
+                                                                            }}
+                                                                            className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                                                                        >
+                                                                            + Add "{labSearchQuery}" as New Test
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        }
+                                                        
+                                                        return filtered.map(test => {
                                                             const isSelected = selectedTestIds.includes(test.test_id);
                                                             return (
-                                                                <div 
+                                                                <div
                                                                     key={test.test_id}
                                                                     onClick={() => {
                                                                         if (isSelected) {
@@ -1614,8 +1703,8 @@ export default function HMSBedsPage() {
                                                                     {isSelected && <Check className="w-5 h-5 text-blue-600" />}
                                                                 </div>
                                                             );
-                                                        })
-                                                    )}
+                                                        });
+                                                    })()}
                                                 </div>
                                             </CardContent>
                                         </Card>
@@ -1640,11 +1729,33 @@ export default function HMSBedsPage() {
                                                                         <h4 className="font-bold text-slate-900">{order.test_name}</h4>
                                                                         <p className="text-xs text-slate-500">{new Date(order.ordered_at).toLocaleString()}</p>
                                                                     </div>
-                                                                    <Badge className={order.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}>
-                                                                        {order.status}
-                                                                    </Badge>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Badge className={order.status === 'Completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}>
+                                                                            {order.status}
+                                                                        </Badge>
+                                                                        <Button 
+                                                                            variant="ghost" 
+                                                                            size="icon" 
+                                                                            className="h-6 w-6 text-slate-400 hover:text-rose-500 hover:bg-rose-50"
+                                                                            onClick={async (e) => {
+                                                                                e.stopPropagation();
+                                                                                if (confirm("Are you sure you want to delete this entire test order?")) {
+                                                                                    try {
+                                                                                        await apiFetch(`lab/orders/${order.order_id}`, { method: 'DELETE' });
+                                                                                        toast.success("Lab order deleted successfully");
+                                                                                        refreshAdmission();
+                                                                                    } catch(err: any) {
+                                                                                        toast.error(err.message || "Failed to delete order");
+                                                                                    }
+                                                                                }
+                                                                            }}
+                                                                            title="Delete Order"
+                                                                        >
+                                                                            <Trash2 className="w-4 h-4" />
+                                                                        </Button>
+                                                                    </div>
                                                                 </div>
-                                                                
+
                                                                 {order.status === 'Completed' ? (
                                                                     <div className="mt-3 p-3 bg-slate-50 rounded border border-slate-100">
                                                                         <div className="grid grid-cols-2 gap-4">
@@ -1664,9 +1775,55 @@ export default function HMSBedsPage() {
                                                                                 <span className="font-bold">Remarks:</span> {order.remarks}
                                                                             </div>
                                                                         )}
+                                                                        {order.report_file_url && (
+                                                                            <div className="flex gap-2 mt-3">
+                                                                                <Button 
+                                                                                    variant="outline" 
+                                                                                    size="sm" 
+                                                                                    className="w-full bg-white text-blue-600 border-blue-200 hover:bg-blue-50" 
+                                                                                    onClick={() => window.open(order.report_file_url, '_blank')}
+                                                                                >
+                                                                                    <FileText className="w-4 h-4 mr-2" /> View Uploaded Report
+                                                                                </Button>
+                                                                                <Button 
+                                                                                    variant="outline" 
+                                                                                    size="icon" 
+                                                                                    className="bg-white text-rose-500 border-rose-200 hover:bg-rose-50 shrink-0" 
+                                                                                    onClick={async () => {
+                                                                                        if (confirm("Are you sure you want to delete this report?")) {
+                                                                                            try {
+                                                                                                await apiFetch(`lab/results/${order.order_id}/${order.test_id}/report`, { method: 'DELETE' });
+                                                                                                toast.success("Report deleted successfully");
+                                                                                                refreshAdmission();
+                                                                                            } catch (e: any) {
+                                                                                                toast.error(e.message || "Failed to delete report");
+                                                                                            }
+                                                                                        }
+                                                                                    }}
+                                                                                    title="Delete Report"
+                                                                                >
+                                                                                    <Trash2 className="w-4 h-4" />
+                                                                                </Button>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 ) : (
-                                                                    <p className="text-sm text-slate-500 mt-2 italic">Awaiting technician to enter results...</p>
+                                                                    <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+                                                                        <p className="text-sm text-slate-500 italic">Awaiting results...</p>
+                                                                        <Button 
+                                                                            size="sm" 
+                                                                            variant="outline" 
+                                                                            className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                                                                            onClick={() => {
+                                                                                setSelectedOrder(order);
+                                                                                setResultForm({ result_value: '', reference_range: '', remarks: '' });
+                                                                                setReportFile(null);
+                                                                                setIsResultModalOpen(true);
+                                                                            }}
+                                                                        >
+                                                                            <Upload className="w-4 h-4 mr-2" /> Enter / Upload Result
+                                                                        </Button>
+                                                                    </div>
                                                                 )}
                                                             </div>
                                                         ))}
@@ -1678,6 +1835,126 @@ export default function HMSBedsPage() {
                                 </TabsContent>
                             </div>
                         </Tabs>
+
+                        {/* Lab Result Entry Modal */}
+                        {isResultModalOpen && selectedOrder && (
+                            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                                <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+                                    <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                        <div>
+                                            <h2 className="font-bold text-slate-800 text-lg">Enter Lab Result</h2>
+                                            <p className="text-sm text-slate-500">{selectedOrder.test_name}</p>
+                                        </div>
+                                        <Button variant="ghost" size="icon" onClick={() => setIsResultModalOpen(false)}>
+                                            <X className="w-5 h-5 text-slate-400" />
+                                        </Button>
+                                    </div>
+                                    <div className="p-6 overflow-y-auto space-y-4">
+                                        <div>
+                                            <Label className="mb-2 block text-slate-700">Result Value <span className="text-rose-500">*</span></Label>
+                                            <Input 
+                                                value={resultForm.result_value} 
+                                                onChange={e => setResultForm({...resultForm, result_value: e.target.value})} 
+                                                placeholder="e.g. 14.5"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label className="mb-2 block text-slate-700">Reference Range (Optional)</Label>
+                                            <Input 
+                                                value={resultForm.reference_range} 
+                                                onChange={e => setResultForm({...resultForm, reference_range: e.target.value})} 
+                                                placeholder="e.g. 12.0 - 15.5 g/dL"
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label className="mb-2 block text-slate-700">Remarks (Optional)</Label>
+                                            <Textarea 
+                                                value={resultForm.remarks} 
+                                                onChange={e => setResultForm({...resultForm, remarks: e.target.value})} 
+                                                placeholder="Any additional notes..."
+                                                rows={2}
+                                            />
+                                        </div>
+                                        
+                                        <div className="pt-2 border-t border-slate-100">
+                                            <Label className="mb-2 block">Upload Report PDF/Image (Optional)</Label>
+                                            <input 
+                                                type="file" 
+                                                ref={fileInputRef} 
+                                                onChange={(e) => setReportFile(e.target.files?.[0] || null)} 
+                                                className="hidden" 
+                                                accept=".pdf,.png,.jpg,.jpeg"
+                                            />
+                                            <Button 
+                                                variant="outline" 
+                                                onClick={() => fileInputRef.current?.click()}
+                                                className="w-full border-dashed border-2 border-slate-200 text-slate-500"
+                                            >
+                                                <Upload className="w-4 h-4 mr-2" /> 
+                                                {reportFile ? reportFile.name : "Select PDF/Image File"}
+                                            </Button>
+                                            {reportFile && (
+                                                <div className="flex justify-between items-center mt-2 px-2 py-1 bg-slate-50 rounded text-xs text-slate-600">
+                                                    <span className="truncate">{reportFile.name}</span>
+                                                    <button onClick={() => setReportFile(null)} className="text-rose-500 hover:text-rose-700">Remove</button>
+                                                </div>
+                                            )}
+                                            <p className="text-[10px] text-center text-slate-400 mt-2">Uploading will attach the full report to the patient's record.</p>
+                                        </div>
+                                    </div>
+                                    <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
+                                        <Button variant="outline" onClick={() => setIsResultModalOpen(false)}>Cancel</Button>
+                                        <Button 
+                                            className="bg-blue-600 hover:bg-blue-700" 
+                                            disabled={!resultForm.result_value}
+                                            onClick={async () => {
+                                                try {
+                                                    const formData = new FormData();
+                                                    formData.append('order_id', selectedOrder.order_id);
+                                                    formData.append('test_id', selectedOrder.test_id);
+                                                    formData.append('result_value', resultForm.result_value);
+                                                    if (resultForm.reference_range) formData.append('reference_range', resultForm.reference_range);
+                                                    if (resultForm.remarks) formData.append('remarks', resultForm.remarks);
+                                                    
+                                                    if (reportFile) {
+                                                        formData.append('file', reportFile);
+                                                    }
+
+                                                    const token = localStorage.getItem('access_token');
+                                                    const hospitalId = localStorage.getItem('hospital_id');
+                                                    const baseUrl = typeof window !== 'undefined'
+                                                        ? (window.location.hostname.includes('digifortlabs.com') ? 'https://digifortlabs.com/api' : '/api')
+                                                        : 'http://localhost:8000';
+
+                                                    const res = await fetch(`${baseUrl}/lab/results/upload`, {
+                                                        method: 'POST',
+                                                        headers: {
+                                                            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                                                            ...(hospitalId ? { 'X-Hospital-Id': hospitalId } : {})
+                                                        },
+                                                        body: formData
+                                                    });
+
+                                                    if (!res.ok) {
+                                                        const errorText = await res.text();
+                                                        throw new Error(errorText || "Failed to save result");
+                                                    }
+                                                    
+                                                    toast.success("Lab result saved successfully.");
+                                                    setIsResultModalOpen(false);
+                                                    refreshAdmission();
+                                                } catch (e: any) {
+                                                    console.error(e);
+                                                    toast.error("Failed to save result: " + e.message);
+                                                }
+                                            }}
+                                        >
+                                            Save Result & Upload
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </DialogContent>
             </Dialog>
@@ -1691,10 +1968,10 @@ export default function HMSBedsPage() {
                     <div className="space-y-4 py-2">
                         <div className="space-y-2">
                             <Label>Surgery Name / Diagnosis *</Label>
-                            <Input 
-                                placeholder="e.g. Appendectomy" 
-                                value={surgeryForm.surgery_name} 
-                                onChange={e => setSurgeryForm({ ...surgeryForm, surgery_name: e.target.value })} 
+                            <Input
+                                placeholder="e.g. Appendectomy"
+                                value={surgeryForm.surgery_name}
+                                onChange={e => setSurgeryForm({ ...surgeryForm, surgery_name: e.target.value })}
                             />
                         </div>
                         <p className="text-xs text-slate-500">
@@ -1710,22 +1987,38 @@ export default function HMSBedsPage() {
 
             {/* Discharge Modal */}
             <Dialog open={isDischargeOpen} onOpenChange={setIsDischargeOpen}>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Discharge Patient</DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-4 py-2">
-                        <div className="bg-rose-50 p-4 rounded-lg text-sm text-rose-800 border border-rose-100">
-                            <strong>Note:</strong> Discharging this patient will automatically generate an IPD Bill based on the ward's daily bed charges and free up the bed.
+                    <div className="space-y-4 py-4">
+                        <p className="text-sm text-slate-500">Fill in the details for the Discharge Card.</p>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2"><Label>Final Diagnosis</Label>
+                                <Textarea placeholder="Final Diagnosis..." rows={2} className="resize-none" value={dischargeForm.final_diagnosis} onChange={(e: any) => setDischargeForm({ ...dischargeForm, final_diagnosis: e.target.value })} /></div>
+                            <div className="space-y-2"><Label>History</Label>
+                                <Textarea placeholder="Patient history..." rows={2} className="resize-none" value={dischargeForm.history} onChange={(e: any) => setDischargeForm({ ...dischargeForm, history: e.target.value })} /></div>
+
+                            <div className="space-y-2"><Label>Operative Details</Label>
+                                <Textarea placeholder="Operative notes..." rows={2} className="resize-none" value={dischargeForm.operative_note} onChange={(e: any) => setDischargeForm({ ...dischargeForm, operative_note: e.target.value })} /></div>
+                            <div className="space-y-2"><Label>Advice on Discharge</Label>
+                                <Textarea placeholder="Advice on discharge..." rows={2} className="resize-none" value={dischargeForm.advice_on_discharge} onChange={(e: any) => setDischargeForm({ ...dischargeForm, advice_on_discharge: e.target.value })} /></div>
+
+                            <div className="space-y-2"><Label>General Advice</Label>
+                                <Textarea placeholder="General advice..." rows={2} className="resize-none" value={dischargeForm.general_advice} onChange={(e: any) => setDischargeForm({ ...dischargeForm, general_advice: e.target.value })} /></div>
+                            <div className="space-y-2"><Label>Follow Up Plan</Label>
+                                <Textarea placeholder="Follow up plan..." rows={2} className="resize-none" value={dischargeForm.follow_up_plan} onChange={(e: any) => setDischargeForm({ ...dischargeForm, follow_up_plan: e.target.value })} /></div>
                         </div>
-                        <div className="space-y-2">
-                            <Label>Discharge Summary / Remarks</Label>
-                            <textarea 
-                                className="w-full border border-slate-200 rounded-md p-2 text-sm min-h-[100px]"
-                                placeholder="Enter final clinical summary, advice on discharge, and next follow-up dates..."
-                                value={dischargeForm.discharge_summary}
-                                onChange={e => setDischargeForm({ discharge_summary: e.target.value })}
-                            />
+
+                        <div className="space-y-2"><Label>Additional Notes (Legacy Summary)</Label>
+                            <Textarea placeholder="Summary, additional instructions..." rows={2} className="resize-none" value={dischargeForm.discharge_notes} onChange={(e: any) => setDischargeForm({ ...dischargeForm, discharge_notes: e.target.value })} /></div>
+
+                        <div className="flex items-center space-x-2 pt-2">
+                            <input type="checkbox" id="include_labs_beds" className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600"
+                                checked={dischargeForm.include_investigations}
+                                onChange={e => setDischargeForm({ ...dischargeForm, include_investigations: e.target.checked })} />
+                            <Label htmlFor="include_labs_beds" className="font-normal cursor-pointer text-slate-700">Include detailed lab investigations in printout (if unchecked, shows "Attached")</Label>
                         </div>
                     </div>
                     <DialogFooter>
