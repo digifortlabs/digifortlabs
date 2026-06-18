@@ -1064,6 +1064,7 @@ def get_ipd_lab_results(
         result.append({
             "order_id": order.order_id,
             "test_name": test.test_name,
+            "test_id": test.test_id,
             "status": order.status,
             "ordered_at": order.ordered_at,
             "result_value": res.result_value,
