@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from datetime import datetime
 
 from ..database import get_db
-from ..models import User, Prescription, Patient, OPDVisit, InventoryItem, PharmacyDispense
+from ..models import User, Prescription, Patient, OPDVisit, InventoryItem, PharmacyDispense, PharmacyDirectSale
 from .auth import get_current_user
 
 router = APIRouter(
@@ -26,6 +26,23 @@ class IPDDispenseRequest(BaseModel):
     quantity: int
     unit_price: float
     total_price: float
+
+class DirectSaleItem(BaseModel):
+    item_id: int
+    name: str
+    quantity: int
+    unit_price: float
+    total: float
+
+class DirectSaleRequest(BaseModel):
+    patient_id: Optional[int] = None
+    walkin_name: Optional[str] = None
+    walkin_phone: Optional[str] = None
+    items: List[DirectSaleItem]
+    subtotal: float
+    tax_amount: float
+    total_amount: float
+    payment_method: str = "Cash"
 
 @router.get("/pending-prescriptions")
 def get_pending_prescriptions(
@@ -257,3 +274,75 @@ def dispense_ipd_prescription(
             
     db.commit()
     return {"message": "IPD Medicine Dispensed Successfully"}
+
+@router.post("/direct-sale")
+def create_direct_sale(
+    payload: DirectSaleRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="No items in sale")
+
+    from ..models import MedicineBatch
+    # 1. Deduct Stock using FEFO
+    for item in payload.items:
+        inventory_item = db.query(InventoryItem).filter(
+            InventoryItem.item_id == item.item_id,
+            InventoryItem.hospital_id == current_user.hospital_id
+        ).first()
+        
+        if not inventory_item or inventory_item.current_stock < item.quantity:
+            raise HTTPException(status_code=400, detail=f"Insufficient stock for {item.name}")
+            
+        qty_to_deduct = item.quantity
+        
+        batches = db.query(MedicineBatch).filter(
+            MedicineBatch.item_id == item.item_id,
+            MedicineBatch.hospital_id == current_user.hospital_id,
+            MedicineBatch.current_stock > 0
+        ).order_by(MedicineBatch.expiry_date.asc().nulls_last()).all()
+        
+        for batch in batches:
+            if qty_to_deduct <= 0:
+                break
+                
+            if batch.current_stock >= qty_to_deduct:
+                batch.current_stock -= qty_to_deduct
+                qty_to_deduct = 0
+            else:
+                qty_to_deduct -= batch.current_stock
+                batch.current_stock = 0
+                
+        inventory_item.current_stock -= item.quantity
+
+    # 2. Record Sale
+    sale = PharmacyDirectSale(
+        hospital_id=current_user.hospital_id,
+        pharmacist_id=current_user.user_id,
+        patient_id=payload.patient_id,
+        walkin_name=payload.walkin_name,
+        walkin_phone=payload.walkin_phone,
+        items_sold=[i.dict() for i in payload.items],
+        subtotal=payload.subtotal,
+        tax_amount=payload.tax_amount,
+        total_amount=payload.total_amount,
+        payment_method=payload.payment_method
+    )
+    db.add(sale)
+    db.commit()
+    db.refresh(sale)
+    
+    return {"message": "Sale completed successfully", "sale_id": sale.sale_id}
+
+@router.get("/direct-sales")
+def get_direct_sales(
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    sales = db.query(PharmacyDirectSale).filter(
+        PharmacyDirectSale.hospital_id == current_user.hospital_id
+    ).order_by(PharmacyDirectSale.sale_id.desc()).limit(limit).all()
+    
+    return sales

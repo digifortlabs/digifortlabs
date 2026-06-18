@@ -89,6 +89,14 @@ export default function HospitalLayout({ children }: { children: React.ReactNode
                     router.replace('/login');
                     return;
                 }
+
+                // Onboarding Interception
+                if (role === 'hospital_admin' && user.hospital && user.hospital.is_onboarded === false) {
+                    if (pathname !== '/hospital/onboarding') {
+                        router.replace('/hospital/onboarding');
+                        return;
+                    }
+                }
             } catch {
                 ['access_token','userRole','userEmail','userSpecialty','userModules',
                  'userTerminology','loginTime','hospital_id','globalHospitalId',
@@ -108,6 +116,10 @@ export default function HospitalLayout({ children }: { children: React.ReactNode
     // Route protection — admin-only pages
     useEffect(() => {
         if (!userRole || !pathname) return;
+        
+        // Let onboarding page bypass these generic protections
+        if (pathname === '/hospital/onboarding') return;
+
         if (userRole !== 'hospital_admin') {
             if (pathname === '/accounting' || pathname === '/settings' || pathname.startsWith('/accounting/') || pathname.startsWith('/settings/')) {
                 router.replace('/hospital');

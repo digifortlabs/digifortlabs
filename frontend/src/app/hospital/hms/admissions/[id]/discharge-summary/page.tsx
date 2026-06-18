@@ -4,8 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { apiFetch } from '@/config/api';
 import { Button } from '@/components/ui/button';
-import { Printer, ChevronLeft, Building2, User, Activity, FileText, Pill } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Printer, ChevronLeft } from 'lucide-react';
 
 export default function DischargeSummaryPage() {
     const params = useParams();
@@ -13,6 +12,8 @@ export default function DischargeSummaryPage() {
     const [admission, setAdmission] = useState<any>(null);
     const [patient, setPatient] = useState<any>(null);
     const [hospital, setHospital] = useState<any>(null);
+    const [ward, setWard] = useState<any>(null);
+    const [bed, setBed] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -21,17 +22,15 @@ export default function DischargeSummaryPage() {
 
     const loadData = async () => {
         try {
-            const data = await apiFetch(`hms/admissions`);
-            const adm = data.find((a: any) => a.admission_id === Number(params.id));
-            if (adm) {
-                setAdmission(adm);
-                
-                // Fetch patient
-                const pData = await apiFetch(`patients/${adm.patient_id}`);
-                setPatient(pData);
+            const data = await apiFetch(`hms/admissions/${params.id}`);
+            if (data && data.admission) {
+                setAdmission(data.admission);
+                setPatient(data.patient);
+                setWard(data.ward);
+                setBed(data.bed);
                 
                 // Fetch hospital
-                const hData = await apiFetch(`hospitals/${adm.hospital_id}`);
+                const hData = await apiFetch(`hospitals/${data.admission.hospital_id}`);
                 setHospital(hData);
             }
         } catch (error) {
@@ -48,137 +47,203 @@ export default function DischargeSummaryPage() {
         window.print();
     };
 
-    // Extract discharge summary note
+    // Extract structured notes
     const notes = Array.isArray(admission.doctor_notes) ? admission.doctor_notes : [];
-    const dischargeNote = notes.find((n: any) => n.note_type === 'Discharge Summary');
-
-    const formatDateTime = (dtStr: string) => {
-        if (!dtStr) return 'N/A';
-        return new Date(dtStr).toLocaleString();
+    
+    const getNote = (type: string) => {
+        const found = notes.find((n: any) => n.note_type === type);
+        return found ? found.content : '';
     };
 
+    const history = getNote('Discharge_History');
+    const finalDiagnosis = getNote('Discharge_Final_Diagnosis') || admission.diagnosis;
+    const operativeNote = getNote('Discharge_Operative_Note');
+    const adviceOnDischarge = getNote('Discharge_Advice');
+    const generalAdvice = getNote('Discharge_General_Advice');
+    const followUpPlan = getNote('Discharge_Follow_Up_Plan');
+    const includeLabs = getNote('Discharge_Include_Investigations') === 'true';
+    const legacySummary = getNote('Discharge Summary');
+
+    const formatDateTime = (dtStr: string) => {
+        if (!dtStr) return '';
+        const d = new Date(dtStr);
+        return `${d.toLocaleDateString('en-GB')} ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+    };
+
+    // Parse Vitals Log for Indoor Details
+    const vitalsLog = Array.isArray(admission.vitals_log) ? admission.vitals_log : [];
+
     return (
-        <div className="min-h-screen bg-slate-50 p-6 print:p-0 print:bg-white">
+        <div className="min-h-screen bg-slate-200 p-6 print:p-0 print:bg-white text-black font-sans">
             {/* Action Bar (Hidden in Print) */}
             <div className="max-w-4xl mx-auto flex items-center justify-between mb-6 print:hidden">
                 <Button variant="ghost" onClick={() => router.back()} className="text-slate-600">
                     <ChevronLeft className="w-4 h-4 mr-2" /> Back
                 </Button>
-                <div className="flex gap-3">
-                    <Button onClick={printPage} className="bg-indigo-600 hover:bg-indigo-700">
-                        <Printer className="w-4 h-4 mr-2" /> Print Summary
-                    </Button>
-                </div>
+                <Button onClick={printPage} className="bg-indigo-600 hover:bg-indigo-700">
+                    <Printer className="w-4 h-4 mr-2" /> Print Summary
+                </Button>
             </div>
 
             {/* Print Document */}
-            <div className="max-w-4xl mx-auto bg-white p-8 border border-slate-200 shadow-sm rounded-xl print:border-none print:shadow-none print:p-0">
+            <div className="max-w-4xl mx-auto bg-white border border-slate-300 shadow-xl print:border-none print:shadow-none print:max-w-full print:w-full text-[13px] leading-snug">
                 
-                {/* Header */}
-                <div className="border-b-2 border-slate-900 pb-6 mb-6 flex justify-between items-start">
-                    <div>
-                        <h1 className="text-3xl font-black text-slate-900 uppercase tracking-wider mb-2">Discharge Summary</h1>
-                        <h2 className="text-xl font-bold text-slate-700">{hospital?.name || 'Digifort Labs Hospital'}</h2>
-                        <p className="text-sm text-slate-500 max-w-md mt-1">{hospital?.address}</p>
-                        <p className="text-sm text-slate-500">Phone: {hospital?.contact_phone}</p>
-                    </div>
-                    <div className="text-right flex flex-col items-end">
-                        <div className="bg-slate-100 p-3 rounded-lg border border-slate-200 text-left">
-                            <p className="text-xs font-bold text-slate-500 uppercase">Admission ID</p>
-                            <p className="font-mono text-lg font-bold text-slate-900">ADM-{admission.admission_id.toString().padStart(5, '0')}</p>
+                {/* Header matching the PDF */}
+                <div className="text-center py-6 px-8 border-b-2 border-black">
+                    <h1 className="text-3xl font-black uppercase tracking-widest text-indigo-950 mb-1">{hospital?.name || 'Digifort Labs Hospital'}</h1>
+                    <div className="flex justify-center items-center gap-6 mt-2 mb-2">
+                        <div className="text-center">
+                            <p className="font-bold text-lg">Dr. {admission.doctor_name || 'Attending Doctor'}</p>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-700">Consultant</p>
                         </div>
                     </div>
+                    <p className="text-xs text-slate-600 max-w-2xl mx-auto">{hospital?.address || 'Hospital Address'}</p>
+                    <p className="text-xs text-slate-600 font-bold mt-1">Ph: {hospital?.contact_phone || 'N/A'}</p>
                 </div>
 
-                {/* Patient Info */}
-                <div className="grid grid-cols-2 gap-6 mb-8">
-                    <Card className="border-slate-200 shadow-none">
-                        <CardContent className="p-4 flex gap-4 items-start">
-                            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
-                                <User className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-slate-900 text-lg">{patient.full_name || `${patient.first_name} ${patient.last_name}`}</h3>
-                                <div className="text-sm text-slate-600 mt-1 space-y-1">
-                                    <p><strong>Patient ID:</strong> {patient.record_id}</p>
-                                    <p><strong>Age/Gender:</strong> {patient.age || 'N/A'} / {patient.gender || 'N/A'}</p>
-                                    <p><strong>Contact:</strong> {patient.contact_phone || 'N/A'}</p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-slate-200 shadow-none">
-                        <CardContent className="p-4 flex gap-4 items-start">
-                            <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
-                                <Activity className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-slate-900 text-lg">Admission Details</h3>
-                                <div className="text-sm text-slate-600 mt-1 space-y-1">
-                                    <p><strong>Admission Date:</strong> {formatDateTime(admission.admission_date)}</p>
-                                    <p><strong>Discharge Date:</strong> {formatDateTime(admission.discharge_date)}</p>
-                                    <p><strong>Attending Doctor:</strong> {admission.admitting_doctor_id || 'N/A'}</p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                {/* Title */}
+                <div className="bg-slate-100 border-b border-black py-2 text-center">
+                    <h2 className="text-lg font-black uppercase tracking-widest">Discharge Card</h2>
                 </div>
 
-                {/* Clinical Summary */}
-                <div className="mb-8">
-                    <h3 className="text-lg font-bold border-b border-slate-200 pb-2 mb-4 flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-slate-500" /> Clinical Diagnosis & Summary
-                    </h3>
-                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
-                        <p className="font-bold text-slate-800 mb-2">Primary Diagnosis:</p>
-                        <p className="text-slate-700 mb-4">{admission.diagnosis || 'Diagnosis not recorded'}</p>
+                <div className="px-8 py-6">
+                    {/* Patient Info Grid */}
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-3 mb-6 font-medium">
+                        <div className="flex"><span className="w-32 inline-block">UHIDNO</span> <span className="font-bold">: {patient.patient_u_id || patient.record_id}</span></div>
+                        <div className="flex"><span className="w-32 inline-block">WARD NAME</span> <span className="font-bold">: {ward?.ward_name || '-'}</span></div>
                         
-                        <p className="font-bold text-slate-800 mb-2">Discharge Summary / Doctor's Notes:</p>
-                        <p className="text-slate-700 whitespace-pre-wrap">{dischargeNote?.content || 'No detailed discharge summary provided.'}</p>
+                        <div className="flex"><span className="w-32 inline-block">NAME</span> <span className="font-bold uppercase">: {patient.full_name || `${patient.first_name} ${patient.last_name}`}</span></div>
+                        <div className="flex"><span className="w-32 inline-block">ADM. NO</span> <span className="font-bold">: ADM-{admission.admission_id}</span></div>
+                        
+                        <div className="flex"><span className="w-32 inline-block">AGE</span> <span className="font-bold">: {patient.age || '-'} Yrs</span></div>
+                        <div className="flex"><span className="w-32 inline-block">BED NO</span> <span className="font-bold">: {bed?.bed_number || '-'}</span></div>
+                        
+                        <div className="flex"><span className="w-32 inline-block">SEX</span> <span className="font-bold">: {patient.gender || '-'}</span></div>
+                        <div className="flex"><span className="w-32 inline-block">ADM DOCTOR</span> <span className="font-bold">: Dr. {admission.doctor_name || '-'}</span></div>
+                        
+                        <div className="flex"><span className="w-32 inline-block">ADM. DATE</span> <span className="font-bold">: {formatDateTime(admission.admission_date)}</span></div>
+                        <div className="flex"><span className="w-32 inline-block">DIS. DATE</span> <span className="font-bold">: {formatDateTime(admission.discharge_date)}</span></div>
                     </div>
+
+                    <hr className="border-t-2 border-dashed border-black mb-6" />
+
+                    {/* History */}
+                    {history && (
+                        <div className="mb-6">
+                            <h3 className="font-bold underline decoration-2 underline-offset-4 mb-2 uppercase">History :</h3>
+                            <p className="whitespace-pre-wrap ml-4">{history}</p>
+                        </div>
+                    )}
+
+                    {/* Indoor Details */}
+                    {vitalsLog.length > 0 && (
+                        <div className="mb-6">
+                            <h3 className="font-bold underline decoration-2 underline-offset-4 mb-2 uppercase">Indoor Details :</h3>
+                            <div className="ml-4 space-y-2">
+                                {vitalsLog.map((v: any, i: number) => (
+                                    <p key={i} className="text-xs">
+                                        <span className="font-bold">{new Date(v.timestamp).toLocaleDateString('en-GB')}:</span> BP {v.bp || '-'}, P {v.pulse || '-'}, Temp {v.temp || '-'} {v.notes ? `- ${v.notes}` : ''}
+                                    </p>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Investigation */}
+                    <div className="mb-6 flex gap-2">
+                        <h3 className="font-bold underline decoration-2 underline-offset-4 uppercase">Investigation :</h3>
+                        <span className="font-bold ml-2">{includeLabs ? '(See attached lab reports)' : 'Attached'}</span>
+                    </div>
+
+                    {/* Final Diagnosis */}
+                    {finalDiagnosis && (
+                        <div className="mb-6">
+                            <h3 className="font-bold underline decoration-2 underline-offset-4 mb-2 uppercase">Final Diagnosis :</h3>
+                            <p className="whitespace-pre-wrap ml-4 font-bold">{finalDiagnosis}</p>
+                        </div>
+                    )}
+
+                    {/* Operative Details */}
+                    {operativeNote && (
+                        <div className="mb-6">
+                            <h3 className="font-bold underline decoration-2 underline-offset-4 mb-2 uppercase">Operative Details :</h3>
+                            <p className="whitespace-pre-wrap ml-4 font-bold">{operativeNote}</p>
+                        </div>
+                    )}
+
+                    {/* Treatment On Discharge */}
+                    {admission.medication_orders && admission.medication_orders.filter((m:any) => m.status !== 'deleted').length > 0 && (
+                        <div className="mb-6">
+                            <h3 className="font-bold underline decoration-2 underline-offset-4 mb-3 uppercase">Treatment On Discharge (RX GIVEN) :</h3>
+                            <table className="w-full text-left border-collapse ml-4">
+                                <thead>
+                                    <tr className="border-b-2 border-black">
+                                        <th className="py-2 font-bold w-12">SR NO</th>
+                                        <th className="py-2 font-bold">MEDICINE</th>
+                                        <th className="py-2 font-bold">DOSAGE</th>
+                                        <th className="py-2 font-bold text-right pr-4">DAYS * QTY</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {admission.medication_orders.filter((m:any) => m.status !== 'deleted').map((med: any, idx: number) => {
+                                        const qty = parseInt(med.duration_days) || 1;
+                                        return (
+                                            <tr key={idx} className="border-b border-slate-200 border-dashed">
+                                                <td className="py-2">{idx + 1}</td>
+                                                <td className="py-2 font-bold uppercase">{med.medicine_name}</td>
+                                                <td className="py-2 font-bold uppercase">{med.dosage} {med.dosage_unit} {med.frequency}</td>
+                                                <td className="py-2 text-right pr-4 font-bold">{med.duration_days} Days * {qty}</td>
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {/* Advice On Discharge */}
+                    {adviceOnDischarge && (
+                        <div className="mb-6">
+                            <h3 className="font-bold underline decoration-2 underline-offset-4 mb-2 uppercase">Advice On Discharge :</h3>
+                            <p className="whitespace-pre-wrap ml-4">{adviceOnDischarge}</p>
+                        </div>
+                    )}
+
+                    {/* General Advice */}
+                    {generalAdvice && (
+                        <div className="mb-6">
+                            <h3 className="font-bold underline decoration-2 underline-offset-4 mb-2 uppercase">General Advice :</h3>
+                            <p className="whitespace-pre-wrap ml-4">{generalAdvice}</p>
+                        </div>
+                    )}
+
+                    {/* Follow Up Plan */}
+                    {followUpPlan && (
+                        <div className="mb-6 flex gap-2">
+                            <h3 className="font-bold underline decoration-2 underline-offset-4 uppercase">Follow Up Plan :</h3>
+                            <p className="whitespace-pre-wrap ml-2 font-bold">{followUpPlan}</p>
+                        </div>
+                    )}
+
+                    {/* Legacy Notes Fallback */}
+                    {legacySummary && !history && !finalDiagnosis && (
+                        <div className="mb-6">
+                            <h3 className="font-bold underline decoration-2 underline-offset-4 mb-2 uppercase">Doctor's Notes :</h3>
+                            <p className="whitespace-pre-wrap ml-4">{legacySummary}</p>
+                        </div>
+                    )}
+
                 </div>
 
-                {/* Discharge Medications */}
-                {admission.medication_orders && admission.medication_orders.filter((m:any) => m.status !== 'deleted').length > 0 && (
-                    <div className="mb-8">
-                        <h3 className="text-lg font-bold border-b border-slate-200 pb-2 mb-4 flex items-center gap-2">
-                            <Pill className="w-5 h-5 text-slate-500" /> Discharge Medications
-                        </h3>
-                        <table className="w-full text-sm text-left border border-slate-200">
-                            <thead className="bg-slate-50 border-b border-slate-200">
-                                <tr>
-                                    <th className="p-3 font-bold text-slate-700">Medicine Name</th>
-                                    <th className="p-3 font-bold text-slate-700">Dosage</th>
-                                    <th className="p-3 font-bold text-slate-700">Frequency</th>
-                                    <th className="p-3 font-bold text-slate-700">Duration</th>
-                                    <th className="p-3 font-bold text-slate-700">Instructions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {admission.medication_orders.filter((m:any) => m.status !== 'deleted').map((med: any, idx: number) => (
-                                    <tr key={idx} className="border-b border-slate-100 last:border-0">
-                                        <td className="p-3 font-semibold">{med.medicine_name}</td>
-                                        <td className="p-3">{med.dosage} {med.dosage_unit}</td>
-                                        <td className="p-3">{med.frequency}</td>
-                                        <td className="p-3">{med.duration_days} days</td>
-                                        <td className="p-3">{med.special_instructions || med.notes || '-'}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-
-                {/* Footer Signatures */}
-                <div className="mt-24 flex justify-between items-end border-t border-slate-200 pt-8">
+                {/* Footer / Signatures */}
+                <div className="px-8 pb-12 pt-20 flex justify-between items-end mt-auto break-inside-avoid">
                     <div className="text-center">
-                        <div className="w-48 border-b border-slate-400 mb-2"></div>
-                        <p className="font-bold text-slate-700 text-sm">Patient / Attendant Signature</p>
+                        <div className="w-48 border-b-2 border-black mb-2"></div>
+                        <p className="font-bold uppercase text-sm">Sign. of Patient / Relative</p>
                     </div>
                     <div className="text-center">
-                        <div className="w-48 border-b border-slate-400 mb-2"></div>
-                        <p className="font-bold text-slate-700 text-sm">Doctor Signature & Stamp</p>
+                        <div className="w-48 border-b-2 border-black mb-2"></div>
+                        <p className="font-bold uppercase text-sm">Consulting Doctor</p>
                     </div>
                 </div>
 

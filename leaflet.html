@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digifort Labs - Paperless Hospital Suite Poster Redesign</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Premium Clinical Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        clinicalDark: '#1b1442',
+                        clinicalBlue: '#231c54',
+                        clinicalTeal: '#0099cc',
+                        clinicalLightTeal: '#15c3f0',
+                        clinicalMuted: '#64748b',
+                        clinicalCardBg: '#ffffff',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+
+    <style>
+        /* Absolute A5 proportions for professional print simulation */
+        @media screen {
+            .a5-page {
+                width: 148mm;
+                height: 210mm;
+                box-shadow: 0 15px 35px rgba(11, 19, 43, 0.15);
+                transform-origin: top center;
+            }
+
+            .workspace-container {
+                min-height: 100vh;
+            }
+        }
+
+        @media print {
+            body {
+                background-color: #ffffff;
+                padding: 0;
+                margin: 0;
+            }
+
+            .workspace-container {
+                padding: 0 !important;
+                margin: 0 !important;
+                min-height: 0 !important;
+                height: auto !important;
+                display: block !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            @page {
+                size: A5 portrait;
+                margin: 0;
+            }
+
+            .a5-page {
+                width: 148mm;
+                height: 210mm;
+                box-shadow: none;
+                margin: 0;
+                border: none;
+                transform: none !important;
+            }
+
+            /* Ensure absolute crispness when printing */
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
+
+        /* Custom high-performance scrollbar to match SaaS visual aesthetic */
+        .saas-scroll::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+
+        .saas-scroll::-webkit-scrollbar-track {
+            background: rgba(13, 148, 136, 0.05);
+        }
+
+        .saas-scroll::-webkit-scrollbar-thumb {
+            background: rgba(13, 148, 136, 0.3);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 min-h-screen font-sans antialiased text-slate-800">
+
+    <!-- Main Workspace Grid -->
+    <div
+        class="workspace-container max-w-[1440px] mx-auto px-4 py-8 flex flex-col justify-center items-center min-h-screen">
+
+        <!-- RIGHT COLUMN: THE DIGITAL A5 CANVAS (PORTRAIT 148mm x 210mm) -->
+        <div id="print-canvas"
+            class="a5-page bg-white relative overflow-hidden flex flex-col justify-between py-2.5 px-4 select-none shrink-0 transition-transform duration-300">
+
+            <!-- Soft Abstract Medical background sweeps to replicate DIGIFORT LABS Paperless Hospital Suite Poster_2.png -->
+            <div
+                class="absolute -top-12 -right-12 w-64 h-64 bg-sky-50 rounded-full blur-3xl opacity-60 pointer-events-none">
+            </div>
+            <div
+                class="absolute bottom-1/4 -left-12 w-56 h-56 bg-teal-50 rounded-full blur-3xl opacity-50 pointer-events-none">
+            </div>
+
+            <!-- Techy & Medical Overlays -->
+            <div class="absolute inset-0 pointer-events-none opacity-[0.03] z-0" style="background-image: radial-gradient(#0f766e 1.5px, transparent 1.5px); background-size: 24px 24px;"></div>
+            
+            <svg class="absolute top-4 right-4 w-20 h-20 text-teal-600/5 pointer-events-none z-0" viewBox="0 0 100 100" fill="currentColor">
+                <path d="M40 0h20v40h40v20H60v40H40V60H0V40h40V0z" />
+            </svg>
+            
+            <svg class="absolute top-1/2 left-0 w-full h-40 opacity-[0.02] text-clinicalDark pointer-events-none transform -translate-y-1/2 z-0" viewBox="0 0 1000 100" fill="none" preserveAspectRatio="none">
+                <path d="M0 50h200l20 -40l40 80l40 -120l40 160l40 -100l20 20h600" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+            </svg>
+            
+            <svg class="absolute top-64 left-4 w-28 h-28 text-slate-500/5 pointer-events-none transform -rotate-12 z-0" viewBox="0 0 100 100" fill="none">
+                <polygon points="50,0 93.3,25 93.3,75 50,100 6.7,75 6.7,25" stroke="currentColor" stroke-width="2"/>
+                <polygon points="50,25 71.6,37.5 71.6,62.5 50,75 28.3,62.5 28.3,37.5" stroke="currentColor" stroke-width="1"/>
+            </svg>
+
+            <!-- Top Section: Header & Slogan & Detailed Bullet List -->
+            <div class="grid grid-cols-12 gap-2.5 items-start relative z-10">
+
+                <!-- Left Side: Branding, Header, Subheading, Bullets (Span 7) -->
+                <div class="col-span-7 flex flex-col justify-between">
+
+                    <!-- Logo Block -->
+                    <div class="mb-0">
+                        <img src="longlogo.png" alt="Digifort Labs" class="h-[52px] w-auto object-contain">
+                    </div>
+
+                    <!-- Headline (Interactive / Adjustable) -->
+                    <h2 id="live-headline"
+                        class="text-[20px] font-black text-clinicalDark tracking-tight mt-1 leading-[1.18]">
+                        Run a 100% Paperless, Feature-Complete Hospital Ecosystem
+                    </h2>
+
+                    <!-- Descriptive Paragraph -->
+                    <p class="text-[11px] font-medium text-slate-500 mt-1 leading-normal">
+                        Eliminate clipboards, manual registries, and loose papers. Stop letting physical files,
+                        misplaced prescriptions, and dusty paper registries slow down patient care.
+                    </p>
+
+                    <!-- Streamlined Visual Bullet List (With premium SVG bullets for high-fidelity vector print) -->
+                    <ul class="mt-1.5 space-y-2 pr-1 relative">
+                        <!-- Vertical Timeline Line -->
+                        <div class="absolute left-[10px] top-3.5 bottom-3.5 w-0.5 bg-gradient-to-b from-teal-500/25 to-teal-500/5 z-0"></div>
+
+                        <!-- Bullet 1 -->
+                        <li class="flex items-start gap-2 relative z-10">
+                            <span
+                                class="w-5 h-5 rounded-md bg-teal-5/90 border border-teal-200/50 text-teal-600 flex items-center justify-center shrink-0 shadow-sm">
+                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M4.5 3c0 7.5 5 10 7.5 10s7.5-2.5 7.5-10" />
+                                    <path d="M6 3h-1.5M19.5 3H18" />
+                                    <path d="M12 13v5" />
+                                    <circle cx="12" cy="20" r="2" />
+                                </svg>
+                            </span>
+                            <p class="text-[10.5px] text-slate-600 leading-[1.32]">
+                                <strong class="text-clinicalDark font-extrabold">OPD & Doctor Consultations</strong> — Smart clinic
+                                queues, digital prescriptions, paperless case sheets, and rapid department routing.
+                            </p>
+                        </li>
+                        <!-- Bullet 2 -->
+                        <li class="flex items-start gap-2 relative z-10">
+                            <span
+                                class="w-5 h-5 rounded-md bg-teal-5/90 border border-teal-200/50 text-teal-600 flex items-center justify-center shrink-0 shadow-sm">
+                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M2 4v16" />
+                                    <path d="M2 11h18" />
+                                    <path d="M22 4v16" />
+                                    <path d="M2 8h18" />
+                                    <path d="M6 16h12a2 2 0 0 0 2-2v-3H4v3a2 2 0 0 0 2 2Z" />
+                                </svg>
+                            </span>
+                            <p class="text-[10.5px] text-slate-600 leading-[1.32]">
+                                <strong class="text-clinicalDark font-extrabold">IPD Bed Map</strong> — Real-time ward visualization
+                                with color-coded bed occupancy tracking (Green=Available, Red=Occupied,
+                                Yellow=Maintenance).
+                            </p>
+                        </li>
+                        <!-- Bullet 3 -->
+                        <li class="flex items-start gap-2 relative z-10">
+                            <span
+                                class="w-5 h-5 rounded-md bg-teal-5/90 border border-teal-200/50 text-teal-600 flex items-center justify-center shrink-0 shadow-sm">
+                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="6" cy="6" r="3" />
+                                    <circle cx="6" cy="18" r="3" />
+                                    <line x1="9.8" y1="8.2" x2="22" y2="17" />
+                                    <line x1="9.8" y1="15.8" x2="22" y2="7" />
+                                </svg>
+                            </span>
+                            <p class="text-[10.5px] text-slate-600 leading-[1.32]">
+                                <strong class="text-clinicalDark font-extrabold">Operation Theater</strong> — Frictionless surgery
+                                scheduling, pre-anesthetic clearance (PAC) checklists, and live OT room status tracking.
+                            </p>
+                        </li>
+                        <!-- Bullet 4 -->
+                        <li class="flex items-start gap-2 relative z-10">
+                            <span
+                                class="w-5 h-5 rounded-md bg-teal-5/90 border border-teal-200/50 text-teal-600 flex items-center justify-center shrink-0 shadow-sm">
+                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                </svg>
+                            </span>
+                            <p class="text-[10.5px] text-slate-600 leading-[1.32]">
+                                <strong class="text-clinicalDark font-extrabold">WhatsApp Alerts</strong> — Auto-send digital
+                                prescriptions, instant billing receipts, and smart OPD/IPD appointment reminders
+                                directly to patient phones.
+                            </p>
+                        </li>
+                        <!-- Bullet 5 -->
+                        <li class="flex items-start gap-2 relative z-10">
+                            <span
+                                class="w-5 h-5 rounded-md bg-teal-5/90 border border-teal-200/50 text-teal-600 flex items-center justify-center shrink-0 shadow-sm">
+                                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 2C9.24 2 7 4.24 7 7c0 .66.13 1.28.36 1.86l-1.92 4.8c-.37.93-.08 1.99.71 2.62L8 17.76V21c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-2h2v2c0 .55.45 1 1 1h2c.55 0 1-.45 1-1v-3.24l1.86-1.48c.79-.63 1.08-1.69.71-2.62l-1.92-4.8C17 8.28 17.13 7.66 17.13 7c0-2.76-2.24-5-5-5z" />
+                                </svg>
+                            </span>
+                            <p class="text-[10.5px] text-slate-600 leading-[1.32]">
+                                <strong class="text-clinicalDark font-extrabold">Dental & Specialty Portals</strong> — Specialized
+                                interactive Odontograms, diagnostic condition badges (Caries, Fractures), and custom
+                                clinical charts.
+                            </p>
+                        </li>
+                    </ul>
+
+                </div>
+
+                <!-- Right Side: Graphic Bed Console Grid & Integrated Billing Panel (Span 5) -->
+                <div class="col-span-5 flex flex-col gap-2 pl-1 justify-start items-stretch">
+
+                    <!-- Mockup 1: Live Interactive Graphic Bed Console (Matches Crop 1 perfectly) -->
+                    <div
+                        class="bg-clinicalCardBg rounded-xl border border-slate-150/80 shadow-lg shadow-teal-950/5 relative overflow-hidden flex">
+                        <!-- Left Sidebar Navigation Panel of Bed Map -->
+                        <div
+                            class="w-14 bg-clinicalBlue shrink-0 p-1 flex flex-col gap-1 items-center justify-start text-[8.5px] text-slate-300">
+                            <div
+                                class="flex flex-col items-center gap-0.5 text-white bg-teal-600/30 w-full py-0.5 rounded-md border border-teal-500/20">
+                                <i class="fa-solid fa-bed text-teal-300 text-xs"></i>
+                                <span class="font-black text-[7.5px] tracking-tight">Beds</span>
+                            </div>
+                            <div class="flex flex-col items-center gap-0.5 opacity-60">
+                                <i class="fa-solid fa-hospital-user text-xs"></i>
+                                <span class="text-[7.5px] tracking-tight">Patients</span>
+                            </div>
+                            <div class="flex flex-col items-center gap-0.5 opacity-60">
+                                <i class="fa-solid fa-triangle-exclamation text-xs"></i>
+                                <span class="text-[7.5px] tracking-tight">Alerts</span>
+                            </div>
+                            <div class="flex flex-col items-center gap-0.5 opacity-60">
+                                <i class="fa-solid fa-prescription text-xs"></i>
+                                <span class="text-[7.5px] tracking-tight">Prescr.</span>
+                            </div>
+                            <div class="flex flex-col items-center gap-0.5 opacity-60">
+                                <i class="fa-solid fa-stethoscope text-xs"></i>
+                                <span class="text-[7.5px] tracking-tight">OPD</span>
+                            </div>
+                            <div class="flex flex-col items-center gap-0.5 opacity-60">
+                                <i class="fa-solid fa-pills text-xs"></i>
+                                <span class="text-[7.5px] tracking-tight">Pharm.</span>
+                            </div>
+                        </div>
+
+                        <!-- Right Content Grid Panel -->
+                        <div class="flex-1 p-1.5">
+                            <div class="flex justify-between items-center mb-0.5">
+                                <span
+                                    class="text-[10px] font-extrabold text-clinicalDark tracking-wide uppercase flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    Ward A
+                                </span>
+                                <span id="bed-ratio-label"
+                                    class="text-[8px] bg-slate-100 text-slate-500 font-bold px-1 py-0.5 rounded-md">8/12 Ready</span>
+                            </div>
+
+                            <!-- Authentic Patient Bed Grid matching crop layout (3 Column configuration) -->
+                            <div class="grid grid-cols-3 gap-1" id="bed-grid-container">
+                                <!-- Grid elements generated dynamically via JavaScript -->
+                            </div>
+                            <p class="text-[8px] text-slate-400 text-center mt-1 font-semibold leading-none">Click beds to toggle status</p>
+                        </div>
+                    </div>
+
+                    <!-- Mockup 2: Clean Integrated Billing Node -->
+                    <div
+                        class="bg-clinicalCardBg rounded-xl border border-slate-100 shadow-md p-1.5 relative overflow-hidden">
+                        <span
+                            class="text-[10px] font-extrabold text-clinicalDark uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                            <i class="fa-solid fa-credit-card text-teal-500"></i> Billing &amp; Payment
+                        </span>
+                        <div class="space-y-1">
+                            <!-- Item 1 -->
+                            <div
+                                class="flex justify-between items-center text-[9px] py-1 px-1.5 bg-slate-50 rounded-md border border-slate-100">
+                                <span class="text-slate-500 font-medium">Record ID</span>
+                                <span class="text-clinicalDark font-extrabold" id="billing-id">#DF-00284</span>
+                            </div>
+                            <!-- Item 2 -->
+                            <div
+                                class="flex justify-between items-center text-[9px] py-1 px-1.5 bg-slate-50 rounded-md border border-slate-100">
+                                <span class="text-slate-500 font-medium">Balance</span>
+                                <span class="text-rose-600 font-black" id="billing-balance">₹ **** \-</span>
+                            </div>
+                            <!-- Item 3 -->
+                            <div
+                                class="flex justify-between items-center text-[9px] py-1 px-1.5 bg-slate-50 rounded-md border border-slate-100">
+                                <span class="text-slate-500 font-medium">Admission</span>
+                                <span class="text-clinicalDark font-bold" id="billing-duration">4 Days (Ward A)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mockup 3: QR Code -->
+                    <div class="bg-white p-1.5 rounded-xl border border-slate-150/80 shadow-md flex flex-col items-center justify-center">
+                        <img id="live-qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://digifortlabs.com/" alt="Digifort Labs QR Code" class="w-[42px] h-[42px] object-contain mix-blend-multiply">
+                        <span class="text-[8px] font-black tracking-wider text-clinicalDark uppercase mt-1 text-center leading-none">Scan to Register</span>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- Middle Row: Interactive Doctor Consultation Cards & Central Trust Badge -->
+            <div class="my-2 grid grid-cols-12 gap-2 items-center relative z-10">
+
+                <!-- Interactive Consultation Cards (Now Hospital Modules Grid in 2 rows) -->
+                <div class="col-span-12 flex flex-col gap-y-2 bg-slate-50/80 rounded-xl p-2.5 border border-slate-200 shadow-sm mx-auto w-full max-w-[380px] relative z-10">
+                    
+                    <!-- Row 1: 5 Modules -->
+                    <div class="flex justify-center gap-x-4">
+                        <!-- HMS -->
+                        <div class="flex flex-col items-center gap-1 w-[48px]">
+                            <div class="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center border border-blue-200 text-blue-600 shadow-sm transform hover:-translate-y-0.5 transition-transform">
+                                <i class="fa-solid fa-hospital text-sm"></i>
+                            </div>
+                            <span class="text-[8px] font-black text-clinicalDark uppercase tracking-wide text-center">HMS</span>
+                        </div>
+                        
+                        <!-- OPD -->
+                        <div class="flex flex-col items-center gap-1 w-[48px]">
+                            <div class="w-9 h-9 rounded-lg bg-teal-100 flex items-center justify-center border border-teal-200 text-teal-600 shadow-sm transform hover:-translate-y-0.5 transition-transform">
+                                <i class="fa-solid fa-stethoscope text-sm"></i>
+                            </div>
+                            <span class="text-[8px] font-black text-clinicalDark uppercase tracking-wide text-center">OPD</span>
+                        </div>
+
+                        <!-- IPD -->
+                        <div class="flex flex-col items-center gap-1 w-[48px]">
+                            <div class="w-9 h-9 rounded-lg bg-indigo-100 flex items-center justify-center border border-indigo-200 text-indigo-600 shadow-sm transform hover:-translate-y-0.5 transition-transform">
+                                <i class="fa-solid fa-bed-pulse text-sm"></i>
+                            </div>
+                            <span class="text-[8px] font-black text-clinicalDark uppercase tracking-wide text-center">IPD</span>
+                        </div>
+
+                        <!-- OT -->
+                        <div class="flex flex-col items-center gap-1 w-[48px]">
+                            <div class="w-9 h-9 rounded-lg bg-rose-100 flex items-center justify-center border border-rose-200 text-rose-600 shadow-sm transform hover:-translate-y-0.5 transition-transform">
+                                <i class="fa-solid fa-scissors text-sm"></i>
+                            </div>
+                            <span class="text-[8px] font-black text-clinicalDark uppercase tracking-wide text-center">OT</span>
+                        </div>
+
+                        <!-- Emergency (ER) -->
+                        <div class="flex flex-col items-center gap-1 w-[48px]">
+                            <div class="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center border border-red-200 text-red-600 shadow-sm transform hover:-translate-y-0.5 transition-transform">
+                                <i class="fa-solid fa-truck-medical text-sm"></i>
+                            </div>
+                            <span class="text-[8px] font-black text-clinicalDark uppercase tracking-wide text-center">ER</span>
+                        </div>
+                    </div>
+
+                    <!-- Row 2: 4 Modules -->
+                    <div class="flex justify-center gap-x-4">
+                        <!-- Dental -->
+                        <div class="flex flex-col items-center gap-1 w-[48px]">
+                            <div class="w-9 h-9 rounded-lg bg-sky-100 flex items-center justify-center border border-sky-200 text-sky-600 shadow-sm transform hover:-translate-y-0.5 transition-transform">
+                                <i class="fa-solid fa-tooth text-sm"></i>
+                            </div>
+                            <span class="text-[8px] font-black text-clinicalDark uppercase tracking-wide text-center">Dental</span>
+                        </div>
+
+                        <!-- ENT -->
+                        <div class="flex flex-col items-center gap-1 w-[48px]">
+                            <div class="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center border border-purple-200 text-purple-600 shadow-sm transform hover:-translate-y-0.5 transition-transform">
+                                <i class="fa-solid fa-ear-listen text-sm"></i>
+                            </div>
+                            <span class="text-[8px] font-black text-clinicalDark uppercase tracking-wide text-center">ENT</span>
+                        </div>
+
+                        <!-- MRD -->
+                        <div class="flex flex-col items-center gap-1 w-[48px]">
+                            <div class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center border border-amber-200 text-amber-600 shadow-sm transform hover:-translate-y-0.5 transition-transform">
+                                <i class="fa-solid fa-file-medical text-sm"></i>
+                            </div>
+                            <span class="text-[8px] font-black text-clinicalDark uppercase tracking-wide text-center">MRD</span>
+                        </div>
+
+                        <!-- Pharma -->
+                        <div class="flex flex-col items-center gap-1 w-[48px]">
+                            <div class="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center border border-emerald-200 text-emerald-600 shadow-sm transform hover:-translate-y-0.5 transition-transform">
+                                <i class="fa-solid fa-pills text-sm"></i>
+                            </div>
+                            <span class="text-[8px] font-black text-clinicalDark uppercase tracking-wide text-center">Pharma</span>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            
+            <!-- Bottom Section: Sleek Desktop Monitor showing complete dark dashboard preview -->
+            <div class="grid grid-cols-12 gap-3 items-end relative z-10 mt-2">
+                <!-- Dark Dashboard Screen in Desktop Monitor Stand (Span 12) - Matches Crop 2 -->
+                <div class="col-span-12 flex flex-col items-center">
+
+                    <!-- Monitor Outer Bezel -->
+                    <div class="w-full bg-[#1e293b] rounded-t-xl p-0.5 shadow-xl border border-slate-700/80 relative">
+
+                        <!-- Sleek Glass Screen Content -->
+                        <div class="bg-clinicalDark text-slate-100 rounded-md p-1.5 overflow-hidden saas-scroll relative">
+
+                            <!-- Dashboard Header bar -->
+                            <div class="flex justify-between items-center pb-0.5 border-b border-slate-800 mb-1">
+                                <div class="flex items-center gap-1">
+                                    <span class="w-1 h-1 rounded-full bg-rose-500"></span>
+                                    <span class="w-1 h-1 rounded-full bg-amber-500"></span>
+                                    <span class="w-1 h-1 rounded-full bg-emerald-500"></span>
+                                    <span
+                                        class="text-[8px] font-black uppercase text-slate-400 tracking-wider ml-1">Digifort Dashboard</span>
+                                </div>
+                                <div
+                                    class="flex items-center gap-0.5 bg-slate-900 px-1 py-0.5 rounded text-[7px] text-teal-400 font-bold uppercase">
+                                    <span class="w-1 h-1 rounded-full bg-teal-400 animate-ping"></span> NMC & NABH READY
+                                </div>
+                            </div>
+
+                            <!-- Content Panel Grid (Dashboard Modules matching crop details) -->
+                            <div class="grid grid-cols-12 gap-1.5">
+
+                                <!-- Left metrics and treatment trend chart (Col 7) -->
+                                <div class="col-span-7 flex flex-col justify-between gap-1">
+                                    <!-- Metrics Row (Matches precise numerical stats from Crop 2) -->
+                                    <div class="grid grid-cols-3 gap-0.5">
+                                        <div class="bg-slate-900/60 p-0.5 rounded border border-slate-800/45">
+                                            <span
+                                                class="block text-[6px] uppercase tracking-wider text-slate-400">Digitized</span>
+                                            <span class="text-[9.5px] font-black text-teal-400"
+                                                id="dash-billed">43,689</span>
+                                        </div>
+                                        <div class="bg-slate-900/60 p-0.5 rounded border border-slate-800/45">
+                                            <span
+                                                class="block text-[6px] uppercase tracking-wider text-slate-400">Revenue</span>
+                                            <span class="text-[9.5px] font-black text-indigo-400"
+                                                id="dash-patients">₹ **** \-</span>
+                                        </div>
+                                        <div class="bg-slate-900/60 p-0.5 rounded border border-slate-800/45">
+                                            <span
+                                                class="block text-[6px] uppercase tracking-wider text-slate-400">Savings</span>
+                                            <span class="text-[9.5px] font-black text-sky-400">₹ **** \-</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Horizontal Clinical Activity Trends ("Therelup Counts" replica) -->
+                                    <div class="bg-slate-900/40 p-1 rounded border border-slate-800/40">
+                                        <span
+                                            class="block text-[6px] uppercase tracking-wider text-slate-400 mb-0.5 font-bold">Treatment Distribution</span>
+                                        <div class="space-y-0.5">
+                                            <div class="flex items-center gap-1">
+                                                <span class="text-[7px] text-slate-400 w-11 truncate">OPD Flow</span>
+                                                <div class="flex-1 bg-slate-800 rounded-full h-0.5">
+                                                    <div class="bg-teal-500 h-0.5 rounded-full" style="width: 82%"></div>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-1">
+                                                <span class="text-[7px] text-slate-400 w-11 truncate">IPD Wards</span>
+                                                <div class="flex-1 bg-slate-800 rounded-full h-0.5">
+                                                    <div class="bg-indigo-500 h-0.5 rounded-full" style="width: 55%">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-1">
+                                                <span class="text-[7px] text-slate-400 w-11 truncate">OT Surgeries</span>
+                                                <div class="flex-1 bg-slate-800 rounded-full h-0.5">
+                                                    <div class="bg-rose-500 h-0.5 rounded-full" style="width: 38%"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Right active clinical status console (Col 5) - "Medical Recociaists" match -->
+                                <div
+                                    class="col-span-5 flex flex-col justify-between bg-slate-900/60 p-1 rounded border border-slate-800/40">
+                                    <span
+                                        class="block text-[6.5px] uppercase tracking-wider text-slate-400 mb-0.5 font-bold">On-Call</span>
+                                    <div class="space-y-0.5">
+                                        <div
+                                            class="flex justify-between items-center p-0.5 rounded bg-slate-950/40 text-[7.5px]">
+                                            <span class="text-slate-300 truncate" id="dr1-label">Dr. K***</span>
+                                            <span class="text-emerald-400 font-bold">Gen</span>
+                                        </div>
+                                        <div
+                                            class="flex justify-between items-center p-0.5 rounded bg-slate-950/40 text-[7.5px]">
+                                            <span class="text-slate-300 truncate" id="dr2-label">Dr. R***</span>
+                                            <span class="text-indigo-400 font-bold">ICU</span>
+                                        </div>
+                                        <div
+                                            class="flex justify-between items-center p-0.5 rounded bg-slate-950/40 text-[7.5px]">
+                                            <span class="text-slate-300 truncate">Dr. M***</span>
+                                            <span class="text-sky-400 font-bold">Dent</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </div>
+
+
+                </div>
+            </div>
+    
+            <!-- 6. Call To Action Footer Zone -->
+            <div
+                class="bg-clinicalDark text-white px-3 py-1.5 rounded-xl flex justify-between items-center gap-4 mt-2 relative overflow-hidden">
+
+                <!-- Clinical Glow Ornament -->
+                <div class="absolute -bottom-10 -left-10 w-24 h-24 bg-teal-500/10 rounded-full blur-xl"></div>
+
+                <!-- Full Custom Contact Parameters -->
+                <div class="relative z-10 flex-1 grid grid-cols-2 gap-x-4 gap-y-0.5 text-[9px]">
+                    <span class="flex items-center gap-1 text-slate-300 font-bold">
+                        <i class="fa-solid fa-phone text-teal-400 shrink-0"></i>
+                        <span id="footer-contact1">9725790563 - Keval Kuvekar</span>
+                    </span>
+                    <span class="flex items-center gap-1 text-slate-300 font-bold">
+                        <i class="fa-solid fa-envelope text-teal-400 shrink-0"></i>
+                        <span id="footer-email">admin@digifortlabs.com</span>
+                    </span>
+                    <span class="flex items-center gap-1 text-slate-300 font-bold">
+                        <i class="fa-solid fa-phone text-teal-400 shrink-0"></i>
+                        <span id="footer-contact2">9054270551 - Rahul Chotai</span>
+                    </span>
+                    <span class="flex items-center gap-1 text-slate-300 font-bold">
+                        <i class="fa-solid fa-globe text-teal-400 shrink-0"></i>
+                        <span id="footer-web">www.digifortlabs.com</span>
+                    </span>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Operational Engine Scripting -->
+    <script>
+        // Initialize Fictional/Real state tracking
+        let isFictionalMode = false;
+
+        // Direct Patient Bed Map Data store (Matches Crop 1 colored layout distribution)
+        const patientBeds = [
+            { id: '101', status: 'Available' },
+            { id: '102', status: 'Available' },
+            { id: '103', status: 'Available' },
+            { id: '104', status: 'Occupied' },
+            { id: '105', status: 'Occupied' },
+            { id: '106', status: 'Occupied' },
+            { id: '107', status: 'Available' },
+            { id: '108', status: 'Available' },
+            { id: '109', status: 'Maintenance' },
+            { id: '110', status: 'Available' },
+            { id: '111', status: 'Maintenance' },
+            { id: '112', status: 'Available' }
+        ];
+
+        // Real-world clean data sets vs original design reference modes
+        const cleanData = {
+            headline: "Run a 100% Paperless, Feature-Complete Hospital Ecosystem",
+            contact1: "9725790563 - Keval Kuvekar",
+            contact2: "9054270551 - Rahul Chotai",
+            web: "www.digifortlabs.com",
+            email: "admin@digifortlabs.com"
+        };
+
+        const fictionalRefData = {
+            headline: "Run a 100% Paperless, Feature-Complete Hospital Ecosystem",
+            contact1: "+91 97257 90563",
+            contact2: "+91 90542 70551",
+            web: "digifortlabs.com",
+            email: "support@digifortlabs.com"
+        };
+
+        // Render beds inside visual frame (Page 1) with clean vector SVGs to prevent browser-specific emoji distortions on paper prints
+        function renderBedGrid() {
+            const container = document.getElementById('bed-grid-container');
+            container.innerHTML = '';
+
+            let availableCount = 0;
+
+            patientBeds.forEach((bed, index) => {
+                let colorClass = '';
+                let badgeColor = '';
+                let svgStroke = '#0d9488';
+
+                if (bed.status === 'Available') {
+                    colorClass = 'bg-emerald-50 border-emerald-200 text-emerald-600';
+                    badgeColor = 'bg-emerald-500';
+                    svgStroke = '#059669';
+                    availableCount++;
+                } else if (bed.status === 'Occupied') {
+                    colorClass = 'bg-rose-50 border-rose-200 text-rose-600';
+                    badgeColor = 'bg-rose-500';
+                    svgStroke = '#e11d48';
+                } else {
+                    colorClass = 'bg-amber-50 border-amber-200 text-amber-600';
+                    badgeColor = 'bg-amber-500';
+                    svgStroke = '#d97706';
+                }
+
+                const bedEl = document.createElement('div');
+                bedEl.className = `p-0.5 border rounded-md text-center cursor-pointer transition-all duration-150 transform hover:scale-105 flex flex-col items-center justify-between h-[28px] ${colorClass}`;
+                bedEl.setAttribute('onclick', `toggleBedStatus(${index})`);
+                bedEl.innerHTML = `
+          <span class="block text-[8px] font-black leading-none">${bed.id}</span>
+          <svg class="w-2.5 h-2.5 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="${svgStroke}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 4v16M2 11h18M22 4v16M2 8h18" />
+          </svg>
+        `;
+
+                container.appendChild(bedEl);
+            });
+
+            // Update available count indicator
+            document.getElementById('bed-ratio-label').innerText = `${availableCount}/12 Ready`;
+        }
+
+        // Toggle status of a patient bed on direct click
+        function toggleBedStatus(index) {
+            const current = patientBeds[index].status;
+            if (current === 'Available') {
+                patientBeds[index].status = 'Occupied';
+            } else if (current === 'Occupied') {
+                patientBeds[index].status = 'Maintenance';
+            } else {
+                patientBeds[index].status = 'Available';
+            }
+            renderBedGrid();
+        }
+
+        // Change all beds instantly via sidebar macro
+        function changeAllBeds(status) {
+            patientBeds.forEach(bed => bed.status = status);
+            renderBedGrid();
+        }
+
+        // Synchronize and update user-modified text elements
+        function updatePosterText(targetId, value) {
+            if (targetId === 'headline') {
+                document.getElementById('live-headline').innerText = value;
+            } else if (targetId === 'contact1') {
+                document.getElementById('footer-contact1').innerText = value;
+            } else if (targetId === 'contact2') {
+                document.getElementById('footer-contact2').innerText = value;
+            } else if (targetId === 'web') {
+                document.getElementById('footer-web').innerText = value;
+            } else if (targetId === 'email') {
+                document.getElementById('footer-email').innerText = value;
+            }
+        }
+
+        // Handle interactive toggle between Real vs Fictionalized Demo states
+        function toggleFictionalData() {
+            isFictionalMode = !isFictionalMode;
+            const targetDataset = isFictionalMode ? fictionalRefData : cleanData;
+            const btn = document.getElementById('data-toggle-btn');
+
+            if (isFictionalMode) {
+                btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i> Custom Real-World Data';
+                btn.classList.remove('bg-slate-700', 'text-teal-400');
+                btn.classList.add('bg-teal-500/20', 'text-teal-300');
+            } else {
+                btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i> Clean Real-World Demo Info';
+                btn.classList.remove('bg-teal-500/20', 'text-teal-300');
+                btn.classList.add('bg-slate-700', 'text-teal-400');
+            }
+
+            // Populate input boxes and sync poster fields
+            Object.keys(targetDataset).forEach(key => {
+                document.getElementById(`input-${key}`).value = targetDataset[key];
+                updatePosterText(key, targetDataset[key]);
+            });
+
+            // Update doctor specialties based on clean parameters
+            if (isFictionalMode) {
+                document.getElementById('opd-dr-specialty').innerText = "Dr. Inhouse (OPD)";
+                document.getElementById('dept-dr-specialty').innerText = "Dr. Dental (Dentistry)";
+                document.getElementById('dr1-label').innerText = "Dr. Inhouse (OPD)";
+                document.getElementById('dr2-label').innerText = "Dr. Dental (Specialty)";
+            } else {
+                document.getElementById('opd-dr-specialty').innerText = "General Practice";
+                document.getElementById('dept-dr-specialty').innerText = "Dental Specialty";
+                document.getElementById('dr1-label').innerText = "Dr. K*** (OPD)";
+                document.getElementById('dr2-label').innerText = "Dr. R*** (ICU)";
+            }
+        }
+
+        // Update scannable QR Code Redirection Link
+        function updateQRCodeLink(url) {
+            console.log("QR Code Destination Updated: ", url);
+        }
+
+        // Ensure scaling factor behaves perfectly inside browser previews
+        function handleScaling() {
+            const canvas = document.getElementById('print-canvas');
+            const containerWidth = canvas.parentElement.clientWidth;
+            const originalWidth = 559.37; // A5 148mm in pixels at standard 96 DPI
+
+            if (containerWidth < originalWidth && window.innerWidth < 1280) {
+                const scaleFactor = containerWidth / originalWidth;
+                canvas.style.transform = `scale(${scaleFactor})`;
+                canvas.style.marginBottom = `-${originalWidth - (originalWidth * scaleFactor)}px`;
+            } else {
+                canvas.style.transform = 'none';
+                canvas.style.marginBottom = '0px';
+            }
+        }
+
+        // Fire triggers on direct document startup
+        window.onload = function () {
+            renderBedGrid();
+            handleScaling();
+            window.addEventListener('resize', handleScaling);
+        };
+    </script>
+
+</body>
+
+</html>

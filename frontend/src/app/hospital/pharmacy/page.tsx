@@ -11,6 +11,35 @@ import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { AlertTriangle } from 'lucide-react';
+
+function ExpiryAlertWidget() {
+    const [alerts, setAlerts] = useState<any[]>([]);
+
+    useEffect(() => {
+        apiFetch('/pharmacy/inventory/expiring?days=90').then(data => {
+            if (data && data.length > 0) setAlerts(data);
+        }).catch(console.error);
+    }, []);
+
+    if (alerts.length === 0) return null;
+
+    return (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <h3 className="text-red-800 font-bold flex items-center gap-2 mb-2">
+                <AlertTriangle className="w-5 h-5" /> Expiring Soon ({alerts.length})
+            </h3>
+            <div className="space-y-1 max-h-32 overflow-y-auto text-sm text-red-900">
+                {alerts.map((a: any) => (
+                    <div key={a.batch_id} className="flex justify-between border-b border-red-100 pb-1">
+                        <span><span className="font-semibold">{a.item_name}</span> (Batch: {a.batch_number})</span>
+                        <span>Exp: {format(new Date(a.expiry_date), 'MMM yyyy')} | Qty: {a.current_stock}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
 
 export default function PharmacyDashboard() {
     const [pendingRx, setPendingRx] = useState<any[]>([]);
@@ -101,6 +130,10 @@ export default function PharmacyDashboard() {
                     <p className="text-slate-500 mt-1">Manage e-prescriptions and dispense medications</p>
                 </div>
             </div>
+
+            {/* Expiry Alerts */}
+            <ExpiryAlertWidget />
+
 
             {/* Search */}
             <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">

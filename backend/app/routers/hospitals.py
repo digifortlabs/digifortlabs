@@ -159,6 +159,25 @@ class HospitalUpdate(BaseModel):
     max_users: Optional[int] = None
     per_user_price: Optional[float] = None
 
+class HospitalOnboardRequest(BaseModel):
+    # Step 1
+    legal_name: str
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    phone: Optional[str] = None
+    # Step 2
+    enabled_modules: List[str]
+    # Step 3 (Pricing)
+    patient_registration_fee: float = 500.0
+    nursing_base_charge: float = 150.0
+    ot_base_charge: float = 15000.0
+    # Step 4 (Billing)
+    gst_number: Optional[str] = None
+    billing_header: Optional[str] = None
+    billing_footer: Optional[str] = None
+
 class AdminCreate(BaseModel):
     email: EmailStr
     password: str
@@ -718,6 +737,46 @@ def create_hospital_admin(hospital_id: int, admin_data: AdminCreate, db: Session
     )
     
     return {"message": f"Admin created for {hospital.legal_name}", "email": admin_data.email}
+
+@router.post("/{hospital_id}/onboard", response_model=HospitalResponse)
+def onboard_hospital(
+    hospital_id: int, 
+    payload: HospitalOnboardRequest, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.hospital_id != hospital_id or current_user.role != UserRole.HOSPITAL_ADMIN:
+        raise HTTPException(status_code=403, detail="Not authorized to onboard this hospital")
+
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    if not db_hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+        
+    if db_hospital.is_onboarded:
+        raise HTTPException(status_code=400, detail="Hospital is already onboarded")
+
+    # Update Data
+    db_hospital.legal_name = payload.legal_name # type: ignore
+    db_hospital.address = payload.address # type: ignore
+    db_hospital.city = payload.city # type: ignore
+    db_hospital.state = payload.state # type: ignore
+    db_hospital.pincode = payload.pincode # type: ignore
+    db_hospital.phone = payload.phone # type: ignore
+    db_hospital.enabled_modules = payload.enabled_modules # type: ignore
+    
+    db_hospital.patient_registration_fee = payload.patient_registration_fee # type: ignore
+    db_hospital.nursing_base_charge = payload.nursing_base_charge # type: ignore
+    db_hospital.ot_base_charge = payload.ot_base_charge # type: ignore
+    
+    db_hospital.gst_number = payload.gst_number.upper() if payload.gst_number else None # type: ignore
+    db_hospital.billing_header = payload.billing_header # type: ignore
+    db_hospital.billing_footer = payload.billing_footer # type: ignore
+    
+    db_hospital.is_onboarded = True # type: ignore
+    db.commit()
+    db.refresh(db_hospital)
+    
+    return db_hospital
 
 @router.patch("/{hospital_id}", response_model=HospitalResponse)
 def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_SETTINGS))):

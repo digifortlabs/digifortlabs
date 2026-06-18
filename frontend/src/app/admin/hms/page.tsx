@@ -119,7 +119,7 @@ export default function HMSDashboard() {
                             variant="outline"
                             className="gap-2 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border-red-200"
                         >
-                            Change Hospital
+                            Change Website
                         </Button>
                     )}
                     <Button onClick={() => setIsAddWardOpen(true)} className="bg-blue-600 hover:bg-blue-700">

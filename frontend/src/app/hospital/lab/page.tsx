@@ -25,6 +25,8 @@ export default function LabDashboard() {
         reference_range: '',
         remarks: ''
     });
+    const [reportFile, setReportFile] = useState<File | null>(null);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     const fetchOrders = async () => {
         setIsLoading(true);
@@ -45,22 +47,44 @@ export default function LabDashboard() {
     const handleOpenResultModal = (order: any) => {
         setSelectedOrder(order);
         setResultForm({ result_value: '', reference_range: '', remarks: '' });
+        setReportFile(null);
         setIsResultModalOpen(true);
     };
 
     const handleSaveResult = async () => {
         if (!selectedOrder) return;
         try {
-            await apiFetch('/lab/results', {
+            const formData = new FormData();
+            formData.append('order_id', selectedOrder.order_id);
+            formData.append('test_id', selectedOrder.test_id);
+            formData.append('result_value', resultForm.result_value);
+            if (resultForm.reference_range) formData.append('reference_range', resultForm.reference_range);
+            if (resultForm.remarks) formData.append('remarks', resultForm.remarks);
+            
+            if (reportFile) {
+                formData.append('file', reportFile);
+            }
+
+            const token = localStorage.getItem('access_token');
+            const hospitalId = localStorage.getItem('hospital_id');
+            const baseUrl = typeof window !== 'undefined'
+                ? (window.location.hostname.includes('digifortlabs.com') ? 'https://digifortlabs.com/api' : '/api')
+                : 'http://localhost:8000';
+
+            const res = await fetch(`${baseUrl}/lab/results/upload`, {
                 method: 'POST',
-                body: JSON.stringify({
-                    order_id: selectedOrder.order_id,
-                    test_id: selectedOrder.test_id,
-                    result_value: resultForm.result_value,
-                    reference_range: resultForm.reference_range,
-                    remarks: resultForm.remarks
-                })
+                headers: {
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                    ...(hospitalId ? { 'X-Hospital-Id': hospitalId } : {})
+                },
+                body: formData
             });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(errorText || "Failed to save result");
+            }
+            
             toast.success("Lab result saved successfully.");
             setIsResultModalOpen(false);
             fetchOrders();
@@ -208,10 +232,28 @@ export default function LabDashboard() {
                                 </div>
                                 
                                 <div className="pt-2 border-t border-slate-100">
-                                    <Label className="mb-2 block">Upload Report PDF (Optional)</Label>
-                                    <Button variant="outline" className="w-full border-dashed border-2 border-slate-200 text-slate-500">
-                                        <Upload className="w-4 h-4 mr-2" /> Select PDF File
+                                    <Label className="mb-2 block">Upload Report PDF/Image (Optional)</Label>
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef} 
+                                        onChange={(e) => setReportFile(e.target.files?.[0] || null)} 
+                                        className="hidden" 
+                                        accept=".pdf,.png,.jpg,.jpeg"
+                                    />
+                                    <Button 
+                                        variant="outline" 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="w-full border-dashed border-2 border-slate-200 text-slate-500"
+                                    >
+                                        <Upload className="w-4 h-4 mr-2" /> 
+                                        {reportFile ? reportFile.name : "Select PDF/Image File"}
                                     </Button>
+                                    {reportFile && (
+                                        <div className="flex justify-between items-center mt-2 px-2 py-1 bg-slate-50 rounded text-xs text-slate-600">
+                                            <span className="truncate">{reportFile.name}</span>
+                                            <button onClick={() => setReportFile(null)} className="text-rose-500 hover:text-rose-700">Remove</button>
+                                        </div>
+                                    )}
                                     <p className="text-[10px] text-center text-slate-400 mt-2">Uploading will attach the full report to the patient's record.</p>
                                 </div>
                             </div>

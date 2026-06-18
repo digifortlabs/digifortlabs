@@ -48,7 +48,7 @@ export default function NursingStation() {
         fetchAdmissions();
     }, []);
 
-    const fetchVitalsHistory = async (admissionId: int) => {
+    const fetchVitalsHistory = async (admissionId: number) => {
         setIsHistoryLoading(true);
         try {
             const data = await apiFetch(`/nursing/vitals/${admissionId}`);

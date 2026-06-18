@@ -25,7 +25,16 @@ export default function HMSAdmissionsPage() {
     const [isDischargeOpen, setIsDischargeOpen] = useState(false);
     const [selectedAdmission, setSelectedAdmission] = useState<any>(null);
     const [form, setForm] = useState({ patient_name: '', age: '', gender: 'Male', ward_id: '', bed_id: '', diagnosis: '', doctor_name: '', contact_phone: '', notes: '' });
-    const [dischargeNotes, setDischargeNotes] = useState('');
+    const [dischargeForm, setDischargeForm] = useState({
+        history: '',
+        final_diagnosis: '',
+        operative_note: '',
+        advice_on_discharge: '',
+        general_advice: '',
+        follow_up_plan: '',
+        include_investigations: false,
+        discharge_notes: ''
+    });
     const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -106,15 +115,41 @@ export default function HMSAdmissionsPage() {
         } catch (e: any) { toast.error(e.message || 'Failed'); }
     };
 
+    const handleOpenDischarge = async (admission: any) => {
+        setSelectedAdmission(admission);
+        setIsDischargeOpen(true);
+        setDischargeForm({
+            history: '',
+            final_diagnosis: admission.diagnosis || '',
+            operative_note: '',
+            advice_on_discharge: '',
+            general_advice: '',
+            follow_up_plan: '',
+            include_investigations: false,
+            discharge_notes: ''
+        });
+        try {
+            const data = await apiFetch(`hms/admissions/${admission.admission_id}`);
+            const surgeries = data.surgeries || [];
+            if (surgeries.length > 0) {
+                const opNote = surgeries.map((s:any) => s.surgery_name).join(', ');
+                setDischargeForm(prev => ({ ...prev, operative_note: opNote }));
+            }
+        } catch(e) { console.error(e); }
+    };
+
     const handleDischarge = async () => {
         if (!selectedAdmission) return;
         try {
             await apiFetch(`hms/admissions/${selectedAdmission.admission_id}/discharge`, {
                 method: 'POST',
-                body: JSON.stringify({ discharge_notes: dischargeNotes, discharge_date: new Date().toISOString() })
+                body: JSON.stringify({ ...dischargeForm, discharge_date: new Date().toISOString() })
             });
             setIsDischargeOpen(false);
-            setDischargeNotes('');
+            setDischargeForm({
+                history: '', final_diagnosis: '', operative_note: '', advice_on_discharge: '',
+                general_advice: '', follow_up_plan: '', include_investigations: false, discharge_notes: ''
+            });
             setSelectedAdmission(null);
             loadData();
         } catch (e: any) { toast.error(e.message || 'Failed to discharge'); }
@@ -182,7 +217,7 @@ export default function HMSAdmissionsPage() {
                                                     </div>
                                                 </div>
                                                 <Button size="sm" variant="outline" className="gap-2 flex-shrink-0 border-rose-200 text-rose-600 hover:bg-rose-50"
-                                                    onClick={() => { setSelectedAdmission(a); setIsDischargeOpen(true); }}>
+                                                    onClick={() => handleOpenDischarge(a)}>
                                                     <LogOut className="w-3.5 h-3.5" /> Discharge
                                                 </Button>
                                             </div>
@@ -277,17 +312,53 @@ export default function HMSAdmissionsPage() {
                         )}
 
                         <div className="border-t border-slate-100 pt-3 space-y-3">
-                            <div className="space-y-2"><Label>Patient Name *</Label>
-                                <Input placeholder="Full name" value={form.patient_name} onChange={e => setForm({ ...form, patient_name: e.target.value })} disabled={selectedPatientId !== null} /></div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-2"><Label>Age</Label>
-                                <Input type="number" placeholder="Age" value={form.age} onChange={e => setForm({ ...form, age: e.target.value })} disabled={selectedPatientId !== null} /></div>
-                            <div className="space-y-2"><Label>Gender</Label>
-                                <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm"
-                                    value={form.gender} onChange={e => setForm({ ...form, gender: e.target.value })} disabled={selectedPatientId !== null}>
-                                    <option>Male</option><option>Female</option><option>Other</option>
-                                </select></div>
-                        </div>
+                            {!selectedPatientId && (
+                                <>
+                                    <div className="space-y-2">
+                                        <Label>Patient Name *</Label>
+                                        <Input 
+                                            placeholder="Full name" 
+                                            value={form.patient_name} 
+                                            onChange={e => setForm({ ...form, patient_name: e.target.value })} 
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-2">
+                                            <Label>Age</Label>
+                                            <Input 
+                                                placeholder="Age" 
+                                                type="number" 
+                                                value={form.age} 
+                                                onChange={e => setForm({ ...form, age: e.target.value })} 
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Gender</Label>
+                                            <select 
+                                                className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm"
+                                                value={form.gender} 
+                                                onChange={e => setForm({ ...form, gender: e.target.value })}
+                                            >
+                                                <option>Male</option>
+                                                <option>Female</option>
+                                                <option>Other</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Contact phone</Label>
+                                        <Input placeholder="Attendant phone" value={form.contact_phone} onChange={e => setForm({ ...form, contact_phone: e.target.value })} />
+                                    </div>
+                                </>
+                            )}
+                            <div className="space-y-2">
+                                <Label>Diagnosis</Label>
+                                <Input placeholder="Primary diagnosis" value={form.diagnosis} onChange={e => setForm({ ...form, diagnosis: e.target.value })} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Admitting Doctor</Label>
+                                <Input placeholder="Admitting doctor" value={form.doctor_name} onChange={e => setForm({ ...form, doctor_name: e.target.value })} />
+                            </div>
                         <div className="space-y-2"><Label>Ward</Label>
                             <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm"
                                 value={form.ward_id} onChange={e => setForm({ ...form, ward_id: e.target.value, bed_id: '' })}>
@@ -323,12 +394,37 @@ export default function HMSAdmissionsPage() {
 
             {/* Discharge Modal */}
             <Dialog open={isDischargeOpen} onOpenChange={setIsDischargeOpen}>
-                <DialogContent className="max-w-sm">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader><DialogTitle>Discharge — {selectedAdmission?.patient_name}</DialogTitle></DialogHeader>
-                    <div className="space-y-3 py-2">
-                        <p className="text-sm text-slate-500">This will free up {selectedAdmission?.ward_name} Bed {selectedAdmission?.bed_number}.</p>
-                        <div className="space-y-2"><Label>Discharge Notes</Label>
-                            <Textarea placeholder="Summary, instructions at discharge..." rows={3} className="resize-none" value={dischargeNotes} onChange={e => setDischargeNotes(e.target.value)} /></div>
+                    <div className="space-y-4 py-2">
+                        <p className="text-sm text-slate-500">Fill in the details for the Discharge Card. This will also free up {selectedAdmission?.ward_name} Bed {selectedAdmission?.bed_number}.</p>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2"><Label>Final Diagnosis</Label>
+                                <Textarea placeholder="Final Diagnosis..." rows={2} className="resize-none" value={dischargeForm.final_diagnosis} onChange={(e: any) => setDischargeForm({...dischargeForm, final_diagnosis: e.target.value})} /></div>
+                            <div className="space-y-2"><Label>History</Label>
+                                <Textarea placeholder="Patient history..." rows={2} className="resize-none" value={dischargeForm.history} onChange={(e: any) => setDischargeForm({...dischargeForm, history: e.target.value})} /></div>
+                            
+                            <div className="space-y-2"><Label>Operative Details</Label>
+                                <Textarea placeholder="Operative notes..." rows={2} className="resize-none" value={dischargeForm.operative_note} onChange={(e: any) => setDischargeForm({...dischargeForm, operative_note: e.target.value})} /></div>
+                            <div className="space-y-2"><Label>Advice on Discharge</Label>
+                                <Textarea placeholder="Advice on discharge..." rows={2} className="resize-none" value={dischargeForm.advice_on_discharge} onChange={(e: any) => setDischargeForm({...dischargeForm, advice_on_discharge: e.target.value})} /></div>
+                            
+                            <div className="space-y-2"><Label>General Advice</Label>
+                                <Textarea placeholder="General advice..." rows={2} className="resize-none" value={dischargeForm.general_advice} onChange={(e: any) => setDischargeForm({...dischargeForm, general_advice: e.target.value})} /></div>
+                            <div className="space-y-2"><Label>Follow Up Plan</Label>
+                                <Textarea placeholder="Follow up plan..." rows={2} className="resize-none" value={dischargeForm.follow_up_plan} onChange={(e: any) => setDischargeForm({...dischargeForm, follow_up_plan: e.target.value})} /></div>
+                        </div>
+
+                        <div className="space-y-2"><Label>Additional Notes (Legacy Summary)</Label>
+                            <Textarea placeholder="Summary, additional instructions..." rows={2} className="resize-none" value={dischargeForm.discharge_notes} onChange={(e: any) => setDischargeForm({...dischargeForm, discharge_notes: e.target.value})} /></div>
+                        
+                        <div className="flex items-center space-x-2 pt-2">
+                            <input type="checkbox" id="include_labs" className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600" 
+                                checked={dischargeForm.include_investigations} 
+                                onChange={e => setDischargeForm({...dischargeForm, include_investigations: e.target.checked})} />
+                            <Label htmlFor="include_labs" className="font-normal cursor-pointer text-slate-700">Include detailed lab investigations in printout (if unchecked, shows "Attached")</Label>
+                        </div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsDischargeOpen(false)}>Cancel</Button>

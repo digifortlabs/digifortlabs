@@ -355,10 +355,11 @@ app.include_router(clinic.router, dependencies=[Depends(require_module("clinic")
 from .routers import emergency
 app.include_router(emergency.router)
 
-from .routers import tpa, nursing, pharmacy, lab
+from .routers import tpa, nursing, pharmacy, pharmacy_inventory, lab
 app.include_router(tpa.router)
 app.include_router(nursing.router)
 app.include_router(pharmacy.router)
+app.include_router(pharmacy_inventory.router)
 app.include_router(lab.router)
 
 from .routers import whatsapp

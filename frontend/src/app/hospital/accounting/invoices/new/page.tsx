@@ -108,6 +108,17 @@ export default function NewPatientInvoicePage() {
         setCustomItems(prev => prev.filter((_, i) => i !== index));
     };
 
+    const handleUpdateServerItem = (index: number, field: keyof UnbilledItem, value: any) => {
+        setServerItems(prev => {
+            const copy = [...prev];
+            copy[index] = {
+                ...copy[index],
+                [field]: value
+            };
+            return copy;
+        });
+    };
+
     // Calculate totals
     const subtotal = (() => {
         let total = 0.0;
@@ -115,12 +126,18 @@ export default function NewPatientInvoicePage() {
         selectedIndices.forEach(idx => {
             const item = serverItems[idx];
             if (item) {
-                total += (item.qty * item.unit_price) - item.discount;
+                const qty = Number(item.qty) || 0;
+                const price = Number(item.unit_price) || 0;
+                const disc = Number(item.discount) || 0;
+                total += (qty * price) - disc;
             }
         });
         // Custom items
         customItems.forEach(item => {
-            total += (item.qty * item.unit_price) - item.discount;
+            const qty = Number(item.qty) || 0;
+            const price = Number(item.unit_price) || 0;
+            const disc = Number(item.discount) || 0;
+            total += (qty * price) - disc;
         });
         return total;
     })();
@@ -131,18 +148,18 @@ export default function NewPatientInvoicePage() {
     const handleGenerateInvoice = async () => {
         const selectedItems = selectedIndices.map(idx => ({
             description: serverItems[idx].description,
-            qty: serverItems[idx].qty,
-            unit_price: serverItems[idx].unit_price,
-            discount: serverItems[idx].discount,
+            qty: Number(serverItems[idx].qty) || 0,
+            unit_price: Number(serverItems[idx].unit_price) || 0,
+            discount: Number(serverItems[idx].discount) || 0,
             charge_type: serverItems[idx].charge_type,
             reference_id: serverItems[idx].reference_id
         }));
 
         const validatedCustomItems = customItems.filter(i => i.description.trim() !== "").map(i => ({
             description: i.description,
-            qty: i.qty,
-            unit_price: i.unit_price,
-            discount: i.discount,
+            qty: Number(i.qty) || 0,
+            unit_price: Number(i.unit_price) || 0,
+            discount: Number(i.discount) || 0,
             charge_type: i.charge_type
         }));
 
@@ -254,25 +271,88 @@ export default function NewPatientInvoicePage() {
                                     return (
                                         <div 
                                             key={idx} 
-                                            onClick={() => toggleSelectItem(idx)}
-                                            className={`p-4 flex items-center justify-between gap-4 cursor-pointer transition-colors ${
-                                                isSelected ? 'bg-indigo-50/20 hover:bg-indigo-50/40' : 'hover:bg-slate-50'
+                                            className={`p-4 flex flex-col md:flex-row items-start md:items-center gap-4 transition-colors ${
+                                                isSelected ? 'bg-indigo-50/5' : 'bg-slate-50/30'
                                             }`}
                                         >
-                                            <div className="flex items-center gap-3">
-                                                <div className="text-indigo-600">
-                                                    {isSelected ? <CheckSquare size={20} /> : <Square size={20} />}
+                                            <div className="flex items-center gap-3 w-full md:w-auto">
+                                                <div 
+                                                    onClick={() => toggleSelectItem(idx)}
+                                                    className="text-indigo-600 cursor-pointer hover:scale-105 transition-transform"
+                                                >
+                                                    {isSelected ? <CheckSquare size={22} /> : <Square size={22} />}
                                                 </div>
-                                                <div>
-                                                    <p className="font-bold text-slate-900 text-sm">{item.description}</p>
-                                                    <span className="text-[10px] uppercase tracking-wider font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded mt-1 inline-block">
+                                                <div className="flex-1 md:hidden">
+                                                    <span className="text-[10px] uppercase tracking-wider font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded">
                                                         {item.charge_type.replace('_', ' ')}
                                                     </span>
                                                 </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="font-black text-slate-900">₹ {item.unit_price.toLocaleString()}</p>
-                                                {item.qty > 1 && <p className="text-xs text-slate-500">₹ {item.unit_price} x {item.qty}</p>}
+                                            
+                                            <div className="flex-1 min-w-0 space-y-1 w-full">
+                                                <input 
+                                                    type="text"
+                                                    value={item.description}
+                                                    disabled={!isSelected}
+                                                    onChange={(e) => handleUpdateServerItem(idx, 'description', e.target.value)}
+                                                    className="w-full px-3 py-1.5 bg-white disabled:bg-slate-50 border border-slate-200 disabled:border-slate-100 rounded-lg text-sm font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm transition-all"
+                                                    placeholder="Description"
+                                                />
+                                                <div className="hidden md:flex items-center gap-2">
+                                                    <span className="text-[9px] uppercase tracking-wider font-extrabold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                                                        {item.charge_type.replace('_', ' ')}
+                                                    </span>
+                                                    {item.date && (
+                                                        <span className="text-[10px] text-slate-400 font-semibold">
+                                                            Date: {new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                                                <div className="w-16">
+                                                    <span className="block md:hidden text-[9px] uppercase font-bold text-slate-400 mb-1">Qty</span>
+                                                    <input 
+                                                        type="number" 
+                                                        placeholder="Qty"
+                                                        value={item.qty}
+                                                        min="1"
+                                                        disabled={!isSelected}
+                                                        onChange={(e) => handleUpdateServerItem(idx, 'qty', Number(e.target.value))}
+                                                        className="w-full px-2 py-1.5 bg-white disabled:bg-slate-50 border border-slate-200 disabled:border-slate-100 rounded-lg text-sm text-center focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm"
+                                                    />
+                                                </div>
+                                                
+                                                <div className="w-28 relative">
+                                                    <span className="block md:hidden text-[9px] uppercase font-bold text-slate-400 mb-1">Price (₹)</span>
+                                                    <div className="relative">
+                                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
+                                                        <input 
+                                                            type="number" 
+                                                            placeholder="Price"
+                                                            value={item.unit_price}
+                                                            disabled={!isSelected}
+                                                            onChange={(e) => handleUpdateServerItem(idx, 'unit_price', Number(e.target.value))}
+                                                            className="w-full pl-6 pr-2 py-1.5 bg-white disabled:bg-slate-50 border border-slate-200 disabled:border-slate-100 rounded-lg text-sm font-black text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="w-24 relative">
+                                                    <span className="block md:hidden text-[9px] uppercase font-bold text-slate-400 mb-1">Disc (₹)</span>
+                                                    <div className="relative">
+                                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">-₹</span>
+                                                        <input 
+                                                            type="number" 
+                                                            placeholder="Discount"
+                                                            value={item.discount}
+                                                            disabled={!isSelected}
+                                                            onChange={(e) => handleUpdateServerItem(idx, 'discount', Number(e.target.value))}
+                                                            className="w-full pl-5 pr-2 py-1.5 bg-white disabled:bg-slate-50 border border-slate-200 disabled:border-slate-100 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm text-rose-600 font-bold"
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     );
@@ -302,7 +382,7 @@ export default function NewPatientInvoicePage() {
                         ) : (
                             <div className="space-y-3">
                                 {customItems.map((item, idx) => (
-                                    <div key={idx} className="flex flex-col md:flex-row items-start md:items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                                    <div key={idx} className="flex flex-col md:flex-row items-start md:items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl animate-in slide-in-from-top-1 duration-200">
                                         <input 
                                             type="text" 
                                             placeholder="Charge description (e.g. Pharmacy, ECG)"
@@ -328,7 +408,17 @@ export default function NewPatientInvoicePage() {
                                                     placeholder="Price"
                                                     value={item.unit_price || ''}
                                                     onChange={(e) => handleUpdateCustomItem(idx, 'unit_price', Number(e.target.value))}
-                                                    className="w-full pl-6 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm"
+                                                    className="w-full pl-6 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm font-bold"
+                                                />
+                                            </div>
+                                            <div className="w-24 relative">
+                                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">-₹</span>
+                                                <input 
+                                                    type="number" 
+                                                    placeholder="Disc"
+                                                    value={item.discount || ''}
+                                                    onChange={(e) => handleUpdateCustomItem(idx, 'discount', Number(e.target.value))}
+                                                    className="w-full pl-5 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm text-center focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm text-rose-600 font-bold"
                                                 />
                                             </div>
                                             <button 

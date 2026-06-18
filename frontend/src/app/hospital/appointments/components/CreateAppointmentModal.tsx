@@ -54,12 +54,12 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
                 setDepartmentId(appointmentToEdit.department_id.toString());
                 setDoctorId(appointmentToEdit.doctor_id.toString());
                 setAppointmentDate(appointmentToEdit.appointment_date.split('T')[0]);
-                
+
                 const extractTime = (isoString: string) => {
                     const d = new Date(isoString);
                     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
                 };
-                
+
                 setStartTime(extractTime(appointmentToEdit.start_time));
                 setEndTime(extractTime(appointmentToEdit.end_time));
                 setReason(appointmentToEdit.reason_for_visit || '');
@@ -228,8 +228,8 @@ export default function CreateAppointmentModal({ isOpen, onClose, onSuccess, dep
                         </div>
                         <div className="space-y-1 flex items-end">
                             <div className="flex items-center space-x-2 h-11 px-4 bg-slate-50/50 border border-slate-200 rounded-xl w-full">
-                                <Checkbox 
-                                    id="isFollowUp" 
+                                <Checkbox
+                                    id="isFollowUp"
                                     checked={isFollowUp}
                                     onCheckedChange={(checked: boolean | 'indeterminate') => setIsFollowUp(checked === true)}
                                 />

@@ -102,13 +102,29 @@ def get_unbilled_records(
     
     items = []
 
+    # 0. Check if patient has any previous invoices for first-time registration fee injection
+    invoice_count = db.query(PatientInvoice).filter(PatientInvoice.patient_id == patient_id).count()
+    if invoice_count == 0:
+        reg_fee = getattr(patient.hospital, "patient_registration_fee", 500.0)
+        if reg_fee is None:
+            reg_fee = 500.0
+        items.append({
+            "description": "Patient Registration Fee (First-Time)",
+            "qty": 1,
+            "unit_price": float(reg_fee),
+            "discount": 0.0,
+            "charge_type": "REGISTRATION_FEE",
+            "reference_id": patient_id,
+            "date": datetime.now().isoformat()
+        })
+
     # Process OPD Visits
     for v in unbilled["opd_visits"]:
         visit_date_str = v.visit_date.strftime("%d-%b-%Y")
         items.append({
             "description": f"OPD Consultation - Visit Date: {visit_date_str}",
             "qty": 1,
-            "unit_price": v.consultation_fee,
+            "unit_price": float(v.consultation_fee or 0.0),
             "discount": 0.0,
             "charge_type": "OPD_VISIT",
             "reference_id": v.visit_id,
@@ -127,7 +143,7 @@ def get_unbilled_records(
         items.append({
             "description": desc,
             "qty": 1,
-            "unit_price": t.cost,
+            "unit_price": float(t.cost or 0.0),
             "discount": 0.0,
             "charge_type": "DENTAL_TREATMENT",
             "reference_id": t.treatment_id,
@@ -137,12 +153,22 @@ def get_unbilled_records(
     # Process IPD Admissions
     for adm in unbilled["ipd_admissions"]:
         # Calculate stay days dynamically
-        end_date = adm.discharge_date or datetime.now()
-        delta = end_date - adm.admission_date
+        # Safely compute days by stripping timezones to avoid offset-naive and offset-aware subtraction crashes
+        adm_date = adm.admission_date
+        if adm_date and adm_date.tzinfo is not None:
+            adm_date = adm_date.replace(tzinfo=None)
+            
+        discharge = adm.discharge_date
+        if discharge and discharge.tzinfo is not None:
+            discharge = discharge.replace(tzinfo=None)
+            
+        end_date = discharge or datetime.now()
+        delta = end_date - adm_date
         days = max(1, delta.days) # minimum 1 day charge
         
         # Dynamic rate from the ward configuration
-        rate = adm.ward.daily_charge if adm.ward and getattr(adm.ward, "daily_charge", None) else 500.0
+        raw_rate = adm.ward.daily_charge if adm.ward and getattr(adm.ward, "daily_charge", None) is not None else 500.0
+        rate = float(raw_rate or 500.0)
             
         ward_name = adm.ward.ward_name if adm.ward else "General Ward"
         bed_num = adm.bed.bed_number if adm.bed else "-"
@@ -157,6 +183,21 @@ def get_unbilled_records(
             "date": adm.admission_date.isoformat()
         })
 
+        # Process Operation Theatre (OT) Charge if required
+        if getattr(adm, "ot_required", False):
+            ot_charge = getattr(patient.hospital, "ot_base_charge", 15000.0)
+            if ot_charge is None:
+                ot_charge = 15000.0
+            items.append({
+                "description": "Operation Theatre (OT) Base Charge",
+                "qty": 1,
+                "unit_price": float(ot_charge),
+                "discount": 0.0,
+                "charge_type": "OT_CHARGE",
+                "reference_id": adm.admission_id,
+                "date": adm.admission_date.isoformat()
+            })
+
         # Process any medication administrations logged under this admission
         med_logs = adm.medication_log or []
         for log in med_logs:
@@ -166,10 +207,15 @@ def get_unbilled_records(
             desc = f"Medication Administered: {med_name}"
             if notes:
                 desc += f" ({notes})"
+                
+            nursing_charge = getattr(patient.hospital, "nursing_base_charge", 150.0)
+            if nursing_charge is None:
+                nursing_charge = 150.0
+                
             items.append({
                 "description": desc,
                 "qty": 1,
-                "unit_price": 150.0, # Standard default medication charge
+                "unit_price": float(nursing_charge),
                 "discount": 0.0,
                 "charge_type": "MEDICINE",
                 "reference_id": adm.admission_id, # Link back to the admission
@@ -185,6 +231,8 @@ def get_unbilled_records(
             
             doc_profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == d_user_id).first() if d_user_id else None
             ipd_charge = getattr(doc_profile, "ipd_charge", 0.0) if doc_profile else 0.0
+            if ipd_charge is None:
+                ipd_charge = 0.0
             
             if ipd_charge > 0:
                 desc = f"Doctor IPD Visit: {dnote.get('doctor_name', 'Unknown')}"
@@ -194,7 +242,7 @@ def get_unbilled_records(
                 items.append({
                     "description": desc,
                     "qty": 1,
-                    "unit_price": ipd_charge,
+                    "unit_price": float(ipd_charge),
                     "discount": 0.0,
                     "charge_type": "IPD_DOCTOR_VISIT",
                     "reference_id": adm.admission_id,

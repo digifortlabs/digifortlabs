@@ -221,14 +221,14 @@ export default function ServerFileManager() {
                                             <button
                                                 className="p-1.5 hover:bg-indigo-100 text-indigo-600 rounded"
                                                 title="Download"
-                                                onClick={() => window.toast.error("Download not yet implemented in demo")}
+                                                onClick={() => toast.error("Download not yet implemented in demo")}
                                             >
                                                 <Download size={16} />
                                             </button>
                                             <button
                                                 className="p-1.5 hover:bg-red-100 text-red-600 rounded"
                                                 title="Delete"
-                                                onClick={() => window.toast.error("Delete restricted in demo")}
+                                                onClick={() => toast.error("Delete restricted in demo")}
                                             >
                                                 <Trash2 size={16} />
                                             </button>

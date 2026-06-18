@@ -193,7 +193,7 @@ export default function HospitalPage() {
                         const [from, to, border, text] = colorClasses.split(' ');
                         return (
                             <button
-                                key={action.href || action.action}
+                                key={action.href || action.label}
                                 onClick={() => {
                                     if (action.href) {
                                         router.push(action.href);

@@ -47,6 +47,13 @@ class AdmissionCreate(BaseModel):
 
 class DischargeUpdate(BaseModel):
     discharge_date: Optional[datetime] = None
+    history: Optional[str] = None
+    final_diagnosis: Optional[str] = None
+    operative_note: Optional[str] = None
+    advice_on_discharge: Optional[str] = None
+    general_advice: Optional[str] = None
+    follow_up_plan: Optional[str] = None
+    include_investigations: Optional[bool] = False
     discharge_summary: Optional[str] = None
     discharge_notes: Optional[str] = None
 
@@ -74,8 +81,7 @@ class MedicationLogRecord(BaseModel):
 class WhatsAppPrescriptionRequest(BaseModel):
     order_ids: List[str]
 
-class DischargeRequest(BaseModel):
-    discharge_summary: Optional[str] = None
+
 
 class DoctorNote(BaseModel):
     note_type: str
@@ -841,11 +847,12 @@ def discharge_patient(
     # Set discharge time
     discharge_date = discharge_data.discharge_date or datetime.now()
     
-    # Calculate days admitted (minimum 1)
-    if admission.admission_date.tzinfo and not discharge_date.tzinfo:
-        # handle timezone mismatch if any
-        import pytz
-        discharge_date = pytz.utc.localize(discharge_date)
+    # Ensure both datetimes are timezone-aware or both timezone-naive
+    if admission.admission_date.tzinfo is not None and discharge_date.tzinfo is None:
+        from datetime import timezone
+        discharge_date = discharge_date.replace(tzinfo=timezone.utc)
+    elif admission.admission_date.tzinfo is None and discharge_date.tzinfo is not None:
+        discharge_date = discharge_date.replace(tzinfo=None)
     
     time_diff = discharge_date - admission.admission_date
     days_admitted = max(1, time_diff.days + (1 if time_diff.seconds > 0 else 0))
@@ -853,6 +860,9 @@ def discharge_patient(
     ward = db.query(Ward).filter(Ward.ward_id == admission.ward_id).first()
     daily_charge = ward.daily_charge if ward and getattr(ward, "daily_charge", None) else 500.0
     room_total = days_admitted * daily_charge
+    
+    # Resolve discharge notes (frontend sends discharge_notes, but schema supports discharge_summary as well)
+    discharge_notes_text = discharge_data.discharge_summary or discharge_data.discharge_notes
     
     # Finalize Invoice (Using Existing Running Bill or Create New if missing)
     if admission.patient_invoice_id:
@@ -863,8 +873,8 @@ def discharge_patient(
     if invoice:
         invoice.subtotal = float(invoice.subtotal or 0) + room_total
         invoice.total_amount = float(invoice.total_amount or 0) + room_total
-        if discharge_data.discharge_summary:
-            invoice.remarks = (invoice.remarks or "") + "\n\nDischarge Summary:\n" + discharge_data.discharge_summary
+        if discharge_notes_text:
+            invoice.remarks = (invoice.remarks or "") + "\n\nDischarge Summary:\n" + discharge_notes_text
     else:
         import time
         invoice_number = f"INV-IPD-{current_user.hospital_id}-{int(time.time())}"
@@ -876,7 +886,7 @@ def discharge_patient(
             subtotal=room_total,
             total_amount=room_total,
             status="PENDING",
-            remarks=discharge_data.discharge_summary or "IPD Discharge Bill",
+            remarks=discharge_notes_text or "IPD Discharge Bill",
             created_by=current_user.user_id
         )
         db.add(invoice)
@@ -898,17 +908,39 @@ def discharge_patient(
     admission.discharge_date = discharge_date
     admission.patient_invoice_id = invoice.invoice_id
     
-    # Add a doctor note for discharge summary if provided
-    if discharge_data.discharge_summary:
-        notes = admission.doctor_notes or []
+    # Add structured notes for discharge summary if provided
+    notes = admission.doctor_notes or []
+    
+    if discharge_notes_text:
         notes.append({
             "timestamp": discharge_date.isoformat(),
             "doctor_id": current_user.user_id,
             "doctor_name": current_user.full_name,
             "note_type": "Discharge Summary",
-            "content": discharge_data.discharge_summary
+            "content": discharge_notes_text
         })
-        admission.doctor_notes = list(notes)
+
+    structured_fields = {
+        "Discharge_History": discharge_data.history,
+        "Discharge_Final_Diagnosis": discharge_data.final_diagnosis,
+        "Discharge_Operative_Note": discharge_data.operative_note,
+        "Discharge_Advice": discharge_data.advice_on_discharge,
+        "Discharge_General_Advice": discharge_data.general_advice,
+        "Discharge_Follow_Up_Plan": discharge_data.follow_up_plan,
+        "Discharge_Include_Investigations": str(discharge_data.include_investigations) if discharge_data.include_investigations else "False"
+    }
+    
+    for note_type, content in structured_fields.items():
+        if content and content != "False":
+            notes.append({
+                "timestamp": discharge_date.isoformat(),
+                "doctor_id": current_user.user_id,
+                "doctor_name": current_user.full_name,
+                "note_type": note_type,
+                "content": content
+            })
+            
+    admission.doctor_notes = list(notes)
     
     # Free up bed
     bed = db.query(Bed).filter(Bed.bed_id == admission.bed_id).first()
@@ -922,7 +954,7 @@ def discharge_patient(
             
     db.commit()
     db.refresh(admission)
-    return {"message": "Patient discharged successfully", "invoice_id": invoice.invoice_id}
+    return {"message": "Patient discharged successfully", "invoice_id": invoice.invoice_id, "admission_id": admission.admission_id}
 
 @router.get("/admissions/alerts")
 def get_medication_alerts(
@@ -988,12 +1020,18 @@ def get_admission_detail(
     patient = db.query(Patient).filter(Patient.record_id == admission.patient_id).first()
     ward = db.query(Ward).filter(Ward.ward_id == admission.ward_id).first()
     bed = db.query(Bed).filter(Bed.bed_id == admission.bed_id).first()
+    from ..models import Surgery
+    surgeries = db.query(Surgery).filter(
+        Surgery.admission_id == admission_id,
+        Surgery.hospital_id == current_user.hospital_id
+    ).all()
     
     return {
         "admission": admission,
         "patient": patient,
         "ward": ward,
-        "bed": bed
+        "bed": bed,
+        "surgeries": surgeries
     }
 
 @router.get("/admissions/{admission_id}/lab-results")
@@ -1423,60 +1461,7 @@ def administer_medication(
     db.commit()
     return new_log
 
-@router.post("/admissions/{admission_id}/discharge")
-def discharge_patient(
-    admission_id: int,
-    req: DischargeRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Discharge a patient from IPD. Validates billing settlement."""
-    admission = db.query(IPDAdmission).filter(
-        IPDAdmission.admission_id == admission_id,
-        IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
-    if not admission:
-        raise HTTPException(status_code=404, detail="Admission not found")
-        
-    if admission.status == "Discharged":
-        raise HTTPException(status_code=400, detail="Patient is already discharged")
-        
-    # Check Billing Balance
-    if admission.patient_invoice_id:
-        invoice = db.query(PatientInvoice).filter(PatientInvoice.invoice_id == admission.patient_invoice_id).first()
-        if invoice:
-            balance = float(invoice.total_amount or 0.0) - float(invoice.amount_paid or 0.0)
-            if balance > 0:
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Cannot discharge: Patient has an unsettled balance of {balance} INR. Please settle the IPD bill first."
-                )
-    
-    # Release Bed
-    if admission.bed_id:
-        bed = db.query(Bed).filter(Bed.bed_id == admission.bed_id).first()
-        if bed:
-            bed.status = "AVAILABLE"
-            bed.current_patient_id = None
-            
-    # Mark as Discharged
-    admission.status = "Discharged"
-    admission.discharge_date = datetime.now()
-    
-    # Store summary
-    if req.discharge_summary:
-        raw_notes = admission.doctor_notes
-        notes = list(raw_notes) if isinstance(raw_notes, list) else []
-        notes.append({
-            "timestamp": datetime.now().isoformat(),
-            "note_type": "Discharge Summary",
-            "content": req.discharge_summary,
-            "author": current_user.full_name
-        })
-        admission.doctor_notes = notes
 
-    db.commit()
-    return {"message": "Patient successfully discharged", "admission_id": admission_id, "invoice_id": admission.patient_invoice_id}
 
 @router.post("/admissions/{admission_id}/notes")
 def add_doctor_note(

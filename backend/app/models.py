@@ -137,6 +137,7 @@ class Hospital(Base):
     is_active = Column(Boolean, default=True)
     is_deleted = Column(Boolean, default=False)
     trial_ends_at = Column(DateTime, nullable=True) # Expiration date for demo/trial accounts
+    is_onboarded = Column(Boolean, default=False)
     
     # Profile Details (Post-Registration, Optional)
     director_name = Column(String, nullable=True)
@@ -180,6 +181,9 @@ class Hospital(Base):
     registration_fee = Column(Float, default=1000.0)
     is_reg_fee_paid = Column(Boolean, default=False)
     gst_number = Column(String, nullable=True)
+    patient_registration_fee = Column(Float, default=500.0)
+    nursing_base_charge = Column(Float, default=150.0)
+    ot_base_charge = Column(Float, default=15000.0)
     certifications = Column(JSON, default=list)
     important_documents = Column(JSON, default=list)
     
@@ -874,6 +878,101 @@ class PharmacyDispense(Base):
     prescription = relationship("Prescription")
     patient = relationship("Patient")
     pharmacist = relationship("User")
+
+class PharmacyDirectSale(Base):
+    __tablename__ = "pharmacy_direct_sales"
+    sale_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    pharmacist_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    
+    # Can link to an existing patient, or just keep a text name for anonymous walk-ins
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True)
+    walkin_name = Column(String, nullable=True)
+    walkin_phone = Column(String, nullable=True)
+    
+    # Instead of linking strictly to a prescription or making a complex mapping table,
+    # we can store a snapshot of what was sold (since it's POS)
+    items_sold = Column(JSON, nullable=False, default=list) # [{"item_id", "name", "quantity", "unit_price", "total"}]
+    
+    subtotal = Column(Float, default=0.0)
+    tax_amount = Column(Float, default=0.0)
+    total_amount = Column(Float, default=0.0)
+    
+    payment_method = Column(String, nullable=True) # Cash, Card, UPI
+    
+    sold_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    pharmacist = relationship("User")
+
+class PharmacySupplier(Base):
+    __tablename__ = "pharmacy_suppliers"
+    supplier_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    name = Column(String, nullable=False)
+    contact_person = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    gst_number = Column(String, nullable=True)
+    address = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class MedicineBatch(Base):
+    __tablename__ = "medicine_batches"
+    batch_id = Column(Integer, primary_key=True, index=True)
+    item_id = Column(Integer, ForeignKey("inventory_items.item_id"), nullable=False)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    supplier_id = Column(Integer, ForeignKey("pharmacy_suppliers.supplier_id"), nullable=True)
+    
+    batch_number = Column(String, nullable=False)
+    mfg_date = Column(DateTime(timezone=True), nullable=True)
+    expiry_date = Column(DateTime(timezone=True), nullable=True)
+    
+    purchase_price = Column(Float, default=0.0)
+    mrp = Column(Float, default=0.0)
+    
+    initial_stock = Column(Integer, default=0)
+    current_stock = Column(Integer, default=0)
+    
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    item = relationship("InventoryItem")
+    supplier = relationship("PharmacySupplier")
+
+class PurchaseInvoice(Base):
+    __tablename__ = "pharmacy_purchase_invoices"
+    invoice_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    supplier_id = Column(Integer, ForeignKey("pharmacy_suppliers.supplier_id"), nullable=False)
+    received_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    
+    invoice_number = Column(String, nullable=False)
+    invoice_date = Column(DateTime(timezone=True), nullable=True)
+    
+    subtotal = Column(Float, default=0.0)
+    tax_amount = Column(Float, default=0.0)
+    discount = Column(Float, default=0.0)
+    total_amount = Column(Float, default=0.0)
+    
+    status = Column(String, default="Completed") # Draft, Completed, Cancelled
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    supplier = relationship("PharmacySupplier")
+    receiver = relationship("User")
+
+class PurchaseItem(Base):
+    __tablename__ = "pharmacy_purchase_items"
+    purchase_item_id = Column(Integer, primary_key=True, index=True)
+    invoice_id = Column(Integer, ForeignKey("pharmacy_purchase_invoices.invoice_id"), nullable=False)
+    batch_id = Column(Integer, ForeignKey("medicine_batches.batch_id"), nullable=False)
+    item_id = Column(Integer, ForeignKey("inventory_items.item_id"), nullable=False)
+    
+    quantity = Column(Integer, nullable=False)
+    free_quantity = Column(Integer, default=0)
+    
+    purchase_price = Column(Float, default=0.0)
+    tax_percentage = Column(Float, default=0.0)
+    total_price = Column(Float, default=0.0)
 
 class LabTestCatalog(Base):
     __tablename__ = "lab_test_catalog"

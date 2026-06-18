@@ -1005,6 +1005,25 @@ export default function AccountSettings({
                             Tenant operations are isolated. Editing billing counters requires platform security clearance.
                         </p>
                     </div>
+
+                    {/* Onboarding Trigger Widget */}
+                    {userRole === 'hospital_admin' && (
+                        <div className="bg-indigo-600 rounded-2xl p-6 text-white relative overflow-hidden shadow-xs border border-indigo-500">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                            <h3 className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-2 flex items-center gap-1.5">
+                                <Building size={12} className="text-white" /> Initialization
+                            </h3>
+                            <p className="text-indigo-100 text-[11px] font-medium leading-relaxed mb-4">
+                                Relaunch the onboarding wizard to configure base prices, modules, and core hospital details.
+                            </p>
+                            <button 
+                                onClick={() => window.location.href = '/hospital/onboarding'}
+                                className="w-full bg-white hover:bg-slate-50 text-indigo-600 py-2.5 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-md flex items-center justify-center gap-1.5"
+                            >
+                                <RefreshCw size={12} /> Start Onboard Process
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 

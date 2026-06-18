@@ -30,14 +30,14 @@ class PatientBillingService:
         opd_visits = db.query(OPDVisit).filter(
             OPDVisit.patient_id == patient_id,
             OPDVisit.hospital_id == hospital_id,
-            OPDVisit.patient_invoice_id is None,
+            OPDVisit.patient_invoice_id == None,
             OPDVisit.consultation_fee > 0
         ).order_by(OPDVisit.visit_date.desc()).all()
 
         # 2. Fetch unbilled Dental treatments
         dental_treatments = db.query(DentalTreatment).filter(
             DentalTreatment.patient_id == patient_id,
-            DentalTreatment.patient_invoice_id is None,
+            DentalTreatment.patient_invoice_id == None,
             DentalTreatment.cost > 0
         ).order_by(DentalTreatment.date_performed.desc()).all()
 
@@ -46,7 +46,7 @@ class PatientBillingService:
         ipd_admissions = db.query(IPDAdmission).filter(
             IPDAdmission.patient_id == patient_id,
             IPDAdmission.hospital_id == hospital_id,
-            IPDAdmission.patient_invoice_id is None
+            IPDAdmission.patient_invoice_id == None
         ).order_by(IPDAdmission.admission_date.desc()).all()
 
         return {
@@ -96,9 +96,13 @@ class PatientBillingService:
                 )
             )
 
-        # Tax and total calculations
+        # Validate Hospital GST
+        hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+        if not hospital or not hospital.gst_number:
+            gst_rate = 0.0
+
         tax_amount = round((subtotal * gst_rate) / 100.0, 2)
-        total_amount = round(subtotal - discount_amount + tax_amount)
+        total_amount = max(0.0, float(round(subtotal - discount_amount + tax_amount)))
 
         # Generate unique invoice number
         # Format: DFL-PAT/{hospital_id}/{year}/{seq}

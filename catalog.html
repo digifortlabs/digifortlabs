@@ -1,0 +1,1649 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digifort Labs - 16-Page HIMS Clinical Catalog & Design Blueprint</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Premium Clinical Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        clinicalDark: '#1b1442',
+                        clinicalBlue: '#231c54',
+                        clinicalTeal: '#0099cc',
+                        clinicalLightTeal: '#15c3f0',
+                        clinicalMuted: '#64748b',
+                        clinicalCardBg: '#ffffff',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        /* Absolute A4 proportions for professional print simulation (including 3mm bleed on all edges) */
+        .a4-page {
+            --theme-bg: #020617;
+            --theme-text-primary: #ffffff;
+            --theme-text-secondary: #94a3b8;
+            --theme-accent: #6366f1;
+            --theme-accent-glow: rgba(99, 102, 241, 0.2);
+            --theme-card-bg: rgba(15, 23, 42, 0.6);
+            --theme-card-border: rgba(99, 102, 241, 0.2);
+            --theme-badge-glow: 0 0 15px rgba(99, 102, 241, 0.25);
+            --theme-pill-bg: rgba(99, 102, 241, 0.1);
+            
+            position: relative;
+            width: 216mm;
+            height: 303mm;
+            box-sizing: border-box;
+            padding: 12mm 12mm;
+            background-color: var(--theme-bg);
+            color: var(--theme-text-primary);
+            transition: all 0.2s ease-in-out;
+            flex-direction: column;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+
+        /* Themes CSS Configurations */
+        #canvas-wrapper.theme-indigo .a4-page {
+            --theme-bg: #020617;
+            --theme-text-primary: #ffffff;
+            --theme-text-secondary: #94a3b8;
+            --theme-accent: #6366f1;
+            --theme-accent-glow: rgba(99, 102, 241, 0.2);
+            --theme-card-bg: rgba(15, 23, 42, 0.6);
+            --theme-card-border: rgba(99, 102, 241, 0.2);
+            --theme-badge-glow: 0 0 15px rgba(99, 102, 241, 0.25);
+            --theme-pill-bg: rgba(99, 102, 241, 0.1);
+        }
+
+        #canvas-wrapper.theme-emerald .a4-page {
+            --theme-bg: #022c22;
+            --theme-text-primary: #ffffff;
+            --theme-text-secondary: #a7f3d0;
+            --theme-accent: #10b981;
+            --theme-accent-glow: rgba(16, 185, 129, 0.2);
+            --theme-card-bg: rgba(6, 78, 59, 0.35);
+            --theme-card-border: rgba(16, 185, 129, 0.25);
+            --theme-badge-glow: 0 0 15px rgba(16, 185, 129, 0.25);
+            --theme-pill-bg: rgba(16, 185, 129, 0.1);
+        }
+
+        #canvas-wrapper.theme-royal .a4-page {
+            --theme-bg: #f8fafc;
+            --theme-text-primary: #0f172a;
+            --theme-text-secondary: #64748b;
+            --theme-accent: #1d4ed8;
+            --theme-accent-glow: rgba(29, 78, 216, 0.1);
+            --theme-card-bg: #ffffff;
+            --theme-card-border: rgba(29, 78, 216, 0.15);
+            --theme-badge-glow: 0 4px 12px rgba(29, 78, 216, 0.08);
+            --theme-pill-bg: rgba(29, 78, 216, 0.05);
+        }
+
+        #canvas-wrapper.theme-teal .a4-page {
+            --theme-bg: #ffffff;
+            --theme-text-primary: #0f172a;
+            --theme-text-secondary: #475569;
+            --theme-accent: #0d9488;
+            --theme-accent-glow: rgba(13, 148, 136, 0.1);
+            --theme-card-bg: #f8fafc;
+            --theme-card-border: rgba(13, 148, 136, 0.15);
+            --theme-badge-glow: 0 4px 12px rgba(13, 148, 136, 0.08);
+            --theme-pill-bg: rgba(13, 148, 136, 0.05);
+        }
+
+        /* Screen vs Print display settings */
+        @media screen {
+            .a4-page {
+                display: none;
+                box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.5);
+            }
+            .a4-page.active-page {
+                display: flex;
+            }
+        }
+
+        /* DTP Layout Guidelines (Red dashed cut-line, Blue dashed safe area) */
+        .bleed-line {
+            display: none;
+            position: absolute;
+            top: 3mm;
+            left: 3mm;
+            right: 3mm;
+            bottom: 3mm;
+            border: 1px dashed rgba(239, 68, 68, 0.4);
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .safe-line {
+            display: none;
+            position: absolute;
+            top: 8mm;
+            left: 8mm;
+            right: 8mm;
+            bottom: 8mm;
+            border: 1px dashed rgba(59, 130, 246, 0.35);
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .crop-marks {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        /* Bracket styles for crop marks on trim boundary (3mm from edge) */
+        .crop-bracket-tl { position: absolute; top: 3mm; left: 3mm; width: 4mm; height: 4mm; border-top: 1.5px solid rgba(239, 68, 68, 0.5); border-left: 1.5px solid rgba(239, 68, 68, 0.5); }
+        .crop-bracket-tr { position: absolute; top: 3mm; right: 3mm; width: 4mm; height: 4mm; border-top: 1.5px solid rgba(239, 68, 68, 0.5); border-right: 1.5px solid rgba(239, 68, 68, 0.5); }
+        .crop-bracket-bl { position: absolute; bottom: 3mm; left: 3mm; width: 4mm; height: 4mm; border-bottom: 1.5px solid rgba(239, 68, 68, 0.5); border-left: 1.5px solid rgba(239, 68, 68, 0.5); }
+        .crop-bracket-br { position: absolute; bottom: 3mm; right: 3mm; width: 4mm; height: 4mm; border-bottom: 1.5px solid rgba(239, 68, 68, 0.5); border-right: 1.5px solid rgba(239, 68, 68, 0.5); }
+
+        .show-bleed-guide .bleed-line { display: block; }
+        .show-safe-guide .safe-line { display: block; }
+        .show-crop-marks .crop-marks { display: block; }
+
+        /* Dynamic CSS bindings to theme properties */
+        .theme-text-accent { color: var(--theme-accent); }
+        .theme-border-accent { border-color: var(--theme-accent); }
+        .theme-bg-accent { background-color: var(--theme-accent); }
+        .theme-bg-card { background-color: var(--theme-card-bg); }
+        .theme-border-card { border-color: var(--theme-card-border); }
+        .theme-glow-card { box-shadow: var(--theme-badge-glow); }
+        .theme-bg-pill { background-color: var(--theme-pill-bg); }
+
+        .bg-blob-1 { background-color: var(--theme-accent); opacity: 0.05; }
+        .bg-blob-2 { background-color: var(--theme-accent); opacity: 0.03; }
+
+        /* Custom high-performance scrollbar to match SaaS control panel */
+        .saas-scroll::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .saas-scroll::-webkit-scrollbar-track {
+            background: rgba(13, 148, 136, 0.02);
+        }
+        .saas-scroll::-webkit-scrollbar-thumb {
+            background: rgba(13, 148, 136, 0.25);
+            border-radius: 10px;
+        }
+
+        /* Print Override Layout Configuration */
+        @media print {
+            body {
+                background-color: #ffffff;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            @page {
+                size: 216mm 303mm; /* Full bleed canvas size */
+                margin: 0;
+            }
+
+            #canvas-wrapper {
+                transform: none !important;
+                width: 216mm !important;
+                height: auto !important;
+                box-shadow: none !important;
+            }
+
+            .a4-page {
+                display: flex !important;
+                width: 216mm !important;
+                height: 303mm !important;
+                box-shadow: none !important;
+                margin: 0 !important;
+                border: none !important;
+                transform: none !important;
+                page-break-after: always;
+                break-after: page;
+            }
+
+            .bleed-line, .safe-line, .crop-marks {
+                display: none !important;
+            }
+
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-[#0b0f19] min-h-screen font-sans antialiased text-slate-300 overflow-hidden flex flex-col md:flex-row">
+
+    <!-- LEFT COLUMN: SaaS CONTROL PANEL (SIDEBAR) -->
+    <aside class="w-full md:w-[380px] bg-[#070b13] border-b md:border-b-0 md:border-r border-slate-800 p-5 flex flex-col gap-4.5 overflow-y-auto shrink-0 no-print saas-scroll">
+        
+        <!-- Header / Logo -->
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-teal-500/10 flex items-center justify-center border border-teal-500/20 shadow-inner">
+                <i class="fa-solid fa-server text-teal-400 text-base"></i>
+            </div>
+            <div>
+                <h1 class="text-xs font-black tracking-widest text-slate-100 uppercase">Digifort HIMS</h1>
+                <p class="text-[9px] text-slate-500 font-extrabold uppercase tracking-wider">16-Page HIMS Catalog Console</p>
+            </div>
+        </div>
+
+        <hr class="border-slate-800" />
+
+        <!-- Page Navigation Selector (Table of Contents) -->
+        <div class="flex flex-col gap-1.5">
+            <label class="block text-[9.5px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                <i class="fa-solid fa-list-ol text-teal-400"></i> Document Navigation
+            </label>
+            <div id="toc-container" class="space-y-1 max-h-[190px] overflow-y-auto saas-scroll pr-1">
+                <!-- TOC list items will be injected by JavaScript on load -->
+            </div>
+        </div>
+
+        <hr class="border-slate-800" />
+
+        <!-- 1. Interactive Theme Variation Selector -->
+        <div>
+            <label class="block text-[9.5px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <i class="fa-solid fa-palette text-teal-400"></i> Active Theme Variation
+            </label>
+            <div class="grid grid-cols-2 gap-2">
+                <!-- Theme 1 -->
+                <button onclick="setTheme('indigo')" id="theme-btn-indigo" class="p-2 rounded-lg border border-indigo-500 bg-indigo-500/10 text-left flex flex-col gap-0.5 transition-all duration-200 shadow shadow-indigo-500/10">
+                    <span class="text-[10px] font-black text-slate-100">Indigo Glow</span>
+                    <span class="text-[8.5px] text-indigo-400 font-bold">Dark Palette</span>
+                </button>
+                <!-- Theme 2 -->
+                <button onclick="setTheme('emerald')" id="theme-btn-emerald" class="p-2 rounded-lg border border-slate-800 bg-slate-900/50 hover:bg-slate-900 text-left flex flex-col gap-0.5 transition-all duration-200">
+                    <span class="text-[10px] font-black text-slate-200">Emerald Vault</span>
+                    <span class="text-[8.5px] text-slate-500 font-bold">Dark Palette</span>
+                </button>
+                <!-- Theme 3 -->
+                <button onclick="setTheme('royal')" id="theme-btn-royal" class="p-2 rounded-lg border border-slate-800 bg-slate-900/50 hover:bg-slate-900 text-left flex flex-col gap-0.5 transition-all duration-200">
+                    <span class="text-[10px] font-black text-slate-200">Royal Blue</span>
+                    <span class="text-[8.5px] text-slate-500 font-bold">Light Palette</span>
+                </button>
+                <!-- Theme 4 -->
+                <button onclick="setTheme('teal')" id="theme-btn-teal" class="p-2 rounded-lg border border-slate-800 bg-slate-900/50 hover:bg-slate-900 text-left flex flex-col gap-0.5 transition-all duration-200">
+                    <span class="text-[10px] font-black text-slate-200">Clinical Teal</span>
+                    <span class="text-[8.5px] text-slate-500 font-bold">Light Palette</span>
+                </button>
+            </div>
+        </div>
+
+        <hr class="border-slate-800" />
+
+        <!-- 2. Professional Print Guidelines & Bleed Controls -->
+        <div>
+            <label class="block text-[9.5px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <i class="fa-solid fa-crop-simple text-teal-400"></i> DTP Guidelines &amp; Bleeds
+            </label>
+            <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-2.5 space-y-2">
+                <label class="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input type="checkbox" id="toggle-bleed-guide" onchange="toggleGuides()" checked class="w-3.5 h-3.5 rounded text-teal-600 bg-slate-950 border-slate-700 focus:ring-0 focus:ring-offset-0">
+                    <div>
+                        <span class="text-[9.5px] font-black text-slate-200 block">Show Bleed Guidelines</span>
+                        <span class="text-[8px] text-slate-500 font-bold block">3mm crop border (red dashed)</span>
+                    </div>
+                </label>
+                <label class="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input type="checkbox" id="toggle-safe-guide" onchange="toggleGuides()" checked class="w-3.5 h-3.5 rounded text-teal-600 bg-slate-950 border-slate-700 focus:ring-0 focus:ring-offset-0">
+                    <div>
+                        <span class="text-[9.5px] font-black text-slate-200 block">Show Safe Margin Limits</span>
+                        <span class="text-[8px] text-slate-500 font-bold block">5mm text safety area (blue dashed)</span>
+                    </div>
+                </label>
+                <label class="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input type="checkbox" id="toggle-crop-marks" onchange="toggleGuides()" checked class="w-3.5 h-3.5 rounded text-teal-600 bg-slate-950 border-slate-700 focus:ring-0 focus:ring-offset-0">
+                    <div>
+                        <span class="text-[9.5px] font-black text-slate-200 block">Show Crop Marks</span>
+                        <span class="text-[8px] text-slate-500 font-bold block">Trim brackets at 3mm corners</span>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <hr class="border-slate-800" />
+
+        <!-- 3. Equations Sandbox Simulator -->
+        <div>
+            <label class="block text-[9.5px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <i class="fa-solid fa-calculator text-teal-400"></i> Equations Simulator
+            </label>
+            <div class="bg-slate-900/40 border border-slate-800 rounded-xl p-2.5 space-y-3.5">
+                <!-- Sum (C_clinical) -->
+                <div>
+                    <div class="flex justify-between text-[8.5px] font-bold text-slate-400 mb-1">
+                        <span>CLINICAL VALUE (C_clinical)</span>
+                        <span class="text-teal-400 font-extrabold" id="side-c-text">8.5</span>
+                    </div>
+                    <input type="range" id="side-c-val" min="1" max="10" step="0.5" value="8.5" oninput="calculateSandbox()" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-500">
+                </div>
+
+                <!-- Operations -->
+                <div>
+                    <div class="flex justify-between text-[8.5px] font-bold text-slate-400 mb-1">
+                        <span>OPERATIONAL SPEED (O_operations)</span>
+                        <span class="text-teal-400 font-extrabold" id="side-o-text">7.0</span>
+                    </div>
+                    <input type="range" id="side-o-val" min="1" max="10" step="0.5" value="7.0" oninput="calculateSandbox()" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-500">
+                </div>
+
+                <!-- Compliance -->
+                <div>
+                    <div class="flex justify-between text-[8.5px] font-bold text-slate-400 mb-1">
+                        <span>COMPLIANCE MULTIPLIER (R_compliance)</span>
+                        <span class="text-teal-400 font-extrabold" id="side-r-text">1.25x</span>
+                    </div>
+                    <input type="range" id="side-r-val" min="0.5" max="2.0" step="0.05" value="1.25" oninput="calculateSandbox()" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-500">
+                </div>
+
+                <div class="border-t border-slate-800 my-1 pt-1"></div>
+
+                <!-- Burn rate -->
+                <div>
+                    <div class="flex justify-between text-[8.5px] font-bold text-slate-400 mb-1">
+                        <span>STOCK DEPLETION (R_burn)</span>
+                        <span class="text-amber-500 font-extrabold" id="side-burn-text">120 u/d</span>
+                    </div>
+                    <input type="range" id="side-burn-val" min="10" max="500" step="10" value="120" oninput="calculateSandbox()" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                </div>
+
+                <!-- Lead time -->
+                <div>
+                    <div class="flex justify-between text-[8.5px] font-bold text-slate-400 mb-1">
+                        <span>LEAD TIME (T_lead)</span>
+                        <span class="text-amber-500 font-extrabold" id="side-lead-text">4.5 days</span>
+                    </div>
+                    <input type="range" id="side-lead-val" min="1" max="14" step="0.5" value="4.5" oninput="calculateSandbox()" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                </div>
+            </div>
+        </div>
+
+        <hr class="border-slate-800" />
+
+        <!-- 4. Marketing parameters and Direct print -->
+        <div class="flex flex-col gap-2">
+            <label class="block text-[9.5px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                <i class="fa-solid fa-pen-nib text-teal-400"></i> Contact &amp; Brand Data
+            </label>
+            
+            <button onclick="toggleFictionalData()" id="data-toggle-btn" class="w-full bg-[#0d1527] hover:bg-slate-900 text-teal-400 font-extrabold text-[9.5px] py-2 px-4 rounded-lg border border-teal-500/20 flex items-center justify-center gap-2 transition-colors duration-150">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Clean Real-World Demo Info
+            </button>
+
+            <div class="space-y-2 bg-slate-900/35 p-2.5 border border-slate-800 rounded-xl">
+                <div class="flex flex-col gap-1 text-[8px] font-bold text-slate-400">
+                    <span>DOCUMENT PITCH TITLE</span>
+                    <input type="text" id="input-headline" oninput="updatePosterText('headline', this.value)" class="w-full bg-[#05080e] border border-slate-800 p-1.5 rounded text-slate-100 focus:outline-none focus:border-teal-500 text-[9px] font-bold" />
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-[8px] font-bold text-slate-400">
+                    <div class="flex flex-col gap-1 font-bold">
+                        <span>CONTACT 1</span>
+                        <input type="text" id="input-contact1" oninput="updatePosterText('contact1', this.value)" class="w-full bg-[#05080e] border border-slate-800 p-1.5 rounded text-slate-100 focus:outline-none focus:border-teal-500 text-[9px]" />
+                    </div>
+                    <div class="flex flex-col gap-1 font-bold">
+                        <span>CONTACT 2</span>
+                        <input type="text" id="input-contact2" oninput="updatePosterText('contact2', this.value)" class="w-full bg-[#05080e] border border-slate-800 p-1.5 rounded text-slate-100 focus:outline-none focus:border-teal-500 text-[9px]" />
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-[8px] font-bold text-slate-400">
+                    <div class="flex flex-col gap-1 font-bold">
+                        <span>EMAIL</span>
+                        <input type="text" id="input-email" oninput="updatePosterText('email', this.value)" class="w-full bg-[#05080e] border border-slate-800 p-1.5 rounded text-slate-100 focus:outline-none focus:border-teal-500 text-[9px]" />
+                    </div>
+                    <div class="flex flex-col gap-1 font-bold">
+                        <span>WEB DOMAIN</span>
+                        <input type="text" id="input-web" oninput="updatePosterText('web', this.value)" class="w-full bg-[#05080e] border border-slate-800 p-1.5 rounded text-slate-100 focus:outline-none focus:border-teal-500 text-[9px]" />
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="window.print()" class="w-full bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-400 text-white font-extrabold text-xs py-2.5 px-4 rounded-xl shadow-lg shadow-teal-950/20 flex items-center justify-center gap-2 mt-1 transition-all duration-150 active:scale-[0.98]">
+                <i class="fa-solid fa-print"></i> Print Entire Brochure (16 Pages)
+            </button>
+        </div>
+
+    </aside>
+
+    <!-- RIGHT COLUMN: DYNAMIC PREVIEW CANVAS -->
+    <main class="flex-1 flex justify-center items-center p-4 md:p-8 overflow-y-auto h-screen relative bg-[#0d111a]">
+        
+        <!-- Wrapper container for dynamic scaling -->
+        <div id="canvas-wrapper" class="theme-indigo relative shadow-2xl transition-transform duration-300">
+            
+            <!-- PAGE 1: COVER PAGE -->
+            <div id="page-1" class="a4-page active-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                <div class="absolute -top-16 -right-16 w-80 h-80 bg-blob-1 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="absolute bottom-1/3 -left-16 w-72 h-72 bg-blob-2 rounded-full blur-3xl pointer-events-none"></div>
+                
+                <div class="flex-grow flex flex-col justify-center items-center text-center relative z-10 p-6">
+                    <span class="text-[12px] font-black tracking-[0.25em] text-teal-400 uppercase mb-2">Institutional Blueprint</span>
+                    <h1 class="text-[44px] font-black tracking-[0.15em] text-white leading-none mb-1 text-yellow-500 brand-logo">DIGIFORT LABS</h1>
+                    <span class="text-[10px] font-extrabold tracking-[0.25em] text-[var(--theme-text-secondary)] uppercase">Clinical Informatics &amp; Nosocomial Architecture</span>
+                    
+                    <div class="w-32 h-[2px] bg-gradient-to-r from-transparent via-[var(--theme-accent)] to-transparent my-8"></div>
+                    
+                    <h3 class="text-[16px] font-extrabold text-[var(--theme-text-primary)] leading-tight uppercase tracking-wider mb-1 text-center">
+                        Engineering Statutory-Compliant, Enterprise-Grade
+                    </h3>
+                    <h2 class="text-[19px] font-black text-teal-400 leading-tight uppercase tracking-widest text-center">
+                        Hospital Information Management Systems (HIMS)
+                    </h2>
+                </div>
+
+                <div class="relative z-10 w-full flex justify-between items-center text-[8.5px] font-extrabold text-[var(--theme-text-secondary)] uppercase border-t theme-border-card pt-4">
+                    <span>2026 Edition</span>
+                    <span class="tracking-widest">Institutional Portfolio &amp; Clinical Systems Blueprint</span>
+                </div>
+            </div>
+
+            <!-- PAGE 2: CLINICAL OVERVIEW -->
+            <div id="page-2" class="a4-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                
+                <header class="h-[8%] flex justify-between items-start z-10 shrink-0">
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black tracking-widest uppercase text-yellow-500 brand-logo leading-none">DIGIFORT LABS</span>
+                        <span class="text-[6.5px] font-extrabold tracking-wider text-[var(--theme-text-secondary)] uppercase mt-0.5">Clinical Informatics</span>
+                    </div>
+                    <span class="text-[8px] font-black text-teal-500 uppercase tracking-widest">Clinical Overview</span>
+                </header>
+
+                <div class="flex-grow flex flex-col justify-center gap-4 relative z-10 py-2">
+                    <h2 class="text-[18px] font-black tracking-tight leading-tight text-[var(--theme-text-primary)] border-l-4 theme-border-accent pl-3">
+                        THE DIGITAL MANDATE IN HEALTHCARE
+                    </h2>
+                    <p class="text-[11px] font-semibold italic leading-relaxed text-[var(--theme-text-secondary)]">
+                        Contemporary nosocomial infrastructure demands absolute clinical continuity, comprehensive biosecurity, and frictionless perioperative and administrative logistics. Fragmented legacy architectures jeopardize patient outcomes and institutional integrity.
+                    </p>
+                    <p class="text-[10px] leading-relaxed text-[var(--theme-text-primary)]">
+                        Digifort Labs operates at the vanguard of clinical informatics and enterprise biomedical software engineering. We develop full-stack, enterprise-grade Hospital Information Management Systems (HIMS) that synthesize electronic health records (EHR), computerized physician order entry (CPOE), pharmacy distribution logistics, intricate diagnostic pipelines, and high-value biomedical asset arrays.
+                    </p>
+                    <p class="text-[10px] leading-relaxed text-[var(--theme-text-primary)]">
+                        Our structural objective is clear: to instantiate a high-availability digital ecosystem tailored directly to the nuanced clinical pathways of your facility, ensuring complete compliance with all regional health laws and statutory mandates.
+                    </p>
+
+                    <div class="theme-card theme-bg-card theme-border-card rounded-xl p-3 flex flex-col gap-2 border shadow-sm">
+                        <span class="text-[8.5px] font-black uppercase tracking-wider text-teal-500">Informatics Equation of Scale</span>
+                        <p class="text-[9px] text-[var(--theme-text-secondary)] font-medium">
+                            By translating unorganized cross-departmental analog workflows into automated cloud matrices, we optimize clinical throughput:
+                        </p>
+                        <div class="flex items-center justify-center py-2 font-serif text-[12.5px] text-[var(--theme-text-primary)] border-y theme-border-card my-1 select-none">
+                            <span class="italic font-bold">E</span><sub>hospital</sub>
+                            <span class="mx-1.5 text-[var(--theme-text-secondary)]">=</span>
+                            <span class="text-sm font-bold theme-text-accent mr-1">&sum;</span>
+                            <span class="text-xs">(</span>
+                            <span class="italic font-bold">C</span><sub>clinical</sub>
+                            <span class="mx-0.5 text-[var(--theme-text-secondary)]">+</span>
+                            <span class="italic font-bold">O</span><sub>operations</sub>
+                            <span class="text-xs">)</span>
+                            <span class="mx-1 text-[var(--theme-text-secondary)]">&times;</span>
+                            <span class="italic font-bold theme-text-accent">R</span><sub>compliance</sub>
+                        </div>
+                        <div class="grid grid-cols-3 gap-1 text-[7px] text-[var(--theme-text-secondary)] font-bold">
+                            <span>C<sub>clin</sub> = <span id="eq2-c-val" class="text-[var(--theme-text-primary)]">8.5</span></span>
+                            <span>O<sub>oper</sub> = <span id="eq2-o-val" class="text-[var(--theme-text-primary)]">7.0</span></span>
+                            <span class="text-right">R<sub>comp</sub> = <span id="eq2-r-val" class="theme-text-accent font-extrabold">1.25</span></span>
+                        </div>
+                        <p class="text-[8px] text-[var(--theme-text-secondary)] font-medium text-center mt-1">
+                            where legal safeguarding accelerates therapeutic delivery velocity. Output Index: <strong id="calc2-e-result" class="theme-text-accent">E = 19.38</strong>
+                        </p>
+                    </div>
+                </div>
+
+                <footer class="h-[5%] border-t theme-border-card pt-2 flex justify-between items-center text-[7.5px] text-[var(--theme-text-secondary)] font-bold shrink-0">
+                    <span>DIGIFORT LABS CLINICAL ARCHITECTURE BRIEF</span>
+                    <span class="text-[9px] font-black text-[var(--theme-text-primary)]">02</span>
+                </footer>
+            </div>
+
+            <!-- PAGE 3: HIMS CORE ARCHITECTURE -->
+            <div id="page-3" class="a4-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                
+                <header class="h-[8%] flex justify-between items-start z-10 shrink-0">
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black tracking-widest uppercase text-yellow-500 brand-logo leading-none">DIGIFORT LABS</span>
+                        <span class="text-[6.5px] font-extrabold tracking-wider text-[var(--theme-text-secondary)] uppercase mt-0.5">Clinical Informatics</span>
+                    </div>
+                    <span class="text-[8px] font-black text-teal-500 uppercase tracking-widest">HIMS Core Architecture</span>
+                </header>
+
+                <div class="flex-grow flex flex-col justify-center gap-3 relative z-10 py-2">
+                    <h2 class="text-[17px] font-black tracking-tight leading-tight text-[var(--theme-text-primary)] border-l-4 theme-border-accent pl-3">
+                        UNIFIED HIMS CORE &amp; INTERDISCIPLINARY SYNC
+                    </h2>
+                    <p class="text-[10px] leading-relaxed text-[var(--theme-text-secondary)] font-semibold">
+                        The Digifort HIMS represents an interconnected, multi-tenant clinical computing environment. Rather than utilizing isolated, asynchronous applications for distinct departments, our platform integrates every node of the clinical pathway into a single centralized architecture.
+                    </p>
+                    <p class="text-[9.5px] leading-relaxed text-[var(--theme-text-primary)]">
+                        This framework facilitates real-time data synchronicity from initial emergency triage and outpatient registration to inpatient hospitalization, surgical intervention, and eventual discharge. Clinical data becomes instantly actionable across authorized medical, laboratory, and financial endpoints.
+                    </p>
+
+                    <div class="grid grid-cols-2 gap-3.5 my-1">
+                        <div class="theme-card theme-bg-card theme-border-card rounded-xl p-2.5 border shadow-sm flex flex-col gap-1">
+                            <span class="text-[9px] font-black uppercase tracking-wider text-teal-500">Longitudinal Health Records</span>
+                            <p class="text-[8.5px] leading-relaxed text-[var(--theme-text-secondary)]">
+                                Consolidates outpatient encounters, real-time hemodynamic monitoring loops, cross-departmental consultation transcripts, and perioperative logs into a unified, secure electronic record.
+                            </p>
+                        </div>
+                        <div class="theme-card theme-bg-card theme-border-card rounded-xl p-2.5 border shadow-sm flex flex-col gap-1">
+                            <span class="text-[9px] font-black uppercase tracking-wider text-teal-500">Clinical Workspace Portals</span>
+                            <p class="text-[8.5px] leading-relaxed text-[var(--theme-text-secondary)]">
+                                Provides medical and nursing staff with highly responsive, intuitive dashboards featuring advanced computerized order entry, dynamic lab tracking, and drug-drug alerts.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Ward Census interactive overlay placed contextually -->
+                    <div class="theme-card theme-bg-card theme-border-card rounded-xl p-3 border shadow-sm flex">
+                        <div class="w-10 bg-[var(--theme-pill-bg)] rounded-lg shrink-0 p-1 flex flex-col gap-1.5 items-center justify-center text-[7px] text-[var(--theme-text-secondary)]">
+                            <div class="flex flex-col items-center gap-0.5 text-[var(--theme-text-primary)] bg-[var(--theme-accent)]/15 w-full py-1 rounded-md border border-[var(--theme-accent)]/20">
+                                <i class="fa-solid fa-bed text-[var(--theme-accent)] text-[9px]"></i>
+                                <span class="font-bold">Beds</span>
+                            </div>
+                            <div class="flex flex-col items-center gap-0.5 opacity-60">
+                                <i class="fa-solid fa-user-doctor text-[9px]"></i>
+                                <span class="font-bold">Staff</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex-1 pl-3">
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-[9px] font-black uppercase tracking-wider text-[var(--theme-text-primary)] flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> HIMS Ward Bed Census Grid
+                                </span>
+                                <span id="bed-ratio-label-p3" class="text-[7.5px] bg-[var(--theme-pill-bg)] text-[var(--theme-accent)] font-black px-1.5 py-0.5 rounded border theme-border-card">8/12 Ready</span>
+                            </div>
+                            <div id="bed-grid-container-p3" class="grid grid-cols-6 gap-1">
+                                <!-- Dynamic Beds Injected by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <footer class="h-[5%] border-t theme-border-card pt-2 flex justify-between items-center text-[7.5px] text-[var(--theme-text-secondary)] font-bold shrink-0">
+                    <span>DIGIFORT LABS CLINICAL ARCHITECTURE BRIEF</span>
+                    <span class="text-[9px] font-black text-[var(--theme-text-primary)]">03</span>
+                </footer>
+            </div>
+
+            <!-- PAGE 4: PAPERLESS HOSPITAL ECOSYSTEM -->
+            <div id="page-4" class="a4-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                
+                <header class="h-[8%] flex justify-between items-start z-10 shrink-0">
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black tracking-widest uppercase text-yellow-500 brand-logo leading-none">DIGIFORT LABS</span>
+                        <span class="text-[6.5px] font-extrabold tracking-wider text-[var(--theme-text-secondary)] uppercase mt-0.5">Clinical Informatics</span>
+                    </div>
+                    <span class="text-[8px] font-black text-teal-500 uppercase tracking-widest">Paperless Hospital</span>
+                </header>
+
+                <div class="flex-grow flex flex-col justify-center gap-4 relative z-10 py-2">
+                    <h2 class="text-[18px] font-black tracking-tight leading-tight text-[var(--theme-text-primary)] border-l-4 theme-border-accent pl-3">
+                        THE SUB-ZERO PAPER LATENCY PARADIGM
+                    </h2>
+                    <p class="text-[11px] font-semibold italic leading-relaxed text-[var(--theme-text-secondary)]">
+                        Eradicating physical paper forms completely transforms clinical throughput velocity while securing critical patient health information from unauthorized access, degradation, or loss.
+                    </p>
+                    <p class="text-[10px] leading-relaxed text-[var(--theme-text-primary)]">
+                        Our software infrastructure completely eliminates institutional reliance on physical charts, paper prescriptions, handwritten intake documents, and manual treatment sheets. Digifort Labs introduces a native, cryptographically validated digital approval chain that spans all clinical, administrative, and supervisory tiers.
+                    </p>
+
+                    <div class="theme-card theme-bg-card theme-border-card rounded-xl p-3.5 border shadow-sm flex flex-col gap-2">
+                        <span class="text-[9.5px] font-black uppercase tracking-wider text-teal-500">Ecosystem Transformation Metrics</span>
+                        <ul class="space-y-2 text-[9.5px] text-[var(--theme-text-secondary)]">
+                            <li class="flex items-start gap-2">
+                                <span class="theme-text-accent mt-0.5 font-bold">•</span>
+                                <p><strong>Outpatient Triage:</strong> Instant QR-driven patient intake and digital token mapping to alleviate waiting areas.</p>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="theme-text-accent mt-0.5 font-bold">•</span>
+                                <p><strong>Clinical Approvals:</strong> Secure digital signatures for surgical consents and high-risk medical procedures.</p>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <span class="theme-text-accent mt-0.5 font-bold">•</span>
+                                <p><strong>Bedside Nursing Sync:</strong> Real-time vitals logging and treatment tracking via mobile bedside terminals link straight to the core database.</p>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <p class="text-[9.5px] leading-relaxed text-[var(--theme-text-secondary)] font-medium">
+                        By moving away from physical paperwork, hospitals minimize administrative friction, drastically reduce operational bottlenecks, and safeguard critical diagnostic decision-making timelines.
+                    </p>
+                </div>
+
+                <footer class="h-[5%] border-t theme-border-card pt-2 flex justify-between items-center text-[7.5px] text-[var(--theme-text-secondary)] font-bold shrink-0">
+                    <span>DIGIFORT LABS CLINICAL ARCHITECTURE BRIEF</span>
+                    <span class="text-[9px] font-black text-[var(--theme-text-primary)]">04</span>
+                </footer>
+            </div>
+
+            <!-- PAGE 5: PATIENT OUTCOMES & EXPERIENCE -->
+            <div id="page-5" class="a4-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                
+                <header class="h-[8%] flex justify-between items-start z-10 shrink-0">
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black tracking-widest uppercase text-yellow-500 brand-logo leading-none">DIGIFORT LABS</span>
+                        <span class="text-[6.5px] font-extrabold tracking-wider text-[var(--theme-text-secondary)] uppercase mt-0.5">Clinical Informatics</span>
+                    </div>
+                    <span class="text-[8px] font-black text-teal-500 uppercase tracking-widest">Specialized Service Module</span>
+                </header>
+
+                <div class="flex-grow flex flex-col justify-center gap-4 relative z-10 py-2">
+                    <h2 class="text-[17px] font-black tracking-tight leading-tight text-[var(--theme-text-primary)] border-l-4 theme-border-accent pl-3">
+                        PATIENT-REPORTED OUTCOMES &amp; EXPERIENCE ARCHITECTURE
+                    </h2>
+                    <p class="text-[11px] font-semibold italic leading-relaxed text-[var(--theme-text-secondary)]">
+                        Patient experience metrics directly influence a healthcare facility's clinical reputation and long-term compliance audits. Retrospective, unverified survey techniques yield lagging data and blind spots.
+                    </p>
+                    <p class="text-[10px] leading-relaxed text-[var(--theme-text-primary)]">
+                        Digifort Labs delivers a specialized **Patient Experience &amp; Feedback Infrastructure** embedded natively within the core HIMS workflow. This framework captures real-time, verified patient-reported metrics at specific points of care, rather than relying on delayed post-discharge communications.
+                    </p>
+
+                    <div class="grid grid-cols-2 gap-3.5 my-1">
+                        <div class="theme-card theme-bg-card theme-border-card rounded-xl p-3 border shadow-sm flex flex-col gap-1.5">
+                            <span class="text-[9.5px] font-black uppercase tracking-wider text-teal-500">Point-of-Care Digital Triggers</span>
+                            <p class="text-[9px] leading-relaxed text-[var(--theme-text-secondary)]">
+                                Automated, secure links are transmitted via encrypted pipelines (WhatsApp/SMS) or bedside tablet interfaces immediately following key clinical encounters, laboratory results, or pharmacy collections.
+                            </p>
+                        </div>
+                        <div class="theme-card theme-bg-card theme-border-card rounded-xl p-3 border shadow-sm flex flex-col gap-1.5">
+                            <span class="text-[9.5px] font-black uppercase tracking-wider text-teal-500">Sentiment Analytics Engines</span>
+                            <p class="text-[9px] leading-relaxed text-[var(--theme-text-secondary)]">
+                                Aggregates scoring metrics into real-time administration dashboards, giving medical directors and clinic owners immediate visibility into clinical and non-clinical quality indicators.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <footer class="h-[5%] border-t theme-border-card pt-2 flex justify-between items-center text-[7.5px] text-[var(--theme-text-secondary)] font-bold shrink-0">
+                    <span>DIGIFORT LABS CLINICAL ARCHITECTURE BRIEF</span>
+                    <span class="text-[9px] font-black text-[var(--theme-text-primary)]">05</span>
+                </footer>
+            </div>
+
+            <!-- PAGE 6: PROACTIVE SERVICE RECOVERY -->
+            <div id="page-6" class="a4-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                
+                <header class="h-[8%] flex justify-between items-start z-10 shrink-0">
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black tracking-widest uppercase text-yellow-500 brand-logo leading-none">DIGIFORT LABS</span>
+                        <span class="text-[6.5px] font-extrabold tracking-wider text-[var(--theme-text-secondary)] uppercase mt-0.5">Clinical Informatics</span>
+                    </div>
+                    <span class="text-[8px] font-black text-teal-500 uppercase tracking-widest">Specialized Service Module</span>
+                </header>
+
+                <div class="flex-grow flex flex-col justify-center gap-3 relative z-10 py-2">
+                    <h2 class="text-[17px] font-black tracking-tight leading-tight text-[var(--theme-text-primary)] border-l-4 theme-border-accent pl-3">
+                        PROACTIVE SERVICE RECOVERY PIPELINES
+                    </h2>
+                    <p class="text-[10px] leading-relaxed text-[var(--theme-text-secondary)]">
+                        Addressing operational friction before patient discharge preserves clinical trust and prevents public reputational damage. Digifort's real-time experience engine works continuously within your clinical environment to identify and correct service bottlenecks instantly.
+                    </p>
+                    <p class="text-[9.5px] leading-relaxed text-[var(--theme-text-primary)]">
+                        When a patient or relative registers an unsatisfied rating regarding ward logistics, medical staff communication, or coordination, the system escalates the issue past standard logs to trigger immediate, actionable operational alerts.
+                    </p>
+
+                    <!-- Feedback Matrix Table -->
+                    <div class="theme-card theme-bg-card theme-border-card rounded-xl border overflow-hidden my-1 shadow-sm">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-[var(--theme-pill-bg)]">
+                                    <th class="py-2 px-3 border-b theme-border-card text-[8.5px] font-black uppercase tracking-wider text-[var(--theme-text-primary)] w-[30%]">Feedback Parameter</th>
+                                    <th class="py-2 px-3 border-b theme-border-card text-[8.5px] font-black uppercase tracking-wider text-[var(--theme-text-primary)]">Automated Nosocomial Response Protocol</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-[8px] font-bold">
+                                <tr>
+                                    <td class="py-2 px-3 border-b theme-border-card text-[var(--theme-text-primary)]">Optimal (4-5 Stars)</td>
+                                    <td class="py-2 px-3 border-b theme-border-card text-[var(--theme-text-secondary)]">Prompts automated, compliant links to post verified public reviews, boosting institutional reputation.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2 px-3 border-b theme-border-card text-[var(--theme-text-primary)]">Sub-Optimal (3 Stars)</td>
+                                    <td class="py-2 px-3 border-b theme-border-card text-[var(--theme-text-secondary)]">Routes data to quality assurance systems for internal training and staff development optimization.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2 px-3 text-rose-500">Critical (1-2 Stars)</td>
+                                    <td class="py-2 px-3 text-[var(--theme-text-secondary)]">Triggers a high-priority, real-time alert directly to the on-duty department manager's device for immediate on-site intervention.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="bg-[var(--theme-pill-bg)] border theme-border-card rounded-xl p-3 text-[9px] leading-relaxed text-[var(--theme-text-secondary)]">
+                        <strong class="text-[var(--theme-text-primary)] block mb-1">REVIEW VERIFICATION INTEGRITY</strong>
+                        Because every review is anchored directly to a valid, unique HIMS Patient Registration ID, your facility is completely protected against fake, unverified, or malicious public reviews.
+                    </div>
+                </div>
+
+                <footer class="h-[5%] border-t theme-border-card pt-2 flex justify-between items-center text-[7.5px] text-[var(--theme-text-secondary)] font-bold shrink-0">
+                    <span>DIGIFORT LABS CLINICAL ARCHITECTURE BRIEF</span>
+                    <span class="text-[9px] font-black text-[var(--theme-text-primary)]">06</span>
+                </footer>
+            </div>
+
+            <!-- PAGE 7: MRD TRANSFORMATION -->
+            <div id="page-7" class="a4-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                
+                <header class="h-[8%] flex justify-between items-start z-10 shrink-0">
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black tracking-widest uppercase text-yellow-500 brand-logo leading-none">DIGIFORT LABS</span>
+                        <span class="text-[6.5px] font-extrabold tracking-wider text-[var(--theme-text-secondary)] uppercase mt-0.5">Clinical Informatics</span>
+                    </div>
+                    <span class="text-[8px] font-black text-teal-500 uppercase tracking-widest">MRD Transformation</span>
+                </header>
+
+                <div class="flex-grow flex flex-col justify-center gap-3 relative z-10 py-2">
+                    <h2 class="text-[17px] font-black tracking-tight leading-tight text-[var(--theme-text-primary)] border-l-4 theme-border-accent pl-3">
+                        LEGACY MRD PHYSICAL-TO-DIGITAL MIGRATION
+                    </h2>
+                    <p class="text-[10px] leading-relaxed text-[var(--theme-text-secondary)]">
+                        Medical Records Departments (MRD) are frequently burdened by massive quantities of historical, paper-based IPD and OPD health records. Digifort Labs provides a meticulous, physical-to-digital migration service to cleanly digitize legacy files.
+                    </p>
+                    <p class="text-[9.5px] leading-relaxed text-[var(--theme-text-primary)]">
+                        Our specialized workflow handles secure sorting, ultra-high-speed professional scanning, automated document indexing, and granular metadata tagging, ensuring compliance with strict healthcare regulations.
+                    </p>
+
+                    <!-- Operational Phases Table -->
+                    <div class="theme-card theme-bg-card theme-border-card rounded-xl border overflow-hidden my-1 shadow-sm">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-[var(--theme-pill-bg)]">
+                                    <th class="py-2 px-3 border-b theme-border-card text-[8.5px] font-black uppercase tracking-wider text-[var(--theme-text-primary)] w-[35%]">Operational Phase</th>
+                                    <th class="py-2 px-3 border-b theme-border-card text-[8.5px] font-black uppercase tracking-wider text-[var(--theme-text-primary)]">Execution Blueprint &amp; Data Governance</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-[8px] font-bold">
+                                <tr>
+                                    <td class="py-2 px-3 border-b theme-border-card text-[var(--theme-text-primary)]">1. Clinical Sorting &amp; Inventory</td>
+                                    <td class="py-2 px-3 border-b theme-border-card text-[var(--theme-text-secondary)]">Complete cataloging of physical IPD records with chronological structural indexing.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2 px-3 border-b theme-border-card text-[var(--theme-text-primary)]">2. High-Precision Scanning</td>
+                                    <td class="py-2 px-3 border-b theme-border-card text-[var(--theme-text-secondary)]">Digital ingestion with automated clarity optimization filters to preserve faint ink annotations.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2 px-3 border-b theme-border-card text-[var(--theme-text-primary)]">3. Metadata Structuring</td>
+                                    <td class="py-2 px-3 border-b theme-border-card text-[var(--theme-text-secondary)]">Tagging profiles by Patient ID, Consultant, ICD-10 Code, and Discharge Date for fast search retrieval.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2 px-3 text-[var(--theme-text-primary)]">4. Cloud Secure Storage</td>
+                                    <td class="py-2 px-3 text-[var(--theme-text-secondary)]">Integration into secure, encrypted long-term storage pools with instant access keys.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <footer class="h-[5%] border-t theme-border-card pt-2 flex justify-between items-center text-[7.5px] text-[var(--theme-text-secondary)] font-bold shrink-0">
+                    <span>DIGIFORT LABS CLINICAL ARCHITECTURE BRIEF</span>
+                    <span class="text-[9px] font-black text-[var(--theme-text-primary)]">07</span>
+                </footer>
+            </div>
+
+            <!-- PAGE 8: QUALITY & COMPLIANCE -->
+            <div id="page-8" class="a4-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                
+                <header class="h-[8%] flex justify-between items-start z-10 shrink-0">
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black tracking-widest uppercase text-yellow-500 brand-logo leading-none">DIGIFORT LABS</span>
+                        <span class="text-[6.5px] font-extrabold tracking-wider text-[var(--theme-text-secondary)] uppercase mt-0.5">Clinical Informatics</span>
+                    </div>
+                    <span class="text-[8px] font-black text-teal-500 uppercase tracking-widest">Quality &amp; Compliance</span>
+                </header>
+
+                <div class="flex-grow flex flex-col justify-center gap-4 relative z-10 py-2">
+                    <h2 class="text-[18px] font-black tracking-tight leading-tight text-[var(--theme-text-primary)] border-l-4 theme-border-accent pl-3">
+                        AUDIT READINESS &amp; NABH COMPLIANCE ARCHITECTURE
+                    </h2>
+                    <p class="text-[11px] font-semibold italic leading-relaxed text-[var(--theme-text-secondary)]">
+                        Regulatory quality checks and statutory healthcare inspections should not disrupt active patient care. Digifort HIMS builds compliance frameworks directly into daily operations.
+                    </p>
+                    <p class="text-[10px] leading-relaxed text-[var(--theme-text-primary)]">
+                        The platform maintains permanent, immutable audit logs tracking every modification to medical files, access logs for patient data, and pharmaceutical distribution records. This rigorous ledger layout ensures your hospital stands ready for statutory national inspections and premium quality certifications at a moment's notice.
+                    </p>
+
+                    <div class="grid grid-cols-2 gap-3.5 my-1">
+                        <div class="theme-card theme-bg-card theme-border-card rounded-xl p-3 border shadow-sm flex flex-col gap-1.5">
+                            <span class="text-[9.5px] font-black uppercase tracking-wider text-teal-500">Immutable Action Ledger</span>
+                            <p class="text-[9px] leading-relaxed text-[var(--theme-text-secondary)]">
+                                Every clinical entry, adjustment, or data view records the precise user ID, timestamp, and machine network parameters.
+                            </p>
+                        </div>
+                        <div class="theme-card theme-bg-card theme-border-card rounded-xl p-3 border shadow-sm flex flex-col gap-1.5">
+                            <span class="text-[9.5px] font-black uppercase tracking-wider text-teal-500">Accreditation Formatting</span>
+                            <p class="text-[9px] leading-relaxed text-[var(--theme-text-secondary)]">
+                                Automatically formats clinical history summaries, structured consent forms, and patient incident data into exact regulatory frameworks.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <footer class="h-[5%] border-t theme-border-card pt-2 flex justify-between items-center text-[7.5px] text-[var(--theme-text-secondary)] font-bold shrink-0">
+                    <span>DIGIFORT LABS CLINICAL ARCHITECTURE BRIEF</span>
+                    <span class="text-[9px] font-black text-[var(--theme-text-primary)]">08</span>
+                </footer>
+            </div>
+
+            <!-- PAGE 9: BIOMEDICAL ASSETS -->
+            <div id="page-9" class="a4-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                
+                <header class="h-[8%] flex justify-between items-start z-10 shrink-0">
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black tracking-widest uppercase text-yellow-500 brand-logo leading-none">DIGIFORT LABS</span>
+                        <span class="text-[6.5px] font-extrabold tracking-wider text-[var(--theme-text-secondary)] uppercase mt-0.5">Clinical Informatics</span>
+                    </div>
+                    <span class="text-[8px] font-black text-teal-500 uppercase tracking-widest">Biomedical Assets</span>
+                </header>
+
+                <div class="flex-grow flex flex-col justify-center gap-4 relative z-10 py-2">
+                    <h2 class="text-[17px] font-black tracking-tight leading-tight text-[var(--theme-text-primary)] border-l-4 theme-border-accent pl-3">
+                        BIOMEDICAL ASSET LIFECYCLE OPTIMIZATION
+                    </h2>
+                    <p class="text-[11px] font-semibold italic leading-relaxed text-[var(--theme-text-secondary)]">
+                        High-value medical hardware represents a massive portion of capital expenditures. Digifort Labs integrates complete, real-time Asset Management tracking arrays to monitor machine lifecycles and preserve equipment uptime.
+                    </p>
+                    <p class="text-[10px] leading-relaxed text-[var(--theme-text-primary)]">
+                        From ICU ventilators and portable ultrasound scanners to specialized surgical tools, our system maps individual machine footprints across all hospital departments.
+                    </p>
+
+                    <div class="grid grid-cols-2 gap-3.5 my-1">
+                        <div class="theme-card theme-bg-card theme-border-card rounded-xl p-3 border shadow-sm flex flex-col gap-1.5">
+                            <span class="text-[9.5px] font-black uppercase tracking-wider text-teal-500">Calibration &amp; Maintenance</span>
+                            <p class="text-[9px] leading-relaxed text-[var(--theme-text-secondary)]">
+                                Automated scheduling algorithms trigger proactive reminders for Annual Maintenance Contracts (AMC) and precision calibration tests before unexpected equipment failures happen.
+                            </p>
+                        </div>
+                        <div class="theme-card theme-bg-card theme-border-card rounded-xl p-3 border shadow-sm flex flex-col gap-1.5">
+                            <span class="text-[9.5px] font-black uppercase tracking-wider text-teal-500">Allocation &amp; Utilization Logs</span>
+                            <p class="text-[9px] leading-relaxed text-[var(--theme-text-secondary)]">
+                                Monitors department-wise assignments, mitigating the hoarding of portable assets by specific floors and maximizing equipment usage efficiency across the facility.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="bg-[var(--theme-pill-bg)] border theme-border-card rounded-xl p-3 text-[9px] leading-relaxed text-[var(--theme-text-secondary)] font-bold">
+                        <strong class="text-[var(--theme-text-primary)] block mb-0.5">ASSET LIFECYCLE METRICS</strong>
+                        The system calculates live financial book depreciation alongside active runtime histories to give your administration precise capital expenditure insights.
+                    </div>
+                </div>
+
+                <footer class="h-[5%] border-t theme-border-card pt-2 flex justify-between items-center text-[7.5px] text-[var(--theme-text-secondary)] font-bold shrink-0">
+                    <span>DIGIFORT LABS CLINICAL ARCHITECTURE BRIEF</span>
+                    <span class="text-[9px] font-black text-[var(--theme-text-primary)]">09</span>
+                </footer>
+            </div>
+
+            <!-- PAGE 10: PHARMACY LOGISTICS -->
+            <div id="page-10" class="a4-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                
+                <header class="h-[8%] flex justify-between items-start z-10 shrink-0">
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black tracking-widest uppercase text-yellow-500 brand-logo leading-none">DIGIFORT LABS</span>
+                        <span class="text-[6.5px] font-extrabold tracking-wider text-[var(--theme-text-secondary)] uppercase mt-0.5">Clinical Informatics</span>
+                    </div>
+                    <span class="text-[8px] font-black text-teal-500 uppercase tracking-widest">Pharmacy Logistics</span>
+                </header>
+
+                <div class="flex-grow flex flex-col justify-center gap-3 relative z-10 py-2">
+                    <h2 class="text-[17px] font-black tracking-tight leading-tight text-[var(--theme-text-primary)] border-l-4 theme-border-accent pl-3">
+                        PHARMACEUTICAL &amp; INVENTORY AUTOMATION
+                    </h2>
+                    <p class="text-[10px] leading-relaxed text-[var(--theme-text-secondary)]">
+                        Real-time stock tracking bridges clinical needs with procurement realities, completely eliminating critical medicine stockouts or wasteful item expirations.
+                    </p>
+                    <p class="text-[9.5px] leading-relaxed text-[var(--theme-text-primary)]">
+                        Digifort's barcode-driven inventory system tracks medication boxes and medical consumables throughout their complete lifecycle—from central store intake down to real-time nurse administration at the bedside.
+                    </p>
+
+                    <div class="grid grid-cols-2 gap-3.5 my-1">
+                        <!-- Live Smart Re-order Calculator Injected here -->
+                        <div class="theme-card theme-bg-card theme-border-card rounded-xl p-2.5 border shadow-sm flex flex-col justify-between">
+                            <div class="flex items-center justify-between border-b theme-border-card pb-1 mb-1.5">
+                                <span class="text-[8px] font-black uppercase tracking-wider text-amber-500">Smart Stock Re-Order</span>
+                                <span class="text-[8px] bg-amber-500/10 text-amber-500 px-1 py-0.5 rounded font-black border border-amber-500/20" id="calc3-s-result">S_thresh = 540 u</span>
+                            </div>
+                            <div class="flex items-center justify-center py-2.5 text-center font-serif text-[11px] text-[var(--theme-text-primary)] select-none">
+                                <span class="italic font-bold">S</span><sub>threshold</sub>
+                                <span class="mx-1 text-[var(--theme-text-secondary)]">=</span>
+                                <span class="italic font-bold">R</span><sub>burn</sub>
+                                <span class="mx-1 text-[var(--theme-text-secondary)]">&times;</span>
+                                <span class="italic font-bold">T</span><sub>lead</sub>
+                            </div>
+                            <div class="grid grid-cols-2 gap-1 text-[6.5px] text-[var(--theme-text-secondary)] border-t theme-border-card pt-1 font-bold">
+                                <span>R<sub>burn</sub> = <span id="eq3-burn-val" class="text-[var(--theme-text-primary)]">120 u/d</span></span>
+                                <span class="text-right">T<sub>lead</sub> = <span id="eq3-lead-val" class="text-amber-505 font-extrabold">4.5 d</span></span>
+                            </div>
+                        </div>
+
+                        <div class="theme-card theme-bg-card theme-border-card rounded-xl p-2.5 border shadow-sm flex flex-col gap-1">
+                            <span class="text-[9.5px] font-black uppercase tracking-wider text-teal-500">Expiry Guard Protocols</span>
+                            <p class="text-[8.5px] leading-relaxed text-[var(--theme-text-secondary)]">
+                                Enforces dynamic barcode tracking models to push near-expiry drug batches forward, drastically lowering financial inventory losses.
+                            </p>
+                        </div>
+                    </div>
+
+                    <p class="text-[9.5px] leading-relaxed text-[var(--theme-text-secondary)] font-medium">
+                        When a doctor updates a patient's digital chart, required items are immediately requested from the main pharmacy module, creating a seamless, paperless workflow.
+                    </p>
+                </div>
+
+                <footer class="h-[5%] border-t theme-border-card pt-2 flex justify-between items-center text-[7.5px] text-[var(--theme-text-secondary)] font-bold shrink-0">
+                    <span>DIGIFORT LABS CLINICAL ARCHITECTURE BRIEF</span>
+                    <span class="text-[9px] font-black text-[var(--theme-text-primary)]">10</span>
+                </footer>
+            </div>
+
+            <!-- PAGE 11: REVENUE ASSURANCE -->
+            <div id="page-11" class="a4-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                
+                <header class="h-[8%] flex justify-between items-start z-10 shrink-0">
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black tracking-widest uppercase text-yellow-500 brand-logo leading-none">DIGIFORT LABS</span>
+                        <span class="text-[6.5px] font-extrabold tracking-wider text-[var(--theme-text-secondary)] uppercase mt-0.5">Clinical Informatics</span>
+                    </div>
+                    <span class="text-[8px] font-black text-teal-500 uppercase tracking-widest">Revenue Assurance</span>
+                </header>
+
+                <div class="flex-grow flex flex-col justify-center gap-3 relative z-10 py-2">
+                    <h2 class="text-[17px] font-black tracking-tight leading-tight text-[var(--theme-text-primary)] border-l-4 theme-border-accent pl-3">
+                        REVENUE LEAKAGE ELIMINATION &amp; BILLING PRECISION
+                    </h2>
+                    <p class="text-[10px] leading-relaxed text-[var(--theme-text-secondary)]">
+                        Manual charge entries across scattered clinical wards frequently lead to missed revenue captures. Digifort HIMS resolves this by linking clinical actions directly to the billing desk. Every lab test ordered, pharmacy item scanned, or day of ward occupancy logged automatically captures charges and appends them to the patient's master invoice in real-time.
+                    </p>
+
+                    <!-- Billing Table -->
+                    <div class="theme-card theme-bg-card theme-border-card rounded-xl border overflow-hidden my-0.5 shadow-sm">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-[var(--theme-pill-bg)]">
+                                    <th class="py-1 px-2.5 border-b theme-border-card text-[8px] font-black uppercase tracking-wider text-[var(--theme-text-primary)] w-[30%]">Billing Component</th>
+                                    <th class="py-1 px-2.5 border-b theme-border-card text-[8px] font-black uppercase tracking-wider text-[var(--theme-text-primary)]">Automated Management Strategy</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-[7.5px] font-bold">
+                                <tr>
+                                    <td class="py-1 px-2.5 border-b theme-border-card text-[var(--theme-text-primary)]">Insurance &amp; Schemes</td>
+                                    <td class="py-1 px-2.5 border-b theme-border-card text-[var(--theme-text-secondary)]">Pre-configures corporate contract matrices, TPA guidelines, and government scheme caps.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-1 px-2.5 border-b theme-border-card text-[var(--theme-text-primary)]">Tariff Matrix Mapping</td>
+                                    <td class="py-1 px-2.5 border-b theme-border-card text-[var(--theme-text-secondary)]">Instantly matches doctor fees and diagnostic charges against bed type parameters.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-1 px-2.5 text-[var(--theme-text-primary)]">Strict Tax Transparency</td>
+                                    <td class="py-1 px-2.5 text-[var(--theme-text-secondary)]">All pricing scales exclude tax. GST is applied as a separate line item at checkout.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="grid grid-cols-12 gap-3.5 items-center my-0.5">
+                        <div class="col-span-7 bg-[var(--theme-pill-bg)] border theme-border-card rounded-xl p-3 text-[9px] leading-relaxed text-[var(--theme-text-secondary)] font-bold">
+                            <strong class="text-[var(--theme-text-primary)] block mb-0.5">DISCHARGE VELOCITY FOCUS</strong>
+                            By automating multi-department clearings, the system drops the complex discharge pipeline from several manual hours down to a swift 15-minute digital approval process.
+                        </div>
+                        
+                        <!-- Mini Billing Node -->
+                        <div class="col-span-5 theme-card theme-bg-card theme-border-card rounded-xl p-2 border shadow-sm flex flex-col gap-1">
+                            <span class="text-[8px] font-black text-[var(--theme-text-primary)] uppercase flex items-center gap-1"><i class="fa-solid fa-receipt theme-text-accent"></i> Real-time invoice</span>
+                            <div class="flex justify-between text-[7.5px] text-[var(--theme-text-secondary)]">
+                                <span>Record ID</span>
+                                <span id="billing-id-p11" class="font-extrabold text-[var(--theme-text-primary)]">#DF-00284</span>
+                            </div>
+                            <div class="flex justify-between text-[7.5px] text-[var(--theme-text-secondary)] border-t theme-border-card pt-0.5">
+                                <span>Outstanding</span>
+                                <span id="billing-balance-p11" class="font-black text-rose-500">₹ **** \-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <footer class="h-[5%] border-t theme-border-card pt-2 flex justify-between items-center text-[7.5px] text-[var(--theme-text-secondary)] font-bold shrink-0">
+                    <span>DIGIFORT LABS CLINICAL ARCHITECTURE BRIEF</span>
+                    <span class="text-[9px] font-black text-[var(--theme-text-primary)]">11</span>
+                </footer>
+            </div>
+
+            <!-- PAGE 12: BESPOKE DESIGN -->
+            <div id="page-12" class="a4-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                
+                <header class="h-[8%] flex justify-between items-start z-10 shrink-0">
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black tracking-widest uppercase text-yellow-500 brand-logo leading-none">DIGIFORT LABS</span>
+                        <span class="text-[6.5px] font-extrabold tracking-wider text-[var(--theme-text-secondary)] uppercase mt-0.5">Clinical Informatics</span>
+                    </div>
+                    <span class="text-[8px] font-black text-teal-500 uppercase tracking-widest">Bespoke Design</span>
+                </header>
+
+                <div class="flex-grow flex flex-col justify-center gap-4 relative z-10 py-2">
+                    <h2 class="text-[18px] font-black tracking-tight leading-tight text-[var(--theme-text-primary)] border-l-4 theme-border-accent pl-3">
+                        TAILORED CLINICAL WORKFLOW CUSTOMIZATION
+                    </h2>
+                    <p class="text-[11px] font-semibold italic leading-relaxed text-[var(--theme-text-secondary)]">
+                        Hospitals are complex institutions built on unique histories and physical realities. Forced transitions into rigid, generic software lead to internal resistance and broken operational flows.
+                    </p>
+                    <p class="text-[10px] leading-relaxed text-[var(--theme-text-primary)]">
+                        Digifort Labs commits completely to designing, building, and structuring software that fits your exact, real-world operational blueprint. We analyze your patient flows and map clinical interfaces to support your staff—not the other way around.
+                    </p>
+
+                    <div class="grid grid-cols-2 gap-3.5 my-1">
+                        <div class="theme-card theme-bg-card theme-border-card rounded-xl p-3 border shadow-sm flex flex-col gap-1.5">
+                            <span class="text-[9.5px] font-black uppercase tracking-wider text-teal-500">Custom Intake Form Fields</span>
+                            <p class="text-[9px] leading-relaxed text-[var(--theme-text-secondary)]">
+                                Whether mapping highly specific diagnostic workflows or complex specialty forms, interfaces are tailored directly to your clinicians' requirements.
+                            </p>
+                        </div>
+                        <div class="theme-card theme-bg-card theme-border-card rounded-xl p-3 border shadow-sm flex flex-col gap-1.5">
+                            <span class="text-[9.5px] font-black uppercase tracking-wider text-teal-500">Modular Functional Scale</span>
+                            <p class="text-[9px] leading-relaxed text-[var(--theme-text-secondary)]">
+                                Activate features when your team is ready. Expand from simple OPD scheduling into deep, multi-site network SaaS environments smoothly over time.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <footer class="h-[5%] border-t theme-border-card pt-2 flex justify-between items-center text-[7.5px] text-[var(--theme-text-secondary)] font-bold shrink-0">
+                    <span>DIGIFORT LABS CLINICAL ARCHITECTURE BRIEF</span>
+                    <span class="text-[9px] font-black text-[var(--theme-text-primary)]">12</span>
+                </footer>
+            </div>
+
+            <!-- PAGE 13: REGULATORY COMPLIANCE -->
+            <div id="page-13" class="a4-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                
+                <header class="h-[8%] flex justify-between items-start z-10 shrink-0">
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black tracking-widest uppercase text-yellow-500 brand-logo leading-none">DIGIFORT LABS</span>
+                        <span class="text-[6.5px] font-extrabold tracking-wider text-[var(--theme-text-secondary)] uppercase mt-0.5">Clinical Informatics</span>
+                    </div>
+                    <span class="text-[8px] font-black text-teal-500 uppercase tracking-widest">Regulatory Compliance</span>
+                </header>
+
+                <div class="flex-grow flex flex-col justify-center gap-4 relative z-10 py-2">
+                    <h2 class="text-[18px] font-black tracking-tight leading-tight text-[var(--theme-text-primary)] border-l-4 theme-border-accent pl-3">
+                        GOVERNMENT RULES &amp; SOVEREIGN HEALTHCARE LAWS
+                    </h2>
+                    <p class="text-[11px] font-semibold italic leading-relaxed text-[var(--theme-text-secondary)]">
+                        Healthcare management brings significant legal liabilities. Digifort Labs ensures your software architecture acts as a shield, meeting rigorous national healthcare regulations and digital mandates perfectly.
+                    </p>
+                    <p class="text-[10px] leading-relaxed text-[var(--theme-text-primary)]">
+                        Our structural development process is built natively around legislative guidelines to protect your clinical practice, automate compliance formatting, and secure highly sensitive institutional patient records from legal vulnerability.
+                    </p>
+
+                    <div class="grid grid-cols-2 gap-3.5 my-1">
+                        <div class="theme-card theme-bg-card theme-border-card rounded-xl p-3 border shadow-sm flex flex-col gap-1.5">
+                            <span class="text-[9.5px] font-black uppercase tracking-wider text-teal-500">Clinical Establishments Act</span>
+                            <p class="text-[9px] leading-relaxed text-[var(--theme-text-secondary)]">
+                                Our database architecture enforces standard formatting, mandatory diagnostic classifications, prescription structures, and maintenance rules exactly as mandated under national clinical rules.
+                            </p>
+                        </div>
+                        <div class="theme-card theme-bg-card theme-border-card rounded-xl p-3 border shadow-sm flex flex-col gap-1.5">
+                            <span class="text-[9.5px] font-black uppercase tracking-wider text-teal-500">DPDP Act Architecture</span>
+                            <p class="text-[9px] leading-relaxed text-[var(--theme-text-secondary)]">
+                                Engineered to be fully compliant with the Digital Personal Data Protection (DPDP) framework, incorporating consent management, rigorous access boundaries, and permanent logs.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <footer class="h-[5%] border-t theme-border-card pt-2 flex justify-between items-center text-[7.5px] text-[var(--theme-text-secondary)] font-bold shrink-0">
+                    <span>DIGIFORT LABS CLINICAL ARCHITECTURE BRIEF</span>
+                    <span class="text-[9px] font-black text-[var(--theme-text-primary)]">13</span>
+                </footer>
+            </div>
+
+            <!-- PAGE 14: COMPLIANCE MAP -->
+            <div id="page-14" class="a4-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                
+                <header class="h-[8%] flex justify-between items-start z-10 shrink-0">
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black tracking-widest uppercase text-yellow-500 brand-logo leading-none">DIGIFORT LABS</span>
+                        <span class="text-[6.5px] font-extrabold tracking-wider text-[var(--theme-text-secondary)] uppercase mt-0.5">Clinical Informatics</span>
+                    </div>
+                    <span class="text-[8px] font-black text-teal-500 uppercase tracking-widest">Regulatory Compliance</span>
+                </header>
+
+                <div class="flex-grow flex flex-col justify-center gap-3 relative z-10 py-2">
+                    <h2 class="text-[17px] font-black tracking-tight leading-tight text-[var(--theme-text-primary)] border-l-4 theme-border-accent pl-3">
+                        THE COMPLIANCE &amp; JURISPRUDENCE MAP
+                    </h2>
+                    <p class="text-[10px] leading-relaxed text-[var(--theme-text-secondary)]">
+                        To provide hospital directors with total regulatory protection, our systems handle the technical side of legislative mandates automatically behind the scenes.
+                    </p>
+
+                    <!-- Compliance Map Table -->
+                    <div class="theme-card theme-bg-card theme-border-card rounded-xl border overflow-hidden my-1 shadow-sm">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-[var(--theme-pill-bg)]">
+                                    <th class="py-2 px-3 border-b theme-border-card text-[8.5px] font-black uppercase tracking-wider text-[var(--theme-text-primary)] w-[30%]">Regulatory Mandate</th>
+                                    <th class="py-2 px-3 border-b theme-border-card text-[8.5px] font-black uppercase tracking-wider text-[var(--theme-text-primary)]">Digifort System Structural Integration</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-[8px] font-bold text-[var(--theme-text-secondary)]">
+                                <tr>
+                                    <td class="py-2 px-3 border-b theme-border-card text-[var(--theme-text-primary)]">Clinical Establishments Act</td>
+                                    <td class="py-2 px-3 border-b theme-border-card">Enforces standardized electronic health records (EHR), physical safety audit parameters, and automated statistical reporting interfaces.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2 px-3 border-b theme-border-card text-[var(--theme-text-primary)]">DPDP Act Data Safety</td>
+                                    <td class="py-2 px-3 border-b theme-border-card">Role-Based Access Controls (RBAC), end-to-end encryption for patient profiles, and secure isolation to strictly prevent data leakage.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-2 px-3 text-[var(--theme-text-primary)]">Statutory Medical Audit</td>
+                                    <td class="py-2 px-3">Permanent, time-stamped history logs of modifications, prescriptions, and diagnostics to provide flawless evidence trails.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="bg-[var(--theme-pill-bg)] border theme-border-card rounded-xl p-3.5 text-[9px] leading-relaxed text-[var(--theme-text-secondary)]">
+                        <strong class="text-[var(--theme-text-primary)] block mb-1">LEGAL ASSURANCE GUARANTEE</strong>
+                        We custom structure input rules and workflows to match state laws, letting your clinical staff focus fully on patient care while the platform keeps you securely compliant.
+                    </div>
+                </div>
+
+                <footer class="h-[5%] border-t theme-border-card pt-2 flex justify-between items-center text-[7.5px] text-[var(--theme-text-secondary)] font-bold shrink-0">
+                    <span>DIGIFORT LABS CLINICAL ARCHITECTURE BRIEF</span>
+                    <span class="text-[9px] font-black text-[var(--theme-text-primary)]">14</span>
+                </footer>
+            </div>
+
+            <!-- PAGE 15: STRATEGIC MANAGEMENT -->
+            <div id="page-15" class="a4-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                
+                <header class="h-[8%] flex justify-between items-start z-10 shrink-0">
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black tracking-widest uppercase text-yellow-500 brand-logo leading-none">DIGIFORT LABS</span>
+                        <span class="text-[6.5px] font-extrabold tracking-wider text-[var(--theme-text-secondary)] uppercase mt-0.5">Clinical Informatics</span>
+                    </div>
+                    <span class="text-[8px] font-black text-teal-500 uppercase tracking-widest">Strategic Management</span>
+                </header>
+
+                <div class="flex-grow flex flex-col justify-center gap-3 relative z-10 py-2">
+                    <h2 class="text-[17px] font-black tracking-tight leading-tight text-[var(--theme-text-primary)] border-l-4 theme-border-accent pl-3">
+                        THE HOSPITAL LEADERSHIP &amp; BOARD DASHBOARD
+                    </h2>
+                    <p class="text-[10px] leading-relaxed text-[var(--theme-text-secondary)]">
+                        Digifort HIMS shifts hospital management from a reactive footing into clear, proactive operational control. By aggregating financial, clinical, and logistics metrics, we deliver direct value to hospital directors and board trustees.
+                    </p>
+
+                    <!-- Strategic Matrix Table -->
+                    <div class="theme-card theme-bg-card theme-border-card rounded-xl border overflow-hidden my-1 shadow-sm">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-[var(--theme-pill-bg)]">
+                                    <th class="py-1.5 px-3 border-b theme-border-card text-[8.5px] font-black uppercase tracking-wider text-[var(--theme-text-primary)] w-[35%]">Institutional Objective</th>
+                                    <th class="py-1.5 px-3 border-b theme-border-card text-[8.5px] font-black uppercase tracking-wider text-[var(--theme-text-primary)]">Direct Digifort Operational Impact</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-[7.5px] font-bold text-[var(--theme-text-secondary)]">
+                                <tr>
+                                    <td class="py-1.5 px-3 border-b theme-border-card text-[var(--theme-text-primary)]">Zero Leakage Operations</td>
+                                    <td class="py-1.5 px-3 border-b theme-border-card">Every consumable, nursing action, and pharmacy item is automatically captured and added to the final invoice.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-1.5 px-3 border-b theme-border-card text-[var(--theme-text-primary)]">Optimized Asset Uptime</td>
+                                    <td class="py-1.5 px-3 border-b theme-border-card">Preventative scheduling extends the working lifecycles of crucial diagnostic machinery.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-1.5 px-3 border-b theme-border-card text-[var(--theme-text-primary)]">Enhanced Patient Experience</td>
+                                    <td class="py-1.5 px-3 border-b theme-border-card">Drastically drops wait times at counters, optimizing throughput from reception to discharge.</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-1.5 px-3 text-[var(--theme-text-primary)]">MIS Data Reports</td>
+                                    <td class="py-1.5 px-3">Live management metrics track bed occupancy trends, collection flows, and inventory burn-rates.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <footer class="h-[5%] border-t theme-border-card pt-2 flex justify-between items-center text-[7.5px] text-[var(--theme-text-secondary)] font-bold shrink-0">
+                    <span>DIGIFORT LABS CLINICAL ARCHITECTURE BRIEF</span>
+                    <span class="text-[9px] font-black text-[var(--theme-text-primary)]">15</span>
+                </footer>
+            </div>
+
+            <!-- PAGE 16: BACK COVER -->
+            <div id="page-16" class="a4-page show-bleed-guide show-safe-guide show-crop-marks">
+                <div class="bleed-line"></div><div class="safe-line"></div>
+                <div class="crop-marks"><div class="crop-bracket-tl"></div><div class="crop-bracket-tr"></div><div class="crop-bracket-bl"></div><div class="crop-bracket-br"></div></div>
+                <div class="absolute -top-16 -right-16 w-80 h-80 bg-blob-1 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="absolute bottom-1/3 -left-16 w-72 h-72 bg-blob-2 rounded-full blur-3xl pointer-events-none"></div>
+                
+                <div class="flex-grow flex flex-col justify-center items-center text-center relative z-10 p-6">
+                    <h1 class="text-[38px] font-black tracking-[0.15em] text-white leading-none mb-1 text-yellow-500 brand-logo">DIGIFORT LABS</h1>
+                    <p class="text-[11px] font-black tracking-widest text-teal-400 uppercase mt-4 max-w-[80%] leading-relaxed">
+                        Partner with us to architect a secure, compliant, and completely paperless medical future.
+                    </p>
+                    
+                    <div class="w-24 h-[1px] bg-[var(--theme-accent-glow)] my-10"></div>
+                    
+                    <div class="space-y-6 text-center text-[var(--theme-text-primary)]">
+                        <div class="flex flex-col items-center gap-1.5">
+                            <span class="text-[9px] font-black tracking-widest text-teal-500 uppercase">Corporate Headquarters</span>
+                            <span class="text-[10px] font-bold max-w-[75%] leading-relaxed" id="p16-address">
+                                "PARISHRAM", B 5, Ground Floor, Near Gautam Appt., GIDC, Vapi, Gujarat, India.
+                            </span>
+                        </div>
+                        <div class="flex flex-col items-center gap-1.5">
+                            <span class="text-[9px] font-black tracking-widest text-teal-500 uppercase">Direct Engagement Line</span>
+                            <span class="text-[11px] font-extrabold text-white" id="p16-phone">+91 8141669879</span>
+                        </div>
+                        <div class="flex flex-col items-center gap-1.5">
+                            <span class="text-[9px] font-black tracking-widest text-teal-500 uppercase">Digital Network Node</span>
+                            <span class="text-[11px] font-extrabold text-white" id="p16-web">www.digifortlabs.com</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="relative z-10 w-full flex justify-center items-center text-[7.5px] font-extrabold text-[var(--theme-text-secondary)] uppercase border-t theme-border-card pt-4">
+                    <span>© 2026 Digifort Labs. All Rights Reserved.</span>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Operational Engine Scripting -->
+    <script>
+        // Initialize state tracking
+        let isFictionalMode = false;
+        let currentPage = 1;
+
+        // Dynamic Table of Contents data map
+        const pagesList = [
+            { num: 1, title: "Cover Page", subtitle: "Institutional Cover" },
+            { num: 2, title: "Clinical Overview", subtitle: "The Digital Mandate" },
+            { num: 3, title: "Core Architecture", subtitle: "Unified HIMS Sync" },
+            { num: 4, title: "Paperless Ecosystem", subtitle: "Sub-Zero Latency" },
+            { num: 5, title: "Patient Outcomes", subtitle: "Experience Arch" },
+            { num: 6, title: "Service Recovery", subtitle: "Escalation Matrix" },
+            { num: 7, title: "MRD Transformation", subtitle: "Physical-to-Digital" },
+            { num: 8, title: "Quality & Compliance", subtitle: "Audit Readiness" },
+            { num: 9, title: "Biomedical Assets", subtitle: "Asset Optimization" },
+            { num: 10, title: "Pharmacy Logistics", subtitle: "Stock Automation" },
+            { num: 11, title: "Revenue Assurance", subtitle: "Billing Precision" },
+            { num: 12, title: "Bespoke Design", subtitle: "Tailored Workflows" },
+            { num: 13, title: "Regulatory Sync", subtitle: "Sovereign Laws" },
+            { num: 14, title: "Compliance Map", subtitle: "Jurisprudence Map" },
+            { num: 15, title: "Strategic Leadership", subtitle: "Board Dashboard" },
+            { num: 16, title: "Back Cover", subtitle: "Contact Details" }
+        ];
+
+        // Patient Bed Map Data store (12 items)
+        const patientBeds = [
+            { id: '101', status: 'Available' },
+            { id: '102', status: 'Available' },
+            { id: '103', status: 'Available' },
+            { id: '104', status: 'Occupied' },
+            { id: '105', status: 'Occupied' },
+            { id: '106', status: 'Occupied' },
+            { id: '107', status: 'Available' },
+            { id: '108', status: 'Available' },
+            { id: '109', status: 'Maintenance' },
+            { id: '110', status: 'Available' },
+            { id: '111', status: 'Maintenance' },
+            { id: '112', status: 'Available' }
+        ];
+
+        // Real-world clean data sets vs reference modes
+        const cleanData = {
+            headline: "Deploy a Statutory-Compliant, Paperless Nosocomial HIMS Ecosystem",
+            contact1: "9725790563 - Keval Kuvekar",
+            contact2: "9054270551 - Rahul Chotai",
+            web: "www.digifortlabs.com",
+            email: "admin@digifortlabs.com"
+        };
+
+        const fictionalRefData = {
+            headline: "Deploy a Statutory-Compliant, Paperless Nosocomial HIMS Ecosystem",
+            contact1: "+91 97257 90563",
+            contact2: "+91 90542 70551",
+            web: "digifort.in",
+            email: "support@digifort.in"
+        };
+
+        // Render Table of Contents Navigation List in sidebar
+        function renderTOC() {
+            const container = document.getElementById('toc-container');
+            container.innerHTML = '';
+            
+            pagesList.forEach(p => {
+                const item = document.createElement('button');
+                item.id = `toc-item-${p.num}`;
+                item.onclick = () => showPage(p.num);
+                item.className = `w-full p-2 text-left rounded-lg transition-all duration-150 flex items-center justify-between border ${p.num === currentPage ? 'bg-teal-500/10 border-teal-500/30 text-teal-300 shadow' : 'bg-slate-900/30 border-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-200'}`;
+                item.innerHTML = `
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-black leading-tight">${p.num.toString().padStart(2, '0')}. ${p.title}</span>
+                        <span class="text-[7.5px] opacity-60 font-bold">${p.subtitle}</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-[7px] opacity-40"></i>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        // Show a specific page in screen layout view
+        function showPage(pageNumber) {
+            currentPage = pageNumber;
+            
+            // Toggle active classes on page divs
+            for (let i = 1; i <= 16; i++) {
+                const pEl = document.getElementById(`page-${i}`);
+                if (pEl) {
+                    if (i === pageNumber) {
+                        pEl.classList.add('active-page');
+                    } else {
+                        pEl.classList.remove('active-page');
+                    }
+                }
+            }
+
+            // Sync TOC sidebar highlighting
+            pagesList.forEach(p => {
+                const item = document.getElementById(`toc-item-${p.num}`);
+                if (item) {
+                    if (p.num === currentPage) {
+                        item.className = "w-full p-2 text-left rounded-lg transition-all duration-150 flex items-center justify-between border bg-teal-500/10 border-teal-500/30 text-teal-300 shadow";
+                    } else {
+                        item.className = "w-full p-2 text-left rounded-lg transition-all duration-150 flex items-center justify-between border bg-slate-900/30 border-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-200";
+                    }
+                }
+            });
+
+            // Re-apply preview viewport scaling
+            handleScaling();
+        }
+
+        // Render bed maps for Page 03 Bed Census Map
+        function renderBedGrid() {
+            const container = document.getElementById('bed-grid-container-p3');
+            container.innerHTML = '';
+
+            let availableCount = 0;
+
+            patientBeds.forEach((bed, index) => {
+                let colorClass = '';
+                let svgStroke = '#0d9488';
+
+                if (bed.status === 'Available') {
+                    colorClass = 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500';
+                    svgStroke = '#10b981';
+                    availableCount++;
+                } else if (bed.status === 'Occupied') {
+                    colorClass = 'bg-rose-500/10 border-rose-500/30 text-rose-500';
+                    svgStroke = '#f43f5e';
+                } else {
+                    colorClass = 'bg-amber-500/10 border-amber-500/30 text-amber-500';
+                    svgStroke = '#f59e0b';
+                }
+
+                const bedEl = document.createElement('div');
+                bedEl.className = `p-0.5 border rounded-md text-center cursor-pointer transition-all duration-150 transform hover:scale-105 flex flex-col items-center justify-between h-[30px] ${colorClass}`;
+                bedEl.setAttribute('onclick', `toggleBedStatus(${index})`);
+                bedEl.innerHTML = `
+                    <span class="block text-[7.5px] font-black leading-none">${bed.id}</span>
+                    <svg class="w-3.5 h-3.5 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="${svgStroke}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 4v16M2 11h18M22 4v16M2 8h18" />
+                    </svg>
+                `;
+
+                container.appendChild(bedEl);
+            });
+
+            // Sync indicators
+            document.getElementById('bed-ratio-label-p3').innerText = `${availableCount}/12 Ready`;
+        }
+
+        // Bed clicking handler
+        function toggleBedStatus(index) {
+            const current = patientBeds[index].status;
+            if (current === 'Available') {
+                patientBeds[index].status = 'Occupied';
+            } else if (current === 'Occupied') {
+                patientBeds[index].status = 'Maintenance';
+            } else {
+                patientBeds[index].status = 'Available';
+            }
+            renderBedGrid();
+        }
+
+        // Customizer sync variables
+        function updatePosterText(targetId, value) {
+            if (targetId === 'headline') {
+                // Page 2 title subtitle/pitch text update
+                document.getElementById('live-headline').innerText = value;
+            } else if (targetId === 'contact1') {
+                document.getElementById('p16-phone').innerText = value + " / " + document.getElementById('input-contact2').value;
+            } else if (targetId === 'contact2') {
+                document.getElementById('p16-phone').innerText = document.getElementById('input-contact1').value + " / " + value;
+            } else if (targetId === 'web') {
+                document.getElementById('p16-web').innerText = value;
+                updateQRLink(value);
+            }
+        }
+
+        // QR Code generation sync
+        function updateQRLink(url) {
+            let encodedUrl = encodeURIComponent(url.startsWith('http') ? url : 'https://' + url);
+            document.getElementById('live-qr').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodedUrl}`;
+        }
+
+        // Sandbox live calculations
+        function calculateSandbox() {
+            // Read slider values
+            const cVal = parseFloat(document.getElementById('side-c-val').value);
+            const oVal = parseFloat(document.getElementById('side-o-val').value);
+            const rVal = parseFloat(document.getElementById('side-r-val').value);
+            const burnVal = parseInt(document.getElementById('side-burn-val').value);
+            const leadVal = parseFloat(document.getElementById('side-lead-val').value);
+
+            // Update sidebar text indicators
+            document.getElementById('side-c-text').innerText = `${cVal.toFixed(1)} / 10`;
+            document.getElementById('side-o-text').innerText = `${oVal.toFixed(1)} / 10`;
+            document.getElementById('side-r-text').innerText = `${rVal.toFixed(2)}x`;
+            document.getElementById('side-burn-text').innerText = `${burnVal} units/d`;
+            document.getElementById('side-lead-text').innerText = `${leadVal.toFixed(1)} days`;
+
+            // Core computations
+            const eResult = (cVal + oVal) * rVal;
+            const sResult = burnVal * leadVal;
+
+            // Sync with page mathematics elements (Page 2 & Page 10)
+            document.getElementById('eq2-c-val').innerText = cVal.toFixed(1);
+            document.getElementById('eq2-o-val').innerText = oVal.toFixed(1);
+            document.getElementById('eq2-r-val').innerText = rVal.toFixed(2);
+            document.getElementById('calc2-e-result').innerText = `E = ${eResult.toFixed(2)}`;
+
+            document.getElementById('eq3-burn-val').innerText = `${burnVal} u/d`;
+            document.getElementById('eq3-lead-val').innerText = `${leadVal.toFixed(1)} d`;
+            document.getElementById('calc3-s-result').innerText = `S_thresh = ${sResult.toFixed(0)} u`;
+        }
+
+        // Brand Mode Toggling
+        function toggleFictionalData() {
+            isFictionalMode = !isFictionalMode;
+            const targetDataset = isFictionalMode ? fictionalRefData : cleanData;
+            const btn = document.getElementById('data-toggle-btn');
+
+            if (isFictionalMode) {
+                btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles mr-1.5 animate-spin"></i> Custom Real-World Data';
+                btn.classList.remove('bg-[#0d1527]', 'text-teal-400');
+                btn.classList.add('bg-teal-500/20', 'text-teal-300');
+                document.getElementById('billing-id-p11').innerText = "#DF-DEMO";
+                document.getElementById('billing-balance-p11').innerText = "₹ 0.00 \\-";
+                document.getElementById('billing-duration-p11').innerText = "Demo Run";
+                document.getElementById('p16-address').innerText = "Digifort Laboratories Inc., Remote Cloud Distribution.";
+            } else {
+                btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i> Clean Real-World Demo Info';
+                btn.classList.remove('bg-teal-500/20', 'text-teal-300');
+                btn.classList.add('bg-[#0d1527]', 'text-teal-400');
+                document.getElementById('billing-id-p11').innerText = "#DF-00284";
+                document.getElementById('billing-balance-p11').innerText = "₹ **** \\-";
+                document.getElementById('billing-duration-p11').innerText = "4 Days";
+                document.getElementById('p16-address').innerText = '"PARISHRAM", B 5, Ground Floor, Near Gautam Appt., GIDC, Vapi, Gujarat, India.';
+            }
+
+            // Sync fields
+            Object.keys(targetDataset).forEach(key => {
+                document.getElementById(`input-${key}`).value = targetDataset[key];
+                updatePosterText(key, targetDataset[key]);
+            });
+        }
+
+        // Palette Swapper Engine
+        function setTheme(themeName) {
+            const wrapper = document.getElementById('canvas-wrapper');
+            
+            // Clear classes
+            wrapper.classList.remove('theme-indigo', 'theme-emerald', 'theme-royal', 'theme-teal');
+            
+            // Add theme
+            wrapper.classList.add(`theme-${themeName}`);
+
+            // Toggle active styles on sidebar buttons
+            ['indigo', 'emerald', 'royal', 'teal'].forEach(t => {
+                const btn = document.getElementById(`theme-btn-${t}`);
+                btn.className = "p-2 rounded-lg border border-slate-800 bg-slate-900/50 hover:bg-slate-900 text-left flex flex-col gap-0.5 transition-all duration-200";
+            });
+
+            const activeBtn = document.getElementById(`theme-btn-${themeName}`);
+            if (themeName === 'indigo') {
+                activeBtn.className = "p-2 rounded-lg border border-indigo-500 bg-indigo-500/10 text-left flex flex-col gap-0.5 transition-all duration-200 shadow shadow-indigo-500/10";
+            } else if (themeName === 'emerald') {
+                activeBtn.className = "p-2 rounded-lg border border-emerald-500 bg-emerald-500/10 text-left flex flex-col gap-0.5 transition-all duration-200 shadow shadow-emerald-500/10";
+            } else if (themeName === 'royal') {
+                activeBtn.className = "p-2 rounded-lg border border-blue-500 bg-blue-500/10 text-left flex flex-col gap-0.5 transition-all duration-200 shadow shadow-blue-500/10";
+            } else if (themeName === 'teal') {
+                activeBtn.className = "p-2 rounded-lg border border-teal-500 bg-teal-500/10 text-left flex flex-col gap-0.5 transition-all duration-200 shadow shadow-teal-500/10";
+            }
+        }
+
+        // Toggle guidelines visibility
+        function toggleGuides() {
+            const pages = document.querySelectorAll('.a4-page');
+            const showBleed = document.getElementById('toggle-bleed-guide').checked;
+            const showSafe = document.getElementById('toggle-safe-guide').checked;
+            const showCrop = document.getElementById('toggle-crop-marks').checked;
+
+            pages.forEach(p => {
+                if (showBleed) p.classList.add('show-bleed-guide');
+                else p.classList.remove('show-bleed-guide');
+
+                if (showSafe) p.classList.add('show-safe-guide');
+                else p.classList.remove('show-safe-guide');
+
+                if (showCrop) p.classList.add('show-crop-marks');
+                else p.classList.remove('show-crop-marks');
+            });
+        }
+
+        // Handle screen viewport preview scaling factors
+        function handleScaling() {
+            const wrapper = document.getElementById('canvas-wrapper');
+            const activePage = document.querySelector('.a4-page.active-page');
+            if (!activePage) return;
+            const mainContainer = wrapper.parentElement;
+            
+            const pageW = 816.38;  // Width at 96 DPI
+            const pageH = 1145.20; // Height at 96 DPI
+            
+            const containerW = mainContainer.clientWidth;
+            const containerH = mainContainer.clientHeight;
+            
+            const scaleW = (containerW - 32) / pageW;
+            const scaleH = (containerH - 32) / pageH;
+            const scaleFactor = Math.min(scaleW, scaleH, 1);
+            
+            // Scale active page
+            activePage.style.transform = `scale(${scaleFactor})`;
+            activePage.style.transformOrigin = 'center center';
+            
+            wrapper.style.width = `${pageW * scaleFactor}px`;
+            wrapper.style.height = `${pageH * scaleFactor}px`;
+        }
+
+        // Initialize elements
+        window.onload = function () {
+            // Populate inputs from default data sets
+            document.getElementById('input-headline').value = cleanData.headline;
+            document.getElementById('input-contact1').value = cleanData.contact1;
+            document.getElementById('input-contact2').value = cleanData.contact2;
+            document.getElementById('input-email').value = cleanData.email;
+            document.getElementById('input-web').value = cleanData.web;
+
+            // Render navigation elements
+            renderTOC();
+            showPage(1);
+
+            // Render active components
+            calculateSandbox();
+            renderBedGrid();
+
+            window.addEventListener('resize', handleScaling);
+        };
+    </script>
+</body>
+
+</html>
