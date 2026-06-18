@@ -148,10 +148,13 @@ export default function DiagnosticsCenterPage() {
         setIsUploading(true);
 
         const formData = new FormData();
-        formData.append("file", selectedFile);
+        formData.append("order_id", uploadOrder.order_id.toString());
+        formData.append("test_id", uploadOrder.test_id.toString());
+        formData.append("result_value", "Report Uploaded");
+        if (selectedFile) formData.append("file", selectedFile);
 
         try {
-            await apiFetch(`lab/results/${uploadOrder.order_id}/${uploadOrder.test_id}/upload`, {
+            await apiFetch(`lab/results/upload`, {
                 method: 'POST',
                 body: formData
             });

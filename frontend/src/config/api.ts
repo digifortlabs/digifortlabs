@@ -96,6 +96,10 @@ async function doFetch(url: string, _path: string, options: any, token: string |
     if (body && typeof body === 'object' && !(body instanceof URLSearchParams) && !(body instanceof FormData)) {
         body = JSON.stringify(body);
     }
+    
+    if (body instanceof FormData) {
+        delete headers['Content-Type'];
+    }
 
     return fetch(url, {
         credentials: 'include',
