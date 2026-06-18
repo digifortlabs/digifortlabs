@@ -11,6 +11,7 @@ export default function PharmacyLayout({ children }: { children: React.ReactNode
         { name: "OPD Prescriptions", href: "/hospital/pharmacy", icon: Pill },
         { name: "IPD Orders", href: "/hospital/pharmacy/ipd-orders", icon: Activity },
         { name: "POS / Direct Sales", href: "/hospital/pharmacy/pos", icon: ShoppingCart },
+        { name: "Sales History", href: "/hospital/pharmacy/sales-history", icon: Activity },
         { name: "Purchase & Inward", href: "/hospital/pharmacy/purchases", icon: PackagePlus },
         { name: "Suppliers", href: "/hospital/pharmacy/suppliers", icon: Truck },
     ];
