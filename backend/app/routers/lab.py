@@ -156,6 +156,50 @@ def add_catalog_item(
     db.refresh(new_test)
     return new_test
 
+@router.put("/catalog/{test_id}")
+def update_catalog_item(
+    test_id: int,
+    payload: LabTestCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    target_hospital = current_user.hospital_id
+    
+    existing = db.query(LabTestCatalog).filter(
+        LabTestCatalog.hospital_id == target_hospital, 
+        LabTestCatalog.test_id == test_id
+    ).first()
+    
+    if not existing:
+        raise HTTPException(status_code=404, detail="Test not found in catalog")
+        
+    existing.test_name = payload.test_name
+    existing.price = payload.price
+    
+    db.commit()
+    db.refresh(existing)
+    return existing
+
+@router.delete("/catalog/{test_id}")
+def delete_catalog_item(
+    test_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    target_hospital = current_user.hospital_id
+    
+    existing = db.query(LabTestCatalog).filter(
+        LabTestCatalog.hospital_id == target_hospital, 
+        LabTestCatalog.test_id == test_id
+    ).first()
+    
+    if not existing:
+        raise HTTPException(status_code=404, detail="Test not found in catalog")
+        
+    db.delete(existing)
+    db.commit()
+    return {"message": "Test removed from catalog"}
+
 @router.post("/orders")
 def create_orders(
     payload: OrderRequest,

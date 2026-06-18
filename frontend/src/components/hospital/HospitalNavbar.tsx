@@ -56,6 +56,7 @@ const CATEGORIZED_NAV_ITEMS = [
             { label: 'ENT Specialty', href: '/hospital/ent', icon: Ear, roles: ['hospital_admin', 'doctor_opd'], module: 'ent' },
             { label: 'Operation Theater', href: '/hospital/ot', icon: Scissors, roles: ['hospital_admin', 'doctor_opd', 'doctor_ipd', 'nurse_ipd'], module: 'hms' },
             { label: 'Pharmacy', href: '/hospital/pharmacy', icon: Pill, roles: ['hospital_admin', 'pharmacy_staff'], module: 'pharmacy' },
+            { label: 'Diagnostics Center', href: '/hospital/diagnostics', icon: Activity, roles: ['hospital_admin', 'doctor_both', 'doctor_ipd', 'doctor_opd', 'nurse_ipd'], module: 'diagnostics' },
         ]
     },
     {
