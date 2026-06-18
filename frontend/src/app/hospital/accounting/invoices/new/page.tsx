@@ -1,152 +1,118 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/config/api';
 import { toast } from 'sonner';
 import { 
-    FileText, Plus, Trash2, IndianRupee, Save, ArrowLeft, Loader2, CheckSquare, Square
+    FileText, ArrowLeft, Plus, Trash2, IndianRupee, Save, Loader2, CheckCircle2, Receipt, AlertCircle, ShoppingCart
 } from 'lucide-react';
 
-interface UnbilledItem {
+interface InvoiceItem {
     description: string;
     qty: number;
     unit_price: number;
     discount: number;
     charge_type: string;
-    reference_id: number;
-    date?: string;
+    reference_id?: number;
 }
 
-interface CustomItem {
-    description: string;
-    qty: number;
-    unit_price: number;
-    discount: number;
-    charge_type: string;
-}
-
-export default function NewPatientInvoicePage() {
+export default function CompileInvoicePage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const patientId = searchParams?.get('patient_id');
+    const patientId = searchParams.get('patient_id');
+
+    const [patient, setPatient] = useState<any>(null);
+    const [hospital, setHospital] = useState<any>(null);
+    
+    // items from unbilled records
+    const [serverItems, setServerItems] = useState<any[]>([]);
+    // indices of selected server items
+    const [selectedServerIndices, setSelectedServerIndices] = useState<Set<number>>(new Set());
+
+    // items manually added
+    const [customItems, setCustomItems] = useState<any[]>([]);
+
+    const [overallDiscount, setOverallDiscount] = useState<number | string>('');
+    const [gstRate, setGstRate] = useState<number | string>(18);
+    const [paymentMethod, setPaymentMethod] = useState('CASH');
+    const [transactionId, setTransactionId] = useState('');
+    const [remarks, setRemarks] = useState('');
 
     const [loading, setLoading] = useState(true);
-    const [patientInfo, setPatientInfo] = useState<any>(null);
-    const [hospitalHasGst, setHospitalHasGst] = useState<boolean>(true);
-    
-    // Unbilled items fetched from server
-    const [serverItems, setServerItems] = useState<UnbilledItem[]>([]);
-    const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
-
-    // Custom items added by user
-    const [customItems, setCustomItems] = useState<CustomItem[]>([]);
-    
-    // Billing options
-    const [gstRate, setGstRate] = useState<number>(18.0);
-    const [overallDiscount, setOverallDiscount] = useState<number>(0.0);
-    const [paymentMethod, setPaymentMethod] = useState<string>("CASH");
-    const [transactionId, setTransactionId] = useState<string>("");
-    const [remarks, setRemarks] = useState<string>("");
-
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        if (patientId) {
-            fetchUnbilledRecords();
-        } else {
-            toast.error("No patient selected");
+        if (!patientId) {
             router.push('/hospital/accounting');
+            return;
         }
+        loadData();
     }, [patientId]);
 
-    const fetchUnbilledRecords = async () => {
+    const loadData = async () => {
         try {
             setLoading(true);
-            const data = await apiFetch(`/patient-billing/unbilled/${patientId}`);
-            setPatientInfo(data.patient);
-            setHospitalHasGst(data.hospital_has_gst ?? true);
-            if (data.hospital_has_gst === false) {
-                setGstRate(0);
+            const pData = await apiFetch(`patients/${patientId}`);
+            setPatient(pData);
+            
+            if (pData.hospital_id) {
+                const hData = await apiFetch(`hospitals/${pData.hospital_id}`);
+                setHospital(hData);
             }
-            setServerItems(data.unbilled_items || []);
-            // Auto-select all unbilled items by default
-            setSelectedIndices((data.unbilled_items || []).map((_: any, idx: number) => idx));
+
+            const unbilledData = await apiFetch(`/patient-billing/unbilled/${patientId}`);
+            setServerItems(unbilledData || []);
+            setSelectedServerIndices(new Set(unbilledData.map((_: any, idx: number) => idx)));
+
         } catch (error: any) {
-            console.error('Failed to load unbilled records:', error);
-            toast.error(error.message || 'Failed to load patient records');
+            console.error('Failed to load billing data:', error);
+            toast.error(error.message || 'Failed to load billing data');
         } finally {
             setLoading(false);
         }
     };
 
-    const toggleSelectItem = (index: number) => {
-        setSelectedIndices(prev => 
-            prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
-        );
+    const handleToggleServerItem = (idx: number) => {
+        const newSet = new Set(selectedServerIndices);
+        if (newSet.has(idx)) {
+            newSet.delete(idx);
+        } else {
+            newSet.add(idx);
+        }
+        setSelectedServerIndices(newSet);
+    };
+
+    const handleUpdateServerItem = (idx: number, field: string, value: any) => {
+        const copy = [...serverItems];
+        copy[idx] = { ...copy[idx], [field]: value };
+        setServerItems(copy);
     };
 
     const handleAddCustomItem = () => {
-        setCustomItems(prev => [
-            ...prev,
-            { description: "", qty: 1, unit_price: 0, discount: 0, charge_type: "CUSTOM" }
-        ]);
+        setCustomItems([...customItems, {
+            description: '',
+            qty: 1,
+            unit_price: '',
+            discount: '',
+            charge_type: 'CUSTOM'
+        }]);
     };
 
-    const handleUpdateCustomItem = (index: number, field: keyof CustomItem, value: any) => {
-        setCustomItems(prev => {
-            const copy = [...prev];
-            copy[index] = {
-                ...copy[index],
-                [field]: value
-            };
-            return copy;
-        });
+    const handleUpdateCustomItem = (idx: number, field: string, value: any) => {
+        const copy = [...customItems];
+        copy[idx] = { ...copy[idx], [field]: value };
+        setCustomItems(copy);
     };
 
-    const handleRemoveCustomItem = (index: number) => {
-        setCustomItems(prev => prev.filter((_, i) => i !== index));
+    const handleRemoveCustomItem = (idx: number) => {
+        const copy = [...customItems];
+        copy.splice(idx, 1);
+        setCustomItems(copy);
     };
 
-    const handleUpdateServerItem = (index: number, field: keyof UnbilledItem, value: any) => {
-        setServerItems(prev => {
-            const copy = [...prev];
-            copy[index] = {
-                ...copy[index],
-                [field]: value
-            };
-            return copy;
-        });
-    };
-
-    // Calculate totals
-    const subtotal = (() => {
-        let total = 0.0;
-        // Selected unbilled items
-        selectedIndices.forEach(idx => {
-            const item = serverItems[idx];
-            if (item) {
-                const qty = Number(item.qty) || 0;
-                const price = Number(item.unit_price) || 0;
-                const disc = Number(item.discount) || 0;
-                total += (qty * price) - disc;
-            }
-        });
-        // Custom items
-        customItems.forEach(item => {
-            const qty = Number(item.qty) || 0;
-            const price = Number(item.unit_price) || 0;
-            const disc = Number(item.discount) || 0;
-            total += (qty * price) - disc;
-        });
-        return total;
-    })();
-
-    const taxAmount = (subtotal * gstRate) / 100.0;
-    const totalAmount = Math.max(0, subtotal - overallDiscount + taxAmount);
-
-    const handleGenerateInvoice = async () => {
-        const selectedItems = selectedIndices.map(idx => ({
+    const getValidatedSelectedItems = () => {
+        const selected = Array.from(selectedServerIndices).map(idx => ({
             description: serverItems[idx].description,
             qty: Number(serverItems[idx].qty) || 0,
             unit_price: Number(serverItems[idx].unit_price) || 0,
@@ -155,7 +121,7 @@ export default function NewPatientInvoicePage() {
             reference_id: serverItems[idx].reference_id
         }));
 
-        const validatedCustomItems = customItems.filter(i => i.description.trim() !== "").map(i => ({
+        const validatedCustom = customItems.filter(i => i.description.trim() !== "").map(i => ({
             description: i.description,
             qty: Number(i.qty) || 0,
             unit_price: Number(i.unit_price) || 0,
@@ -163,7 +129,35 @@ export default function NewPatientInvoicePage() {
             charge_type: i.charge_type
         }));
 
-        const allItems = [...selectedItems, ...validatedCustomItems];
+        return [...selected, ...validatedCustom];
+    };
+
+    const totals = useMemo(() => {
+        const items = getValidatedSelectedItems();
+        let sub = 0;
+        items.forEach(item => {
+            sub += (item.qty * item.unit_price) - item.discount;
+        });
+
+        const disc = Number(overallDiscount) || 0;
+        const afterDisc = Math.max(0, sub - disc);
+        
+        const gRate = Number(gstRate) || 0;
+        const gstAmt = (afterDisc * gRate) / 100;
+        
+        const finalAmt = afterDisc + gstAmt;
+
+        return {
+            subtotal: sub,
+            afterDiscount: afterDisc,
+            gstAmount: gstAmt,
+            finalAmount: finalAmt,
+            items
+        };
+    }, [serverItems, selectedServerIndices, customItems, overallDiscount, gstRate]);
+
+    const handleGenerateInvoice = async () => {
+        const allItems = getValidatedSelectedItems();
 
         if (allItems.length === 0) {
             toast.error("Please add at least one line item to generate the invoice");
@@ -175,8 +169,8 @@ export default function NewPatientInvoicePage() {
             const payload = {
                 patient_id: Number(patientId),
                 items: allItems,
-                discount_amount: Number(overallDiscount),
-                gst_rate: Number(gstRate),
+                discount_amount: Number(overallDiscount) || 0,
+                gst_rate: Number(gstRate) || 0,
                 payment_method: paymentMethod,
                 transaction_id: transactionId || null,
                 remarks: remarks || null
@@ -199,157 +193,128 @@ export default function NewPatientInvoicePage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4 text-slate-400">
-                <Loader2 className="animate-spin text-indigo-600" size={48} />
-                <p className="font-bold text-lg text-slate-900">Loading Patient Records...</p>
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-500">
+                <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mb-4" />
+                <p className="font-bold tracking-widest uppercase text-sm">Compiling Ledger Data...</p>
             </div>
         );
     }
 
+    if (!patient) {
+        return <div className="p-8 text-center text-rose-500">Patient not found</div>;
+    }
+
     return (
-        <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500 pb-24">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <button 
-                        onClick={() => router.push('/hospital/accounting')}
-                        className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm text-slate-500"
-                    >
-                        <ArrowLeft size={20} />
-                    </button>
-                    <div>
-                        <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                            <FileText className="text-indigo-600" /> Compile Patient Invoice
-                        </h1>
-                        <p className="text-slate-500 text-sm font-medium">Create a patient bill from unbilled visits or custom charges.</p>
-                    </div>
+        <div className="p-4 md:p-8 max-w-[1400px] mx-auto min-h-screen bg-slate-50/50 animate-in fade-in duration-500">
+            
+            <div className="flex items-center gap-4 mb-8">
+                <button 
+                    onClick={() => router.back()}
+                    className="p-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl transition-all shadow-sm group"
+                >
+                    <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+                </button>
+                <div>
+                    <h1 className="text-3xl font-black tracking-tight text-slate-900">Compile Invoice</h1>
+                    <p className="text-slate-500 font-medium">Review unbilled clinical items and add custom charges</p>
                 </div>
             </div>
 
-            {/* Patient Card */}
-            {patientInfo && (
-                <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-xl border border-slate-800 grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div>
-                        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Patient Name</p>
-                        <p className="font-black text-lg text-indigo-300 mt-0.5">{patientInfo.name}</p>
-                    </div>
-                    <div>
-                        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">MRD / UHID</p>
-                        <p className="font-bold text-sm mt-0.5 font-mono text-white">{patientInfo.mrd_number}</p>
-                    </div>
-                    <div>
-                        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Phone</p>
-                        <p className="font-semibold text-sm mt-0.5">{patientInfo.phone || '-'}</p>
-                    </div>
-                    <div>
-                        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Email</p>
-                        <p className="font-semibold text-sm mt-0.5 text-slate-300">{patientInfo.email || '-'}</p>
-                    </div>
-                </div>
-            )}
-
-            {/* Main Billing Compiler Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="flex flex-col lg:flex-row gap-8">
                 
-                {/* Left Side: Items selection and creation */}
-                <div className="lg:col-span-2 space-y-6">
+                <div className="flex-1 space-y-6">
                     
-                    {/* Unbilled Records from Server */}
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-                        <h3 className="font-black text-slate-950 flex items-center gap-2">
-                            <CheckSquare className="text-indigo-600" size={18} /> Selected Unbilled Records ({selectedIndices.length})
-                        </h3>
-                        
+                    <div className="bg-indigo-900 text-white p-6 rounded-3xl shadow-xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none"></div>
+                        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <p className="text-indigo-200 text-sm font-bold tracking-widest uppercase mb-1">Billing Account</p>
+                                <h2 className="text-2xl font-black">{patient.full_name}</h2>
+                                <p className="text-indigo-100 font-mono text-sm opacity-80">{patient.patient_u_id}</p>
+                            </div>
+                            <div className="flex items-center gap-2 bg-black/20 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10">
+                                <Receipt className="text-indigo-300" size={20} />
+                                <span className="font-bold text-sm tracking-wide">Pending Finalization</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                            <h3 className="font-black text-slate-900 flex items-center gap-2 text-lg">
+                                <AlertCircle className="text-amber-500" size={20} /> Unbilled Clinical Records
+                            </h3>
+                            <p className="text-sm text-slate-500 font-medium mt-1">Automatically pulled from IPD, OPD, and Dental records</p>
+                        </div>
+
                         {serverItems.length === 0 ? (
-                            <p className="text-slate-400 text-sm font-medium py-4 text-center border border-dashed border-slate-200 rounded-xl">
-                                No outstanding unbilled visits, treatments, or stays found for this patient.
-                            </p>
+                            <div className="p-12 flex flex-col items-center justify-center text-center">
+                                <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mb-4">
+                                    <CheckCircle2 size={32} />
+                                </div>
+                                <p className="text-slate-900 font-bold text-lg mb-1">No pending clinical charges</p>
+                                <p className="text-slate-500 text-sm">All automated records have been billed.</p>
+                            </div>
                         ) : (
-                            <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                            <div className="p-6 space-y-4">
                                 {serverItems.map((item, idx) => {
-                                    const isSelected = selectedIndices.includes(idx);
+                                    const isSelected = selectedServerIndices.has(idx);
                                     return (
                                         <div 
                                             key={idx} 
-                                            className={`p-4 flex flex-col md:flex-row items-start md:items-center gap-4 transition-colors ${
-                                                isSelected ? 'bg-indigo-50/5' : 'bg-slate-50/30'
+                                            className={`p-4 rounded-2xl border-2 transition-all ${
+                                                isSelected 
+                                                ? 'border-indigo-500 bg-indigo-50/30 shadow-sm' 
+                                                : 'border-slate-100 bg-white opacity-60'
                                             }`}
                                         >
-                                            <div className="flex items-center gap-3 w-full md:w-auto">
-                                                <div 
-                                                    onClick={() => toggleSelectItem(idx)}
-                                                    className="text-indigo-600 cursor-pointer hover:scale-105 transition-transform"
-                                                >
-                                                    {isSelected ? <CheckSquare size={22} /> : <Square size={22} />}
-                                                </div>
-                                                <div className="flex-1 md:hidden">
-                                                    <span className="text-[10px] uppercase tracking-wider font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded">
-                                                        {item.charge_type.replace('_', ' ')}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="flex-1 min-w-0 space-y-1 w-full">
-                                                <input 
-                                                    type="text"
-                                                    value={item.description}
-                                                    disabled={!isSelected}
-                                                    onChange={(e) => handleUpdateServerItem(idx, 'description', e.target.value)}
-                                                    className="w-full px-3 py-1.5 bg-white disabled:bg-slate-50 border border-slate-200 disabled:border-slate-100 rounded-lg text-sm font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm transition-all"
-                                                    placeholder="Description"
-                                                />
-                                                <div className="hidden md:flex items-center gap-2">
-                                                    <span className="text-[9px] uppercase tracking-wider font-extrabold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
-                                                        {item.charge_type.replace('_', ' ')}
-                                                    </span>
-                                                    {item.date && (
-                                                        <span className="text-[10px] text-slate-400 font-semibold">
-                                                            Date: {new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
-                                                <div className="w-16">
-                                                    <span className="block md:hidden text-[9px] uppercase font-bold text-slate-400 mb-1">Qty</span>
+                                            <div className="flex flex-col md:flex-row gap-4">
+                                                <div className="flex items-start gap-3 flex-1">
                                                     <input 
-                                                        type="number" 
-                                                        placeholder="Qty"
-                                                        value={item.qty}
-                                                        min="1"
-                                                        disabled={!isSelected}
-                                                        onChange={(e) => handleUpdateServerItem(idx, 'qty', Number(e.target.value))}
-                                                        className="w-full px-2 py-1.5 bg-white disabled:bg-slate-50 border border-slate-200 disabled:border-slate-100 rounded-lg text-sm text-center focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm"
+                                                        type="checkbox" 
+                                                        checked={isSelected}
+                                                        onChange={() => handleToggleServerItem(idx)}
+                                                        className="mt-1.5 w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                                                     />
+                                                    <div className="w-full">
+                                                        <p className="font-bold text-slate-900">{item.description}</p>
+                                                        <span className="inline-block mt-1 px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-black tracking-widest uppercase rounded">
+                                                            {item.charge_type.replace('_', ' ')}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                                 
-                                                <div className="w-28 relative">
-                                                    <span className="block md:hidden text-[9px] uppercase font-bold text-slate-400 mb-1">Price (₹)</span>
-                                                    <div className="relative">
-                                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
+                                                <div className="flex items-center gap-3 w-full md:w-auto ml-8 md:ml-0">
+                                                    <div className="w-20">
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Qty</label>
                                                         <input 
                                                             type="number" 
-                                                            placeholder="Price"
+                                                            value={item.qty}
+                                                            disabled={!isSelected}
+                                                            onChange={(e) => handleUpdateServerItem(idx, 'qty', Number(e.target.value))}
+                                                            className="w-full px-3 py-2 bg-white disabled:bg-transparent border border-slate-200 disabled:border-transparent rounded-xl text-sm text-center font-bold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                                                        />
+                                                    </div>
+                                                    <div className="w-28 relative">
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Price</label>
+                                                        <span className="absolute left-3 top-[30px] text-slate-400 font-medium">₹</span>
+                                                        <input 
+                                                            type="number" 
                                                             value={item.unit_price}
                                                             disabled={!isSelected}
                                                             onChange={(e) => handleUpdateServerItem(idx, 'unit_price', Number(e.target.value))}
-                                                            className="w-full pl-6 pr-2 py-1.5 bg-white disabled:bg-slate-50 border border-slate-200 disabled:border-slate-100 rounded-lg text-sm font-black text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm"
+                                                            className="w-full pl-7 pr-3 py-2 bg-white disabled:bg-transparent border border-slate-200 disabled:border-transparent rounded-xl text-sm font-black text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                                                         />
                                                     </div>
-                                                </div>
-
-                                                <div className="w-24 relative">
-                                                    <span className="block md:hidden text-[9px] uppercase font-bold text-slate-400 mb-1">Disc (₹)</span>
-                                                    <div className="relative">
-                                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">-₹</span>
+                                                    <div className="w-24 relative">
+                                                        <label className="text-[10px] font-bold text-rose-400 uppercase ml-1">Disc</label>
+                                                        <span className="absolute left-2.5 top-[30px] text-rose-400 font-medium">-₹</span>
                                                         <input 
                                                             type="number" 
-                                                            placeholder="Discount"
                                                             value={item.discount}
                                                             disabled={!isSelected}
                                                             onChange={(e) => handleUpdateServerItem(idx, 'discount', Number(e.target.value))}
-                                                            className="w-full pl-5 pr-2 py-1.5 bg-white disabled:bg-slate-50 border border-slate-200 disabled:border-slate-100 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm text-rose-600 font-bold"
+                                                            className="w-full pl-7 pr-3 py-2 bg-white disabled:bg-transparent border border-rose-200 disabled:border-transparent rounded-xl text-sm font-bold text-rose-600 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition-all"
                                                         />
                                                     </div>
                                                 </div>
@@ -361,71 +326,73 @@ export default function NewPatientInvoicePage() {
                         )}
                     </div>
 
-                    {/* Custom charges compiler */}
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-                        <div className="flex justify-between items-center">
-                            <h3 className="font-black text-slate-950 flex items-center gap-2">
-                                <Plus className="text-indigo-600" size={18} /> Additional Custom Charges
-                            </h3>
+                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="p-6 flex justify-between items-center border-b border-slate-100 bg-slate-50/50">
+                            <div>
+                                <h3 className="font-black text-slate-900 flex items-center gap-2 text-lg">
+                                    <ShoppingCart className="text-emerald-500" size={20} /> Additional Charges
+                                </h3>
+                                <p className="text-sm text-slate-500 font-medium mt-1">Add Pharmacy, Lab, or Misc charges manually</p>
+                            </div>
                             <button 
                                 onClick={handleAddCustomItem}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-sm font-black transition-colors border border-emerald-200/50"
                             >
-                                <Plus size={14} /> Add Line Item
+                                <Plus size={16} /> Add Item
                             </button>
                         </div>
 
                         {customItems.length === 0 ? (
-                            <p className="text-slate-400 text-sm font-medium py-6 text-center border border-dashed border-slate-200 rounded-xl">
-                                Click "Add Line Item" to add pharmacy, laboratory, or misc charges.
-                            </p>
+                            <div className="p-10 text-center bg-slate-50/30">
+                                <p className="text-slate-400 font-medium text-sm">No custom line items added yet.</p>
+                            </div>
                         ) : (
-                            <div className="space-y-3">
+                            <div className="p-6 space-y-4">
                                 {customItems.map((item, idx) => (
-                                    <div key={idx} className="flex flex-col md:flex-row items-start md:items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl animate-in slide-in-from-top-1 duration-200">
+                                    <div key={idx} className="flex flex-col md:flex-row items-start md:items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl animate-in slide-in-from-top-2 duration-300">
                                         <input 
                                             type="text" 
                                             placeholder="Charge description (e.g. Pharmacy, ECG)"
                                             value={item.description}
                                             onChange={(e) => handleUpdateCustomItem(idx, 'description', e.target.value)}
-                                            className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm"
+                                            className="flex-1 w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
                                         />
-                                        <div className="flex items-center gap-2 w-full md:w-auto">
-                                            <div className="w-16">
+                                        <div className="flex items-center gap-3 w-full md:w-auto">
+                                            <div className="w-20">
                                                 <input 
                                                     type="number" 
                                                     placeholder="Qty"
                                                     value={item.qty}
                                                     min="1"
                                                     onChange={(e) => handleUpdateCustomItem(idx, 'qty', Number(e.target.value))}
-                                                    className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm text-center focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm"
+                                                    className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
                                                 />
                                             </div>
-                                            <div className="w-28 relative">
-                                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">₹</span>
+                                            <div className="w-32 relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">₹</span>
                                                 <input 
                                                     type="number" 
                                                     placeholder="Price"
                                                     value={item.unit_price || ''}
                                                     onChange={(e) => handleUpdateCustomItem(idx, 'unit_price', Number(e.target.value))}
-                                                    className="w-full pl-6 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm font-bold"
+                                                    className="w-full pl-8 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-black focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
                                                 />
                                             </div>
-                                            <div className="w-24 relative">
-                                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">-₹</span>
+                                            <div className="w-28 relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-400 font-medium">-₹</span>
                                                 <input 
                                                     type="number" 
                                                     placeholder="Disc"
                                                     value={item.discount || ''}
                                                     onChange={(e) => handleUpdateCustomItem(idx, 'discount', Number(e.target.value))}
-                                                    className="w-full pl-5 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm text-center focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-sm text-rose-600 font-bold"
+                                                    className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all shadow-sm"
                                                 />
                                             </div>
                                             <button 
                                                 onClick={() => handleRemoveCustomItem(idx)}
-                                                className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-100"
+                                                className="p-3 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
                                             >
-                                                <Trash2 size={16} />
+                                                <Trash2 size={18} />
                                             </button>
                                         </div>
                                     </div>
@@ -435,132 +402,126 @@ export default function NewPatientInvoicePage() {
                     </div>
                 </div>
 
-                {/* Right Side: Total Summary Panel & Payment settings */}
-                <div className="space-y-6">
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6 sticky top-6">
-                        <h3 className="font-black text-slate-950 pb-3 border-b border-slate-100">Invoice Settings & Summary</h3>
+                <div className="w-full lg:w-[420px] space-y-6">
+                    <div className="sticky top-6 space-y-6">
                         
-                        {/* Summary details */}
-                        <div className="space-y-3 text-sm font-medium">
-                            <div className="flex justify-between text-slate-500">
-                                <span>Subtotal</span>
-                                <span className="font-bold text-slate-900">₹ {subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                            </div>
+                        <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-slate-200 overflow-hidden relative">
+                            <div className="h-2 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500"></div>
                             
-                            {/* GST Rate */}
-                            {hospitalHasGst && (
-                                <>
-                                    <div className="flex items-center justify-between gap-4 py-1.5 border-y border-slate-50">
-                                        <span className="text-slate-500">GST Rate (%)</span>
-                                        <div className="w-20">
-                                            <select 
-                                                value={gstRate}
-                                                onChange={(e) => setGstRate(Number(e.target.value))}
-                                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm text-center font-bold focus:outline-none"
-                                            >
-                                                <option value="0">0%</option>
-                                                <option value="5">5%</option>
-                                                <option value="12">12%</option>
-                                                <option value="18">18%</option>
-                                                <option value="28">28%</option>
-                                            </select>
+                            <div className="p-6">
+                                <h3 className="font-black text-xl text-slate-900 mb-6 flex items-center gap-2">
+                                    <IndianRupee className="text-emerald-500" size={24} /> Live Receipt
+                                </h3>
+                                
+                                <div className="space-y-4 text-sm font-bold border-b border-slate-100 pb-6 mb-6">
+                                    <div className="flex justify-between items-center text-slate-600">
+                                        <span>Total Line Items</span>
+                                        <span className="text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg">{totals.items.length}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-slate-600">
+                                        <span>Subtotal</span>
+                                        <span className="text-slate-900 tracking-tight">₹ {totals.subtotal.toFixed(2)}</span>
+                                    </div>
+                                    
+                                    <div className="flex justify-between items-center text-rose-600">
+                                        <span>Extra Discount</span>
+                                        <div className="w-24 relative">
+                                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-medium">-₹</span>
+                                            <input 
+                                                type="number"
+                                                value={overallDiscount}
+                                                onChange={(e) => setOverallDiscount(e.target.value)}
+                                                className="w-full pl-8 pr-2 py-1.5 bg-rose-50 border border-rose-200 rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                                                placeholder="0"
+                                            />
                                         </div>
                                     </div>
                                     
-                                    <div className="flex justify-between text-slate-500">
-                                        <span>Calculated GST</span>
-                                        <span className="font-bold text-slate-900">₹ {taxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                    <div className="flex justify-between items-center text-slate-600">
+                                        <span>Apply GST (%)</span>
+                                        <div className="w-24 relative">
+                                            <input 
+                                                type="number"
+                                                value={gstRate}
+                                                onChange={(e) => setGstRate(e.target.value)}
+                                                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium">%</span>
+                                        </div>
                                     </div>
-                                </>
-                            )}
-
-                            {/* Overall Discount */}
-                            <div className="flex items-center justify-between gap-4 py-1.5 border-b border-slate-50">
-                                <span className="text-slate-500">Invoice Discount</span>
-                                <div className="w-28 relative">
-                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">₹</span>
-                                    <input 
-                                        type="number"
-                                        value={overallDiscount || ''}
-                                        onChange={(e) => setOverallDiscount(Number(e.target.value))}
-                                        placeholder="Discount"
-                                        className="w-full pl-5 pr-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-sm text-right font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                    />
+                                    {totals.gstAmount > 0 && (
+                                        <div className="flex justify-between items-center text-slate-500 text-xs">
+                                            <span>+ GST Amount</span>
+                                            <span>₹ {totals.gstAmount.toFixed(2)}</span>
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-
-                            <div className="flex justify-between items-center bg-indigo-50 text-indigo-900 p-4 rounded-xl">
-                                <span className="font-black text-xs uppercase tracking-wider">Total Amount</span>
-                                <span className="text-xl font-black flex items-center gap-0.5">
-                                    <IndianRupee className="w-4 h-4" /> {totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                </span>
+                                
+                                <div className="flex justify-between items-end bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                                    <span className="font-bold text-indigo-900 uppercase tracking-widest text-[10px]">Grand Total</span>
+                                    <span className="font-black text-3xl tracking-tighter text-indigo-700">₹ {totals.finalAmount.toFixed(2)}</span>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Payment settings */}
-                        <div className="space-y-4 pt-4 border-t border-slate-100">
-                            <h4 className="text-xs uppercase font-black text-slate-400 tracking-wider">Payment Details</h4>
+                        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-5">
+                            <h3 className="font-black text-slate-900 border-b border-slate-100 pb-3">Payment Details</h3>
                             
-                            <div className="space-y-3">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Payment Method</label>
-                                    <select 
-                                        value={paymentMethod}
-                                        onChange={(e) => setPaymentMethod(e.target.value)}
-                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                    >
-                                        <option value="CASH">Cash Payment</option>
-                                        <option value="CARD">Debit/Credit Card</option>
-                                        <option value="QR_CODE">QR Code Transfer</option>
-                                        <option value="VOUCHER">Medical Voucher</option>
-                                        <option value="GOVT_SCHEME">Govt. Scheme / Insurance</option>
-                                    </select>
-                                </div>
-
-                                {paymentMethod !== "CASH" && (
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Transaction / Reference ID</label>
-                                        <input 
-                                            type="text"
-                                            value={transactionId}
-                                            onChange={(e) => setTransactionId(e.target.value)}
-                                            placeholder="Enter Txn ID / Approval Code"
-                                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                        />
-                                    </div>
-                                )}
-
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Billing Remarks</label>
-                                    <textarea 
-                                        value={remarks}
-                                        onChange={(e) => setRemarks(e.target.value)}
-                                        placeholder="Optional internal remarks"
-                                        rows={2}
-                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Payment Method</label>
+                                <select 
+                                    value={paymentMethod}
+                                    onChange={(e) => setPaymentMethod(e.target.value)}
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+                                >
+                                    <option value="CASH">Cash Payment</option>
+                                    <option value="UPI">UPI / QR Code</option>
+                                    <option value="CARD">Credit/Debit Card</option>
+                                    <option value="BANK_TRANSFER">Bank Transfer</option>
+                                    <option value="PENDING">Mark as Pending/Due</option>
+                                </select>
+                            </div>
+                            
+                            {paymentMethod !== 'CASH' && paymentMethod !== 'PENDING' && (
+                                <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Transaction ID (Optional)</label>
+                                    <input 
+                                        type="text"
+                                        value={transactionId}
+                                        onChange={(e) => setTransactionId(e.target.value)}
+                                        placeholder="e.g. UTR or Ref number"
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                                     />
                                 </div>
-                            </div>
-                        </div>
-
-                        {/* Save Trigger */}
-                        <button 
-                            onClick={handleGenerateInvoice}
-                            disabled={saving}
-                            className="w-full flex items-center justify-center gap-2 py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold transition-all shadow-lg disabled:opacity-50"
-                        >
-                            {saving ? (
-                                <>
-                                    <Loader2 className="animate-spin" size={18} /> Generating Invoice...
-                                </>
-                            ) : (
-                                <>
-                                    <Save size={18} /> Generate Bill & Print
-                                </>
                             )}
-                        </button>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Invoice Remarks</label>
+                                <textarea 
+                                    rows={2}
+                                    value={remarks}
+                                    onChange={(e) => setRemarks(e.target.value)}
+                                    placeholder="Internal notes or terms to print..."
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none"
+                                />
+                            </div>
+
+                            <button 
+                                onClick={handleGenerateInvoice}
+                                disabled={saving}
+                                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-sm transition-all shadow-[0_8px_20px_rgba(79,70,229,0.3)] hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2"
+                            >
+                                {saving ? (
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                ) : (
+                                    <Save className="w-5 h-5" />
+                                )}
+                                {saving ? 'Finalizing Ledger...' : 'Generate Official Invoice'}
+                            </button>
+                        </div>
                     </div>
                 </div>
+
             </div>
         </div>
     );

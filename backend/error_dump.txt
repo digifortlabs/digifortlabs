@@ -3,8 +3,8 @@ Traceback (most recent call last):
     self.dialect.do_execute(
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
     cursor.execute(statement, parameters)
-psycopg2.errors.UndefinedColumn: column ipd_admissions.fluid_balance_log does not exist
-LINE 1: ...ions.doctor_notes AS ipd_admissions_doctor_notes, ipd_admiss...
+psycopg2.errors.UndefinedColumn: column patients.advance_balance does not exist
+LINE 1: ....total_bill_amount AS patients_total_bill_amount, patients.a...
                                                              ^
 
 
@@ -24,7 +24,7 @@ Traceback (most recent call last):
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
     response = await self.dispatch_func(request, call_next)
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\app\middleware\bandwidth.py", line 19, in dispatch
+  File "D:\Website\DIGIFORTLABS\backend\app\middleware\bandwidth.py", line 34, in dispatch
     return await call_next(request)
            ^^^^^^^^^^^^^^^^^^^^^^^^
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
@@ -136,9 +136,9 @@ Traceback (most recent call last):
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
     result = context.run(func, *args)
              ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\app\routers\hms.py", line 382, in get_beds
-    ).all()
-      ^^^^^
+  File "D:\Website\DIGIFORTLABS\backend\app\routers\patient_billing.py", line 98, in get_dashboard_patients
+    patients = db.query(Patient).filter(Patient.hospital_id == hospital_id).all()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2711, in all
     return self._iter().all()  # type: ignore
            ^^^^^^^^^^^^
@@ -174,12 +174,12 @@ Traceback (most recent call last):
     self.dialect.do_execute(
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
     cursor.execute(statement, parameters)
-sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column ipd_admissions.fluid_balance_log does not exist
-LINE 1: ...ions.doctor_notes AS ipd_admissions_doctor_notes, ipd_admiss...
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column patients.advance_balance does not exist
+LINE 1: ....total_bill_amount AS patients_total_bill_amount, patients.a...
                                                              ^
 
-[SQL: SELECT ipd_admissions.admission_id AS ipd_admissions_admission_id, ipd_admissions.patient_id AS ipd_admissions_patient_id, ipd_admissions.hospital_id AS ipd_admissions_hospital_id, ipd_admissions.admission_date AS ipd_admissions_admission_date, ipd_admissions.discharge_date AS ipd_admissions_discharge_date, ipd_admissions.ward_id AS ipd_admissions_ward_id, ipd_admissions.bed_id AS ipd_admissions_bed_id, ipd_admissions.admitting_doctor_id AS ipd_admissions_admitting_doctor_id, ipd_admissions.diagnosis AS ipd_admissions_diagnosis, ipd_admissions.treatment_plan AS ipd_admissions_treatment_plan, ipd_admissions.status AS ipd_admissions_status, ipd_admissions.vitals_log AS ipd_admissions_vitals_log, ipd_admissions.medication_orders AS ipd_admissions_medication_orders, ipd_admissions.medication_log AS ipd_admissions_medication_log, ipd_admissions.doctor_notes AS ipd_admissions_doctor_notes, ipd_admissions.fluid_balance_log AS ipd_admissions_fluid_balance_log, ipd_admissions.patient_invoice_id AS ipd_admissions_patient_invoice_id, ipd_admissions.is_mediclaim AS ipd_admissions_is_mediclaim, ipd_admissions.mediclaim_details AS ipd_admissions_mediclaim_details 
-FROM ipd_admissions 
-WHERE ipd_admissions.hospital_id = %(hospital_id_1)s AND ipd_admissions.status IN (%(status_1_1)s, %(status_1_2)s)]
-[parameters: {'hospital_id_1': 14, 'status_1_1': 'admitted', 'status_1_2': 'recovery'}]
+[SQL: SELECT patients.record_id AS patients_record_id, patients.hospital_id AS patients_hospital_id, patients.patient_u_id AS patients_patient_u_id, patients.uhid AS patients_uhid, patients.ipd_number AS patients_ipd_number, patients.full_name AS patients_full_name, patients.gender AS patients_gender, patients.age AS patients_age, patients.phone AS patients_phone, patients.admission_date AS patients_admission_date, patients.discharge_date AS patients_discharge_date, patients.total_bill_amount AS patients_total_bill_amount, patients.advance_balance AS patients_advance_balance, patients.cashless_approved_amount AS patients_cashless_approved_amount, patients.total_paid AS patients_total_paid, patients.diagnosis AS patients_diagnosis, patients.specialty AS patients_specialty, patients.is_deleted AS patients_is_deleted, patients.deleted_at AS patients_deleted_at, patients.physical_box_id AS patients_physical_box_id, patients.patient_category AS patients_patient_category, patients.address AS patients_address, patients.contact_number AS patients_contact_number, patients.email_id AS patients_email_id, patients.aadhaar_number AS patients_aadhaar_number, patients.abha_id AS patients_abha_id, patients.ayushman_id AS patients_ayushman_id, patients.maa_card AS patients_maa_card, patients.dob AS patients_dob, patients.blood_group AS patients_blood_group, patients.doctor_name AS patients_doctor_name, patients.weight AS patients_weight, patients.operative_notes AS patients_operative_notes, patients.mediclaim AS patients_mediclaim, patients.medical_summary AS patients_medical_summary, patients.remarks AS patients_remarks, patients.opd_number AS patients_opd_number, patients.chief_complaint AS patients_chief_complaint, patients.allergies AS patients_allergies, patients.medications AS patients_medications, patients.prescriptions AS patients_prescriptions, patients.specialty_data AS patients_specialty_data, patients.mother_record_id AS patients_mother_record_id, patients.created_at AS patients_created_at, patients.updated_at AS patients_updated_at 
+FROM patients 
+WHERE patients.hospital_id = %(hospital_id_1)s]
+[parameters: {'hospital_id_1': 14}]
 (Background on this error at: https://sqlalche.me/e/20/f405)

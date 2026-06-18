@@ -342,8 +342,9 @@ from .routers import ent
 app.include_router(ent.router)
 
 
-from .routers import patient_billing
+from .routers import patient_billing, patient_ledger
 app.include_router(patient_billing.router)
+app.include_router(patient_ledger.router)
 
 
 from .routers import hms

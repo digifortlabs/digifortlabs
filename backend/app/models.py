@@ -211,6 +211,22 @@ class Hospital(Base):
     invoices = relationship("Invoice", back_populates="hospital")
     patient_invoices = relationship("PatientInvoice", back_populates="hospital")
 
+class PatientLedgerTransaction(Base):
+    __tablename__ = "patient_ledger_transactions"
+    transaction_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    
+    transaction_type = Column(String) # ADVANCE_DEPOSIT, BILL_GENERATION, BILL_PAYMENT, CASHLESS_APPROVAL, REFUND
+    amount = Column(Float, default=0.0)
+    payment_method = Column(String, nullable=True) # CASH, CARD, UPI, TPA, NEFT
+    reference_number = Column(String, nullable=True) # UTR or Approval ID
+    
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    notes = Column(String, nullable=True)
+    
+    patient = relationship("Patient", back_populates="ledger_transactions")
+
 class User(Base):
     __tablename__ = "users"
 
@@ -278,6 +294,10 @@ class Patient(Base):
     admission_date = Column(DateTime, nullable=True)
     discharge_date = Column(DateTime, nullable=True)
     total_bill_amount = Column(Float, nullable=True)
+    advance_balance = Column(Float, default=0.0)
+    cashless_approved_amount = Column(Float, default=0.0)
+    total_paid = Column(Float, default=0.0)
+    
     diagnosis = Column(Text, nullable=True)
     specialty = Column(String, default="General") # General, Dental, ENT
     is_deleted = Column(Boolean, default=False)
@@ -325,9 +345,10 @@ class Patient(Base):
     # Relationships
     hospital = relationship("Hospital", back_populates="patients")
     box = relationship("PhysicalBox")
+    physical_box = relationship("PhysicalBox", back_populates="patients")
     files = relationship("PDFFile", back_populates="patient")
     patient_invoices = relationship("PatientInvoice", back_populates="patient")
-
+    ledger_transactions = relationship("PatientLedgerTransaction", back_populates="patient", cascade="all, delete-orphan")
 
     @property
     def box_label(self):

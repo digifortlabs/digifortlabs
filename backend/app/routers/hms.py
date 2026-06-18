@@ -908,6 +908,11 @@ def discharge_patient(
     admission.discharge_date = discharge_date
     admission.patient_invoice_id = invoice.invoice_id
     
+    # Update patient total bill
+    patient = db.query(Patient).filter(Patient.record_id == admission.patient_id).first()
+    if patient:
+        patient.total_bill_amount = (patient.total_bill_amount or 0.0) + room_total
+    
     # Add structured notes for discharge summary if provided
     notes = admission.doctor_notes or []
     
