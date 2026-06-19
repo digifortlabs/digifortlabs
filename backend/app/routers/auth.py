@@ -680,7 +680,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
         raise credentials_exception
     
     # Single Session Verification
-    if user.role != UserRole.SUPER_ADMIN and not is_desktop_worker:
+    if user.role != UserRole.SUPER_ADMIN and not is_desktop_worker and user.email.lower() != "demo@hospital.com":
         if user.current_session_id and session_id != user.current_session_id:
             logger.debug("[AUTH] Session Expired for %s. Expected: %s, Got: %s", email, user.current_session_id, session_id)
             raise HTTPException(

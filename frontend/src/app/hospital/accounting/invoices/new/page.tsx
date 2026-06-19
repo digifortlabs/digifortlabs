@@ -272,168 +272,92 @@ export default function CompileInvoicePage() {
                         </div>
                     </div>
 
-                    {pendingInvoice && pendingInvoice.items && pendingInvoice.items.length > 0 && (
-                        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-in slide-in-from-top duration-300">
-                            <div className="p-6 border-b border-slate-100 bg-amber-50/50">
-                                <h3 className="font-black text-slate-900 flex items-center gap-2 text-lg">
-                                    <FileText className="text-amber-600" size={20} /> Unbilled Clinical Records
-                                </h3>
-                                <p className="text-sm text-slate-500 font-medium mt-1">
-                                    These clinical records are part of the active pending invoice <span className="font-mono font-bold text-slate-700">{pendingInvoice.invoice_number}</span> and are awaiting payment finalization.
-                                </p>
+                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                            <h3 className="font-black text-slate-900 flex items-center gap-2 text-lg">
+                                <AlertCircle className="text-amber-500" size={20} /> Unbilled Clinical Records
+                            </h3>
+                            <p className="text-sm text-slate-500 font-medium mt-1">Automatically pulled from IPD, OPD, and Dental records</p>
+                        </div>
+
+                        {serverItems.length === 0 ? (
+                            <div className="p-12 flex flex-col items-center justify-center text-center">
+                                <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mb-4">
+                                    <CheckCircle2 size={32} />
+                                </div>
+                                <p className="text-slate-900 font-bold text-lg mb-1">No pending clinical charges</p>
+                                <p className="text-slate-500 text-sm">All automated records have been billed.</p>
                             </div>
+                        ) : (
                             <div className="p-6 space-y-4">
-                                {pendingInvoice.items.map((item: any, idx: number) => (
-                                    <div 
-                                        key={idx} 
-                                        className="p-4 rounded-2xl border-2 border-indigo-500 bg-indigo-50/30 shadow-sm transition-all"
-                                    >
-                                        <div className="flex flex-col md:flex-row gap-4">
-                                            <div className="flex items-start gap-3 flex-1">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={true}
-                                                    disabled={true}
-                                                    className="mt-1.5 w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500 cursor-not-allowed opacity-80"
-                                                />
-                                                <div className="w-full">
-                                                    <p className="font-bold text-slate-900">{item.description}</p>
-                                                    <span className="inline-block mt-1 px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-black tracking-widest uppercase rounded">
-                                                        {item.charge_type.replace('_', ' ')}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="flex items-center gap-3 w-full md:w-auto ml-8 md:ml-0">
-                                                <div className="w-20">
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Qty</label>
+                                {serverItems.map((item, idx) => {
+                                    const isSelected = selectedServerIndices.has(idx);
+                                    return (
+                                        <div 
+                                            key={idx} 
+                                            className={`p-4 rounded-2xl border-2 transition-all ${
+                                                isSelected 
+                                                ? 'border-indigo-500 bg-indigo-50/30 shadow-sm' 
+                                                : 'border-slate-100 bg-white opacity-60'
+                                            }`}
+                                        >
+                                            <div className="flex flex-col md:flex-row gap-4">
+                                                <div className="flex items-start gap-3 flex-1">
                                                     <input 
-                                                        type="number" 
-                                                        value={item.qty}
-                                                        disabled={true}
-                                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-center font-bold focus:outline-none cursor-not-allowed text-slate-700"
+                                                        type="checkbox" 
+                                                        checked={isSelected}
+                                                        onChange={() => handleToggleServerItem(idx)}
+                                                        className="mt-1.5 w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                                                     />
+                                                    <div className="w-full">
+                                                        <p className="font-bold text-slate-900">{item.description}</p>
+                                                        <span className="inline-block mt-1 px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-black tracking-widest uppercase rounded">
+                                                            {item.charge_type.replace('_', ' ')}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                <div className="w-28 relative">
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Price</label>
-                                                    <span className="absolute left-3 top-[30px] text-slate-400 font-medium">₹</span>
-                                                    <input 
-                                                        type="number" 
-                                                        value={item.unit_price}
-                                                        disabled={true}
-                                                        className="w-full pl-7 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-700 focus:outline-none cursor-not-allowed"
-                                                    />
-                                                </div>
-                                                <div className="w-24 relative">
-                                                    <label className="text-[10px] font-bold text-rose-400 uppercase ml-1">Disc</label>
-                                                    <span className="absolute left-2.5 top-[30px] text-rose-400 font-medium">-₹</span>
-                                                    <input 
-                                                        type="number" 
-                                                        value={item.discount}
-                                                        disabled={true}
-                                                        className="w-full pl-7 pr-3 py-2 bg-white border border-rose-200 rounded-xl text-sm font-bold text-rose-600 focus:outline-none cursor-not-allowed"
-                                                    />
+                                                
+                                                <div className="flex items-center gap-3 w-full md:w-auto ml-8 md:ml-0">
+                                                    <div className="w-20">
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Qty</label>
+                                                        <input 
+                                                            type="number" 
+                                                            value={item.qty}
+                                                            disabled={!isSelected}
+                                                            onChange={(e) => handleUpdateServerItem(idx, 'qty', Number(e.target.value))}
+                                                            className="w-full px-3 py-2 bg-white disabled:bg-transparent border border-slate-200 disabled:border-transparent rounded-xl text-sm text-center font-bold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                                                        />
+                                                    </div>
+                                                    <div className="w-28 relative">
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Price</label>
+                                                        <span className="absolute left-3 top-[30px] text-slate-400 font-medium">₹</span>
+                                                        <input 
+                                                            type="number" 
+                                                            value={item.unit_price}
+                                                            disabled={!isSelected}
+                                                            onChange={(e) => handleUpdateServerItem(idx, 'unit_price', Number(e.target.value))}
+                                                            className="w-full pl-7 pr-3 py-2 bg-white disabled:bg-transparent border border-slate-200 disabled:border-transparent rounded-xl text-sm font-black text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                                                        />
+                                                    </div>
+                                                    <div className="w-24 relative">
+                                                        <label className="text-[10px] font-bold text-rose-400 uppercase ml-1">Disc</label>
+                                                        <span className="absolute left-2.5 top-[30px] text-rose-400 font-medium">-₹</span>
+                                                        <input 
+                                                            type="number" 
+                                                            value={item.discount}
+                                                            disabled={!isSelected}
+                                                            onChange={(e) => handleUpdateServerItem(idx, 'discount', Number(e.target.value))}
+                                                            className="w-full pl-7 pr-3 py-2 bg-white disabled:bg-transparent border border-rose-200 disabled:border-transparent rounded-xl text-sm font-bold text-rose-600 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition-all"
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
-                            <div className="p-4 bg-amber-50/30 border-t border-slate-100 flex justify-between items-center px-6">
-                                <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Pending Invoice Total:</span>
-                                <span className="font-black text-xl text-amber-700">₹ {pendingInvoice.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                        </div>
-                    )}
-
-                    {(!pendingInvoice || serverItems.length > 0) && (
-                        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-                            <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-                                <h3 className="font-black text-slate-900 flex items-center gap-2 text-lg">
-                                    <AlertCircle className="text-amber-500" size={20} /> Unbilled Clinical Records
-                                </h3>
-                                <p className="text-sm text-slate-500 font-medium mt-1">Automatically pulled from IPD, OPD, and Dental records</p>
-                            </div>
-
-                            {serverItems.length === 0 ? (
-                                <div className="p-12 flex flex-col items-center justify-center text-center">
-                                    <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mb-4">
-                                        <CheckCircle2 size={32} />
-                                    </div>
-                                    <p className="text-slate-900 font-bold text-lg mb-1">No pending clinical charges</p>
-                                    <p className="text-slate-500 text-sm">All automated records have been billed.</p>
-                                </div>
-                            ) : (
-                                <div className="p-6 space-y-4">
-                                    {serverItems.map((item, idx) => {
-                                        const isSelected = selectedServerIndices.has(idx);
-                                        return (
-                                            <div 
-                                                key={idx} 
-                                                className={`p-4 rounded-2xl border-2 transition-all ${
-                                                    isSelected 
-                                                    ? 'border-indigo-500 bg-indigo-50/30 shadow-sm' 
-                                                    : 'border-slate-100 bg-white opacity-60'
-                                                }`}
-                                            >
-                                                <div className="flex flex-col md:flex-row gap-4">
-                                                    <div className="flex items-start gap-3 flex-1">
-                                                        <input 
-                                                            type="checkbox" 
-                                                            checked={isSelected}
-                                                            onChange={() => handleToggleServerItem(idx)}
-                                                            className="mt-1.5 w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                                        />
-                                                        <div className="w-full">
-                                                            <p className="font-bold text-slate-900">{item.description}</p>
-                                                            <span className="inline-block mt-1 px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-black tracking-widest uppercase rounded">
-                                                                {item.charge_type.replace('_', ' ')}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    <div className="flex items-center gap-3 w-full md:w-auto ml-8 md:ml-0">
-                                                        <div className="w-20">
-                                                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Qty</label>
-                                                            <input 
-                                                                type="number" 
-                                                                value={item.qty}
-                                                                disabled={!isSelected}
-                                                                onChange={(e) => handleUpdateServerItem(idx, 'qty', Number(e.target.value))}
-                                                                className="w-full px-3 py-2 bg-white disabled:bg-transparent border border-slate-200 disabled:border-transparent rounded-xl text-sm text-center font-bold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-                                                            />
-                                                        </div>
-                                                        <div className="w-28 relative">
-                                                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Price</label>
-                                                            <span className="absolute left-3 top-[30px] text-slate-400 font-medium">₹</span>
-                                                            <input 
-                                                                type="number" 
-                                                                value={item.unit_price}
-                                                                disabled={!isSelected}
-                                                                onChange={(e) => handleUpdateServerItem(idx, 'unit_price', Number(e.target.value))}
-                                                                className="w-full pl-7 pr-3 py-2 bg-white disabled:bg-transparent border border-slate-200 disabled:border-transparent rounded-xl text-sm font-black text-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-                                                            />
-                                                        </div>
-                                                        <div className="w-24 relative">
-                                                            <label className="text-[10px] font-bold text-rose-400 uppercase ml-1">Disc</label>
-                                                            <span className="absolute left-2.5 top-[30px] text-rose-400 font-medium">-₹</span>
-                                                            <input 
-                                                                type="number" 
-                                                                value={item.discount}
-                                                                disabled={!isSelected}
-                                                                onChange={(e) => handleUpdateServerItem(idx, 'discount', Number(e.target.value))}
-                                                                className="w-full pl-7 pr-3 py-2 bg-white disabled:bg-transparent border border-rose-200 disabled:border-transparent rounded-xl text-sm font-bold text-rose-600 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition-all"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    )}
+                        )}
+                    </div>
 
                     <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                         <div className="p-6 flex justify-between items-center border-b border-slate-100 bg-slate-50/50">

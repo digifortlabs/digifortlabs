@@ -314,18 +314,7 @@ def get_unbilled_records(
         pending_invoice_data = {
             "invoice_id": pending_inv.invoice_id,
             "invoice_number": pending_inv.invoice_number,
-            "total_amount": float(pending_inv.total_amount or 0.0),
-            "items": [
-                {
-                    "item_id": item.item_id,
-                    "description": item.description,
-                    "qty": item.qty,
-                    "unit_price": item.unit_price,
-                    "discount": item.discount,
-                    "amount": item.amount,
-                    "charge_type": item.charge_type or "CUSTOM"
-                } for item in pending_inv.items
-            ]
+            "total_amount": float(pending_inv.total_amount or 0.0)
         }
 
     return {
