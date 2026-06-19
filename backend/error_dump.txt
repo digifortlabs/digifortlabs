@@ -1,12 +1,143 @@
-Traceback (most recent call last):
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
-    self.dialect.do_execute(
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
-    cursor.execute(statement, parameters)
-psycopg2.errors.UndefinedColumn: column patients.advance_balance does not exist
-LINE 1: ....total_bill_amount AS patients_total_bill_amount, patients.a...
-                                                             ^
-
+  + Exception Group Traceback (most recent call last):
+  |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\_utils.py", line 81, in collapse_excgroups
+  |     yield
+  |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 192, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 799, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 88, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\Codexshop\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+    |     raise exc
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\app\middleware\bandwidth.py", line 34, in dispatch
+    |     return await call_next(request)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    |     raise app_exc from app_exc.__cause__ or app_exc.__context__
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 144, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\Codexshop\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+    |     raise exc
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\app\middleware\security.py", line 57, in dispatch
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    |     raise app_exc from app_exc.__cause__ or app_exc.__context__
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 144, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\Codexshop\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+    |     raise exc
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\app\middleware\security.py", line 67, in dispatch
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    |     raise app_exc from app_exc.__cause__ or app_exc.__context__
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 144, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\Codexshop\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+    |     raise exc
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\app\main.py", line 161, in remove_trailing_slash
+    |     return await call_next(request)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    |     raise app_exc from app_exc.__cause__ or app_exc.__context__
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 144, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\Codexshop\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+    |     raise exc
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\app\main.py", line 135, in latency_middleware
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    |     raise app_exc from app_exc.__cause__ or app_exc.__context__
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 144, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\routing.py", line 660, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\routing.py", line 680, in app
+    |     await route.handle(scope, receive, send)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\routing.py", line 276, in handle
+    |     await self.app(scope, receive, send)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\fastapi\routing.py", line 134, in app
+    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\fastapi\routing.py", line 120, in app
+    |     response = await f(request)
+    |                ^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\fastapi\routing.py", line 674, in app
+    |     raw_response = await run_endpoint_function(
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\fastapi\routing.py", line 330, in run_endpoint_function
+    |     return await run_in_threadpool(dependant.call, **values)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\concurrency.py", line 32, in run_in_threadpool
+    |     return await anyio.to_thread.run_sync(func)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\to_thread.py", line 63, in run_sync
+    |     return await get_async_backend().run_sync_in_worker_thread(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 2518, in run_sync_in_worker_thread
+    |     return await future
+    |            ^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
+    |     result = context.run(func, *args)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\app\routers\patient_billing.py", line 102, in get_dashboard_patients
+    |     unbilled_dental = db.query(DentalTreatment.patient_id).filter(DentalTreatment.hospital_id == hospital_id, DentalTreatment.patient_invoice_id == None).all()
+    |                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    | AttributeError: type object 'DentalTreatment' has no attribute 'hospital_id'
+    +------------------------------------
 
 The above exception was the direct cause of the following exception:
 
@@ -136,50 +267,7 @@ Traceback (most recent call last):
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
     result = context.run(func, *args)
              ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\app\routers\patient_billing.py", line 98, in get_dashboard_patients
-    patients = db.query(Patient).filter(Patient.hospital_id == hospital_id).all()
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2711, in all
-    return self._iter().all()  # type: ignore
-           ^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2864, in _iter
-    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
-                                                  ^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2351, in execute
-    return self._execute_internal(
-           ^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2249, in _execute_internal
-    result: Result[Any] = compile_state_cls.orm_execute_statement(
-                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\orm\context.py", line 306, in orm_execute_statement
-    result = conn.execute(
-             ^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
-    return meth(
-           ^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 527, in _execute_on_connection
-    return connection._execute_clauseelement(
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1641, in _execute_clauseelement
-    ret = self._execute_context(
-          ^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
-    return self._exec_single_context(
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
-    self._handle_dbapi_exception(
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2363, in _handle_dbapi_exception
-    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
-    self.dialect.do_execute(
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
-    cursor.execute(statement, parameters)
-sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column patients.advance_balance does not exist
-LINE 1: ....total_bill_amount AS patients_total_bill_amount, patients.a...
-                                                             ^
-
-[SQL: SELECT patients.record_id AS patients_record_id, patients.hospital_id AS patients_hospital_id, patients.patient_u_id AS patients_patient_u_id, patients.uhid AS patients_uhid, patients.ipd_number AS patients_ipd_number, patients.full_name AS patients_full_name, patients.gender AS patients_gender, patients.age AS patients_age, patients.phone AS patients_phone, patients.admission_date AS patients_admission_date, patients.discharge_date AS patients_discharge_date, patients.total_bill_amount AS patients_total_bill_amount, patients.advance_balance AS patients_advance_balance, patients.cashless_approved_amount AS patients_cashless_approved_amount, patients.total_paid AS patients_total_paid, patients.diagnosis AS patients_diagnosis, patients.specialty AS patients_specialty, patients.is_deleted AS patients_is_deleted, patients.deleted_at AS patients_deleted_at, patients.physical_box_id AS patients_physical_box_id, patients.patient_category AS patients_patient_category, patients.address AS patients_address, patients.contact_number AS patients_contact_number, patients.email_id AS patients_email_id, patients.aadhaar_number AS patients_aadhaar_number, patients.abha_id AS patients_abha_id, patients.ayushman_id AS patients_ayushman_id, patients.maa_card AS patients_maa_card, patients.dob AS patients_dob, patients.blood_group AS patients_blood_group, patients.doctor_name AS patients_doctor_name, patients.weight AS patients_weight, patients.operative_notes AS patients_operative_notes, patients.mediclaim AS patients_mediclaim, patients.medical_summary AS patients_medical_summary, patients.remarks AS patients_remarks, patients.opd_number AS patients_opd_number, patients.chief_complaint AS patients_chief_complaint, patients.allergies AS patients_allergies, patients.medications AS patients_medications, patients.prescriptions AS patients_prescriptions, patients.specialty_data AS patients_specialty_data, patients.mother_record_id AS patients_mother_record_id, patients.created_at AS patients_created_at, patients.updated_at AS patients_updated_at 
-FROM patients 
-WHERE patients.hospital_id = %(hospital_id_1)s]
-[parameters: {'hospital_id_1': 14}]
-(Background on this error at: https://sqlalche.me/e/20/f405)
+  File "D:\Website\DIGIFORTLABS\backend\app\routers\patient_billing.py", line 102, in get_dashboard_patients
+    unbilled_dental = db.query(DentalTreatment.patient_id).filter(DentalTreatment.hospital_id == hospital_id, DentalTreatment.patient_invoice_id == None).all()
+                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: type object 'DentalTreatment' has no attribute 'hospital_id'

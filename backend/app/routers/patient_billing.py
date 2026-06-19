@@ -99,7 +99,7 @@ def get_dashboard_patients(
     
     unbilled_opd = db.query(OPDVisit.patient_id).filter(OPDVisit.hospital_id == hospital_id, OPDVisit.patient_invoice_id == None).all()
     unbilled_ipd = db.query(IPDAdmission.patient_id).filter(IPDAdmission.hospital_id == hospital_id, IPDAdmission.patient_invoice_id == None).all()
-    unbilled_dental = db.query(DentalTreatment.patient_id).filter(DentalTreatment.hospital_id == hospital_id, DentalTreatment.patient_invoice_id == None).all()
+    unbilled_dental = db.query(DentalTreatment.patient_id).join(Patient, DentalTreatment.patient_id == Patient.record_id).filter(Patient.hospital_id == hospital_id, DentalTreatment.patient_invoice_id == None).all()
     
     patients_with_invoices = db.query(PatientInvoice.patient_id).filter(PatientInvoice.hospital_id == hospital_id).subquery()
     unbilled_reg = db.query(Patient.record_id).filter(Patient.hospital_id == hospital_id, ~Patient.record_id.in_(patients_with_invoices)).all()
