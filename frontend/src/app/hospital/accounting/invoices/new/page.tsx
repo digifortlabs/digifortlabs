@@ -62,8 +62,9 @@ export default function CompileInvoicePage() {
             }
 
             const unbilledData = await apiFetch(`/patient-billing/unbilled/${patientId}`);
-            setServerItems(unbilledData || []);
-            setSelectedServerIndices(new Set(unbilledData.map((_: any, idx: number) => idx)));
+            const items = unbilledData?.unbilled_items || [];
+            setServerItems(items);
+            setSelectedServerIndices(new Set(items.map((_: any, idx: number) => idx)));
 
         } catch (error: any) {
             console.error('Failed to load billing data:', error);
