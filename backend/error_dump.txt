@@ -21,7 +21,7 @@
     |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
     |     response = await self.dispatch_func(request, call_next)
     |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "D:\Website\DIGIFORTLABS\backend\app\middleware\bandwidth.py", line 34, in dispatch
+    |   File "D:\Website\DIGIFORTLABS\backend\app\middleware\bandwidth.py", line 19, in dispatch
     |     return await call_next(request)
     |            ^^^^^^^^^^^^^^^^^^^^^^^^
     |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
@@ -133,10 +133,10 @@
     |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
     |     result = context.run(func, *args)
     |              ^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "D:\Website\DIGIFORTLABS\backend\app\routers\patient_billing.py", line 102, in get_dashboard_patients
-    |     unbilled_dental = db.query(DentalTreatment.patient_id).join(Patient, DentalTreatment.patient_id == Patient.record_id).filter(Patient.hospital_id == hospital_id, DentalTreatment.patient_invoice_id == None).all()
-    |                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | AttributeError: type object 'DentalTreatment' has no attribute 'hospital_id'
+    |   File "D:\Website\DIGIFORTLABS\backend\app\routers\lab.py", line 338, in get_completed_orders
+    |     "pdf_file_id": res.pdf_file_id
+    |                    ^^^^^^^^^^^^^^^
+    | AttributeError: 'LabResult' object has no attribute 'pdf_file_id'
     +------------------------------------
 
 The above exception was the direct cause of the following exception:
@@ -155,7 +155,7 @@ Traceback (most recent call last):
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
     response = await self.dispatch_func(request, call_next)
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\app\middleware\bandwidth.py", line 34, in dispatch
+  File "D:\Website\DIGIFORTLABS\backend\app\middleware\bandwidth.py", line 19, in dispatch
     return await call_next(request)
            ^^^^^^^^^^^^^^^^^^^^^^^^
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
@@ -267,7 +267,7 @@ Traceback (most recent call last):
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
     result = context.run(func, *args)
              ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\app\routers\patient_billing.py", line 102, in get_dashboard_patients
-    unbilled_dental = db.query(DentalTreatment.patient_id).join(Patient, DentalTreatment.patient_id == Patient.record_id).filter(Patient.hospital_id == hospital_id, DentalTreatment.patient_invoice_id == None).all()
-                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AttributeError: type object 'DentalTreatment' has no attribute 'hospital_id'
+  File "D:\Website\DIGIFORTLABS\backend\app\routers\lab.py", line 338, in get_completed_orders
+    "pdf_file_id": res.pdf_file_id
+                   ^^^^^^^^^^^^^^^
+AttributeError: 'LabResult' object has no attribute 'pdf_file_id'

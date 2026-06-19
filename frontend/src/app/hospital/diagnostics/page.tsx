@@ -356,8 +356,8 @@ export default function DiagnosticsCenterPage() {
                                                 </div>
                                             </td>
                                             <td className="p-4 text-right">
-                                                {order.pdf_file_id ? (
-                                                    <Button variant="outline" size="sm" className="border-blue-200 text-blue-700 hover:bg-blue-50" onClick={() => window.open(`/api/patients/files/${order.pdf_file_id}/view`, '_blank')}>
+                                                {order.report_file_url ? (
+                                                    <Button variant="outline" size="sm" className="border-blue-200 text-blue-700 hover:bg-blue-50" onClick={() => window.open(order.report_file_url, '_blank')}>
                                                         <FileText className="w-4 h-4 mr-1.5" /> View Report
                                                     </Button>
                                                 ) : (

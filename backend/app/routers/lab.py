@@ -335,7 +335,7 @@ def get_completed_orders(
             "ordered_at": order.ordered_at,
             "completed_at": res.completed_at,
             "doctor_name": doc.user.full_name if (doc and doc.user) else "Self / Walk-in",
-            "pdf_file_id": res.pdf_file_id
+            "report_file_url": res.report_file_url
         })
     return result
 
