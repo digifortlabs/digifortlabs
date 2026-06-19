@@ -870,48 +870,177 @@ def discharge_patient(
     else:
         invoice = None
         
+    old_invoice_total = invoice.total_amount if invoice else 0.0
+
+    # Compile stay items
+    items_to_add = []
+    
+    # 1. IPD Room Charge
+    items_to_add.append({
+        "description": f"IPD Room Charge ({days_admitted} days @ ₹{daily_charge})",
+        "qty": 1,
+        "unit_price": room_total,
+        "amount": room_total,
+        "charge_type": "IPD_ADMISSION",
+        "reference_id": admission.admission_id
+    })
+    
+    # 2. Registration Fee (First-Time)
+    invoice_count = db.query(PatientInvoice).filter(PatientInvoice.patient_id == admission.patient_id).count()
+    if invoice_count == 0:
+        hospital = admission.patient.hospital if admission.patient else None
+        raw_reg_fee = getattr(hospital, "patient_registration_fee", 500.0) if hospital else 500.0
+        reg_fee = float(raw_reg_fee or 500.0)
+        items_to_add.append({
+            "description": "Patient Registration Fee (First-Time)",
+            "qty": 1,
+            "unit_price": reg_fee,
+            "amount": reg_fee,
+            "charge_type": "REGISTRATION_FEE",
+            "reference_id": admission.patient_id
+        })
+        
+    # 3. OT Charge
+    if getattr(admission, "ot_required", False):
+        hospital = admission.patient.hospital if admission.patient else None
+        raw_ot_charge = getattr(hospital, "ot_base_charge", 15000.0) if hospital else 15000.0
+        ot_charge = float(raw_ot_charge or 15000.0)
+        items_to_add.append({
+            "description": "Operation Theatre (OT) Base Charge",
+            "qty": 1,
+            "unit_price": ot_charge,
+            "amount": ot_charge,
+            "charge_type": "OT_CHARGE",
+            "reference_id": admission.admission_id
+        })
+        
+    # 4. Medication administrations (nursing charge)
+    nursing_charge_rate = 150.0
+    hospital = admission.patient.hospital if admission.patient else None
+    if hospital and getattr(hospital, "nursing_base_charge", None) is not None:
+        nursing_charge_rate = float(hospital.nursing_base_charge)
+        
+    med_logs = admission.medication_log or []
+    for log in med_logs:
+        med_name = log.get("medicine_name", "Unknown Medicine")
+        notes = log.get("notes")
+        desc = f"Medication Administered: {med_name}"
+        if notes:
+            desc += f" ({notes})"
+        items_to_add.append({
+            "description": desc,
+            "qty": 1,
+            "unit_price": nursing_charge_rate,
+            "amount": nursing_charge_rate,
+            "charge_type": "MEDICINE",
+            "reference_id": admission.admission_id
+        })
+        
+    # 5. Doctor IPD visits (from doctor notes)
+    from ..models import DoctorProfile
+    doctor_notes = admission.doctor_notes or []
+    for dnote in doctor_notes:
+        d_user_id = dnote.get("doctor_id")
+        doc_profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == d_user_id).first() if d_user_id else None
+        ipd_charge = getattr(doc_profile, "ipd_charge", 0.0) if doc_profile else 0.0
+        if ipd_charge is None:
+            ipd_charge = 0.0
+        if ipd_charge > 0:
+            desc = f"Doctor IPD Visit: {dnote.get('doctor_name', 'Unknown')}"
+            if dnote.get("note_type"):
+                desc += f" ({dnote.get('note_type')})"
+            items_to_add.append({
+                "description": desc,
+                "qty": 1,
+                "unit_price": float(ipd_charge),
+                "amount": float(ipd_charge),
+                "charge_type": "IPD_DOCTOR_VISIT",
+                "reference_id": admission.admission_id
+            })
+
+    # Calculate GST rate
+    hospital = db.query(Hospital).filter(Hospital.hospital_id == current_user.hospital_id).first()
+    gst_rate = 18.0 if hospital and hospital.gst_number else 0.0
+
     if invoice:
-        invoice.subtotal = float(invoice.subtotal or 0) + room_total
-        invoice.total_amount = float(invoice.total_amount or 0) + room_total
+        # Add new items to existing invoice
+        for item in items_to_add:
+            inv_item = PatientInvoiceItem(
+                invoice_id=invoice.invoice_id,
+                description=item["description"],
+                qty=item["qty"],
+                unit_price=item["unit_price"],
+                amount=item["amount"],
+                charge_type=item["charge_type"],
+                reference_id=item["reference_id"]
+            )
+            db.add(inv_item)
+        db.flush()
+        
+        # Recalculate totals
+        all_items = db.query(PatientInvoiceItem).filter(PatientInvoiceItem.invoice_id == invoice.invoice_id).all()
+        new_subtotal = sum(i.amount for i in all_items)
+        invoice.subtotal = new_subtotal
+        invoice.gst_rate = gst_rate
+        invoice.tax_amount = round((new_subtotal * gst_rate) / 100.0, 2)
+        invoice.total_amount = max(0.0, float(round(new_subtotal + invoice.tax_amount - (invoice.discount_amount or 0.0))))
         if discharge_notes_text:
             invoice.remarks = (invoice.remarks or "") + "\n\nDischarge Summary:\n" + discharge_notes_text
     else:
         import time
         invoice_number = f"INV-IPD-{current_user.hospital_id}-{int(time.time())}"
         
+        new_subtotal = sum(item["amount"] for item in items_to_add)
+        tax_amount = round((new_subtotal * gst_rate) / 100.0, 2)
+        total_amount = max(0.0, float(round(new_subtotal + tax_amount)))
+        
         invoice = PatientInvoice(
             hospital_id=current_user.hospital_id,
             patient_id=admission.patient_id,
             invoice_number=invoice_number,
-            subtotal=room_total,
-            total_amount=room_total,
+            subtotal=new_subtotal,
+            discount_amount=0.0,
+            gst_rate=gst_rate,
+            tax_amount=tax_amount,
+            total_amount=total_amount,
             status="PENDING",
             remarks=discharge_notes_text or "IPD Discharge Bill",
             created_by=current_user.user_id
         )
         db.add(invoice)
         db.flush()
-    
-    invoice_item = PatientInvoiceItem(
-        invoice_id=invoice.invoice_id,
-        description=f"IPD Room Charge ({days_admitted} days @ ₹{daily_charge})",
-        qty=1,
-        unit_price=room_total,
-        amount=room_total,
-        charge_type="IPD_ADMISSION",
-        reference_id=admission.admission_id
-    )
-    db.add(invoice_item)
-    
+        
+        for item in items_to_add:
+            inv_item = PatientInvoiceItem(
+                invoice_id=invoice.invoice_id,
+                description=item["description"],
+                qty=item["qty"],
+                unit_price=item["unit_price"],
+                amount=item["amount"],
+                charge_type=item["charge_type"],
+                reference_id=item["reference_id"]
+            )
+            db.add(inv_item)
+        db.flush()
+
     # Update admission status
     admission.status = "discharged"
     admission.discharge_date = discharge_date
     admission.patient_invoice_id = invoice.invoice_id
     
-    # Update patient total bill
+    # Update patient total bill & discharge date
     patient = db.query(Patient).filter(Patient.record_id == admission.patient_id).first()
     if patient:
-        patient.total_bill_amount = (patient.total_bill_amount or 0.0) + room_total
+        invoice_diff = invoice.total_amount - old_invoice_total
+        patient.total_bill_amount = (patient.total_bill_amount or 0.0) + invoice_diff
+        patient.discharge_date = discharge_date
+
+    # Generate PDF statement asynchronously/locally
+    try:
+        from ..services.patient_billing_service import PatientBillingService
+        PatientBillingService.generate_pdf_file(invoice, db)
+    except Exception as pdf_err:
+        logger.error(f"Failed to auto-generate PDF for IPD invoice {invoice.invoice_number}: {pdf_err}")
     
     # Add structured notes for discharge summary if provided
     notes = admission.doctor_notes or []
@@ -1560,49 +1689,7 @@ def record_fluid_balance(
     db.commit()
     return {"message": "Fluid balance logged", "fluid_balance_log": log}
 
-@router.post("/admissions/{admission_id}/discharge")
-@router.patch("/admissions/{admission_id}/discharge")
-def discharge_patient(
-    admission_id: int,
-    discharge: DischargeUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Discharge patient from IPD"""
-    admission = db.query(IPDAdmission).filter(
-        IPDAdmission.admission_id == admission_id,
-        IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
-    
-    if not admission:
-        raise HTTPException(status_code=404, detail="Admission not found")
-    
-    if admission.status == "discharged":
-        raise HTTPException(status_code=400, detail="Patient already discharged")
-    
-    # Discharge patient
-    admission.discharge_date = discharge.discharge_date or datetime.now()  # type: ignore
-    admission.status = "discharged"  # type: ignore
-    
-    # Capture notes
-    discharge_summary_notes = discharge.discharge_notes or discharge.discharge_summary
-    if discharge_summary_notes:
-        admission.treatment_plan = (admission.treatment_plan or "") + f"\nDischarge Notes: {discharge_summary_notes}"  # type: ignore
-    
-    # Free up bed
-    bed = db.query(Bed).filter(Bed.bed_id == admission.bed_id).first()
-    if bed:
-        bed.is_occupied = False  # type: ignore
-        bed.status = "AVAILABLE"  # type: ignore
-    
-    # Update ward occupancy
-    ward = db.query(Ward).filter(Ward.ward_id == admission.ward_id).first()
-    if ward:
-        ward.occupied_beds = db.query(Bed).filter(Bed.ward_id == ward.ward_id, Bed.is_occupied == True).count()  # type: ignore
-    
-    db.commit()
-    db.refresh(admission)
-    return admission
+
 
 # --- Operation Theater (OT) Management ---
 
