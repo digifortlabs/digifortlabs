@@ -272,6 +272,43 @@ export default function CompileInvoicePage() {
                         </div>
                     </div>
 
+                    {pendingInvoice && pendingInvoice.items && pendingInvoice.items.length > 0 && (
+                        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-in slide-in-from-top duration-300">
+                            <div className="p-6 border-b border-slate-100 bg-amber-50/50">
+                                <h3 className="font-black text-slate-900 flex items-center gap-2 text-lg">
+                                    <FileText className="text-amber-600" size={20} /> Pending Invoice Items (Left to Pay)
+                                </h3>
+                                <p className="text-sm text-slate-500 font-medium mt-1">
+                                    These items are part of the active pending invoice <span className="font-mono font-bold text-slate-700">{pendingInvoice.invoice_number}</span> and are awaiting payment finalization.
+                                </p>
+                            </div>
+                            <div className="p-6 divide-y divide-slate-100">
+                                {pendingInvoice.items.map((item: any, idx: number) => (
+                                    <div key={idx} className="py-4 flex justify-between items-center first:pt-0 last:pb-0">
+                                        <div>
+                                            <p className="font-black text-slate-900">{item.description}</p>
+                                            <span className="inline-block mt-1 px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-black tracking-widest uppercase rounded">
+                                                {item.charge_type.replace('_', ' ')}
+                                            </span>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-black text-slate-900 text-base">
+                                                ₹ {((item.qty * item.unit_price) - item.discount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                            </p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
+                                                {item.qty} Qty @ ₹{item.unit_price.toLocaleString('en-IN')} {item.discount > 0 && `(-₹${item.discount.toLocaleString('en-IN')})`}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="p-4 bg-amber-50/30 border-t border-slate-100 flex justify-between items-center px-6">
+                                <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Pending Invoice Total:</span>
+                                <span className="font-black text-xl text-amber-700">₹ {pendingInvoice.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                         <div className="p-6 border-b border-slate-100 bg-slate-50/50">
                             <h3 className="font-black text-slate-900 flex items-center gap-2 text-lg">
