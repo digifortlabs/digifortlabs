@@ -343,8 +343,23 @@ export default function PatientBillingDashboard() {
                                         filteredPatients.map(patient => (
                                             <tr key={patient.record_id} className={`transition-colors ${patient.has_unbilled_records ? 'bg-indigo-50/30 hover:bg-indigo-50/60' : 'hover:bg-slate-50/80'}`}>
                                                 <td className="py-4 px-6">
-                                                    <p className="font-black text-slate-900">{patient.full_name}</p>
-                                                    <p className="text-xs text-slate-500 font-mono font-bold mt-0.5">{patient.patient_u_id}</p>
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <p className="font-black text-slate-900">{patient.full_name}</p>
+                                                            {patient.pending_invoice_id && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        router.push(`/hospital/accounting/invoices/${patient.pending_invoice_id}`);
+                                                                    }}
+                                                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-black text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-200 rounded-lg transition-colors cursor-pointer"
+                                                                >
+                                                                    <IndianRupee size={10} /> View Pending Invoice
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-xs text-slate-500 font-mono font-bold mt-0.5">{patient.patient_u_id}</p>
+                                                    </div>
                                                 </td>
                                                 <td className="py-4 px-4">
                                                     {patient.admission_date ? (
