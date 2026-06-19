@@ -282,22 +282,59 @@ export default function CompileInvoicePage() {
                                     These clinical records are part of the active pending invoice <span className="font-mono font-bold text-slate-700">{pendingInvoice.invoice_number}</span> and are awaiting payment finalization.
                                 </p>
                             </div>
-                            <div className="p-6 divide-y divide-slate-100">
+                            <div className="p-6 space-y-4">
                                 {pendingInvoice.items.map((item: any, idx: number) => (
-                                    <div key={idx} className="py-4 flex justify-between items-center first:pt-0 last:pb-0">
-                                        <div>
-                                            <p className="font-black text-slate-900">{item.description}</p>
-                                            <span className="inline-block mt-1 px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-black tracking-widest uppercase rounded">
-                                                {item.charge_type.replace('_', ' ')}
-                                            </span>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="font-black text-slate-900 text-base">
-                                                ₹ {((item.qty * item.unit_price) - item.discount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                            </p>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
-                                                {item.qty} Qty @ ₹{item.unit_price.toLocaleString('en-IN')} {item.discount > 0 && `(-₹${item.discount.toLocaleString('en-IN')})`}
-                                            </p>
+                                    <div 
+                                        key={idx} 
+                                        className="p-4 rounded-2xl border-2 border-indigo-500 bg-indigo-50/30 shadow-sm transition-all"
+                                    >
+                                        <div className="flex flex-col md:flex-row gap-4">
+                                            <div className="flex items-start gap-3 flex-1">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={true}
+                                                    disabled={true}
+                                                    className="mt-1.5 w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500 cursor-not-allowed opacity-80"
+                                                />
+                                                <div className="w-full">
+                                                    <p className="font-bold text-slate-900">{item.description}</p>
+                                                    <span className="inline-block mt-1 px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-black tracking-widest uppercase rounded">
+                                                        {item.charge_type.replace('_', ' ')}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-3 w-full md:w-auto ml-8 md:ml-0">
+                                                <div className="w-20">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Qty</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={item.qty}
+                                                        disabled={true}
+                                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-center font-bold focus:outline-none cursor-not-allowed text-slate-700"
+                                                    />
+                                                </div>
+                                                <div className="w-28 relative">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Price</label>
+                                                    <span className="absolute left-3 top-[30px] text-slate-400 font-medium">₹</span>
+                                                    <input 
+                                                        type="number" 
+                                                        value={item.unit_price}
+                                                        disabled={true}
+                                                        className="w-full pl-7 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-black text-slate-700 focus:outline-none cursor-not-allowed"
+                                                    />
+                                                </div>
+                                                <div className="w-24 relative">
+                                                    <label className="text-[10px] font-bold text-rose-400 uppercase ml-1">Disc</label>
+                                                    <span className="absolute left-2.5 top-[30px] text-rose-400 font-medium">-₹</span>
+                                                    <input 
+                                                        type="number" 
+                                                        value={item.discount}
+                                                        disabled={true}
+                                                        className="w-full pl-7 pr-3 py-2 bg-white border border-rose-200 rounded-xl text-sm font-bold text-rose-600 focus:outline-none cursor-not-allowed"
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
