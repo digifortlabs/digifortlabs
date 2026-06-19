@@ -134,7 +134,7 @@
     |     result = context.run(func, *args)
     |              ^^^^^^^^^^^^^^^^^^^^^^^^
     |   File "D:\Website\DIGIFORTLABS\backend\app\routers\patient_billing.py", line 102, in get_dashboard_patients
-    |     unbilled_dental = db.query(DentalTreatment.patient_id).filter(DentalTreatment.hospital_id == hospital_id, DentalTreatment.patient_invoice_id == None).all()
+    |     unbilled_dental = db.query(DentalTreatment.patient_id).join(Patient, DentalTreatment.patient_id == Patient.record_id).filter(Patient.hospital_id == hospital_id, DentalTreatment.patient_invoice_id == None).all()
     |                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
     | AttributeError: type object 'DentalTreatment' has no attribute 'hospital_id'
     +------------------------------------
@@ -268,6 +268,6 @@ Traceback (most recent call last):
     result = context.run(func, *args)
              ^^^^^^^^^^^^^^^^^^^^^^^^
   File "D:\Website\DIGIFORTLABS\backend\app\routers\patient_billing.py", line 102, in get_dashboard_patients
-    unbilled_dental = db.query(DentalTreatment.patient_id).filter(DentalTreatment.hospital_id == hospital_id, DentalTreatment.patient_invoice_id == None).all()
+    unbilled_dental = db.query(DentalTreatment.patient_id).join(Patient, DentalTreatment.patient_id == Patient.record_id).filter(Patient.hospital_id == hospital_id, DentalTreatment.patient_invoice_id == None).all()
                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 AttributeError: type object 'DentalTreatment' has no attribute 'hospital_id'

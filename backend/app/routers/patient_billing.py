@@ -81,7 +81,7 @@ class PatientInvoiceResponse(BaseModel):
 
 class DashboardPatientResponse(BaseModel):
     record_id: int
-    patient_u_id: str
+    patient_u_id: Optional[str] = None
     full_name: str
     admission_date: Optional[datetime] = None
     discharge_date: Optional[datetime] = None

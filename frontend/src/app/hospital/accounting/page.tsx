@@ -10,7 +10,7 @@ import {
 
 interface PatientBilling {
     record_id: number;
-    patient_u_id: string;
+    patient_u_id: string | null;
     full_name: string;
     admission_date: string | null;
     discharge_date: string | null;
@@ -86,7 +86,7 @@ export default function PatientBillingDashboard() {
     const filteredPatients = useMemo(() => {
         return patients.filter(p => {
             const matchesSearch = p.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                  p.patient_u_id.toLowerCase().includes(searchQuery.toLowerCase());
+                                  (p.patient_u_id || '').toLowerCase().includes(searchQuery.toLowerCase());
             
             let matchesYear = false;
             if (selectedYear === 'All') {
