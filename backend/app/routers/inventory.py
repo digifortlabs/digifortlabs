@@ -31,7 +31,7 @@ class StockUpdateRequest(BaseModel):
     
 class InventoryItemResponse(InventoryItemCreate):
     item_id: int
-    last_updated: Optional[str] = None
+    last_updated: Optional[datetime] = None
     
     class Config:
         from_attributes = True
