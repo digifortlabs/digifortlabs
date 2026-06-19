@@ -223,7 +223,7 @@ export default function PatientBillingDashboard() {
                     <div className="absolute top-0 right-0 w-32 h-32 bg-rose-50 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
                     <div className="relative z-10 flex items-start gap-4">
                         <div className="p-4 bg-rose-100 rounded-2xl text-rose-600 shadow-inner">
-                            <Receipt className="w-6 h-6" />
+                            <IndianRupee className="w-6 h-6" />
                         </div>
                         <div>
                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Pending Bills</p>
@@ -368,7 +368,7 @@ export default function PatientBillingDashboard() {
                                                             onClick={() => router.push(`/hospital/accounting/invoices/${patient.pending_invoice_id}`)}
                                                             className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white rounded-xl text-xs font-black transition-all shadow-[0_4px_14px_0_rgb(245,158,11,0.39)] hover:shadow-[0_6px_20px_rgba(245,158,11,0.23)] hover:-translate-y-0.5"
                                                         >
-                                                            <Receipt size={16} /> View Pending Invoice
+                                                            <IndianRupee size={16} /> View Pending Invoice
                                                         </button>
                                                     ) : patient.has_unbilled_records ? (
                                                         <button

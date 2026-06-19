@@ -232,7 +232,7 @@ export default function CompileInvoicePage() {
                 <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in slide-in-from-top duration-300">
                     <div className="flex items-center gap-3">
                         <div className="p-3 bg-amber-100 text-amber-800 rounded-xl">
-                            <Receipt className="w-6 h-6 animate-pulse" />
+                            <IndianRupee className="w-6 h-6 animate-pulse" />
                         </div>
                         <div>
                             <p className="font-black text-amber-900 text-sm">
@@ -265,8 +265,8 @@ export default function CompileInvoicePage() {
                                 <h2 className="text-2xl font-black">{patient.full_name}</h2>
                                 <p className="text-indigo-100 font-mono text-sm opacity-80">{patient.patient_u_id}</p>
                             </div>
-                            <div className="flex items-center gap-2 bg-black/20 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10">
-                                <Receipt className="text-indigo-300" size={20} />
+                             <div className="flex items-center gap-2 bg-black/20 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10">
+                                <IndianRupee className="text-indigo-300" size={20} />
                                 <span className="font-bold text-sm tracking-wide">Pending Finalization</span>
                             </div>
                         </div>
