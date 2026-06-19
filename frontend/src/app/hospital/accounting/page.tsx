@@ -100,9 +100,11 @@ export default function PatientBillingDashboard() {
 
             return matchesSearch && matchesYear;
         }).sort((a, b) => {
-            // Unbilled records to the top
-            if (a.has_unbilled_records && !b.has_unbilled_records) return -1;
-            if (!a.has_unbilled_records && b.has_unbilled_records) return 1;
+            // Unbilled records or pending invoice to the top
+            const aPending = a.has_unbilled_records || a.pending_invoice_id;
+            const bPending = b.has_unbilled_records || b.pending_invoice_id;
+            if (aPending && !bPending) return -1;
+            if (!aPending && bPending) return 1;
             
             if (!a.admission_date) return 1;
             if (!b.admission_date) return -1;
@@ -119,7 +121,7 @@ export default function PatientBillingDashboard() {
     }, [invoices, searchQuery]);
 
     const totalRevenue = patients.reduce((sum, p) => sum + (p.total_bill_amount || 0), 0);
-    const pendingBillsCount = patients.filter(p => p.has_unbilled_records).length;
+    const pendingBillsCount = patients.filter(p => p.has_unbilled_records || p.pending_invoice_id).length;
 
     const handleSendEmail = async (invoiceId: number) => {
         setEmailLoading(invoiceId);
@@ -341,13 +343,13 @@ export default function PatientBillingDashboard() {
                                         </tr>
                                     ) : (
                                         filteredPatients.map(patient => (
-                                            <tr key={patient.record_id} className={`transition-colors ${patient.has_unbilled_records ? 'bg-indigo-50/30 hover:bg-indigo-50/60' : 'hover:bg-slate-50/80'}`}>
+                                            <tr key={patient.record_id} className={`transition-colors ${(patient.has_unbilled_records || patient.pending_invoice_id) ? 'bg-indigo-50/30 hover:bg-indigo-50/60' : 'hover:bg-slate-50/80'}`}>
                                                 <td className="py-4 px-6">
-                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                    <div className="flex items-center gap-2">
                                                         <p className="font-black text-slate-900">{patient.full_name}</p>
                                                         {patient.pending_invoice_id && (
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wide bg-amber-50 text-amber-800 border border-amber-200/60 shadow-sm">
-                                                                <IndianRupee size={10} className="text-amber-600 animate-pulse" /> Pending Invoice
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-200/50 uppercase tracking-wider">
+                                                                Pending Invoice
                                                             </span>
                                                         )}
                                                     </div>
