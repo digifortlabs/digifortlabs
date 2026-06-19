@@ -16,6 +16,7 @@ interface PatientBilling {
     discharge_date: string | null;
     total_bill_amount: number | null;
     has_unbilled_records: boolean;
+    pending_invoice_id: number | null;
 }
 
 interface PatientInvoice {
@@ -362,7 +363,14 @@ export default function PatientBillingDashboard() {
                                                     ₹ {(patient.total_bill_amount || 0).toLocaleString()}
                                                 </td>
                                                 <td className="py-4 px-6 text-center">
-                                                    {patient.has_unbilled_records ? (
+                                                    {patient.pending_invoice_id ? (
+                                                        <button
+                                                            onClick={() => router.push(`/hospital/accounting/invoices/${patient.pending_invoice_id}`)}
+                                                            className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white rounded-xl text-xs font-black transition-all shadow-[0_4px_14px_0_rgb(245,158,11,0.39)] hover:shadow-[0_6px_20px_rgba(245,158,11,0.23)] hover:-translate-y-0.5"
+                                                        >
+                                                            <Receipt size={16} /> View Pending Invoice
+                                                        </button>
+                                                    ) : patient.has_unbilled_records ? (
                                                         <button
                                                             onClick={() => router.push(`/hospital/accounting/invoices/new?patient_id=${patient.record_id}`)}
                                                             className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-black transition-all shadow-[0_4px_14px_0_rgb(79,70,229,0.39)] hover:shadow-[0_6px_20px_rgba(79,70,229,0.23)] hover:-translate-y-0.5"

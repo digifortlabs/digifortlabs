@@ -24,6 +24,7 @@ export default function CompileInvoicePage() {
 
     const [patient, setPatient] = useState<any>(null);
     const [hospital, setHospital] = useState<any>(null);
+    const [pendingInvoice, setPendingInvoice] = useState<any>(null);
     
     // items from unbilled records
     const [serverItems, setServerItems] = useState<any[]>([]);
@@ -65,6 +66,12 @@ export default function CompileInvoicePage() {
             const items = unbilledData?.unbilled_items || [];
             setServerItems(items);
             setSelectedServerIndices(new Set(items.map((_: any, idx: number) => idx)));
+
+            if (unbilledData?.pending_invoice) {
+                setPendingInvoice(unbilledData.pending_invoice);
+            } else {
+                setPendingInvoice(null);
+            }
 
         } catch (error: any) {
             console.error('Failed to load billing data:', error);
@@ -220,6 +227,31 @@ export default function CompileInvoicePage() {
                     <p className="text-slate-500 font-medium">Review unbilled clinical items and add custom charges</p>
                 </div>
             </div>
+
+            {pendingInvoice && (
+                <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in slide-in-from-top duration-300">
+                    <div className="flex items-center gap-3">
+                        <div className="p-3 bg-amber-100 text-amber-800 rounded-xl">
+                            <Receipt className="w-6 h-6 animate-pulse" />
+                        </div>
+                        <div>
+                            <p className="font-black text-amber-900 text-sm">
+                                Pending Invoice Detected ({pendingInvoice.invoice_number})
+                            </p>
+                            <p className="text-amber-700 text-xs font-semibold">
+                                An active pending invoice of <span className="font-bold text-amber-900">₹{pendingInvoice.total_amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span> already exists for this patient.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => router.push(`/hospital/accounting/invoices/${pendingInvoice.invoice_id}`)}
+                        className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-xl text-xs font-black shadow-[0_4px_12px_rgba(217,119,6,0.3)] transition-all flex items-center justify-center gap-2"
+                    >
+                        <FileText size={16} />
+                        View & Finalize Bill
+                    </button>
+                </div>
+            )}
 
             <div className="flex flex-col lg:flex-row gap-8">
                 

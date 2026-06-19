@@ -87,6 +87,7 @@ class DashboardPatientResponse(BaseModel):
     discharge_date: Optional[datetime] = None
     total_bill_amount: Optional[float] = 0.0
     has_unbilled_records: bool = False
+    pending_invoice_id: Optional[int] = None
 
 @router.get("/dashboard-patients", response_model=List[DashboardPatientResponse])
 def get_dashboard_patients(
@@ -110,6 +111,12 @@ def get_dashboard_patients(
     for row in unbilled_dental: unbilled_ids.add(row[0])
     for row in unbilled_reg: unbilled_ids.add(row[0])
     
+    pending_invoices = db.query(PatientInvoice).filter(
+        PatientInvoice.hospital_id == hospital_id,
+        PatientInvoice.status == "PENDING"
+    ).all()
+    pending_invoice_map = {inv.patient_id: inv.invoice_id for inv in pending_invoices}
+    
     results = []
     for p in patients:
         results.append({
@@ -119,7 +126,8 @@ def get_dashboard_patients(
             "admission_date": p.admission_date,
             "discharge_date": p.discharge_date,
             "total_bill_amount": p.total_bill_amount,
-            "has_unbilled_records": p.record_id in unbilled_ids
+            "has_unbilled_records": p.record_id in unbilled_ids,
+            "pending_invoice_id": pending_invoice_map.get(p.record_id)
         })
     return results
 
@@ -294,6 +302,21 @@ def get_unbilled_records(
                     "date": log_date
                 })
 
+    # Check if there is a pending invoice for this patient
+    pending_inv = db.query(PatientInvoice).filter(
+        PatientInvoice.patient_id == patient_id,
+        PatientInvoice.hospital_id == current_user.hospital_id,
+        PatientInvoice.status == "PENDING"
+    ).order_by(PatientInvoice.bill_date.desc()).first()
+
+    pending_invoice_data = None
+    if pending_inv:
+        pending_invoice_data = {
+            "invoice_id": pending_inv.invoice_id,
+            "invoice_number": pending_inv.invoice_number,
+            "total_amount": float(pending_inv.total_amount or 0.0)
+        }
+
     return {
         "patient": {
             "name": patient.full_name,
@@ -302,7 +325,8 @@ def get_unbilled_records(
             "email": patient.email_id
         },
         "hospital_has_gst": bool(patient.hospital and patient.hospital.gst_number),
-        "unbilled_items": items
+        "unbilled_items": items,
+        "pending_invoice": pending_invoice_data
     }
 
 
