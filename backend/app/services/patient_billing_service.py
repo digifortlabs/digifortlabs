@@ -62,6 +62,8 @@ class PatientBillingService:
         patient_id: int,
         items_data: list,  # list of dict: {description, qty, unit_price, discount, charge_type, reference_id}
         discount_amount: float = 0.0,
+        advance_deduction: float = 0.0,
+        cashless_deduction: float = 0.0,
         gst_rate: float = 18.0,
         payment_method: str = "CASH",
         transaction_id: Optional[str] = None,
@@ -102,7 +104,7 @@ class PatientBillingService:
             gst_rate = 0.0
 
         tax_amount = round((subtotal * gst_rate) / 100.0, 2)
-        total_amount = max(0.0, float(round(subtotal - discount_amount + tax_amount)))
+        total_amount = max(0.0, float(round(subtotal - discount_amount - advance_deduction - cashless_deduction + tax_amount)))
 
         # Generate unique invoice number
         # Format: DFL-PAT/{hospital_id}/{year}/{seq}
@@ -157,13 +159,21 @@ class PatientBillingService:
                 if admission:
                     admission.patient_invoice_id = invoice.invoice_id # type: ignore
 
-        # Update legacy patient total_bill_amount
+        # Update legacy patient total_bill_amount and deduct advance/cashless balances
         patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
         if patient:
             patient.total_bill_amount = (patient.total_bill_amount or 0.0) + total_amount # type: ignore
+            if advance_deduction > 0:
+                patient.advance_balance = max(0.0, (patient.advance_balance or 0.0) - advance_deduction)
+            if cashless_deduction > 0:
+                patient.cashless_approved_amount = max(0.0, (patient.cashless_approved_amount or 0.0) - cashless_deduction)
 
         db.commit()
         db.refresh(invoice)
+
+        # We attach these transiently so generate_pdf_file can render them
+        invoice._transient_advance_deduction = advance_deduction # type: ignore
+        invoice._transient_cashless_deduction = cashless_deduction # type: ignore
 
         # Generate PDF asynchronously / on-demand
         try:
@@ -311,15 +321,25 @@ class PatientBillingService:
             [Paragraph("", normal_style), Paragraph("Subtotal:", bold_style), Paragraph(f"₹ {invoice.subtotal:,.2f}", normal_style)],
             [Paragraph("", normal_style), Paragraph(f"GST ({invoice.gst_rate}%):", bold_style), Paragraph(f"₹ {invoice.tax_amount:,.2f}", normal_style)],
             [Paragraph("", normal_style), Paragraph("Overall Discount:", bold_style), Paragraph(f"- ₹ {invoice.discount_amount:,.2f}", normal_style)],
-            [Paragraph("", normal_style), Paragraph("Total Payable:", bold_style), Paragraph(f"<b>₹ {invoice.total_amount:,.2f}</b>", bold_style)],
         ]
+        
+        # Add deduction rows if present in transient memory
+        adv_deduct = getattr(invoice, "_transient_advance_deduction", 0.0)
+        cashless_deduct = getattr(invoice, "_transient_cashless_deduction", 0.0)
+        
+        if adv_deduct > 0:
+            total_data.append([Paragraph("", normal_style), Paragraph("Less: Advance Deposit:", bold_style), Paragraph(f"- ₹ {adv_deduct:,.2f}", normal_style)])
+        if cashless_deduct > 0:
+            total_data.append([Paragraph("", normal_style), Paragraph("Less: TPA Approved:", bold_style), Paragraph(f"- ₹ {cashless_deduct:,.2f}", normal_style)])
+
+        total_data.append([Paragraph("", normal_style), Paragraph("Total Payable:", bold_style), Paragraph(f"<b>₹ {invoice.total_amount:,.2f}</b>", bold_style)])
         
         total_table = Table(total_data, colWidths=[320, 100, 100])
         total_table.setStyle(TableStyle([
             ('ALIGN', (1,0), (-1,-1), 'RIGHT'),
             ('PADDING', (0,0), (-1,-1), 4),
-            ('LINEBELOW', (1,2), (2,2), 1, colors.HexColor('#e2e8f0')),
-            ('BACKGROUND', (1,3), (2,3), colors.HexColor('#f1f5f9')),
+            ('LINEBELOW', (1,len(total_data)-2), (2,len(total_data)-2), 1, colors.HexColor('#e2e8f0')),
+            ('BACKGROUND', (1,len(total_data)-1), (2,len(total_data)-1), colors.HexColor('#f1f5f9')),
         ]))
         story.append(total_table)
         story.append(Spacer(1, 20))

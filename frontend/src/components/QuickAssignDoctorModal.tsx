@@ -35,6 +35,10 @@ export default function QuickAssignDoctorModal({ isOpen, onClose, patientId, pat
     const [isFollowUp, setIsFollowUp] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
+    // Fee Collection
+    const [feeAmount, setFeeAmount] = useState('500');
+    const [paymentMethod, setPaymentMethod] = useState('PENDING');
+
     // Schedule & Preview
     const [scheduleBlocks, setScheduleBlocks] = useState<any[]>([]);
     const [previewSlot, setPreviewSlot] = useState<any>(null);
@@ -49,6 +53,8 @@ export default function QuickAssignDoctorModal({ isOpen, onClose, patientId, pat
             setVisitType('OPD');
             setSelectedDate(todayStr);
             setPreferredTime('');
+            setFeeAmount('500');
+            setPaymentMethod('PENDING');
             setPreviewSlot(null);
             setPreviewError(null);
             setScheduleBlocks([]);
@@ -161,6 +167,17 @@ export default function QuickAssignDoctorModal({ isOpen, onClose, patientId, pat
                 method: 'POST',
                 body: payload
             });
+
+            if (feeAmount && parseFloat(feeAmount) > 0 && paymentMethod !== 'PENDING') {
+                await apiFetch(`/patient-ledger/${patientId}/deposit`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        amount: parseFloat(feeAmount),
+                        payment_method: paymentMethod,
+                        notes: 'OPD Registration/Consultation Fee'
+                    })
+                });
+            }
 
             toast.success(`Appointment booked successfully!`);
             onClose();
@@ -327,6 +344,38 @@ export default function QuickAssignDoctorModal({ isOpen, onClose, patientId, pat
                         <Label htmlFor="followUp" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                             This is a follow-up visit
                         </Label>
+                    </div>
+
+                    <div className="col-span-2 mt-2 pt-4 border-t border-slate-100">
+                        <h4 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-indigo-500" />
+                            Registration & Consultation Fee
+                        </h4>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Fee Amount (₹)</Label>
+                                <Input 
+                                    type="number" 
+                                    value={feeAmount}
+                                    onChange={(e) => setFeeAmount(e.target.value)}
+                                    placeholder="e.g. 500"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Payment Status</Label>
+                                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select Payment" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="PENDING">Pending (Add to Bill)</SelectItem>
+                                        <SelectItem value="CASH">Paid by Cash</SelectItem>
+                                        <SelectItem value="UPI">Paid by UPI</SelectItem>
+                                        <SelectItem value="CARD">Paid by Card</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

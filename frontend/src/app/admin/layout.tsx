@@ -129,7 +129,7 @@ export default function DashboardLayout({
     }
 
     return (
-        <div className="flex h-screen overflow-hidden bg-slate-950">
+        <div className="flex h-screen overflow-hidden bg-white">
             {/* Sidebar - Always on top left for Desktop */}
             <Sidebar userRole={userRole} hospitalSlug={hospitalSlug} />
 
@@ -138,7 +138,7 @@ export default function DashboardLayout({
                 <DashboardNavbar userRole={userRole} />
                 <GreetingBar />
                 
-                <div className="flex-1 overflow-y-auto bg-slate-50 relative">
+                <div className="flex-1 overflow-y-auto bg-white relative">
                     <MaintenanceBanner />
                     {showWarning && <InactivityWarning timeLeft={timeLeft} onExtend={extendSession} />}
                     

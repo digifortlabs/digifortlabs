@@ -201,18 +201,18 @@ export default function AppointmentsDashboard() {
             <Card className="bg-white border border-slate-100 rounded-3xl shadow-xl shadow-slate-100/50 overflow-hidden">
                 <CardHeader className="border-b border-slate-100/80 p-6 bg-slate-50/30">
                     <div className="flex flex-col md:flex-row gap-4 justify-between items-end">
-                        <div className="flex gap-4 flex-wrap w-full md:w-auto">
-                            <div className="w-full sm:w-48">
-                                <div className="flex justify-between items-center mb-2">
-                                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 block">Date</label>
-                                    <label className="text-[10px] font-black uppercase text-indigo-600 flex items-center gap-1 cursor-pointer">
+                        <div className="flex gap-3 flex-wrap w-full md:w-auto items-end">
+                            <div className="w-full sm:w-40">
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Date</label>
+                                    <label className="text-[9px] font-black uppercase text-indigo-600 flex items-center gap-1 cursor-pointer">
                                         <input 
                                             type="checkbox" 
                                             checked={showAllDates} 
                                             onChange={(e) => setShowAllDates(e.target.checked)}
-                                            className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+                                            className="rounded text-indigo-600 focus:ring-indigo-500 w-3 h-3"
                                         />
-                                        All Dates
+                                        All
                                     </label>
                                 </div>
                                 <Input
@@ -220,16 +220,16 @@ export default function AppointmentsDashboard() {
                                     value={selectedDate}
                                     onChange={(e) => setSelectedDate(e.target.value)}
                                     disabled={showAllDates}
-                                    className="bg-slate-50/50 border-slate-200 text-slate-800 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl h-11 font-medium px-4 disabled:opacity-50"
+                                    className="bg-slate-50/50 border-slate-200 text-slate-800 focus:ring-indigo-500 focus:border-indigo-500 rounded-lg h-9 text-xs font-medium px-3 disabled:opacity-50"
                                 />
                             </div>
-                            <div className="w-full sm:w-48">
-                                <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2 block">Department</label>
+                            <div className="w-full sm:w-40">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block">Department</label>
                                 <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                                    <SelectTrigger className="bg-slate-50/50 border-slate-200 text-slate-800 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl h-11 font-medium">
-                                        <SelectValue placeholder="All Departments" />
+                                    <SelectTrigger className="bg-slate-50/50 border-slate-200 text-slate-800 focus:ring-indigo-500 focus:border-indigo-500 rounded-lg h-9 text-xs font-medium">
+                                        <SelectValue placeholder="All Depts" />
                                     </SelectTrigger>
-                                    <SelectContent className="bg-white border-slate-100 text-slate-800 rounded-xl shadow-xl">
+                                    <SelectContent className="bg-white border-slate-100 text-slate-800 rounded-lg shadow-xl text-xs">
                                         <SelectItem value="all">All Departments</SelectItem>
                                         {departments.map((d: any) => (
                                             <SelectItem key={d.department_id} value={d.department_id.toString()}>
@@ -239,31 +239,31 @@ export default function AppointmentsDashboard() {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="w-full sm:w-48">
-                                <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2 block">Doctor</label>
+                            <div className="w-full sm:w-40">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block">Doctor</label>
                                 <Select value={selectedDoctor} onValueChange={setSelectedDoctor}>
-                                    <SelectTrigger className="bg-slate-50/50 border-slate-200 text-slate-800 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl h-11 font-medium">
+                                    <SelectTrigger className="bg-slate-50/50 border-slate-200 text-slate-800 focus:ring-indigo-500 focus:border-indigo-500 rounded-lg h-9 text-xs font-medium">
                                         <SelectValue placeholder="All Doctors" />
                                     </SelectTrigger>
-                                    <SelectContent className="bg-white border-slate-100 text-slate-800 rounded-xl shadow-xl">
+                                    <SelectContent className="bg-white border-slate-100 text-slate-800 rounded-lg shadow-xl text-xs">
                                         <SelectItem value="all">All Doctors</SelectItem>
                                         {doctors.map((d: any) => (
                                             <SelectItem key={d.profile_id} value={d.profile_id.toString()}>
-                                                Dr. {d.full_name} ({departments.find(dept => dept.department_id === d.department_id)?.name || 'Unknown'})
+                                                Dr. {d.full_name}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="w-full sm:w-auto flex items-end mb-2">
-                                <label className="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer bg-slate-50/50 hover:bg-slate-100 border border-slate-200 px-4 h-11 rounded-xl transition-colors">
+                            <div className="w-full sm:w-auto flex items-end">
+                                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer bg-slate-50/50 hover:bg-slate-100 border border-slate-200 px-3 h-9 rounded-lg transition-colors">
                                     <input 
                                         type="checkbox" 
                                         checked={isFollowUpFilter}
                                         onChange={(e) => setIsFollowUpFilter(e.target.checked)}
-                                        className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
+                                        className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
                                     />
-                                    Follow Up Only
+                                    Follow Up
                                 </label>
                             </div>
                         </div>
@@ -271,10 +271,10 @@ export default function AppointmentsDashboard() {
                             <Button
                                 variant="outline"
                                 onClick={loadAppointments}
-                                className="border-slate-200 text-slate-600 hover:bg-slate-50 bg-white font-bold h-11 rounded-xl px-5 transition-all gap-2"
+                                className="border-slate-200 text-slate-600 hover:bg-slate-50 bg-white font-bold h-9 rounded-lg px-4 transition-all gap-1.5 text-xs"
                                 disabled={isLoading}
                             >
-                                <RefreshCcw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                                <RefreshCcw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
                                 Refresh
                             </Button>
                         </div>
@@ -285,12 +285,12 @@ export default function AppointmentsDashboard() {
                         <table className="w-full text-left text-sm text-slate-600">
                             <thead className="bg-slate-50/70 text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-100">
                                 <tr>
-                                    <th className="px-6 py-4">Time</th>
-                                    <th className="px-6 py-4">Patient Details</th>
-                                    <th className="px-6 py-4">Department / Doctor</th>
-                                    <th className="px-6 py-4">Reason / Notes</th>
-                                    <th className="px-6 py-4">Status</th>
-                                    <th className="px-6 py-4 text-right">Actions</th>
+                                    <th className="px-4 py-2.5">Time</th>
+                                    <th className="px-4 py-2.5">Patient Details</th>
+                                    <th className="px-4 py-2.5">Department / Doctor</th>
+                                    <th className="px-4 py-2.5">Reason / Notes</th>
+                                    <th className="px-4 py-2.5">Status</th>
+                                    <th className="px-4 py-2.5 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -310,77 +310,77 @@ export default function AppointmentsDashboard() {
                                 ) : (
                                     appointments.map((appt) => (
                                         <tr key={appt.appointment_id} className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center gap-2 text-slate-900 font-bold">
-                                                    <Clock className="w-4 h-4 text-indigo-500" />
+                                            <td className="px-4 py-2.5 whitespace-nowrap">
+                                                <div className="flex items-center gap-1.5 text-slate-900 font-bold text-xs">
+                                                    <Clock className="w-3.5 h-3.5 text-indigo-500" />
                                                     {format(parseISO(appt.start_time), 'hh:mm a')}
-                                                    <span className="text-slate-400 text-xs font-semibold"> - {format(parseISO(appt.end_time), 'hh:mm a')}</span>
+                                                    <span className="text-slate-400 font-semibold"> - {format(parseISO(appt.end_time), 'hh:mm a')}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex flex-col gap-1.5 items-start">
-                                                    <span className="inline-flex items-center bg-indigo-50/80 text-indigo-700 border border-indigo-100/60 px-3 py-1.5 rounded-xl font-bold text-xs tracking-wide">
+                                            <td className="px-4 py-2.5">
+                                                <div className="flex flex-col gap-1 items-start">
+                                                    <span className="inline-flex items-center bg-indigo-50/80 text-indigo-700 border border-indigo-100/60 px-2 py-1 rounded-lg font-bold text-[11px] tracking-wide">
                                                         Patient ID #{appt.patient_id}
                                                     </span>
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
                                                             {appt.visit_type || 'OPD'}
                                                         </span>
                                                         {appt.is_follow_up && (
-                                                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                                                                 Follow Up
                                                             </span>
                                                         )}
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-2.5">
                                                 <div className="flex flex-col gap-0.5">
-                                                    <div className="flex items-center gap-1.5 text-slate-800 font-bold">
-                                                        <User className="w-4 h-4 text-slate-400" />
+                                                    <div className="flex items-center gap-1 text-slate-800 font-bold text-xs">
+                                                        <User className="w-3 h-3 text-slate-400" />
                                                         <span>Dr. {doctors.find(d => d.profile_id === appt.doctor_id)?.full_name || 'Unknown'}</span>
                                                     </div>
-                                                    <div className="text-xs font-semibold text-slate-400 ml-6">
+                                                    <div className="text-[10px] font-semibold text-slate-400 ml-4">
                                                         {departments.find(d => d.department_id === appt.department_id)?.name || 'Unknown Dept'}
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className="max-w-[200px] truncate text-slate-700 font-medium">
+                                            <td className="px-4 py-2.5">
+                                                <div className="max-w-[150px] truncate text-slate-700 font-medium text-xs">
                                                     {appt.reason_for_visit || '-'}
                                                 </div>
                                                 {appt.notes && (
-                                                    <div className="text-xs text-slate-400 font-semibold truncate mt-1">
+                                                    <div className="text-[10px] text-slate-400 font-semibold truncate mt-0.5">
                                                         {appt.notes}
                                                     </div>
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <Badge variant="outline" className={getStatusColor(appt.status)}>
+                                            <td className="px-4 py-2.5">
+                                                <Badge variant="outline" className={`${getStatusColor(appt.status)} text-[10px] px-2 py-0.5`}>
                                                     {appt.status}
                                                 </Badge>
                                             </td>
-                                            <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
+                                            <td className="px-4 py-2.5 text-right flex items-center justify-end gap-1.5">
                                                 {appt.status === 'Scheduled' && (
-                                                    <Button size="sm" onClick={() => handleStatusUpdate(appt.appointment_id, 'Arrived')} className="bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200/50 rounded-xl font-bold text-xs">
+                                                    <Button size="sm" onClick={() => handleStatusUpdate(appt.appointment_id, 'Arrived')} className="bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200/50 rounded-lg font-bold text-[10px] h-7 px-2">
                                                         Mark Arrived
                                                     </Button>
                                                 )}
                                                 {appt.status === 'Arrived' && (
-                                                    <Button size="sm" onClick={() => handleStatusUpdate(appt.appointment_id, 'In-Consultation')} className="bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200/50 rounded-xl font-bold text-xs">
+                                                    <Button size="sm" onClick={() => handleStatusUpdate(appt.appointment_id, 'In-Consultation')} className="bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200/50 rounded-lg font-bold text-[10px] h-7 px-2">
                                                         Start Consult
                                                     </Button>
                                                 )}
                                                 {appt.status === 'In-Consultation' && (
-                                                    <Button size="sm" onClick={() => handleStatusUpdate(appt.appointment_id, 'Completed')} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/50 rounded-xl font-bold text-xs">
+                                                    <Button size="sm" onClick={() => handleStatusUpdate(appt.appointment_id, 'Completed')} className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/50 rounded-lg font-bold text-[10px] h-7 px-2">
                                                         Complete
                                                     </Button>
                                                 )}
-                                                <Button size="sm" variant="ghost" onClick={() => { setEditingAppointment(appt); setIsCreateModalOpen(true); }} className="text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl p-2 h-9 w-9">
-                                                    <Edit className="w-4.5 h-4.5" />
+                                                <Button size="sm" variant="ghost" onClick={() => { setEditingAppointment(appt); setIsCreateModalOpen(true); }} className="text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg p-1.5 h-7 w-7">
+                                                    <Edit className="w-3.5 h-3.5" />
                                                 </Button>
-                                                <Button size="sm" variant="ghost" onClick={() => handleDelete(appt.appointment_id)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl p-2 h-9 w-9">
-                                                    <Trash2 className="w-4.5 h-4.5" />
+                                                <Button size="sm" variant="ghost" onClick={() => handleDelete(appt.appointment_id)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg p-1.5 h-7 w-7">
+                                                    <Trash2 className="w-3.5 h-3.5" />
                                                 </Button>
                                             </td>
                                         </tr>

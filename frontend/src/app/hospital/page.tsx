@@ -113,45 +113,37 @@ export default function HospitalPage() {
             </div>
 
             {/* ── KPI CARDS ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 {[
                     {
                         label: 'Total Patients',
-                        value: stats?.patients?.total?.toLocaleString() ?? '—',
-                        trend: stats?.patients?.trend,
-                        icon: Users,
-                        color: 'blue',
+                        value: stats?.patients?.total?.toLocaleString() ?? '0',
+                        color: 'bg-emerald-50 border-emerald-200 text-emerald-600',
+                        valColor: 'text-emerald-500',
                     },
                     {
                         label: 'Storage Used',
-                        value: stats?.storage?.usage ?? '— GB',
-                        trend: `${stats?.storage?.capacity_pct ?? 0}% capacity`,
-                        icon: Activity,
-                        color: 'teal',
+                        value: stats?.storage?.usage ?? '0 B',
+                        color: 'bg-blue-50 border-blue-200 text-blue-600',
+                        valColor: 'text-blue-500',
                     },
                     {
                         label: 'System Health',
                         value: stats?.system?.health ?? 'Optimal',
-                        trend: 'All systems nominal',
-                        icon: ShieldCheck,
-                        color: 'emerald',
+                        color: 'bg-yellow-50 border-yellow-200 text-yellow-600',
+                        valColor: 'text-yellow-500',
+                    },
+                    {
+                        label: 'All Systems',
+                        value: 'Nominal',
+                        color: 'bg-slate-50 border-slate-200 text-slate-600',
+                        valColor: 'text-slate-500',
                     },
                 ].map((kpi, i) => {
-                    const Icon = kpi.icon;
                     return (
-                        <div key={i} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group">
-                            <div className="flex items-start justify-between mb-4">
-                                <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${COLOR_MAP[kpi.color].split(' ').slice(0,3).join(' ')} border flex items-center justify-center`}>
-                                    <Icon size={20} strokeWidth={2.5} className={COLOR_MAP[kpi.color].split(' ')[3]} />
-                                </div>
-                                {kpi.trend && (
-                                    <span className="text-[11px] font-black px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 border border-slate-100">
-                                        {kpi.trend}
-                                    </span>
-                                )}
-                            </div>
-                            <p className="text-3xl font-black text-slate-900 tracking-tight capitalize">{kpi.value}</p>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{kpi.label}</p>
+                        <div key={i} className={`rounded-md border p-6 flex flex-col items-center justify-center text-center transition-colors ${kpi.color}`}>
+                            <p className="text-[11px] font-medium uppercase tracking-wider mb-2 text-slate-500">{kpi.label}</p>
+                            <p className={`text-2xl font-semibold ${kpi.valColor}`}>{kpi.value}</p>
                         </div>
                     );
                 })}
@@ -168,13 +160,13 @@ export default function HospitalPage() {
                     ].map((kpi, i) => {
                         const Icon = kpi.icon;
                         return (
-                            <div key={i} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4 flex items-center gap-4 hover:shadow-md transition-all">
-                                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${COLOR_MAP[kpi.color].split(' ').slice(0,3).join(' ')} border flex items-center justify-center shrink-0`}>
-                                    <Icon size={18} strokeWidth={2.5} className={COLOR_MAP[kpi.color].split(' ')[3]} />
+                            <div key={i} className="bg-white rounded-md border border-slate-200 p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors">
+                                <div className={`w-8 h-8 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0`}>
+                                    <Icon size={16} strokeWidth={2} className="text-slate-500" />
                                 </div>
                                 <div>
-                                    <p className="text-2xl font-black text-slate-900 leading-none">{kpi.value}</p>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{kpi.label}</p>
+                                    <p className="text-xl font-semibold text-slate-800 leading-none">{kpi.value}</p>
+                                    <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mt-1">{kpi.label}</p>
                                 </div>
                             </div>
                         );
@@ -185,12 +177,10 @@ export default function HospitalPage() {
 
             {/* ── MODULE LAUNCHER ── */}
             <div>
-                <h2 className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4">Modules</h2>
+                <h2 className="text-sm font-semibold text-slate-700 mb-4">Modules</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
                     {visibleActions.map((action) => {
                         const Icon = action.icon;
-                        const colorClasses = COLOR_MAP[action.color] || COLOR_MAP.slate;
-                        const [from, to, border, text] = colorClasses.split(' ');
                         return (
                             <button
                                 key={action.href || action.label}
@@ -199,16 +189,14 @@ export default function HospitalPage() {
                                         router.push(action.href);
                                     }
                                 }}
-                                className="group flex flex-col items-center gap-3 p-5 bg-white rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-left"
+                                className="group flex flex-col items-center gap-2.5 p-4 bg-white rounded-md border border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 transition-all duration-200 text-center"
                             >
-                                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${from} ${to} ${border} border flex items-center justify-center ${text} group-hover:scale-110 transition-transform duration-300`}>
-                                    <Icon size={22} strokeWidth={2.5} />
+                                <div className={`w-10 h-10 rounded-md bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 transition-colors duration-200 group-hover:bg-indigo-100`}>
+                                    <Icon size={18} strokeWidth={2} />
                                 </div>
-                                <div className="text-center">
-                                    <p className="text-sm font-black text-slate-800 leading-tight">{action.label}</p>
-                                    <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-tight hidden sm:block">{action.desc}</p>
+                                <div>
+                                    <p className="text-[13px] font-semibold text-slate-700 leading-tight">{action.label}</p>
                                 </div>
-                                <ArrowRight size={14} className="text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all duration-200" />
                             </button>
                         );
                     })}

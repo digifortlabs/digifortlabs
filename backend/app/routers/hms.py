@@ -18,6 +18,9 @@ class WardCreate(BaseModel):
     ward_type: str  # ICU, General, Private, Semi-Private
     total_beds: int
     daily_charge: float = 500.0
+    doctor_charge: float = 0.0
+    nursing_charge: float = 0.0
+    bio_medical_wastage_charge: float = 0.0
     floor_number: Optional[str] = "1"
 
 class BedCreate(BaseModel):
@@ -105,6 +108,16 @@ def check_nurse_or_doctor_role(user: User):
 
 class BedTransfer(BaseModel):
     new_bed_id: int
+    reason: Optional[str] = None
+
+class DietOrderCreate(BaseModel):
+    diet_type: str
+    instructions: Optional[str] = None
+
+class ClearanceUpdate(BaseModel):
+    medical_cleared: Optional[bool] = None
+    pharmacy_cleared: Optional[bool] = None
+    billing_cleared: Optional[bool] = None
 
 class BedStatusUpdate(BaseModel):
     status: str
@@ -119,6 +132,9 @@ class WardUpdate(BaseModel):
     floor_number: Optional[str] = None
     total_beds: Optional[int] = None
     daily_charge: Optional[float] = None
+    doctor_charge: Optional[float] = None
+    nursing_charge: Optional[float] = None
+    bio_medical_wastage_charge: Optional[float] = None
 
 class VitalsRecord(BaseModel):
     temp: Optional[str] = None
@@ -161,6 +177,12 @@ class SurgeryAssessmentUpdate(BaseModel):
     anesthesiologist_id: Optional[int] = None
     current_diagnosis: Optional[str] = None
     special_requirements: Optional[str] = None
+    
+    # OT Tracking
+    timestamps: Optional[dict] = None
+    implant_register: Optional[dict] = None
+    narcotics_log: Optional[dict] = None
+    intra_op_logs: Optional[dict] = None
 
 class OTAssign(BaseModel):
     surgery_id: Optional[int] = None
@@ -237,6 +259,9 @@ def create_ward(
         floor_number=ward.floor_number,
         total_beds=ward.total_beds,
         daily_charge=ward.daily_charge,
+        doctor_charge=ward.doctor_charge,
+        nursing_charge=ward.nursing_charge,
+        bio_medical_wastage_charge=ward.bio_medical_wastage_charge,
         occupied_beds=0
     )
     db.add(new_ward)
@@ -269,17 +294,20 @@ def get_wards(
         Ward.hospital_id == effective_h_id
     ).all()
     
+    # Get bed counts efficiently
+    bed_counts = db.query(Bed.ward_id, func.count(Bed.bed_id)).filter(
+        Bed.is_occupied == True,
+        Bed.ward_id.in_([w.ward_id for w in wards])
+    ).group_by(Bed.ward_id).all()
+    
+    occupied_map = {ward_id: count for ward_id, count in bed_counts}
+    
     result = []
     for w in wards:
-        # Get actual bed occupancy count
-        occupied_count = db.query(Bed).filter(
-            Bed.ward_id == w.ward_id,
-            Bed.is_occupied == True
-        ).count()
+        occupied_count = occupied_map.get(w.ward_id, 0)
         
         # Keep DB counter in sync
         w.occupied_beds = occupied_count  # type: ignore
-        db.commit()
         
         available_beds = w.total_beds - occupied_count
         result.append({
@@ -290,10 +318,14 @@ def get_wards(
             "occupied_beds": occupied_count,
             "available_beds": max(0, available_beds),
             "daily_charge": getattr(w, "daily_charge", 500.0),
+            "doctor_charge": getattr(w, "doctor_charge", 0.0),
+            "nursing_charge": getattr(w, "nursing_charge", 0.0),
+            "bio_medical_wastage_charge": getattr(w, "bio_medical_wastage_charge", 0.0),
             "floor_number": getattr(w, "floor_number", 1) or 1,
             "occupancy_rate": (occupied_count / w.total_beds * 100) if w.total_beds > 0 else 0
         })
     
+    db.commit()
     return result
 
 @router.get("/wards/{ward_id}")
@@ -338,6 +370,12 @@ def update_ward(
         ward.floor_number = ward_update.floor_number  # type: ignore
     if ward_update.daily_charge is not None:
         ward.daily_charge = ward_update.daily_charge  # type: ignore
+    if ward_update.doctor_charge is not None:
+        ward.doctor_charge = ward_update.doctor_charge  # type: ignore
+    if ward_update.nursing_charge is not None:
+        ward.nursing_charge = ward_update.nursing_charge  # type: ignore
+    if ward_update.bio_medical_wastage_charge is not None:
+        ward.bio_medical_wastage_charge = ward_update.bio_medical_wastage_charge  # type: ignore
     if ward_update.total_beds is not None and ward_update.total_beds != ward.total_beds:
         if ward_update.total_beds > ward.total_beds:
             # Add new beds
@@ -576,6 +614,28 @@ def admit_patient(
         raise HTTPException(status_code=400, detail="Bed is already occupied")
     
     patient_id = admission.patient_id
+    
+    # Gender validation against Ward
+    patient_gender = None
+    if patient_id:
+        patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+        if patient: patient_gender = patient.gender
+    else:
+        patient_gender = admission.gender
+        
+    if patient_gender:
+        ward = db.query(Ward).filter(Ward.ward_id == bed.ward_id).first()
+        if ward and ward.ward_name:
+            ward_name_lower = ward.ward_name.lower()
+            patient_gender_lower = patient_gender.lower()
+            
+            is_female_ward = "female" in ward_name_lower
+            is_male_ward = "male" in ward_name_lower and not is_female_ward
+            
+            if is_female_ward and patient_gender_lower == "male":
+                raise HTTPException(status_code=400, detail="Male patients cannot be admitted to a Female ward.")
+            if is_male_ward and patient_gender_lower == "female":
+                raise HTTPException(status_code=400, detail="Female patients cannot be admitted to a Male ward.")
     
     hospital = db.query(Hospital).filter(Hospital.hospital_id == current_user.hospital_id).first()
     id_settings = hospital.id_generation_settings or {} if hospital else {}
@@ -855,11 +915,74 @@ def discharge_patient(
         discharge_date = discharge_date.replace(tzinfo=None)
     
     time_diff = discharge_date - admission.admission_date
-    days_admitted = max(1, time_diff.days + (1 if time_diff.seconds > 0 else 0))
+    fallback_days = max(1, time_diff.days + (1 if time_diff.seconds > 0 else 0))
     
+    # Calculate bed charges using bed_history if available
+    room_total = 0.0
+    items_to_add = []
+    days_admitted = 0
     ward = db.query(Ward).filter(Ward.ward_id == admission.ward_id).first()
-    daily_charge = ward.daily_charge if ward and getattr(ward, "daily_charge", None) else 500.0
-    room_total = days_admitted * daily_charge
+    
+    if admission.bed_history:
+        all_wards = {w.ward_id: w for w in db.query(Ward).all()}
+        
+        current_date = admission.admission_date.date()
+        end_date_only = discharge_date.date()
+        
+        history = list(admission.bed_history)
+        history.append({
+            "ward_id": admission.ward_id,
+            "start_date": history[-1].get("end_date") if history else admission.admission_date.isoformat(),
+            "end_date": discharge_date.isoformat()
+        })
+        
+        while current_date <= end_date_only:
+            day_wards = []
+            for h in history:
+                if not h.get("start_date") or not h.get("end_date"):
+                    continue
+                h_start = datetime.fromisoformat(h["start_date"].replace('Z', '+00:00')).date()
+                h_end = datetime.fromisoformat(h["end_date"].replace('Z', '+00:00')).date()
+                if h_start <= current_date <= h_end:
+                    day_wards.append(h["ward_id"])
+            
+            if not day_wards:
+                day_wards = [admission.ward_id]
+                
+            max_charge = 0.0
+            for wid in day_wards:
+                w = all_wards.get(wid)
+                charge = w.daily_charge if w and getattr(w, "daily_charge", None) else 500.0
+                if charge > max_charge:
+                    max_charge = charge
+            
+            if max_charge == 0.0:
+                max_charge = 500.0
+                
+            room_total += max_charge
+            days_admitted += 1
+            current_date += timedelta(days=1)
+            
+        items_to_add.append({
+            "description": f"IPD Room Charge ({days_admitted} days with ward transfers)",
+            "qty": 1,
+            "unit_price": room_total,
+            "amount": room_total,
+            "charge_type": "IPD_ADMISSION",
+            "reference_id": admission.admission_id
+        })
+    else:
+        days_admitted = fallback_days
+        daily_charge = ward.daily_charge if ward and getattr(ward, "daily_charge", None) else 500.0
+        room_total = days_admitted * daily_charge
+        items_to_add.append({
+            "description": f"IPD Room Charge ({days_admitted} days @ ₹{daily_charge})",
+            "qty": 1,
+            "unit_price": room_total,
+            "amount": room_total,
+            "charge_type": "IPD_ADMISSION",
+            "reference_id": admission.admission_id
+        })
     
     # Resolve discharge notes (frontend sends discharge_notes, but schema supports discharge_summary as well)
     discharge_notes_text = discharge_data.discharge_summary or discharge_data.discharge_notes
@@ -871,19 +994,73 @@ def discharge_patient(
         invoice = None
         
     old_invoice_total = invoice.total_amount if invoice else 0.0
-
-    # Compile stay items
-    items_to_add = []
     
-    # 1. IPD Room Charge
-    items_to_add.append({
-        "description": f"IPD Room Charge ({days_admitted} days @ ₹{daily_charge})",
-        "qty": 1,
-        "unit_price": room_total,
-        "amount": room_total,
-        "charge_type": "IPD_ADMISSION",
-        "reference_id": admission.admission_id
-    })
+    doctor_charge = ward.doctor_charge if ward and getattr(ward, "doctor_charge", None) else 0.0
+    if doctor_charge > 0:
+        doc_total = days_admitted * doctor_charge
+        items_to_add.append({
+            "description": f"Doctor Charge ({days_admitted} days @ ₹{doctor_charge})",
+            "qty": 1,
+            "unit_price": doc_total,
+            "amount": doc_total,
+            "charge_type": "IPD_ADMISSION",
+            "reference_id": admission.admission_id
+        })
+        
+    nursing_charge = ward.nursing_charge if ward and getattr(ward, "nursing_charge", None) else 0.0
+    if nursing_charge > 0:
+        nurse_total = days_admitted * nursing_charge
+        items_to_add.append({
+            "description": f"Nursing Charge ({days_admitted} days @ ₹{nursing_charge})",
+            "qty": 1,
+            "unit_price": nurse_total,
+            "amount": nurse_total,
+            "charge_type": "IPD_ADMISSION",
+            "reference_id": admission.admission_id
+        })
+        
+    bio_medical_wastage_charge = ward.bio_medical_wastage_charge if ward and getattr(ward, "bio_medical_wastage_charge", None) else 0.0
+    if bio_medical_wastage_charge > 0:
+        bio_total = days_admitted * bio_medical_wastage_charge
+        items_to_add.append({
+            "description": f"BIO Medical Wastage Charge ({days_admitted} days @ ₹{bio_medical_wastage_charge})",
+            "qty": 1,
+            "unit_price": bio_total,
+            "amount": bio_total,
+            "charge_type": "IPD_ADMISSION",
+            "reference_id": admission.admission_id
+        })
+
+    # Admitting Doctor Charge (if PER_DAY)
+    if admission.doctor and getattr(admission.doctor, "ipd_charge_type", "PER_DAY") == "PER_DAY":
+        doc_charge = getattr(admission.doctor, "ipd_charge", 0.0)
+        if doc_charge > 0:
+            doc_total = days_admitted * doc_charge
+            items_to_add.append({
+                "description": f"Consulting Doctor Charge - {admission.doctor.full_name} ({days_admitted} days @ ₹{doc_charge})",
+                "qty": 1,
+                "unit_price": doc_total,
+                "amount": doc_total,
+                "charge_type": "DOCTOR_CHARGE",
+                "reference_id": admission.admission_id
+            })
+            
+    # Manual Doctor Visits (PER_VISIT)
+    if hasattr(admission, "doctor_visits") and admission.doctor_visits:
+        for visit in admission.doctor_visits:
+            doc_name = visit.doctor.full_name if visit.doctor else "Unknown Doctor"
+            visit_desc = f"Doctor Visit - {doc_name}"
+            if visit.notes:
+                visit_desc += f" ({visit.notes})"
+            visit_amount = float(visit.charge_amount)
+            items_to_add.append({
+                "description": visit_desc,
+                "qty": 1,
+                "unit_price": visit_amount,
+                "amount": visit_amount,
+                "charge_type": "DOCTOR_VISIT",
+                "reference_id": visit.visit_id
+            })
     
     # 2. Registration Fee (First-Time)
     invoice_count = db.query(PatientInvoice).filter(PatientInvoice.patient_id == admission.patient_id).count()
@@ -1121,6 +1298,7 @@ def get_medication_alerts(
                     
                     if is_due:
                         alerts.append({
+                            "type": "medication",
                             "admission_id": adm.admission_id,
                             "patient_name": patient.full_name if patient else "Unknown",
                             "ward_name": ward.ward_name if ward else "Unknown",
@@ -1134,6 +1312,46 @@ def get_medication_alerts(
                         })
                 except Exception:
                     pass
+
+        # Check for abnormal vitals in the latest reading
+        if adm.vitals_history and len(adm.vitals_history) > 0:
+            latest_vitals = adm.vitals_history[-1]
+            abnormal_flags = []
+            
+            try:
+                temp = float(latest_vitals.get("temp", 0)) if latest_vitals.get("temp") else None
+                if temp and (temp > 99.5 or temp < 97.0): abnormal_flags.append(f"Temp: {temp}")
+            except: pass
+            
+            try:
+                pulse = float(latest_vitals.get("pulse", 0)) if latest_vitals.get("pulse") else None
+                if pulse and (pulse > 100 or pulse < 60): abnormal_flags.append(f"Pulse: {pulse}")
+            except: pass
+            
+            try:
+                spo2 = float(latest_vitals.get("spo2", 0)) if latest_vitals.get("spo2") else None
+                if spo2 and spo2 < 95: abnormal_flags.append(f"SpO2: {spo2}%")
+            except: pass
+            
+            try:
+                bp = latest_vitals.get("bp", "")
+                if bp and "/" in bp:
+                    sys, dia = map(float, bp.split("/"))
+                    if sys > 140 or sys < 90 or dia > 90 or dia < 60:
+                        abnormal_flags.append(f"BP: {bp}")
+            except: pass
+
+            if abnormal_flags:
+                alerts.append({
+                    "type": "vitals",
+                    "admission_id": adm.admission_id,
+                    "patient_name": patient.full_name if patient else "Unknown",
+                    "ward_name": ward.ward_name if ward else "Unknown",
+                    "bed_number": bed.bed_number if bed else "Unknown",
+                    "abnormal_flags": abnormal_flags,
+                    "recorded_at": latest_vitals.get("timestamp")
+                })
+
     return alerts
 
 @router.get("/admissions/{admission_id}")
@@ -1227,6 +1445,22 @@ def transfer_patient(
     if not new_bed or new_bed.is_occupied or new_bed.status != "AVAILABLE":
         raise HTTPException(status_code=400, detail="New bed is not available")
         
+    # Gender validation against new Ward
+    patient = db.query(Patient).filter(Patient.record_id == admission.patient_id).first()
+    if patient and patient.gender:
+        ward = db.query(Ward).filter(Ward.ward_id == new_bed.ward_id).first()
+        if ward and ward.ward_name:
+            ward_name_lower = ward.ward_name.lower()
+            patient_gender_lower = patient.gender.lower()
+            
+            is_female_ward = "female" in ward_name_lower
+            is_male_ward = "male" in ward_name_lower and not is_female_ward
+            
+            if is_female_ward and patient_gender_lower == "male":
+                raise HTTPException(status_code=400, detail="Male patients cannot be transferred to a Female ward.")
+            if is_male_ward and patient_gender_lower == "female":
+                raise HTTPException(status_code=400, detail="Female patients cannot be transferred to a Male ward.")
+        
     old_bed = db.query(Bed).filter(Bed.bed_id == admission.bed_id).first()
     
     # Detach from old bed
@@ -1246,6 +1480,21 @@ def transfer_patient(
     if new_ward:
         new_ward.occupied_beds = db.query(Bed).filter(Bed.ward_id == new_ward.ward_id, Bed.is_occupied == True).count()  # type: ignore
         
+    # Record bed history
+    history = list(admission.bed_history) if admission.bed_history else []
+    now = datetime.utcnow().isoformat()
+    start_date = admission.admission_date.isoformat() if not history else history[-1].get("end_date")
+    
+    history.append({
+        "ward_id": admission.ward_id,
+        "bed_id": admission.bed_id,
+        "start_date": start_date,
+        "end_date": now,
+        "transfer_reason": transfer.reason
+    })
+    
+    admission.bed_history = history # type: ignore
+    
     admission.bed_id = new_bed.bed_id  # type: ignore
     admission.ward_id = new_bed.ward_id  # type: ignore
     
@@ -1255,6 +1504,64 @@ def transfer_patient(
         for eq in equipments:
             eq.current_bed_id = new_bed.bed_id  # type: ignore
             eq.current_ward_id = new_bed.ward_id  # type: ignore
+    
+    db.commit()
+    db.refresh(admission)
+    return admission
+
+@router.post("/admissions/{admission_id}/clearance")
+def update_clearance(
+    admission_id: int,
+    update: ClearanceUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    admission = db.query(IPDAdmission).filter(
+        IPDAdmission.admission_id == admission_id,
+        IPDAdmission.hospital_id == current_user.hospital_id
+    ).first()
+    if not admission:
+        raise HTTPException(status_code=404, detail="Admission not found")
+        
+    if update.medical_cleared is not None:
+        admission.medical_cleared = update.medical_cleared
+    if update.pharmacy_cleared is not None:
+        admission.pharmacy_cleared = update.pharmacy_cleared
+    if update.billing_cleared is not None:
+        admission.billing_cleared = update.billing_cleared
+        
+    db.commit()
+    db.refresh(admission)
+    return admission
+
+@router.post("/admissions/{admission_id}/diet")
+def add_diet_order(
+    admission_id: int,
+    order: DietOrderCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    admission = db.query(IPDAdmission).filter(
+        IPDAdmission.admission_id == admission_id,
+        IPDAdmission.hospital_id == current_user.hospital_id
+    ).first()
+    if not admission:
+        raise HTTPException(status_code=404, detail="Admission not found")
+        
+    import uuid
+    diet_orders = list(admission.diet_orders) if admission.diet_orders else []
+    
+    new_order = {
+        "id": uuid.uuid4().hex[:8],
+        "diet_type": order.diet_type,
+        "instructions": order.instructions,
+        "prescribed_by": current_user.full_name,
+        "timestamp": datetime.utcnow().isoformat(),
+        "status": "active"
+    }
+    
+    diet_orders.append(new_order)
+    admission.diet_orders = diet_orders # type: ignore
     
     db.commit()
     db.refresh(admission)
@@ -2372,13 +2679,56 @@ def update_surgery_assessment(
         surgery.post_op_assessment = assessment_data.post_op_assessment
     if assessment_data.status is not None:
         surgery.status = assessment_data.status
+    if assessment_data.timestamps is not None:
+        surgery.timestamps = assessment_data.timestamps
+    if assessment_data.implant_register is not None:
+        surgery.implant_register = assessment_data.implant_register
+    if assessment_data.narcotics_log is not None:
+        surgery.narcotics_log = assessment_data.narcotics_log
+    if assessment_data.intra_op_logs is not None:
+        surgery.intra_op_logs = assessment_data.intra_op_logs
         
     db.commit()
     db.refresh(surgery)
     return surgery
 
 
-# --- Core Stats Endpoint ---
+# --- IPD Doctor Visits (PER_VISIT Billing) ---
+
+class LogDoctorVisit(BaseModel):
+    doctor_id: int
+    visit_date: Optional[datetime] = None
+    charge_amount: Optional[float] = None # Defaults to doctor's ipd_charge if None
+    notes: Optional[str] = None
+
+@router.post("/admissions/{admission_id}/doctor-visits")
+def log_doctor_visit(
+    admission_id: int,
+    data: LogDoctorVisit,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    admission = db.query(IPDAdmission).filter(IPDAdmission.admission_id == admission_id).first()
+    if not admission:
+        raise HTTPException(status_code=404, detail="Admission not found")
+        
+    doctor = db.query(DoctorProfile).filter(DoctorProfile.profile_id == data.doctor_id).first()
+    if not doctor:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+        
+    visit_charge = data.charge_amount if data.charge_amount is not None else doctor.ipd_charge
+    
+    new_visit = IPDDoctorVisit(
+        admission_id=admission.admission_id,
+        doctor_id=doctor.profile_id,
+        visit_date=data.visit_date or datetime.now(),
+        charge_amount=visit_charge,
+        notes=data.notes
+    )
+    db.add(new_visit)
+    db.commit()
+    return {"message": "Doctor visit logged successfully", "visit_id": new_visit.visit_id}
+
 
 @router.get("/stats")
 def get_hms_stats(

@@ -33,6 +33,8 @@ class PatientInvoiceCreate(BaseModel):
     patient_id: int
     items: List[PatientInvoiceItemCreate]
     discount_amount: float = 0.0
+    advance_deduction: float = 0.0
+    cashless_deduction: float = 0.0
     gst_rate: float = 18.0
     payment_method: str = "CASH"
     transaction_id: Optional[str] = None
@@ -235,6 +237,75 @@ def get_unbilled_records(
             "reference_id": adm.admission_id,
             "date": adm.admission_date.isoformat()
         })
+        
+        doctor_charge = adm.ward.doctor_charge if adm.ward and getattr(adm.ward, "doctor_charge", None) else 0.0
+        if doctor_charge > 0:
+            items.append({
+                "description": f"Doctor Charge ({days} days @ ₹{doctor_charge})",
+                "qty": days,
+                "unit_price": float(doctor_charge),
+                "discount": 0.0,
+                "charge_type": "IPD_ADMISSION",
+                "reference_id": adm.admission_id,
+                "date": adm.admission_date.isoformat()
+            })
+            
+        nursing_charge = adm.ward.nursing_charge if adm.ward and getattr(adm.ward, "nursing_charge", None) else 0.0
+        if nursing_charge > 0:
+            items.append({
+                "description": f"Nursing Charge ({days} days @ ₹{nursing_charge})",
+                "qty": days,
+                "unit_price": float(nursing_charge),
+                "discount": 0.0,
+                "charge_type": "IPD_ADMISSION",
+                "reference_id": adm.admission_id,
+                "date": adm.admission_date.isoformat()
+            })
+            
+        bio_medical_wastage_charge = adm.ward.bio_medical_wastage_charge if adm.ward and getattr(adm.ward, "bio_medical_wastage_charge", None) else 0.0
+        if bio_medical_wastage_charge > 0:
+            items.append({
+                "description": f"BIO Medical Wastage Charge ({days} days @ ₹{bio_medical_wastage_charge})",
+                "qty": days,
+                "unit_price": float(bio_medical_wastage_charge),
+                "discount": 0.0,
+                "charge_type": "IPD_ADMISSION",
+                "reference_id": adm.admission_id,
+                "date": adm.admission_date.isoformat()
+            })
+
+        # Admitting Doctor Charge (if PER_DAY)
+        if adm.doctor and getattr(adm.doctor, "ipd_charge_type", "PER_DAY") == "PER_DAY":
+            doc_charge = getattr(adm.doctor, "ipd_charge", 0.0)
+            if doc_charge > 0:
+                items.append({
+                    "description": f"Consulting Doctor Charge - {adm.doctor.full_name} ({days} days @ ₹{doc_charge})",
+                    "qty": days,
+                    "unit_price": float(doc_charge),
+                    "discount": 0.0,
+                    "charge_type": "DOCTOR_CHARGE",
+                    "reference_id": adm.admission_id,
+                    "date": adm.admission_date.isoformat()
+                })
+        
+        # Manual Doctor Visits (PER_VISIT)
+        if hasattr(adm, "doctor_visits") and adm.doctor_visits:
+            for visit in adm.doctor_visits:
+                doc_name = visit.doctor.full_name if visit.doctor else "Unknown Doctor"
+                visit_desc = f"Doctor Visit - {doc_name}"
+                if visit.notes:
+                    visit_desc += f" ({visit.notes})"
+                items.append({
+                    "description": visit_desc,
+                    "qty": 1,
+                    "unit_price": float(visit.charge_amount),
+                    "discount": 0.0,
+                    "charge_type": "DOCTOR_VISIT",
+                    "reference_id": visit.visit_id,
+                    "date": visit.visit_date.isoformat() if visit.visit_date else datetime.now().isoformat()
+                })
+
+
 
         # Process Operation Theatre (OT) Charge if required
         if getattr(adm, "ot_required", False):
@@ -347,6 +418,8 @@ def create_patient_invoice(
         patient_id=req.patient_id,
         items_data=items_data,
         discount_amount=req.discount_amount,
+        advance_deduction=req.advance_deduction,
+        cashless_deduction=req.cashless_deduction,
         gst_rate=req.gst_rate,
         payment_method=req.payment_method,
         transaction_id=req.transaction_id,  # type: ignore

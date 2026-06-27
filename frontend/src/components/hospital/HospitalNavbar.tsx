@@ -149,13 +149,13 @@ export default function HospitalNavbar() {
             if (visibleItems.length === 0) return null;
 
             return (
-                <div key={cat.category} className={collapsed && !isMobile ? "mb-4 border-b border-slate-100/50 pb-4 last:border-0" : "mb-6"}>
+                <div key={cat.category} className={collapsed && !isMobile ? "mb-4 border-b border-slate-100/50 pb-4 last:border-0" : "mb-4"}>
                     {(!collapsed || isMobile) && (
-                        <p className="px-4 mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400 animate-in fade-in duration-300">
+                        <p className="px-3 mb-1 text-[11px] font-semibold text-blue-600 animate-in fade-in duration-300">
                             {cat.category}
                         </p>
                     )}
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-0.5">
                         {visibleItems.map(item => {
                             const Icon = item.icon;
                             const active = pathname === item.href || (item.href !== '/hospital' && pathname.startsWith(item.href));
@@ -165,16 +165,16 @@ export default function HospitalNavbar() {
                                     <Link
                                         key={item.label}
                                         href={item.href}
-                                        className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 relative group mx-auto ${
+                                        className={`flex items-center justify-center w-8 h-8 rounded-md transition-all duration-200 relative group mx-auto ${
                                             active
-                                                ? 'bg-gradient-to-br from-blue-50 to-indigo-50/50 text-blue-700 border border-blue-100/80 shadow-sm'
+                                                ? 'bg-blue-50 text-blue-600'
                                                 : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                                         }`}
                                     >
-                                        <Icon size={18} strokeWidth={2.5} className={active ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-700'} />
+                                        <Icon size={16} strokeWidth={2} className={active ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-700'} />
                                         
                                         {/* Premium Hover Tooltip */}
-                                        <span className="absolute left-14 bg-slate-900 border border-slate-800 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-xl opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-75 whitespace-nowrap z-50">
+                                        <span className="absolute left-10 bg-white border border-slate-200 text-slate-800 text-[11px] font-medium px-2 py-1 rounded-md shadow-sm opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-75 whitespace-nowrap z-50">
                                             {item.label}
                                         </span>
                                     </Link>
@@ -186,13 +186,13 @@ export default function HospitalNavbar() {
                                     key={item.label}
                                     href={item.href}
                                     onClick={() => isMobile && setMobileOpen(false)}
-                                    className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 relative group ${
+                                    className={`flex items-center gap-3 px-3 py-1.5 rounded-md text-[13px] font-medium transition-all duration-200 relative group ${
                                         active
-                                            ? 'bg-gradient-to-r from-blue-50 to-indigo-50/50 text-blue-700 shadow-sm border-l-4 border-blue-600 pl-3'
+                                            ? 'bg-blue-50/70 text-blue-600'
                                             : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                                     }`}
                                 >
-                                    <Icon size={16} strokeWidth={2.5} className={active ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-700'} />
+                                    <Icon size={16} strokeWidth={2} className={active ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-700'} />
                                     <span className="animate-in fade-in duration-300">{item.label}</span>
                                 </Link>
                             );

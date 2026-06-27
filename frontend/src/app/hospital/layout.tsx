@@ -132,17 +132,11 @@ export default function HospitalLayout({ children }: { children: React.ReactNode
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-500/30 flex">
-            {/* Ambient background gradients */}
-            <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-                <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-blue-50/80 to-transparent" />
-                <div className="absolute -top-[200px] -right-[200px] w-[800px] h-[800px] bg-blue-400/5 rounded-full blur-[120px]" />
-                <div className="absolute top-[20%] -left-[200px] w-[600px] h-[600px] bg-teal-400/5 rounded-full blur-[100px]" />
-            </div>
+        <div className="min-h-screen bg-white text-slate-800 font-sans selection:bg-blue-500/30 flex">
 
             <HospitalNavbar />
 
-            <div className={`relative z-10 flex-1 flex flex-col min-h-screen transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-72'}`}>
+            <div className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-72'}`}>
                 {/* Sticky greeting bar — always visible on every hospital page */}
                 <div className="sticky top-0 z-30">
                     <MaintenanceBanner />
@@ -151,13 +145,14 @@ export default function HospitalLayout({ children }: { children: React.ReactNode
 
                 <main className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 animate-in fade-in duration-700">
                     {children}
-                    <GlobalPatientRegister />
                 </main>
 
                 <footer className="py-6 text-center text-slate-400 text-xs font-medium border-t border-slate-200/40">
                     &copy; {new Date().getFullYear()} Digifort Labs. All rights reserved.
                 </footer>
             </div>
+            
+            <GlobalPatientRegister />
         </div>
     );
 }

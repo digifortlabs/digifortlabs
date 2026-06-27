@@ -123,23 +123,18 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
     const displayName = userEmail.split('@')[0]?.split('.').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'Doctor';
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-violet-500/30">
-            {/* Subtle ambient glow */}
-            <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-                <div className="absolute -top-[300px] left-1/2 -translate-x-1/2 w-[900px] h-[600px] bg-violet-600/8 rounded-full blur-[120px]" />
-                <div className="absolute bottom-0 -left-[200px] w-[500px] h-[500px] bg-indigo-600/5 rounded-full blur-[100px]" />
-            </div>
+        <div className="min-h-screen bg-white text-slate-800 font-sans selection:bg-violet-500/30">
 
             {/* Slim sidebar */}
-            <aside className="fixed left-0 top-0 h-full w-16 lg:w-60 bg-slate-900/90 backdrop-blur-xl border-r border-white/5 z-50 flex flex-col transition-all duration-300">
+            <aside className="fixed left-0 top-0 h-full w-16 lg:w-60 bg-white border-r border-slate-200 z-50 flex flex-col transition-all duration-300">
                 {/* Logo */}
-                <div className="flex items-center gap-3 px-3 lg:px-5 py-5 border-b border-white/5">
+                <div className="flex items-center gap-3 px-3 lg:px-5 py-5 border-b border-slate-200">
                     <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/30 shrink-0">
                         <Stethoscope size={18} className="text-white" strokeWidth={2.5} />
                     </div>
                     <div className="hidden lg:block overflow-hidden">
-                        <p className="text-[10px] font-black text-violet-400 uppercase tracking-widest leading-none">Doctor Portal</p>
-                        <p className="text-sm font-black text-white leading-tight truncate">{displayName}</p>
+                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest leading-none">Doctor Portal</p>
+                        <p className="text-sm font-black text-slate-800 leading-tight truncate">{displayName}</p>
                     </div>
                 </div>
 
@@ -154,14 +149,14 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
                                 href={item.href}
                                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 group relative ${
                                     active
-                                        ? 'bg-violet-600/20 text-violet-300 border border-violet-500/20'
-                                        : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                                        ? 'bg-indigo-50 text-indigo-600 border border-indigo-200'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                                 }`}
                             >
                                 <Icon size={18} strokeWidth={active ? 2.5 : 2} className="shrink-0" />
                                 <span className="hidden lg:block">{item.label}</span>
                                 {/* Tooltip for collapsed state */}
-                                <span className="absolute left-14 bg-slate-800 text-white text-xs font-bold px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none lg:hidden z-50 border border-white/10">
+                                <span className="absolute left-14 bg-white text-slate-800 text-xs font-bold px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none lg:hidden z-50 border border-slate-200 shadow-md">
                                     {item.label}
                                 </span>
                             </Link>
@@ -170,11 +165,11 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
                 </nav>
 
                 {/* Bottom — specialty chip + logout */}
-                <div className="px-2 lg:px-3 pb-5 flex flex-col gap-2 border-t border-white/5 pt-4">
+                <div className="px-2 lg:px-3 pb-5 flex flex-col gap-2 border-t border-slate-200 pt-4">
                     {specialty && (
-                        <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5">
-                            <Activity size={13} className="text-violet-400 shrink-0" />
-                            <span className="text-[11px] font-bold text-slate-400 capitalize truncate">{specialty.replace(/_/g, ' ')}</span>
+                        <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50">
+                            <Activity size={13} className="text-indigo-600 shrink-0" />
+                            <span className="text-[11px] font-bold text-slate-600 capitalize truncate">{specialty.replace(/_/g, ' ')}</span>
                         </div>
                     )}
                     
@@ -183,22 +178,22 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
                         <div className="relative mt-2">
                             <button
                                 onClick={() => setIsSwitcherOpen(!isSwitcherOpen)}
-                                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-violet-600/10 border border-violet-500/20 text-left transition-all hover:bg-violet-600/20"
+                                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-left transition-all hover:bg-indigo-100"
                             >
                                 <div className="flex flex-col overflow-hidden min-w-0">
-                                    <span className="text-[10px] font-bold text-violet-400 uppercase tracking-widest hidden lg:block">Active Hospital</span>
-                                    <span className="text-xs font-black text-white truncate hidden lg:block">
+                                    <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest hidden lg:block">Active Hospital</span>
+                                    <span className="text-xs font-black text-slate-800 truncate hidden lg:block">
                                         {allowedHospitals.find(h => h.hospital_id.toString() === activeHospitalId)?.legal_name || "Select Hospital"}
                                     </span>
                                     <span className="lg:hidden flex justify-center w-full">
-                                        <Activity size={18} className="text-violet-400" />
+                                        <Activity size={18} className="text-indigo-600" />
                                     </span>
                                 </div>
                                 <ChevronDown size={14} className={`text-violet-400 transition-transform hidden lg:block ${isSwitcherOpen ? 'rotate-180' : ''}`} />
                             </button>
                             
                             {isSwitcherOpen && (
-                                <div className="absolute bottom-full left-0 w-full mb-2 bg-slate-800 border border-white/10 rounded-xl overflow-hidden shadow-xl z-50">
+                                <div className="absolute bottom-full left-0 w-full mb-2 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xl z-50">
                                     {allowedHospitals.map(h => (
                                         <button
                                             key={h.hospital_id}
@@ -210,7 +205,7 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
                                                 setIsSwitcherOpen(false);
                                                 window.location.reload(); // Reload to refresh data context
                                             }}
-                                            className={`w-full text-left px-3 py-2.5 text-xs font-bold transition-colors ${activeHospitalId === h.hospital_id.toString() ? 'bg-violet-600 text-white' : 'text-slate-300 hover:bg-white/5'}`}
+                                            className={`w-full text-left px-3 py-2.5 text-xs font-bold transition-colors ${activeHospitalId === h.hospital_id.toString() ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
                                         >
                                             <span className="block truncate">{h.legal_name}</span>
                                         </button>
@@ -225,7 +220,7 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
                     >
                         <LogOut size={18} strokeWidth={2} className="shrink-0" />
                         <span className="hidden lg:block">Sign Out</span>
-                        <span className="absolute left-14 bg-slate-800 text-white text-xs font-bold px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none lg:hidden z-50 border border-white/10">
+                        <span className="absolute left-14 bg-white text-slate-800 text-xs font-bold px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none lg:hidden z-50 border border-slate-200 shadow-md">
                             Sign Out
                         </span>
                     </button>
@@ -233,7 +228,7 @@ export default function DoctorLayout({ children }: { children: React.ReactNode }
             </aside>
 
             {/* Main content — offset for sidebar */}
-            <div className="relative z-10 pl-16 lg:pl-60 min-h-screen flex flex-col">
+            <div className="pl-16 lg:pl-60 min-h-screen flex flex-col">
                 {/* Sticky greeting bar — always visible on every doctor page */}
                 <div className="sticky top-0 z-30">
                     <GreetingBar />

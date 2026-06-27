@@ -46,7 +46,7 @@ export default function OTDashboard() {
     const [assignForm, setAssignForm] = useState({ 
         patient_id: '', surgery_id: '', doctor_id: '', scheduled_start: '', scheduled_end: '',
         current_surgery_name: '', current_anesthesia_type: 'General',
-        anesthesiologist_id: '', current_diagnosis: '', special_requirements: ''
+        anesthesiologist_id: '', current_diagnosis: '', special_requirements: '', ot_id: ''
     });
     const [otForm, setOtForm] = useState({ ot_name: '', ot_type: 'General' });
     const [patientSearch, setPatientSearch] = useState('');
@@ -57,9 +57,23 @@ export default function OTDashboard() {
     const [assessmentTab, setAssessmentTab] = useState('pre');
     const [assessmentSurgeryId, setAssessmentSurgeryId] = useState('');
     const [assessmentSearch, setAssessmentSearch] = useState('');
+    const [activeSurgeriesCount, setActiveSurgeriesCount] = useState(0);
+    const [wards, setWards] = useState<any[]>([]);
+    const [beds, setBeds] = useState<any[]>([]);
+    const [isTransferOpen, setIsTransferOpen] = useState(false);
+    const [transferSurgeryId, setTransferSurgeryId] = useState('');
+    const [transferForm, setTransferForm] = useState({ ward_id: '', new_bed_id: '' });
+
+    const [isReportOpen, setIsReportOpen] = useState(false);
+    const [reportSurgery, setReportSurgery] = useState<any>(null);
     
     const [preOpForm, setPreOpForm] = useState({
-        bp: '', pulse: '', temp: '', weight: '', allergies: '', comorbidities: '', fitness_status: 'Fit', notes: '', consent_signed: false
+        bp: '', pulse: '', temp: '', weight: '', allergies: '', comorbidities: '', fitness_status: 'Fit', notes: '', 
+        consent_signed: false, jewellery_removed: false, site_marked: false, blood_reserved: false, who_checklist_followed: false
+    });
+    const [intraOpForm, setIntraOpForm] = useState({
+        implants: '', narcotics: '', sponge_count: '', operative_notes: '',
+        patient_in: '', anesthesia_start: '', surgery_start: '', surgery_end: '', patient_out: ''
     });
     const [postOpForm, setPostOpForm] = useState({
         bp: '', pulse: '', temp: '', recovery_status: 'Stable', notes: ''
@@ -113,16 +127,20 @@ export default function OTDashboard() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [o, p, d, s] = await Promise.all([
+            const [o, p, d, s, w, b] = await Promise.all([
                 apiFetch('hms/ots').catch(() => []),
                 apiFetch('hms/admissions/active').catch(() => []),
                 apiFetch('doctors').catch(() => []),
                 apiFetch('hms/surgeries').catch(() => []),
+                apiFetch('hms/wards').catch(() => []),
+                apiFetch('hms/beds').catch(() => []),
             ]);
             setOts(o || []);
             setPatients(p || []);
             setDoctors(d || []);
             setSurgeries(s || []);
+            setWards(w || []);
+            setBeds(b || []);
         } finally {
             setLoading(false);
         }
@@ -139,7 +157,7 @@ export default function OTDashboard() {
         }
     };
 
-    const openScheduleModal = (ot: any) => {
+    const openScheduleModal = (ot: any = null, surgery: any = null) => {
         const now = new Date();
         const tzOffset = now.getTimezoneOffset() * 60000;
         const localNow = new Date(now.getTime() - tzOffset);
@@ -148,28 +166,42 @@ export default function OTDashboard() {
         const endString = localEnd.toISOString().slice(0, 16);
 
         setAssignForm({ 
-            patient_id: '', surgery_id: '', doctor_id: '', scheduled_start: startString, scheduled_end: endString, 
-            current_surgery_name: '', current_anesthesia_type: 'General', anesthesiologist_id: '', 
-            current_diagnosis: '', special_requirements: '' 
+            patient_id: surgery ? surgery.patient_id?.toString() : '', 
+            surgery_id: surgery ? surgery.surgery_id?.toString() : '', 
+            doctor_id: surgery ? surgery.doctor_id?.toString() : '', 
+            scheduled_start: startString, scheduled_end: endString, 
+            current_surgery_name: surgery ? surgery.surgery_name : '', 
+            current_anesthesia_type: 'General', anesthesiologist_id: '', 
+            current_diagnosis: '', special_requirements: '',
+            ot_id: ot ? ot.ot_id.toString() : ''
         });
         setSelectedOt(ot);
         setIsAssignOpen(true);
     };
 
     const handleAssign = async () => {
-        if (!selectedOt) return;
+        const targetOtId = assignForm.ot_id || selectedOt?.ot_id;
+        if (!targetOtId) {
+            toast.error("Please select an OT Room.");
+            return;
+        }
+        if (!assignForm.anesthesiologist_id) {
+            toast.error("Anesthesiologist assignment is mandatory.");
+            return;
+        }
+        
         try {
-            await apiFetch(`hms/ots/${selectedOt.ot_id}/assign`, {
+            await apiFetch(`hms/ots/${targetOtId}/assign`, {
                 method: 'POST',
                 body: JSON.stringify({
                     surgery_id: assignForm.surgery_id ? parseInt(assignForm.surgery_id) : null,
                     patient_id: parseInt(assignForm.patient_id),
                     doctor_id: parseInt(assignForm.doctor_id),
+                    anesthesiologist_id: parseInt(assignForm.anesthesiologist_id),
                     scheduled_start: assignForm.scheduled_start ? new Date(assignForm.scheduled_start).toISOString() : new Date().toISOString(),
                     scheduled_end: assignForm.scheduled_end ? new Date(assignForm.scheduled_end).toISOString() : null,
                     current_surgery_name: assignForm.current_surgery_name,
                     current_anesthesia_type: assignForm.current_anesthesia_type,
-                    anesthesiologist_id: assignForm.anesthesiologist_id ? parseInt(assignForm.anesthesiologist_id) : null,
                     current_diagnosis: assignForm.current_diagnosis,
                     special_requirements: assignForm.special_requirements
                 })
@@ -184,16 +216,32 @@ export default function OTDashboard() {
     const openAssessmentModal = (surgeryId = '', type = 'pre') => {
         setAssessmentSurgeryId(surgeryId);
         setAssessmentTab(type);
-        setAssessmentSearch('');
         if (surgeryId) {
             const surg = surgeries.find(s => s.surgery_id.toString() === surgeryId);
             if (surg?.pre_op_assessment) setPreOpForm({...preOpForm, ...surg.pre_op_assessment});
             if (surg?.post_op_assessment) setPostOpForm({...postOpForm, ...surg.post_op_assessment});
+            setIntraOpForm({
+                implants: surg?.implant_register ? JSON.stringify(surg.implant_register, null, 2) : '',
+                narcotics: surg?.narcotics_log ? JSON.stringify(surg.narcotics_log, null, 2) : '',
+                sponge_count: surg?.intra_op_logs?.sponge_count || '',
+                operative_notes: surg?.intra_op_logs?.operative_notes || '',
+                patient_in: surg?.timestamps?.patient_in || '',
+                anesthesia_start: surg?.timestamps?.anesthesia_start || '',
+                surgery_start: surg?.timestamps?.surgery_start || '',
+                surgery_end: surg?.timestamps?.surgery_end || '',
+                patient_out: surg?.timestamps?.patient_out || ''
+            });
         } else {
-            setPreOpForm({ bp: '', pulse: '', temp: '', weight: '', allergies: '', comorbidities: '', fitness_status: 'Fit', notes: '', consent_signed: false });
+            setPreOpForm({ bp: '', pulse: '', temp: '', weight: '', allergies: '', comorbidities: '', fitness_status: 'Fit', notes: '', consent_signed: false, jewellery_removed: false, site_marked: false, blood_reserved: false, who_checklist_followed: false });
             setPostOpForm({ bp: '', pulse: '', temp: '', recovery_status: 'Stable', notes: '' });
+            setIntraOpForm({ implants: '', narcotics: '', sponge_count: '', operative_notes: '', patient_in: '', anesthesia_start: '', surgery_start: '', surgery_end: '', patient_out: '' });
         }
         setIsAssessmentOpen(true);
+    };
+
+    const openReportModal = (surgery: any) => {
+        setReportSurgery(surgery);
+        setIsReportOpen(true);
     };
 
     const handleSaveAssessment = async () => {
@@ -203,7 +251,7 @@ export default function OTDashboard() {
         
         try {
             if (assessmentTab === 'pre') {
-                const updatedPreOp = {...preOpForm, pulse: parseInt(preOpForm.pulse) || 0, temp: parseFloat(preOpForm.temp) || 0, weight: parseFloat(preOpForm.weight) || 0};
+                const updatedPreOp = {...preOpForm, pulse: parseInt(preOpForm.pulse as any) || 0, temp: parseFloat(preOpForm.temp as any) || 0, weight: parseFloat(preOpForm.weight as any) || 0};
                 let newStatus = surg.status;
                 if (surg.status === 'Requested' || surg.status === 'PAC Pending') {
                     newStatus = updatedPreOp.fitness_status === 'Fit' ? 'PAC Cleared' : 'PAC Pending';
@@ -211,17 +259,81 @@ export default function OTDashboard() {
                 await apiFetch(`hms/surgeries/${surg.surgery_id}`, {
                     method: 'PATCH', body: JSON.stringify({ pre_op_assessment: updatedPreOp, status: newStatus })
                 });
+            } else if (assessmentTab === 'intra') {
+                let implantsParsed = null;
+                let narcoticsParsed = null;
+                try { if (intraOpForm.implants) implantsParsed = JSON.parse(intraOpForm.implants); } catch (e) { toast.error("Invalid Implants JSON"); return; }
+                try { if (intraOpForm.narcotics) narcoticsParsed = JSON.parse(intraOpForm.narcotics); } catch (e) { toast.error("Invalid Narcotics JSON"); return; }
+                
+                const intraLogs = { sponge_count: intraOpForm.sponge_count, operative_notes: intraOpForm.operative_notes };
+                const timestamps = { 
+                    patient_in: intraOpForm.patient_in, 
+                    anesthesia_start: intraOpForm.anesthesia_start, 
+                    surgery_start: intraOpForm.surgery_start, 
+                    surgery_end: intraOpForm.surgery_end, 
+                    patient_out: intraOpForm.patient_out 
+                };
+
+                await apiFetch(`hms/surgeries/${surg.surgery_id}`, {
+                    method: 'PATCH', body: JSON.stringify({ 
+                        implant_register: implantsParsed, 
+                        narcotics_log: narcoticsParsed,
+                        intra_op_logs: intraLogs,
+                        timestamps: timestamps
+                    })
+                });
             } else {
-                const updatedPostOp = {...postOpForm, pulse: parseInt(postOpForm.pulse) || 0, temp: parseFloat(postOpForm.temp) || 0};
+                const updatedPostOp = {...postOpForm, pulse: parseInt(postOpForm.pulse as any) || 0, temp: parseFloat(postOpForm.temp as any) || 0};
                 await apiFetch(`hms/surgeries/${surg.surgery_id}`, {
                     method: 'PATCH', body: JSON.stringify({ post_op_assessment: updatedPostOp })
                 });
             }
-            toast.success(`${assessmentTab === 'pre' ? 'Pre-Op' : 'Post-Op'} Assessment Saved!`);
+            toast.success(`${assessmentTab === 'pre' ? 'Pre-Op' : assessmentTab === 'intra' ? 'Intra-Op' : 'Post-Op'} Saved!`);
             setIsAssessmentOpen(false);
             loadData();
         } catch(e: any) {
             toast.error(e.message || "Failed to save assessment");
+        }
+    };
+
+    const updateSurgeryStatus = async (surgeryId: number | string, newStatus: string) => {
+        try {
+            await apiFetch(`hms/surgeries/${surgeryId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ status: newStatus })
+            });
+            toast.success(`Surgery moved to ${newStatus}`);
+            if (surgeryId) {
+                const s = surgeries.find(s => s.surgery_id.toString() === surgeryId.toString());
+                if (s?.admission_id && s.admission) {
+                    toast.success("Surgery completed. No bed transfer required.");
+                }
+            }
+            loadData();
+        } catch (e: any) {
+            toast.error(e.message || 'Failed to update surgery status');
+        }
+    };
+
+    const handleTransferBed = async () => {
+        if (!transferSurgeryId) return;
+        const surg = surgeries.find(s => s.surgery_id.toString() === transferSurgeryId);
+        if (!surg) return;
+        
+        try {
+            if (transferForm.new_bed_id) {
+                await apiFetch(`hms/admissions/${surg.admission_id}/transfer`, {
+                    method: 'POST',
+                    body: JSON.stringify({ new_bed_id: parseInt(transferForm.new_bed_id) })
+                });
+                toast.success("Patient successfully transferred to new bed");
+            }
+            
+            await updateSurgeryStatus(surg.surgery_id, 'Completed');
+            setIsTransferOpen(false);
+            setTransferForm({ ward_id: '', new_bed_id: '' });
+        } catch (e: any) {
+            toast.error(e.message || "Failed to process transfer");
         }
     };
 
@@ -235,6 +347,39 @@ export default function OTDashboard() {
         }
     };
 
+    const handleDragStart = (e: React.DragEvent, surgeryId: string) => {
+        e.dataTransfer.setData('surgeryId', surgeryId);
+    };
+
+    const handleDrop = (e: React.DragEvent, targetColTitle: string) => {
+        e.preventDefault();
+        const surgeryId = e.dataTransfer.getData('surgeryId');
+        if (!surgeryId) return;
+        
+        const surgery = surgeries.find(s => s.surgery_id.toString() === surgeryId);
+        if (!surgery) return;
+
+        if (targetColTitle === 'Pre-Op' && surgery.status === 'Requested') {
+            openAssessmentModal(surgeryId, 'pre');
+        } else if (targetColTitle === 'In Surgery' && ['PAC Cleared', 'Scheduled', 'In Pre-Op'].includes(surgery.status)) {
+            if (!surgery.ot_id) {
+                openScheduleModal(null, surgery);
+            } else {
+                updateSurgeryStatus(surgeryId, 'In Progress');
+            }
+        } else if (targetColTitle === 'Recovery' && surgery.status === 'In Progress') {
+            updateSurgeryStatus(surgeryId, 'Recovery');
+        } else if (targetColTitle === 'Completed' && surgery.status === 'Recovery') {
+            setTransferSurgeryId(surgeryId);
+            setIsTransferOpen(true);
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+    };
+
+
     if (['website_admin', 'superadmin', 'superadmin_staff'].includes(userRole) && !selectedHospitalId) {
         return <HospitalSelectionPrompt requiredModule="hms" storageKey="hms_hospital_id" onSelect={setSelectedHospitalId} />;
     }
@@ -247,7 +392,6 @@ export default function OTDashboard() {
 
     const totalRooms = ots.length;
     const activeSurgeries = ots.filter(o => o.status === 'in_use').length;
-    const pendingPACs = surgeries.filter(s => s.status === 'Requested' || s.status === 'PAC Pending').length;
 
     return (
         <div className="p-6 space-y-6 max-w-7xl mx-auto pb-24">
@@ -332,6 +476,9 @@ export default function OTDashboard() {
                     <TabsTrigger value="surgeries" className="flex items-center gap-2">
                         <Scissors className="w-4 h-4" /> Surgery Schedule
                     </TabsTrigger>
+                    <TabsTrigger value="tracking" className="flex items-center gap-2">
+                        <Activity className="w-4 h-4" /> Live Tracking
+                    </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview" className="mt-6 space-y-6">
@@ -413,17 +560,17 @@ export default function OTDashboard() {
                             const isInUse = ot.status === 'in_use';
                             
                             return (
-                                <Card key={ot.ot_id} className="border-slate-200/60 shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-md transition-shadow">
-                                    <CardHeader className="border-b bg-slate-50/50 p-5 flex flex-row items-center justify-between gap-4">
+                                <Card key={ot.ot_id} className={cn("border shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-lg transition-all duration-300 group", isAvailable ? "border-emerald-200/60 bg-gradient-to-br from-white to-emerald-50/30" : "border-rose-200/60 bg-gradient-to-br from-white to-rose-50/30")}>
+                                    <CardHeader className="border-b bg-white/50 backdrop-blur-sm p-5 flex flex-row items-center justify-between gap-4">
                                         <div>
-                                            <CardTitle className="text-base text-slate-800 font-bold">{ot.ot_name}</CardTitle>
-                                            <Badge className="text-xs mt-1 border-none bg-slate-200 text-slate-600 font-semibold">{ot.ot_type}</Badge>
+                                            <CardTitle className="text-lg text-slate-800 font-bold group-hover:text-blue-600 transition-colors">{ot.ot_name}</CardTitle>
+                                            <Badge variant="outline" className="text-[10px] mt-1.5 bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider">{ot.ot_type}</Badge>
                                         </div>
-                                        <Badge className={cn('text-xs border font-bold capitalize px-2.5 py-0.5 rounded-full', statusColors[ot.status] || 'bg-slate-100 text-slate-700')}>
+                                        <Badge className={cn('text-xs border font-bold capitalize px-3 py-1 rounded-full shadow-sm', statusColors[ot.status] || 'bg-slate-100 text-slate-700')}>
                                             {ot.status.replace('_', ' ')}
                                         </Badge>
                                     </CardHeader>
-                                    <CardContent className="p-5 flex-1 flex flex-col justify-between gap-6">
+                                    <CardContent className="p-5 flex-1 flex flex-col justify-between gap-6 bg-white/40">
                                         {isInUse ? (
                                             <div className="space-y-3">
                                                 <div className="p-3 bg-rose-50/40 border border-rose-100 rounded-xl space-y-2">
@@ -450,26 +597,28 @@ export default function OTDashboard() {
                                                 </div>
                                                 
                                                 {ot.scheduled_start && (
-                                                    <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1">
-                                                        <Calendar size={11} /> Started: {new Date(ot.scheduled_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                                    <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5 mt-2 bg-white/50 p-1.5 rounded-md w-fit">
+                                                        <Calendar size={12} className="text-slate-500" /> Started: {new Date(ot.scheduled_start).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                                                     </div>
                                                 )}
                                             </div>
                                         ) : (
-                                            <div className="py-6 text-center text-slate-400 flex flex-col items-center justify-center">
-                                                <Activity className="w-8 h-8 opacity-25 mb-1.5" />
-                                                <p className="text-sm font-semibold">OT Available</p>
-                                                <p className="text-xs mt-0.5">Ready for surgery assignments.</p>
+                                            <div className="py-8 text-center flex flex-col items-center justify-center bg-white/40 rounded-xl border border-emerald-100/50 h-full">
+                                                <div className="p-3 bg-emerald-50 rounded-full mb-3 shadow-sm">
+                                                    <Activity className="w-8 h-8 text-emerald-400" />
+                                                </div>
+                                                <p className="text-sm font-bold text-slate-700">OT Available</p>
+                                                <p className="text-xs text-slate-500 mt-1">Ready for surgery assignments.</p>
                                             </div>
                                         )}
 
-                                        <div className="pt-2 border-t flex gap-2">
+                                        <div className="pt-4 border-t border-slate-100/60 flex gap-3">
                                             {isAvailable ? (
-                                                <Button className="w-full bg-blue-600 hover:bg-blue-700 gap-1.5" size="sm" onClick={() => openScheduleModal(ot)}>
+                                                <Button className="w-full bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow-md transition-all gap-2" size="sm" onClick={() => openScheduleModal(ot)}>
                                                     <Calendar size={14} /> Schedule Surgery
                                                 </Button>
                                             ) : (
-                                                <Button variant="outline" className="w-full text-rose-600 hover:bg-rose-50 border-rose-200 gap-1.5" size="sm" onClick={() => handleRelease(ot.ot_id)}>
+                                                <Button variant="outline" className="w-full text-rose-600 hover:bg-rose-50 border-rose-200 gap-2 transition-colors" size="sm" onClick={() => handleRelease(ot.ot_id)}>
                                                     <LogOut size={14} className="rotate-180" /> Conclude Surgery
                                                 </Button>
                                             )}
@@ -486,6 +635,104 @@ export default function OTDashboard() {
                                 <p className="text-slate-500 mt-1">Configure your clinical rooms to schedule surgeries.</p>
                             </div>
                         )}
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="tracking" className="mt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4 pb-6 items-start">
+                        {[
+                            { title: 'Requested', statuses: ['Requested', 'PAC Pending'], color: 'slate', icon: FileText },
+                            { title: 'Pre-Op', statuses: ['PAC Cleared', 'Scheduled', 'In Pre-Op'], color: 'blue', icon: Activity },
+                            { title: 'In Surgery', statuses: ['In Progress'], color: 'rose', icon: Scissors },
+                            { title: 'Recovery', statuses: ['Recovery'], color: 'amber', icon: Clock },
+                            { title: 'Completed', statuses: ['Completed'], color: 'emerald', icon: ShieldCheck }
+                        ].map(col => {
+                            const count = surgeries.filter(s => col.statuses.includes(s.status)).length;
+                            const Icon = col.icon;
+                            
+                            const columnClasses = {
+                                slate: 'border-t-slate-500', blue: 'border-t-blue-500', rose: 'border-t-rose-500', amber: 'border-t-amber-500', emerald: 'border-t-emerald-500'
+                            }[col.color];
+
+                            const headerColor = {
+                                slate: 'text-slate-800', blue: 'text-blue-800', rose: 'text-rose-800', amber: 'text-amber-800', emerald: 'text-emerald-800'
+                            }[col.color];
+
+                            const badgeColor = {
+                                slate: 'bg-slate-200 text-slate-700', blue: 'bg-blue-100 text-blue-700', rose: 'bg-rose-100 text-rose-700', amber: 'bg-amber-100 text-amber-700', emerald: 'bg-emerald-100 text-emerald-700'
+                            }[col.color];
+                            
+                            const cardBadgeColor = {
+                                slate: 'bg-slate-50 text-slate-700 border-slate-200', blue: 'bg-blue-50 text-blue-700 border-blue-200', rose: 'bg-rose-50 text-rose-700 border-rose-200', amber: 'bg-amber-50 text-amber-700 border-amber-200', emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }[col.color];
+
+                            return (
+                                <div 
+                                    key={col.title} 
+                                    className={cn("w-full rounded-xl bg-slate-50/80 border border-slate-200 p-3 shadow-sm h-full min-h-[600px] flex flex-col transition-all border-t-4", columnClasses)}
+                                    onDragOver={handleDragOver}
+                                    onDrop={(e) => handleDrop(e, col.title)}
+                                >
+                                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-200">
+                                        <h3 className={cn("font-bold flex items-center gap-1.5 text-sm", headerColor)}>
+                                            <Icon className="w-4 h-4 opacity-70" />
+                                            {col.title}
+                                        </h3>
+                                        <span className={cn("text-xs px-2.5 py-1 rounded-full font-bold shadow-sm", badgeColor)}>{count}</span>
+                                    </div>
+                                    <div className="space-y-4 flex-1">
+                                        {surgeries.filter(s => col.statuses.includes(s.status)).map(surgery => (
+                                            <Card 
+                                                key={surgery.surgery_id} 
+                                                className={cn("bg-white shadow-sm hover:shadow-md transition-all duration-300 group relative overflow-hidden border cursor-grab active:cursor-grabbing", `hover:border-${col.color}-300 border-slate-200`)}
+                                                draggable={true}
+                                                onDragStart={(e) => handleDragStart(e, surgery.surgery_id.toString())}
+                                            >
+                                                {col.title === 'In Surgery' && (
+                                                    <div className="absolute top-0 left-0 w-1 h-full bg-rose-500 animate-pulse"></div>
+                                                )}
+                                                <CardContent className="p-3">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <Badge variant="outline" className={cn("text-[9px] font-bold border-0 px-1.5 py-0", cardBadgeColor)}>
+                                                            {surgery.status}
+                                                        </Badge>
+                                                        <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded">{surgery.mrd_number}</span>
+                                                    </div>
+                                                    <h4 className="font-bold text-sm text-slate-900 group-hover:text-blue-600 transition-colors">{surgery.patient_name}</h4>
+                                                    <p className="text-[11px] font-medium text-slate-600 mt-0.5 mb-2 line-clamp-2 leading-snug">{surgery.surgery_name}</p>
+                                                    {surgery.doctor_name && (
+                                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-3 bg-slate-50 p-1.5 rounded-md">
+                                                            <User className="w-3 h-3" /> Dr. {surgery.doctor_name}
+                                                        </div>
+                                                    )}
+                                                    
+                                                    <div className="mt-2 pt-2 border-t border-slate-100 flex flex-col gap-1.5">
+                                                        {col.title === 'Requested' && <Button size="sm" variant="outline" className="w-full text-[10px] h-7 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 transition-colors px-1" onClick={() => openAssessmentModal(surgery.surgery_id.toString(), 'pre')}>Complete PAC Check</Button>}
+                                                        {col.title === 'Pre-Op' && (!surgery.ot_id ? (
+                                                            <Button size="sm" variant="outline" className="w-full text-[10px] h-7 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 transition-colors px-1" onClick={() => openScheduleModal(null, surgery)}>Schedule OT Room</Button>
+                                                        ) : (
+                                                            <Button size="sm" className="w-full text-[10px] h-7 bg-rose-600 hover:bg-rose-700 shadow-sm transition-all hover:shadow-md px-1" onClick={() => updateSurgeryStatus(surgery.surgery_id, 'In Progress')}>Start Surgery</Button>
+                                                        ))}
+                                                        {col.title === 'In Surgery' && <Button size="sm" variant="outline" className="w-full text-[10px] h-7 border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors px-1" onClick={() => openAssessmentModal(surgery.surgery_id.toString(), 'intra')}>Intra-Op Logs</Button>}
+                                                        {col.title === 'In Surgery' && <Button size="sm" className="w-full text-[10px] h-7 bg-amber-500 hover:bg-amber-600 text-white shadow-sm transition-all hover:shadow-md px-1" onClick={() => updateSurgeryStatus(surgery.surgery_id, 'Recovery')}>Move to Recovery</Button>}
+                                                        {col.title === 'Recovery' && <Button size="sm" variant="outline" className="w-full text-[10px] h-7 border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors px-1" onClick={() => openAssessmentModal(surgery.surgery_id.toString(), 'post')}>Post-Op Assessment</Button>}
+                                                        {col.title === 'Recovery' && <Button size="sm" className="w-full text-[10px] h-7 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all hover:shadow-md px-1" onClick={() => { setTransferSurgeryId(surgery.surgery_id.toString()); setIsTransferOpen(true); }}>Mark Completed</Button>}
+                                                        {col.title === 'Completed' && <Button size="sm" variant="outline" className="w-full text-[10px] h-7 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors px-1" onClick={() => openReportModal(surgery)}>View Operative Report</Button>}
+                                                        {col.title === 'Completed' && <Button size="sm" variant="ghost" className="w-full text-[10px] h-7 text-slate-500 hover:bg-slate-100 transition-colors px-1" onClick={() => { if(confirm('Archive this surgery? It will be removed from the active board.')) updateSurgeryStatus(surgery.surgery_id, 'Archived'); }}>Archive Record</Button>}
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        ))}
+                                        {count === 0 && (
+                                            <div className="flex flex-col items-center justify-center h-32 text-slate-400/80 text-sm border-2 border-dashed border-slate-200/80 rounded-xl bg-slate-100/50">
+                                                <Icon className="w-8 h-8 mb-2 opacity-30" />
+                                                No patients here
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </TabsContent>
             </Tabs>
@@ -515,8 +762,19 @@ export default function OTDashboard() {
 
             <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
                 <DialogContent className="max-w-md">
-                    <DialogHeader><DialogTitle>Schedule Surgery — {selectedOt?.ot_name}</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle>Schedule Surgery {selectedOt ? `— ${selectedOt.ot_name}` : ''}</DialogTitle></DialogHeader>
                     <div className="space-y-3 py-2">
+                        {!selectedOt && (
+                            <div className="space-y-2">
+                                <Label>Select OT Room *</Label>
+                                <select className="flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm ring-offset-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50" value={assignForm.ot_id || ''} onChange={(e) => setAssignForm({ ...assignForm, ot_id: e.target.value })}>
+                                    <option value="" disabled>Select OT Room</option>
+                                    {ots.map(o => (
+                                        <option key={o.ot_id} value={o.ot_id.toString()}>{o.ot_name} ({o.ot_type})</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                         <div className="space-y-2 relative">
                             <Label>Select Surgery Request *</Label>
                             {assignForm.surgery_id ? (
@@ -571,7 +829,7 @@ export default function OTDashboard() {
                             )}
                         </div>
                         <div className="space-y-2 relative">
-                            <Label>Anesthesiologist (Optional)</Label>
+                            <Label>Anesthesiologist *</Label>
                             {assignForm.anesthesiologist_id ? (
                                 <div className="flex items-center gap-2">
                                     <div className="flex-1 p-2 border border-slate-200 rounded-md bg-slate-50 text-sm">
@@ -609,7 +867,7 @@ export default function OTDashboard() {
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsAssignOpen(false)}>Cancel</Button>
-                        <Button onClick={handleAssign} disabled={!assignForm.patient_id || !assignForm.doctor_id} className="bg-blue-600">Start Surgery</Button>
+                        <Button onClick={handleAssign} disabled={!assignForm.patient_id || !assignForm.doctor_id || !assignForm.anesthesiologist_id || (!selectedOt && !assignForm.ot_id)} className="bg-blue-600">Schedule Surgery</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -646,34 +904,90 @@ export default function OTDashboard() {
 
                         {assessmentSurgeryId && (
                             <div className="flex gap-2 border-b">
-                                <button className={`px-4 py-2 text-sm font-medium border-b-2 ${assessmentTab === 'pre' ? 'border-primary text-primary' : 'border-transparent text-slate-500'}`} onClick={() => setAssessmentTab('pre')}>Pre-Op (PAC)</button>
-                                <button className={`px-4 py-2 text-sm font-medium border-b-2 ${assessmentTab === 'post' ? 'border-primary text-primary' : 'border-transparent text-slate-500'}`} onClick={() => setAssessmentTab('post')}>Post-Op Recovery</button>
+                                <button className={`px-4 py-2 text-sm font-medium border-b-2 ${assessmentTab === 'pre' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setAssessmentTab('pre')}>Pre-Op (PAC)</button>
+                                <button className={`px-4 py-2 text-sm font-medium border-b-2 ${assessmentTab === 'intra' ? 'border-rose-600 text-rose-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setAssessmentTab('intra')}>Intra-Op Logs</button>
+                                <button className={`px-4 py-2 text-sm font-medium border-b-2 ${assessmentTab === 'post' ? 'border-amber-600 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`} onClick={() => setAssessmentTab('post')}>Post-Op Recovery</button>
                             </div>
                         )}
 
                         {assessmentSurgeryId && assessmentTab === 'pre' && (
-                            <div className="space-y-3">
-                                <div className="grid grid-cols-4 gap-3">
-                                    <div className="space-y-1"><Label className="text-xs">BP</Label><Input size={1} value={preOpForm.bp} onChange={e => setPreOpForm({...preOpForm, bp: e.target.value})} placeholder="120/80" /></div>
-                                    <div className="space-y-1"><Label className="text-xs">Pulse</Label><Input type="number" size={1} value={preOpForm.pulse} onChange={e => setPreOpForm({...preOpForm, pulse: e.target.value})} /></div>
-                                    <div className="space-y-1"><Label className="text-xs">Temp</Label><Input type="number" step="0.1" size={1} value={preOpForm.temp} onChange={e => setPreOpForm({...preOpForm, temp: e.target.value})} /></div>
-                                    <div className="space-y-1"><Label className="text-xs">Weight</Label><Input type="number" step="0.1" size={1} value={preOpForm.weight} onChange={e => setPreOpForm({...preOpForm, weight: e.target.value})} /></div>
-                                </div>
-                                <div className="space-y-2"><Label>Allergies</Label><Input value={preOpForm.allergies} onChange={e => setPreOpForm({...preOpForm, allergies: e.target.value})} /></div>
-                                <div className="space-y-2"><Label>Comorbidities</Label><Input value={preOpForm.comorbidities} onChange={e => setPreOpForm({...preOpForm, comorbidities: e.target.value})} /></div>
-                                <div className="grid grid-cols-2 gap-3 items-center mt-2">
-                                    <div className="space-y-2">
-                                        <Label>Fitness for Surgery</Label>
+                            <div className="space-y-4 max-h-[60vh] overflow-y-auto px-1 pb-4">
+                                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                                    <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-3">Vitals & Assessment</h4>
+                                    <div className="grid grid-cols-4 gap-3 mb-3">
+                                        <div className="space-y-1"><Label className="text-xs">BP</Label><Input size={1} value={preOpForm.bp} onChange={e => setPreOpForm({...preOpForm, bp: e.target.value})} placeholder="120/80" /></div>
+                                        <div className="space-y-1"><Label className="text-xs">Pulse</Label><Input type="number" size={1} value={preOpForm.pulse} onChange={e => setPreOpForm({...preOpForm, pulse: e.target.value})} /></div>
+                                        <div className="space-y-1"><Label className="text-xs">Temp</Label><Input type="number" step="0.1" size={1} value={preOpForm.temp} onChange={e => setPreOpForm({...preOpForm, temp: e.target.value})} /></div>
+                                        <div className="space-y-1"><Label className="text-xs">Weight</Label><Input type="number" step="0.1" size={1} value={preOpForm.weight} onChange={e => setPreOpForm({...preOpForm, weight: e.target.value})} /></div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3 mb-3">
+                                        <div className="space-y-1"><Label className="text-xs">Allergies</Label><Input value={preOpForm.allergies} onChange={e => setPreOpForm({...preOpForm, allergies: e.target.value})} /></div>
+                                        <div className="space-y-1"><Label className="text-xs">Comorbidities</Label><Input value={preOpForm.comorbidities} onChange={e => setPreOpForm({...preOpForm, comorbidities: e.target.value})} /></div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-xs">Fitness for Surgery (PAC)</Label>
                                         <select className="w-full border border-slate-200 rounded-md p-2 text-sm" value={preOpForm.fitness_status} onChange={e => setPreOpForm({...preOpForm, fitness_status: e.target.value})}>
                                             <option value="Fit">Fit for Surgery</option><option value="High Risk">High Risk</option><option value="Unfit">Unfit</option>
                                         </select>
                                     </div>
-                                    <div className="flex items-center space-x-2 pt-6">
-                                        <input type="checkbox" id="consent_signed" className="rounded text-primary h-4 w-4" checked={preOpForm.consent_signed} onChange={e => setPreOpForm({...preOpForm, consent_signed: e.target.checked})} />
-                                        <Label htmlFor="consent_signed" className="font-semibold text-red-600">Consent Form Signed</Label>
+                                </div>
+                                
+                                <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                                    <h4 className="text-xs font-semibold text-blue-800 uppercase tracking-wider mb-3">Surgical Safety Checklist</h4>
+                                    <div className="grid grid-cols-2 gap-y-3 gap-x-4">
+                                        <label className="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-md border border-blue-100/50 hover:bg-blue-100/30 transition-colors">
+                                            <input type="checkbox" className="rounded text-blue-600 w-4 h-4" checked={preOpForm.consent_signed} onChange={e => setPreOpForm({...preOpForm, consent_signed: e.target.checked})} />
+                                            <span className="text-sm font-medium text-slate-700">Consent Signed</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-md border border-blue-100/50 hover:bg-blue-100/30 transition-colors">
+                                            <input type="checkbox" className="rounded text-blue-600 w-4 h-4" checked={preOpForm.site_marked} onChange={e => setPreOpForm({...preOpForm, site_marked: e.target.checked})} />
+                                            <span className="text-sm font-medium text-slate-700">Surgery Site Marked</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-md border border-blue-100/50 hover:bg-blue-100/30 transition-colors">
+                                            <input type="checkbox" className="rounded text-blue-600 w-4 h-4" checked={preOpForm.jewellery_removed} onChange={e => setPreOpForm({...preOpForm, jewellery_removed: e.target.checked})} />
+                                            <span className="text-sm font-medium text-slate-700">Jewellery/Dentures Removed</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-md border border-blue-100/50 hover:bg-blue-100/30 transition-colors">
+                                            <input type="checkbox" className="rounded text-blue-600 w-4 h-4" checked={preOpForm.blood_reserved} onChange={e => setPreOpForm({...preOpForm, blood_reserved: e.target.checked})} />
+                                            <span className="text-sm font-medium text-slate-700">Blood Reserved (if needed)</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer bg-blue-600 text-white p-2 rounded-md border border-blue-700 hover:bg-blue-700 transition-colors col-span-2">
+                                            <input type="checkbox" className="rounded text-blue-900 border-white w-4 h-4" checked={preOpForm.who_checklist_followed} onChange={e => setPreOpForm({...preOpForm, who_checklist_followed: e.target.checked})} />
+                                            <span className="text-sm font-bold">WHO Surgical Safety Checklist Followed</span>
+                                        </label>
                                     </div>
                                 </div>
                                 <div className="space-y-2"><Label>Notes</Label><Textarea value={preOpForm.notes} onChange={e => setPreOpForm({...preOpForm, notes: e.target.value})} /></div>
+                            </div>
+                        )}
+
+                        {assessmentSurgeryId && assessmentTab === 'intra' && (
+                            <div className="space-y-4 max-h-[60vh] overflow-y-auto px-1 pb-4">
+                                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Clock size={14} /> Surgical Timestamps</h4>
+                                    <div className="grid grid-cols-2 gap-3 mb-3">
+                                        <div className="space-y-1"><Label className="text-[10px]">Patient In Time</Label><Input type="datetime-local" className="h-8 text-xs" value={intraOpForm.patient_in} onChange={e => setIntraOpForm({...intraOpForm, patient_in: e.target.value})} /></div>
+                                        <div className="space-y-1"><Label className="text-[10px]">Anesthesia Start</Label><Input type="datetime-local" className="h-8 text-xs" value={intraOpForm.anesthesia_start} onChange={e => setIntraOpForm({...intraOpForm, anesthesia_start: e.target.value})} /></div>
+                                        <div className="space-y-1"><Label className="text-[10px]">Surgery Start Time</Label><Input type="datetime-local" className="h-8 text-xs" value={intraOpForm.surgery_start} onChange={e => setIntraOpForm({...intraOpForm, surgery_start: e.target.value})} /></div>
+                                        <div className="space-y-1"><Label className="text-[10px]">Surgery End Time</Label><Input type="datetime-local" className="h-8 text-xs" value={intraOpForm.surgery_end} onChange={e => setIntraOpForm({...intraOpForm, surgery_end: e.target.value})} /></div>
+                                        <div className="space-y-1 col-span-2"><Label className="text-[10px]">Patient Out Time (Shift to Recovery)</Label><Input type="datetime-local" className="h-8 text-xs" value={intraOpForm.patient_out} onChange={e => setIntraOpForm({...intraOpForm, patient_out: e.target.value})} /></div>
+                                    </div>
+                                </div>
+                                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2 flex items-center gap-1.5"><FileText size={14} /> Operative Notes (Doctor's Notes)</h4>
+                                    <p className="text-[10px] text-blue-700/80 mb-2">Record procedure details, findings, closure, and estimated blood loss.</p>
+                                    <Textarea className="text-sm bg-white border-blue-200 min-h-[120px]" placeholder="Detailed operative notes..." value={intraOpForm.operative_notes} onChange={e => setIntraOpForm({...intraOpForm, operative_notes: e.target.value})} />
+                                </div>
+                                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                    <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Zap size={14} /> Implant Register</h4>
+                                    <p className="text-[10px] text-amber-700/80 mb-2">Record batch & serial no. of implants as per hospital policy.</p>
+                                    <Textarea className="font-mono text-xs bg-white border-amber-200 focus-visible:ring-amber-500 min-h-[100px]" placeholder='{"implant": "Titanium Plate", "batch": "B123", "serial": "S456"}' value={intraOpForm.implants} onChange={e => setIntraOpForm({...intraOpForm, implants: e.target.value})} />
+                                </div>
+                                <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg">
+                                    <h4 className="text-xs font-bold text-rose-800 uppercase tracking-wider mb-2 flex items-center gap-1.5"><ShieldCheck size={14} /> Narcotics Log</h4>
+                                    <p className="text-[10px] text-rose-700/80 mb-2">Narcotic drugs taken by Surgeon Name. Empty ampoules to be stored in Narcotic Stock Box.</p>
+                                    <Textarea className="font-mono text-xs bg-white border-rose-200 focus-visible:ring-rose-500 min-h-[100px]" placeholder='{"drug": "Fentanyl", "amount": "50mcg", "administered_by": "Dr. Smith"}' value={intraOpForm.narcotics} onChange={e => setIntraOpForm({...intraOpForm, narcotics: e.target.value})} />
+                                </div>
                             </div>
                         )}
 
@@ -697,6 +1011,69 @@ export default function OTDashboard() {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsAssessmentOpen(false)}>Cancel</Button>
                         <Button onClick={handleSaveAssessment} disabled={!assessmentSurgeryId}>Save Assessment</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isReportOpen} onOpenChange={setIsReportOpen}>
+                <DialogContent className="max-w-3xl">
+                    <DialogHeader><DialogTitle className="flex items-center gap-2"><FileText className="w-5 h-5 text-slate-500" /> Operative Report</DialogTitle></DialogHeader>
+                    {reportSurgery && (
+                        <div className="space-y-4 py-2 text-sm text-slate-700">
+                            <div className="flex justify-between items-start border-b border-slate-200 pb-4">
+                                <div>
+                                    <h3 className="font-bold text-lg text-slate-900">{reportSurgery.patient_name}</h3>
+                                    <p className="text-slate-500 font-mono text-xs mt-1">MRD: {reportSurgery.mrd_number}</p>
+                                </div>
+                                <div className="text-right">
+                                    <Badge variant="outline" className="bg-slate-50">{reportSurgery.surgery_name}</Badge>
+                                    <p className="text-slate-500 text-xs mt-1">Date: {new Date(reportSurgery.scheduled_date || Date.now()).toLocaleDateString()}</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-x-8 gap-y-4 pt-2">
+                                <div><span className="font-semibold block text-xs text-slate-500 uppercase">Surgeon</span>{reportSurgery.doctor_name || 'N/A'}</div>
+                                <div><span className="font-semibold block text-xs text-slate-500 uppercase">Anesthesiologist</span>{reportSurgery.anesthesiologist?.full_name || 'N/A'}</div>
+                                <div><span className="font-semibold block text-xs text-slate-500 uppercase">Anesthesia Type</span>{reportSurgery.anesthesia_type || 'N/A'}</div>
+                                <div><span className="font-semibold block text-xs text-slate-500 uppercase">Pre-Op Diagnosis</span>{reportSurgery.diagnosis || 'N/A'}</div>
+                            </div>
+
+                            <div className="border border-slate-200 rounded-lg p-3 bg-slate-50 mt-4">
+                                <h4 className="font-bold text-xs uppercase text-slate-500 mb-2 border-b border-slate-200 pb-1">Timestamps</h4>
+                                <div className="grid grid-cols-4 gap-2 text-xs">
+                                    <div><span className="block font-medium text-slate-500">Patient In</span>{reportSurgery.timestamps?.patient_in ? new Date(reportSurgery.timestamps.patient_in).toLocaleTimeString() : '-'}</div>
+                                    <div><span className="block font-medium text-slate-500">Anesthesia Start</span>{reportSurgery.timestamps?.anesthesia_start ? new Date(reportSurgery.timestamps.anesthesia_start).toLocaleTimeString() : '-'}</div>
+                                    <div><span className="block font-medium text-slate-500">Surgery Start</span>{reportSurgery.timestamps?.surgery_start ? new Date(reportSurgery.timestamps.surgery_start).toLocaleTimeString() : '-'}</div>
+                                    <div><span className="block font-medium text-slate-500">Surgery End</span>{reportSurgery.timestamps?.surgery_end ? new Date(reportSurgery.timestamps.surgery_end).toLocaleTimeString() : '-'}</div>
+                                </div>
+                            </div>
+
+                            <div className="mt-4">
+                                <h4 className="font-bold text-xs uppercase text-slate-500 mb-1 border-b border-slate-200 pb-1">Operative Findings & Procedure</h4>
+                                <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800 bg-white p-3 border border-slate-200 rounded-md shadow-sm min-h-[100px] mt-2">
+                                    {reportSurgery.intra_op_logs?.operative_notes || 'No operative notes recorded.'}
+                                </p>
+                            </div>
+
+                            <div className="flex gap-4 mt-4">
+                                <div className="flex-1">
+                                    <h4 className="font-bold text-xs uppercase text-slate-500 mb-1">Implants</h4>
+                                    <p className="font-mono text-xs text-slate-600 break-all bg-slate-50 p-2 border border-slate-200 rounded-md">
+                                        {reportSurgery.implant_register ? JSON.stringify(reportSurgery.implant_register) : 'None'}
+                                    </p>
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="font-bold text-xs uppercase text-slate-500 mb-1">Narcotics</h4>
+                                    <p className="font-mono text-xs text-slate-600 break-all bg-slate-50 p-2 border border-slate-200 rounded-md">
+                                        {reportSurgery.narcotics_log ? JSON.stringify(reportSurgery.narcotics_log) : 'None'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsReportOpen(false)}>Close</Button>
+                        <Button onClick={() => window.print()} className="bg-blue-600">Print Report</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

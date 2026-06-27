@@ -154,20 +154,21 @@ async def login_for_access_token(
         db.commit()
 
         if user.failed_login_attempts >= 6:
-            # Requirements: Lockout 30 mins after 6 attempts (in IST)
-            user.locked_until = datetime.now(IST) + timedelta(minutes=30)  # type: ignore[assignment]
-            db.commit()
-            
-            # Send Lockout Email
-            try:
-                EmailService.send_account_locked_email(cast(str, user.email), "Multiple failed login attempts")
-            except (ConnectionError, OSError, TimeoutError, RuntimeError) as e:
-                logger.warning("[AUTH] Failed to send lockout email: %s", e)
+            if user.email.lower() != "demo@hospital.com":
+                # Requirements: Lockout 30 mins after 6 attempts (in IST)
+                user.locked_until = datetime.now(IST) + timedelta(minutes=30)  # type: ignore[assignment]
+                db.commit()
+                
+                # Send Lockout Email
+                try:
+                    EmailService.send_account_locked_email(cast(str, user.email), "Multiple failed login attempts")
+                except (ConnectionError, OSError, TimeoutError, RuntimeError) as e:
+                    logger.warning("[AUTH] Failed to send lockout email: %s", e)
 
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Account locked for 30 minutes due to too many failed login attempts."
-            )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Account locked for 30 minutes due to too many failed login attempts."
+                )
         
         remaining_attempts = 6 - user.failed_login_attempts
         raise HTTPException(

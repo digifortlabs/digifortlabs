@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/config/api';
 import { toast } from 'sonner';
 import { 
-    FileText, Plus, Trash2, IndianRupee, Save, ArrowLeft, Loader2, CheckSquare, Square
+    FileText, Plus, Trash2, IndianRupee, Save, ArrowLeft, Loader2, CheckSquare, Square, Stethoscope, BedDouble, Beaker
 } from 'lucide-react';
 
 interface UnbilledItem {
@@ -37,6 +37,7 @@ export default function NewPatientInvoicePage() {
     // Unbilled items fetched from server
     const [serverItems, setServerItems] = useState<UnbilledItem[]>([]);
     const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
+    const [quickPayMethods, setQuickPayMethods] = useState<Record<number, string>>({});
 
     // Custom items added by user
     const [customItems, setCustomItems] = useState<CustomItem[]>([]);
@@ -81,6 +82,21 @@ export default function NewPatientInvoicePage() {
         );
     };
 
+    const handleRemoveServerItem = (idx: number) => {
+        const copyItems = [...serverItems];
+        copyItems.splice(idx, 1);
+        setServerItems(copyItems);
+
+        setSelectedIndices(prev => {
+            const newIndices: number[] = [];
+            prev.forEach(i => {
+                if (i < idx) newIndices.push(i);
+                else if (i > idx) newIndices.push(i - 1);
+            });
+            return newIndices;
+        });
+    };
+
     const handleAddCustomItem = () => {
         setCustomItems(prev => [
             ...prev,
@@ -104,20 +120,29 @@ export default function NewPatientInvoicePage() {
     };
 
     // Calculate totals
-    const subtotal = (() => {
-        let total = 0.0;
+    const { opdTotal, ipdTotal, otherTotal, subtotal } = (() => {
+        let opd = 0.0;
+        let ipd = 0.0;
+        let other = 0.0;
+        
         // Selected unbilled items
         selectedIndices.forEach(idx => {
             const item = serverItems[idx];
             if (item) {
-                total += (item.qty * item.unit_price) - item.discount;
+                const amount = (item.qty * item.unit_price) - item.discount;
+                if (item.charge_type.includes('OPD')) opd += amount;
+                else if (item.charge_type.includes('IPD')) ipd += amount;
+                else other += amount;
             }
         });
+        
         // Custom items
         customItems.forEach(item => {
-            total += (item.qty * item.unit_price) - item.discount;
+            const amount = (item.qty * item.unit_price) - item.discount;
+            other += amount;
         });
-        return total;
+        
+        return { opdTotal: opd, ipdTotal: ipd, otherTotal: other, subtotal: opd + ipd + other };
     })();
 
     const taxAmount = (subtotal * gstRate) / 100.0;
@@ -172,6 +197,63 @@ export default function NewPatientInvoicePage() {
             toast.error(error.message || 'Failed to save invoice');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handlePermanentlyDelete = async (idx: number) => {
+        const item = serverItems[idx];
+        if (!item.reference_id) return;
+        
+        if (!window.confirm("Are you sure you want to permanently delete this unbilled record? This action cannot be undone.")) return;
+        
+        try {
+            await apiFetch(`/patient-billing/unbilled/${patientId}/${item.charge_type}/${item.reference_id}`, {
+                method: 'DELETE'
+            });
+            toast.success("Record permanently deleted");
+            
+            // Remove from UI
+            setServerItems(prev => prev.filter((_, i) => i !== idx));
+            setSelectedIndices(prev => prev.filter(i => i !== idx).map(i => i > idx ? i - 1 : i));
+        } catch (error: any) {
+            console.error("Failed to delete record:", error);
+            toast.error(error.message || "Failed to delete record");
+        }
+    };
+
+    const handleQuickPay = async (idx: number, method: string) => {
+        const item = serverItems[idx];
+        try {
+            const payload = {
+                patient_id: Number(patientId),
+                items: [{
+                    description: item.description,
+                    qty: item.qty,
+                    unit_price: item.unit_price,
+                    discount: item.discount,
+                    charge_type: item.charge_type,
+                    reference_id: item.reference_id
+                }],
+                discount_amount: 0.0,
+                gst_rate: 0.0, // Assuming quick pay has 0 GST for simplicity, or we can use the form's gstRate
+                payment_method: method,
+                transaction_id: null,
+                remarks: "Quick Paid from Unbilled List"
+            };
+
+            const invoice = await apiFetch('/patient-billing/invoices', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+
+            toast.success("Quick pay successful! Invoice generated.");
+            
+            // Remove from UI
+            setServerItems(prev => prev.filter((_, i) => i !== idx));
+            setSelectedIndices(prev => prev.filter(i => i !== idx).map(i => i > idx ? i - 1 : i));
+        } catch (error: any) {
+            console.error('Failed to quick pay:', error);
+            toast.error(error.message || 'Failed to process payment');
         }
     };
 
@@ -233,45 +315,89 @@ export default function NewPatientInvoicePage() {
                 <div className="lg:col-span-2 space-y-6">
                     
                     {/* Unbilled Records from Server */}
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-                        <h3 className="font-black text-slate-950 flex items-center gap-2">
-                            <CheckSquare className="text-indigo-600" size={18} /> Selected Unbilled Records ({selectedIndices.length})
-                        </h3>
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+                            <h3 className="font-black text-slate-950 flex items-center gap-2">
+                                <CheckSquare className="text-indigo-600" size={18} /> Selected Unbilled Records ({selectedIndices.length})
+                            </h3>
+                        </div>
                         
                         {serverItems.length === 0 ? (
-                            <p className="text-slate-400 text-sm font-medium py-4 text-center border border-dashed border-slate-200 rounded-xl">
-                                No outstanding unbilled visits, treatments, or stays found for this patient.
-                            </p>
+                            <div className="p-6">
+                                <p className="text-slate-400 text-sm font-medium py-4 text-center border border-dashed border-slate-200 rounded-xl">
+                                    No outstanding unbilled visits, treatments, or stays found for this patient.
+                                </p>
+                            </div>
                         ) : (
-                            <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                                {serverItems.map((item, idx) => {
-                                    const isSelected = selectedIndices.includes(idx);
+                            <div className="p-6 space-y-6">
+                                {(() => {
+                                    const opdItems = serverItems.map((item, idx) => ({ ...item, originalIdx: idx })).filter(item => item.charge_type.includes('OPD'));
+                                    const ipdItems = serverItems.map((item, idx) => ({ ...item, originalIdx: idx })).filter(item => item.charge_type.includes('IPD'));
+                                    const otherItems = serverItems.map((item, idx) => ({ ...item, originalIdx: idx })).filter(item => !item.charge_type.includes('OPD') && !item.charge_type.includes('IPD'));
+
+                                    const renderList = (items: any[], title: string, icon: React.ReactNode, colorClass: string, bgColorClass: string) => {
+                                        if (items.length === 0) return null;
+                                        return (
+                                            <div className="space-y-3">
+                                                <h4 className={`text-xs uppercase font-black flex items-center gap-1.5 ${colorClass}`}>
+                                                    {icon} {title}
+                                                </h4>
+                                                <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                                                    {items.map((item) => {
+                                                        const isSelected = selectedIndices.includes(item.originalIdx);
+                                                        return (
+                                                            <div 
+                                                                key={item.originalIdx} 
+                                                                onClick={() => toggleSelectItem(item.originalIdx)}
+                                                                className={`p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer transition-colors ${
+                                                                    isSelected ? `${bgColorClass} hover:opacity-90` : 'hover:bg-slate-50'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={colorClass}>
+                                                                        {isSelected ? <CheckSquare size={20} /> : <Square size={20} />}
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="font-bold text-slate-900 text-sm">{item.description}</p>
+                                                                        <span className="text-[10px] uppercase tracking-wider font-bold bg-white border border-slate-200 text-slate-500 px-2 py-0.5 rounded mt-1 inline-block">
+                                                                            {item.charge_type.replace(/_/g, ' ')}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right flex items-center gap-4 self-end md:self-auto">
+                                                                    <div>
+                                                                        <p className="font-black text-slate-900">₹ {item.unit_price.toLocaleString()}</p>
+                                                                        {item.qty > 1 && <p className="text-xs text-slate-500">₹ {item.unit_price} x {item.qty}</p>}
+                                                                    </div>
+                                                                    {isSelected && (
+                                                                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                                                            <button 
+                                                                                type="button"
+                                                                                onClick={() => handlePermanentlyDelete(item.originalIdx)}
+                                                                                className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors bg-white border border-rose-100 shadow-sm"
+                                                                                title="Permanently Delete Item"
+                                                                            >
+                                                                                <Trash2 size={14} />
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    };
+
                                     return (
-                                        <div 
-                                            key={idx} 
-                                            onClick={() => toggleSelectItem(idx)}
-                                            className={`p-4 flex items-center justify-between gap-4 cursor-pointer transition-colors ${
-                                                isSelected ? 'bg-indigo-50/20 hover:bg-indigo-50/40' : 'hover:bg-slate-50'
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="text-indigo-600">
-                                                    {isSelected ? <CheckSquare size={20} /> : <Square size={20} />}
-                                                </div>
-                                                <div>
-                                                    <p className="font-bold text-slate-900 text-sm">{item.description}</p>
-                                                    <span className="text-[10px] uppercase tracking-wider font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded mt-1 inline-block">
-                                                        {item.charge_type.replace('_', ' ')}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="font-black text-slate-900">₹ {item.unit_price.toLocaleString()}</p>
-                                                {item.qty > 1 && <p className="text-xs text-slate-500">₹ {item.unit_price} x {item.qty}</p>}
-                                            </div>
-                                        </div>
+                                        <>
+                                            {renderList(opdItems, "OPD Charges", <Stethoscope size={14} />, "text-indigo-600", "bg-indigo-50/40")}
+                                            {renderList(ipdItems, "IPD Charges", <BedDouble size={14} />, "text-emerald-600", "bg-emerald-50/40")}
+                                            {renderList(otherItems, "Other / Diagnostics", <Beaker size={14} />, "text-amber-600", "bg-amber-50/40")}
+                                        </>
                                     );
-                                })}
+                                })()}
                             </div>
                         )}
                     </div>
@@ -347,7 +473,21 @@ export default function NewPatientInvoicePage() {
                         
                         {/* Summary details */}
                         <div className="space-y-3 text-sm font-medium">
-                            <div className="flex justify-between text-slate-500">
+                            <div className="flex justify-between text-indigo-600">
+                                <span>OPD Charges</span>
+                                <span>₹ {opdTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between text-emerald-600">
+                                <span>IPD Charges</span>
+                                <span>₹ {ipdTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            {otherTotal > 0 && (
+                                <div className="flex justify-between text-amber-600">
+                                    <span>Other Charges</span>
+                                    <span>₹ {otherTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between text-slate-500 pt-2 border-t border-slate-100">
                                 <span>Subtotal</span>
                                 <span className="font-bold text-slate-900">₹ {subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                             </div>

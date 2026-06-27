@@ -22,7 +22,17 @@ export default function HMSDashboard() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [isAddWardOpen, setIsAddWardOpen] = useState(false);
-    const [wardForm, setWardForm] = useState({ ward_id: null as number | null, ward_name: '', ward_type: 'General', total_beds: '', floor_number: '', daily_charge: '500' });
+    const [wardForm, setWardForm] = useState({ 
+        ward_id: null as number | null, 
+        ward_name: '', 
+        ward_type: 'General', 
+        total_beds: '', 
+        floor_number: '', 
+        daily_charge: '500',
+        doctor_charge: '0',
+        nursing_charge: '0',
+        bio_medical_wastage_charge: '0'
+    });
     const [userRole, setUserRole] = useState<string>('');
     const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null);
 
@@ -76,7 +86,10 @@ export default function HMSDashboard() {
                         ward_type: wardForm.ward_type, 
                         total_beds: parseInt(wardForm.total_beds) || 0,
                         floor_number: wardForm.floor_number || "1",
-                        daily_charge: parseFloat(wardForm.daily_charge) || 0
+                        daily_charge: parseFloat(wardForm.daily_charge) || 0,
+                        doctor_charge: parseFloat(wardForm.doctor_charge) || 0,
+                        nursing_charge: parseFloat(wardForm.nursing_charge) || 0,
+                        bio_medical_wastage_charge: parseFloat(wardForm.bio_medical_wastage_charge) || 0
                     }) 
                 });
             } else {
@@ -87,12 +100,25 @@ export default function HMSDashboard() {
                         ...wardForm, 
                         total_beds: parseInt(wardForm.total_beds) || 0, 
                         floor_number: wardForm.floor_number || "1",
-                        daily_charge: parseFloat(wardForm.daily_charge) || 0
+                        daily_charge: parseFloat(wardForm.daily_charge) || 0,
+                        doctor_charge: parseFloat(wardForm.doctor_charge) || 0,
+                        nursing_charge: parseFloat(wardForm.nursing_charge) || 0,
+                        bio_medical_wastage_charge: parseFloat(wardForm.bio_medical_wastage_charge) || 0
                     }) 
                 });
             }
             setIsAddWardOpen(false);
-            setWardForm({ ward_id: null, ward_name: '', ward_type: 'General', total_beds: '', floor_number: '', daily_charge: '500' });
+            setWardForm({ 
+                ward_id: null, 
+                ward_name: '', 
+                ward_type: 'General', 
+                total_beds: '', 
+                floor_number: '', 
+                daily_charge: '500',
+                doctor_charge: '0',
+                nursing_charge: '0',
+                bio_medical_wastage_charge: '0'
+            });
             loadData();
         } catch (e: any) { toast.error(e.message || 'Failed'); }
     };
@@ -117,7 +143,10 @@ export default function HMSDashboard() {
             ward_type: ward.ward_type || 'General',
             total_beds: ward.total_beds.toString(),
             floor_number: (ward.floor_number || 1).toString(),
-            daily_charge: (ward.daily_charge || 500).toString()
+            daily_charge: (ward.daily_charge || 500).toString(),
+            doctor_charge: (ward.doctor_charge || 0).toString(),
+            nursing_charge: (ward.nursing_charge || 0).toString(),
+            bio_medical_wastage_charge: (ward.bio_medical_wastage_charge || 0).toString()
         });
         setIsAddWardOpen(true);
     };
@@ -302,12 +331,17 @@ export default function HMSDashboard() {
                         </CardHeader>
                         <CardContent className="p-4 space-y-3">
                             {admissions.slice(0, 5).map(a => (
-                                <div key={a.admission_id} className="flex items-center justify-between p-3 bg-rose-50/60 rounded-lg">
+                                <div key={a.admission_id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-rose-50/60 rounded-lg gap-2">
                                     <div>
                                         <p className="text-sm font-medium text-slate-900">{a.patient_name || 'Patient'}</p>
                                         <p className="text-xs text-slate-500">Bed {a.bed_number} • {a.ward_name}</p>
                                     </div>
-                                    <Badge className="text-xs border-none bg-rose-100 text-rose-700">Active</Badge>
+                                    <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                                        <Badge className="text-[10px] border-none bg-rose-100 text-rose-700 uppercase tracking-widest px-2 py-0.5">Active</Badge>
+                                        <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold px-2 border-slate-200 hover:bg-slate-100" onClick={() => router.push(`/hospital/hms/admissions/${a.admission_id}`)}>
+                                            Manage
+                                        </Button>
+                                    </div>
                                 </div>
                             ))}
                             {admissions.length === 0 && <p className="text-sm text-slate-400 text-center py-2">No active admissions.</p>}
@@ -361,6 +395,14 @@ export default function HMSDashboard() {
                             <Input placeholder="e.g., Ground Floor, 1st Floor" type="text" value={wardForm.floor_number} onChange={e => setWardForm({ ...wardForm, floor_number: e.target.value })} /></div>
                             <div className="space-y-2"><Label>Daily Charge (₹)</Label>
                                 <Input placeholder="e.g., 500" type="number" value={wardForm.daily_charge} onChange={e => setWardForm({ ...wardForm, daily_charge: e.target.value })} /></div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3 mt-2">
+                            <div className="space-y-2"><Label>Doctor Charge / day (₹)</Label>
+                                <Input placeholder="e.g., 200" type="number" value={wardForm.doctor_charge} onChange={e => setWardForm({ ...wardForm, doctor_charge: e.target.value })} /></div>
+                            <div className="space-y-2"><Label>Nursing Charge / day (₹)</Label>
+                                <Input placeholder="e.g., 100" type="number" value={wardForm.nursing_charge} onChange={e => setWardForm({ ...wardForm, nursing_charge: e.target.value })} /></div>
+                            <div className="space-y-2"><Label>BIO Medical Wastage / day (₹)</Label>
+                                <Input placeholder="e.g., 50" type="number" value={wardForm.bio_medical_wastage_charge} onChange={e => setWardForm({ ...wardForm, bio_medical_wastage_charge: e.target.value })} /></div>
                         </div>
                     </div>
                     <DialogFooter>

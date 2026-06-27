@@ -52,9 +52,9 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
     const showAnalytics = isPlatformAdmin || isHospitalAdmin || isGroupAdmin;
 
     return (
-        <div className={`bg-slate-900 border-r border-slate-800 hidden md:flex flex-col flex-shrink-0 text-slate-300 transition-all duration-300 ease-in-out relative ${isCollapsed ? 'w-16 overflow-visible' : 'w-64'}`}>
+        <div className={`bg-white border-r border-slate-200 hidden md:flex flex-col flex-shrink-0 text-slate-600 transition-all duration-300 ease-in-out relative ${isCollapsed ? 'w-16 overflow-visible' : 'w-64'}`}>
             {/* Brand Header */}
-            <div className="h-16 flex items-center justify-center border-b border-slate-800 bg-slate-950 px-4 relative transition-all duration-300">
+            <div className="h-16 flex items-center justify-center border-b border-slate-200 bg-white px-4 relative transition-all duration-300">
                 <div className={`bg-white rounded-xl flex items-center justify-center shadow-lg shadow-white/5 transition-all duration-300 ${
                     isCollapsed ? 'w-10 h-10' : 'w-[80%] h-11'
                 }`}>
@@ -72,7 +72,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                     onClick={toggleCollapse}
                     className={`p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-all duration-200 absolute ${
                         isCollapsed 
-                            ? '-right-3 top-5 bg-slate-900 border border-slate-800 rounded-full shadow-lg p-0.5 hover:scale-110 active:scale-95 z-50' 
+                            ? '-right-3 top-5 bg-white border border-slate-200 rounded-full shadow-lg p-0.5 hover:scale-110 active:scale-95 z-50' 
                             : 'right-4 top-1/2 -translate-y-1/2'
                     }`}
                     title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
@@ -88,8 +88,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                     <Link
                         href={getDomainUrl(dashboardSubdomain, '/admin') || '/admin'}
                         className={`block rounded-xl transition-all duration-200 border relative group ${pathname === '/admin'
-                            ? 'active bg-slate-800 text-white font-medium border-slate-700'
-                            : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                            ? 'active bg-indigo-50 text-indigo-600 font-medium border-indigo-200'
+                            : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                             } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                     >
                         <div className="flex items-center gap-3 text-xs">
@@ -98,7 +98,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                         </div>
                         
                         {isCollapsed && (
-                            <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                            <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                 Overview
                             </span>
                         )}
@@ -120,7 +120,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             {!isCollapsed && <span className="tracking-tight uppercase text-xs">Add New {terms.patient}</span>}
                             
                             {isCollapsed && (
-                                <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                     Add New {terms.patient}
                                 </span>
                             )}
@@ -137,7 +137,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             href={getDomainUrl('admin', '/admin/hospitals')}
                             className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/admin/hospitals')
                                 ? 'active bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-900/50'
-                                : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                 } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                         >
                             <div className="flex items-center gap-3 text-xs font-semibold">
@@ -146,7 +146,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             </div>
                             
                             {isCollapsed && (
-                                <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                     Manage Clients
                                 </span>
                             )}
@@ -155,8 +155,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                         <Link
                             href={getDomainUrl('admin', '/admin/platform-billing')}
                             className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/admin/platform-billing')
-                                ? 'active bg-slate-800 text-white font-medium border-slate-700'
-                                : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                ? 'active bg-indigo-50 text-indigo-600 font-medium border-indigo-200'
+                                : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                 } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                         >
                             <div className="flex items-center gap-3 text-xs font-semibold">
@@ -165,7 +165,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             </div>
                             
                             {isCollapsed && (
-                                <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                     Platform Billing
                                 </span>
                             )}
@@ -176,8 +176,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                         <Link
                             href={getDomainUrl(dashboardSubdomain, '/admin/audit')}
                             className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/admin/audit')
-                                ? 'active bg-slate-800 text-white font-medium border-slate-700'
-                                : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                ? 'active bg-indigo-50 text-indigo-600 font-medium border-indigo-200'
+                                : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                 } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                         >
                             <div className="flex items-center gap-3 text-xs">
@@ -186,7 +186,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             </div>
                             
                             {isCollapsed && (
-                                <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                     System Audit
                                 </span>
                             )}
@@ -195,8 +195,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                         <Link
                             href={getDomainUrl('admin', '/admin/qa')}
                             className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/admin/qa')
-                                ? 'active bg-slate-800 text-white font-medium border-slate-700'
-                                : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                ? 'active bg-indigo-50 text-indigo-600 font-medium border-indigo-200'
+                                : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                 } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                         >
                             <div className="flex items-center gap-3 text-xs">
@@ -205,7 +205,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             </div>
                             
                             {isCollapsed && (
-                                <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                     QA Monitor
                                 </span>
                             )}
@@ -222,8 +222,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             <Link
                                 href={getDomainUrl(dashboardSubdomain, '/accounting')}
                                 className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/accounting')
-                                    ? 'active bg-slate-800 text-white font-medium border-slate-700'
-                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    ? 'active bg-indigo-50 text-indigo-600 font-medium border-indigo-200'
+                                    : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                     } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                             >
                                 <div className="flex items-center gap-3 text-xs">
@@ -232,7 +232,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 </div>
                                 
                                 {isCollapsed && (
-                                    <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                    <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                         Financials
                                     </span>
                                 )}
@@ -243,8 +243,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             <Link
                                 href={getDomainUrl(dashboardSubdomain, '/reports')}
                                 className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/reports')
-                                    ? 'active bg-slate-800 text-white font-medium border-slate-700'
-                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    ? 'active bg-indigo-50 text-indigo-600 font-medium border-indigo-200'
+                                    : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                     } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                             >
                                 <div className="flex items-center gap-3 text-xs">
@@ -253,7 +253,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 </div>
                                 
                                 {isCollapsed && (
-                                    <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                    <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                         Business Intelligence
                                     </span>
                                 )}
@@ -263,8 +263,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                         <Link
                             href={getDomainUrl('admin', '/compliance')}
                             className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/compliance')
-                                ? 'active bg-slate-800 text-white font-medium border-slate-700'
-                                : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                ? 'active bg-indigo-50 text-indigo-600 font-medium border-indigo-200'
+                                : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                 } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                         >
                             <div className="flex items-center gap-3 text-xs font-bold text-indigo-400">
@@ -273,7 +273,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             </div>
                             
                             {isCollapsed && (
-                                <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                     Compliance Hub
                                 </span>
                             )}
@@ -282,8 +282,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                         <Link
                             href={getDomainUrl(dashboardSubdomain, '/audit')}
                             className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/audit')
-                                ? 'active bg-slate-800 text-white font-medium border-slate-700'
-                                : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                ? 'active bg-indigo-50 text-indigo-600 font-medium border-indigo-200'
+                                : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                 } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                         >
                             <div className="flex items-center gap-3 text-xs">
@@ -292,7 +292,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             </div>
                             
                             {isCollapsed && (
-                                <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                     Audit Logs
                                 </span>
                             )}
@@ -310,7 +310,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 href={getDomainUrl(dashboardSubdomain, '/group-overview')}
                                 className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/group-overview')
                                     ? 'active bg-indigo-600/10 text-indigo-400 font-bold border border-indigo-900/30'
-                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                     } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                             >
                                 <div className="flex items-center gap-3 text-xs">
@@ -319,7 +319,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 </div>
                                 
                                 {isCollapsed && (
-                                    <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                    <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                         Group Analytics
                                     </span>
                                 )}
@@ -331,8 +331,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             <Link
                                 href={getDomainUrl(dashboardSubdomain, '/requests')}
                                 className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/requests')
-                                    ? 'active bg-slate-800 text-white font-medium border-slate-700'
-                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    ? 'active bg-indigo-50 text-indigo-600 font-medium border-indigo-200'
+                                    : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                     } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                             >
                                 <div className="flex items-center gap-3 text-xs">
@@ -341,7 +341,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 </div>
                                 
                                 {isCollapsed && (
-                                    <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                    <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                         File Requests
                                     </span>
                                 )}
@@ -354,7 +354,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 href={getDomainUrl(dashboardSubdomain, '/archive')}
                                 className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/archive')
                                     ? 'active bg-slate-800 text-white font-medium border border-slate-700'
-                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                     } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                             >
                                 <div className="flex items-center gap-3 text-xs">
@@ -363,7 +363,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 </div>
                                 
                                 {isCollapsed && (
-                                    <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                    <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                         Physical Archive
                                     </span>
                                 )}
@@ -376,7 +376,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 href={getDomainUrl(dashboardSubdomain, '/mrd')}
                                 className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/mrd')
                                     ? 'active bg-slate-800 text-white font-medium border border-slate-700'
-                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                     } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                             >
                                 <div className="flex items-center gap-3 text-xs">
@@ -385,7 +385,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 </div>
                                 
                                 {isCollapsed && (
-                                    <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                    <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                         MRD Dashboard
                                     </span>
                                 )}
@@ -395,8 +395,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                         <Link
                             href={getDomainUrl(dashboardSubdomain, '/records')}
                             className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/records')
-                                ? 'active bg-slate-800 text-white font-medium border-slate-700'
-                                : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                ? 'active bg-indigo-50 text-indigo-600 font-medium border-indigo-200'
+                                : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                 } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                         >
                             <div className="flex items-center gap-3 text-xs">
@@ -405,7 +405,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             </div>
                             
                             {isCollapsed && (
-                                <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                     {terms.patient} Records
                                 </span>
                             )}
@@ -414,8 +414,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                         <Link
                             href={getDomainUrl(dashboardSubdomain, '/recycle-bin')}
                             className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/recycle-bin')
-                                ? 'active bg-slate-800 text-white font-medium border-slate-700'
-                                : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                ? 'active bg-indigo-50 text-indigo-600 font-medium border-indigo-200'
+                                : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                 } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                         >
                             <div className="flex items-center gap-3 text-xs">
@@ -424,7 +424,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             </div>
                             
                             {isCollapsed && (
-                                <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                     Recycle Bin
                                 </span>
                             )}
@@ -435,8 +435,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             <Link
                                 href={getDomainUrl(dashboardSubdomain, '/appointments')}
                                 className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/appointments')
-                                    ? 'active bg-slate-800 text-white font-medium border-slate-700'
-                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    ? 'active bg-indigo-50 text-indigo-600 font-medium border-indigo-200'
+                                    : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                     } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                             >
                                 <div className="flex items-center gap-3 text-xs">
@@ -445,7 +445,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 </div>
                                 
                                 {isCollapsed && (
-                                    <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                    <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                         Appointments
                                     </span>
                                 )}
@@ -458,7 +458,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 href={getDomainUrl(dashboardSubdomain, '/emergency')}
                                 className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/emergency')
                                     ? 'active bg-red-600/10 text-red-500 font-bold border border-red-900/30 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
-                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                     } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                             >
                                 <div className="flex items-center gap-3 text-xs">
@@ -481,8 +481,8 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             <Link
                                 href={getDomainUrl(dashboardSubdomain, '/doctors')}
                                 className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/doctors')
-                                    ? 'active bg-slate-800 text-white font-medium border-slate-700'
-                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    ? 'active bg-indigo-50 text-indigo-600 font-medium border-indigo-200'
+                                    : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                     } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                             >
                                 <div className="flex items-center gap-3 text-xs">
@@ -491,7 +491,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 </div>
                                 
                                 {isCollapsed && (
-                                    <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                    <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                         Doctors Directory
                                     </span>
                                 )}
@@ -503,7 +503,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 href={getDomainUrl(dashboardSubdomain, '/drafts')}
                                 className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/drafts')
                                     ? 'active bg-amber-900/20 text-amber-500 font-medium border border-amber-900'
-                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                     } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                             >
                                 <div className="flex items-center gap-3 text-xs">
@@ -512,7 +512,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 </div>
                                 
                                 {isCollapsed && (
-                                    <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                    <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                         Draft Queue
                                     </span>
                                 )}
@@ -524,7 +524,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 href={getDomainUrl('admin', '/inventory')}
                                 className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/inventory')
                                     ? 'active bg-slate-800 text-white font-medium border border-slate-700'
-                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                     } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                             >
                                 <div className="flex items-center gap-3 text-xs">
@@ -533,7 +533,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 </div>
                                 
                                 {isCollapsed && (
-                                    <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                    <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                         Inventory
                                     </span>
                                 )}
@@ -546,7 +546,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 href={getDomainUrl(dashboardSubdomain, '/dental')}
                                 className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/dental')
                                     ? 'active bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-900/50'
-                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                     } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                             >
                                 <div className="flex items-center gap-3 text-xs font-semibold">
@@ -555,7 +555,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 </div>
                                 
                                 {isCollapsed && (
-                                    <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                    <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                         Dental Clinic
                                     </span>
                                 )}
@@ -567,7 +567,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 href={getDomainUrl(dashboardSubdomain, '/ent')}
                                 className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/ent')
                                     ? 'active bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/50'
-                                    : 'text-slate-400 hover:bg-slate-800 border-transparent hover:text-white'
+                                    : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
                                     } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
                             >
                                 <div className="flex items-center gap-3 text-xs font-semibold">
@@ -576,7 +576,7 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                                 </div>
                                 
                                 {isCollapsed && (
-                                    <span className="absolute left-16 bg-slate-900 border border-slate-800 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-2xl opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50 border-slate-700/50">
+                                    <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
                                         ENT Clinic
                                     </span>
                                 )}

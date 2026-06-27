@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/config/api';
 import { format } from 'date-fns';
@@ -86,6 +87,15 @@ export default function HMSBedsPage() {
     const [surgeries, setSurgeries] = useState<any[]>([]);
     const [isSurgeryModalOpen, setIsSurgeryModalOpen] = useState(false);
     const [surgeryForm, setSurgeryForm] = useState({ surgery_name: '', doctor_id: '', anesthesiologist_id: '' });
+    
+    // Transfer Modal State
+    const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+    const [transferForm, setTransferForm] = useState({ ward_id: '', bed_id: '' });
+    
+    // Drag and Drop State
+    const [draggedBed, setDraggedBed] = useState<any>(null);
+    const [dragOverBedId, setDragOverBedId] = useState<number | null>(null);
+    const [dragOverWardId, setDragOverWardId] = useState<number | null>(null);
 
     useEffect(() => {
         const role = localStorage.getItem('userRole') || '';
@@ -538,6 +548,131 @@ export default function HMSBedsPage() {
         }
     };
 
+    const handleDragStart = (e: React.DragEvent, bed: any) => {
+        if (bed.status?.toLowerCase() !== 'occupied') {
+            e.preventDefault();
+            return;
+        }
+        setDraggedBed(bed);
+        e.dataTransfer.effectAllowed = 'move';
+        // Add a visual drag image or styling if needed
+    };
+
+    const handleDragOver = (e: React.DragEvent, bed: any) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        
+        // Only allow dropping on available beds
+        if (bed.status?.toLowerCase() === 'available') {
+            setDragOverBedId(bed.bed_id);
+        } else {
+            setDragOverBedId(null);
+        }
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        setDragOverBedId(null);
+    };
+
+    const handleDrop = async (e: React.DragEvent, targetBed: any) => {
+        e.preventDefault();
+        setDragOverBedId(null);
+        
+        if (!draggedBed || targetBed.status?.toLowerCase() !== 'available') {
+            return;
+        }
+        
+        if (draggedBed.bed_id === targetBed.bed_id) return;
+
+        // Perform transfer
+        const toastId = toast.loading(`Transferring patient to ${targetBed.bed_number}...`);
+        try {
+            await apiFetch(`hms/admissions/${draggedBed.admission_id}/transfer`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    new_bed_id: targetBed.bed_id,
+                    reason: 'Ward/Bed shift via Drag and Drop'
+                })
+            });
+            toast.success("Patient transferred successfully", { id: toastId });
+            setDraggedBed(null);
+            loadData(selectedHospitalId); // Refresh map
+        } catch (error: any) {
+            toast.error(error.message || "Failed to transfer patient", { id: toastId });
+            setDraggedBed(null);
+        }
+    };
+
+    const handleWardDragOver = (e: React.DragEvent, wardId: number) => {
+        e.preventDefault();
+        if (draggedBed && draggedBed.ward_id !== wardId) {
+            e.dataTransfer.dropEffect = 'move';
+            setDragOverWardId(wardId);
+        } else {
+            setDragOverWardId(null);
+        }
+    };
+
+    const handleWardDragLeave = () => {
+        setDragOverWardId(null);
+    };
+
+    const handleWardDrop = async (e: React.DragEvent, ward: any) => {
+        e.preventDefault();
+        setDragOverWardId(null);
+        if (!draggedBed || draggedBed.ward_id === ward.ward_id) return;
+        
+        // Find first available bed
+        const availableBeds = beds.filter(b => b.ward_id === ward.ward_id && b.status?.toLowerCase() === 'available');
+        if (availableBeds.length === 0) {
+            toast.error(`No available beds in ${ward.ward_name}`);
+            setDraggedBed(null);
+            return;
+        }
+        
+        const targetBed = availableBeds[0];
+        
+        const toastId = toast.loading(`Transferring to ${ward.ward_name}...`);
+        try {
+            await apiFetch(`hms/admissions/${draggedBed.admission_id}/transfer`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    new_bed_id: targetBed.bed_id,
+                    reason: 'Cross-ward shift via Drag and Drop'
+                })
+            });
+            toast.success("Patient transferred successfully", { id: toastId });
+            setDraggedBed(null);
+            // Optionally auto-switch to the new ward to see them
+            setSelectedWard(ward);
+            loadData(selectedHospitalId);
+        } catch (error: any) {
+            toast.error(error.message || "Failed to transfer patient", { id: toastId });
+            setDraggedBed(null);
+        }
+    };
+
+    const handleTransferSubmit = async () => {
+        if (!activeAdmission || !transferForm.bed_id) return;
+        const toastId = toast.loading(`Transferring patient...`);
+        try {
+            await apiFetch(`hms/admissions/${activeAdmission.admission_id}/transfer`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    new_bed_id: parseInt(transferForm.bed_id),
+                    reason: 'Ward/Bed shift via Console Modal'
+                })
+            });
+            toast.success("Patient transferred successfully", { id: toastId });
+            setIsTransferModalOpen(false);
+            setTransferForm({ ward_id: '', bed_id: '' });
+            setIsConsoleOpen(false);
+            loadData(selectedHospitalId);
+        } catch (error: any) {
+            toast.error(error.message || "Failed to transfer patient", { id: toastId });
+        }
+    };
+
     return (
         <div className="p-6 space-y-6 max-w-[1600px] mx-auto pb-24">
             <div className="flex items-center justify-between">
@@ -566,7 +701,13 @@ export default function HMSBedsPage() {
                             return (
                                 <button key={ward.ward_id}
                                     onClick={() => setSelectedWard(ward)}
-                                    className={cn('w-full text-left p-4 rounded-xl border-2 transition-all', selectedWard?.ward_id === ward.ward_id ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white hover:border-blue-300')}>
+                                    onDragOver={(e) => handleWardDragOver(e, ward.ward_id)}
+                                    onDragLeave={handleWardDragLeave}
+                                    onDrop={(e) => handleWardDrop(e, ward)}
+                                    className={cn('w-full text-left p-4 rounded-xl border-2 transition-all relative overflow-hidden', 
+                                        dragOverWardId === ward.ward_id ? 'border-blue-500 bg-blue-100 ring-4 ring-blue-400 scale-105 z-10' :
+                                        selectedWard?.ward_id === ward.ward_id ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white hover:border-blue-300'
+                                    )}>
                                     <p className="font-semibold text-slate-900 text-sm">{ward.ward_name}</p>
                                     <p className="text-xs text-slate-500 mt-0.5">{ward.ward_type} • Floor {ward.floor_number || 1}</p>
                                     <div className="flex items-center gap-2 mt-2">
@@ -615,18 +756,59 @@ export default function HMSBedsPage() {
                                             const bedEquipments = equipments.filter(e => e.bed_id === bed.bed_id && e.status === 'in_use');
                                             const bedAlerts = alerts.filter(a => a.admission_id === bed.admission_id);
                                             const hasAlert = bedAlerts.length > 0;
+                                            const hasMedAlert = bedAlerts.some(a => a.type === 'medication' || !a.type);
+                                            const hasVitalsAlert = bedAlerts.some(a => a.type === 'vitals');
+                                            
+                                            // Determine pulsing style
+                                            let alertStyle = '';
+                                            if (isOccupied) {
+                                                if (hasMedAlert) alertStyle = 'ring-2 ring-red-500 animate-[pulse_2s_ease-in-out_infinite]';
+                                                else if (hasVitalsAlert) alertStyle = 'ring-2 ring-yellow-500 animate-[pulse_2s_ease-in-out_infinite]';
+                                            }
 
                                             return (
                                                 <div key={bed.bed_id}
+                                                    draggable={isOccupied}
+                                                    onDragStart={(e) => handleDragStart(e, bed)}
+                                                    onDragOver={(e) => handleDragOver(e, bed)}
+                                                    onDragLeave={handleDragLeave}
+                                                    onDrop={(e) => handleDrop(e, bed)}
                                                     onClick={() => handleBedClick(bed)}
                                                     className={cn(
-                                                        'group relative flex flex-col p-4 rounded-xl border-[2px] transition-all cursor-pointer hover:shadow-md overflow-hidden',
+                                                        'group relative flex flex-col p-4 rounded-xl border-[2px] transition-all cursor-pointer hover:shadow-md overflow-visible',
                                                         isOccupied ? 'bg-white border-rose-300 hover:border-rose-400' :
                                                             isMaintenance ? 'bg-amber-50 border-amber-200' :
-                                                                'bg-white border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50'
+                                                                'bg-white border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50',
+                                                        dragOverBedId === bed.bed_id && !isOccupied && !isMaintenance ? 'ring-4 ring-blue-500 bg-blue-50 scale-105' : '',
+                                                        draggedBed?.bed_id === bed.bed_id ? 'opacity-50 border-dashed' : '',
+                                                        alertStyle
                                                     )}
                                                     style={{ minHeight: '120px' }}
                                                 >
+                                                    {/* Hover Mini-Card (Absolute positioned, visible on group-hover) */}
+                                                    {isOccupied && (
+                                                        <div className="absolute z-50 left-1/2 -translate-x-1/2 bottom-[105%] w-64 bg-slate-900 text-white rounded-lg p-3 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none scale-95 group-hover:scale-100 duration-200">
+                                                            <div className="font-bold text-sm mb-1 truncate">{bed.patient_name}</div>
+                                                            <div className="text-xs text-slate-300 mb-2 flex justify-between">
+                                                                <span>Bed: {bed.bed_number}</span>
+                                                                <span>{bedEquipments.length > 0 ? `${bedEquipments.length} Equip` : ''}</span>
+                                                            </div>
+                                                            {bedAlerts.length > 0 ? (
+                                                                <div className="space-y-1">
+                                                                    {bedAlerts.map((alt, idx) => (
+                                                                        <div key={idx} className={cn("text-[10px] px-2 py-1 rounded", alt.type === 'vitals' ? "bg-yellow-500/20 text-yellow-200" : "bg-red-500/20 text-red-200")}>
+                                                                            • {alt.type === 'vitals' ? 'Abnormal Vitals' : 'Overdue Meds'}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-[10px] text-emerald-400">✓ All clear, no pending alerts.</div>
+                                                            )}
+                                                            {/* Little triangle arrow pointing down */}
+                                                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-900 rotate-45"></div>
+                                                        </div>
+                                                    )}
+
                                                     {/* Top Bar: Bed Number & Status */}
                                                     <div className="flex justify-between items-start mb-2 group/title relative">
                                                         {editingBedNameId === bed.bed_id ? (
@@ -867,6 +1049,15 @@ export default function HMSBedsPage() {
                             <div className="text-right flex flex-col items-end gap-3">
                                 {['hospital_admin', 'superadmin', 'mrd_staff'].includes(userRole) && (
                                     <div className="flex gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="bg-white/10 border-white/20 text-white hover:bg-white/20 font-semibold h-8 transition-colors"
+                                            onClick={() => setIsTransferModalOpen(true)}
+                                        >
+                                            <Bed className="w-4 h-4 mr-2" />
+                                            Transfer Patient
+                                        </Button>
                                         <Button
                                             variant="outline"
                                             size="sm"
@@ -1288,6 +1479,35 @@ export default function HMSBedsPage() {
                                             }).reverse()
                                         )}
                                     </div>
+
+                                    {/* Add Doctor Note Form */}
+                                    <div className="space-y-4 mt-8 pt-6 border-t border-slate-200">
+                                        <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Add Doctor Note</h3>
+                                        <Card className="border-amber-100 shadow-sm">
+                                            <CardContent className="p-4 space-y-4 bg-white">
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs">Note Type</Label>
+                                                    <select className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm font-medium bg-slate-50"
+                                                        value={noteForm.note_type} onChange={e => setNoteForm({ ...noteForm, note_type: e.target.value })}>
+                                                        <option>Ward Round</option>
+                                                        <option>Progress Note</option>
+                                                        <option>Consultation</option>
+                                                        <option>Nursing Note</option>
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs">Content</Label>
+                                                    <textarea
+                                                        className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm bg-slate-50 min-h-[100px] resize-y"
+                                                        placeholder="Observations, patient condition..."
+                                                        value={noteForm.content}
+                                                        onChange={e => setNoteForm({ ...noteForm, content: e.target.value })}
+                                                    />
+                                                </div>
+                                                <Button onClick={handleAddNote} disabled={!noteForm.content} className="w-full bg-amber-500 hover:bg-amber-600 h-10 text-white font-bold">Add Note</Button>
+                                            </CardContent>
+                                        </Card>
+                                    </div>
                                 </TabsContent>
 
                                 {/* Nurse Log Tab */}
@@ -1451,35 +1671,6 @@ export default function HMSBedsPage() {
                                                             </div>
                                                         </div>
                                                         <Button onClick={handleLogFluid} disabled={!fluidForm.fluid_type || !fluidForm.amount_ml} className="w-full bg-teal-600 hover:bg-teal-700 h-10 font-bold">Log Fluid</Button>
-                                                    </CardContent>
-                                                </Card>
-                                            </div>
-
-                                            {/* Add Doctor Note Form */}
-                                            <div className="space-y-4 mt-6">
-                                                <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wider">Add Doctor Note</h3>
-                                                <Card className="border-amber-100 shadow-sm">
-                                                    <CardContent className="p-4 space-y-4 bg-white">
-                                                        <div className="space-y-2">
-                                                            <Label className="text-xs">Note Type</Label>
-                                                            <select className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm font-medium bg-slate-50"
-                                                                value={noteForm.note_type} onChange={e => setNoteForm({ ...noteForm, note_type: e.target.value })}>
-                                                                <option>Ward Round</option>
-                                                                <option>Progress Note</option>
-                                                                <option>Consultation</option>
-                                                                <option>Nursing Note</option>
-                                                            </select>
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            <Label className="text-xs">Content</Label>
-                                                            <textarea
-                                                                className="w-full border-2 border-slate-200 rounded-lg p-2.5 text-sm bg-slate-50 min-h-[100px] resize-y"
-                                                                placeholder="Observations, patient condition..."
-                                                                value={noteForm.content}
-                                                                onChange={e => setNoteForm({ ...noteForm, content: e.target.value })}
-                                                            />
-                                                        </div>
-                                                        <Button onClick={handleAddNote} disabled={!noteForm.content} className="w-full bg-amber-500 hover:bg-amber-600 h-10 text-white font-bold">Add Note</Button>
                                                     </CardContent>
                                                 </Card>
                                             </div>
@@ -2024,6 +2215,49 @@ export default function HMSBedsPage() {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsDischargeOpen(false)}>Cancel</Button>
                         <Button onClick={handleDischarge} className="bg-rose-600 hover:bg-rose-700">Confirm Discharge</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Transfer Modal */}
+            <Dialog open={isTransferModalOpen} onOpenChange={setIsTransferModalOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Transfer Patient</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label>Select Ward</Label>
+                            <Select value={transferForm.ward_id} onValueChange={val => setTransferForm({ ...transferForm, ward_id: val, bed_id: '' })}>
+                                <SelectTrigger><SelectValue placeholder="Select Ward..." /></SelectTrigger>
+                                <SelectContent>
+                                    {wards.map(w => (
+                                        <SelectItem key={w.ward_id} value={w.ward_id.toString()}>{w.ward_name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        {transferForm.ward_id && (
+                            <div className="space-y-2">
+                                <Label>Select Available Bed</Label>
+                                <Select value={transferForm.bed_id} onValueChange={val => setTransferForm({ ...transferForm, bed_id: val })}>
+                                    <SelectTrigger><SelectValue placeholder="Select Bed..." /></SelectTrigger>
+                                    <SelectContent>
+                                        {beds.filter(b => b.ward_id.toString() === transferForm.ward_id && b.status?.toLowerCase() === 'available').length > 0 ? (
+                                            beds.filter(b => b.ward_id.toString() === transferForm.ward_id && b.status?.toLowerCase() === 'available').map(b => (
+                                                <SelectItem key={b.bed_id} value={b.bed_id.toString()}>{b.bed_number}</SelectItem>
+                                            ))
+                                        ) : (
+                                            <SelectItem value="none" disabled>No beds available in this ward</SelectItem>
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsTransferModalOpen(false)}>Cancel</Button>
+                        <Button onClick={handleTransferSubmit} disabled={!transferForm.bed_id || transferForm.bed_id === 'none'} className="bg-blue-600">Confirm Transfer</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

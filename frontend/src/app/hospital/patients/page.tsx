@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, Search, Plus, Calendar, Activity, ChevronRight } from 'lucide-react';
+import { Users, Search, Plus, Calendar, Activity, ChevronRight, CalendarPlus, BedDouble, Receipt, FileText } from 'lucide-react';
 import { apiFetch } from '@/config/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -118,42 +118,72 @@ export default function PatientsDirectory() {
                             <div 
                                 key={patient.record_id}
                                 onClick={() => router.push(`/hospital/patients/${patient.record_id}`)}
-                                className="p-4 sm:p-5 hover:bg-blue-50/50 cursor-pointer transition-colors group flex items-center justify-between"
+                                className="p-3 sm:p-4 hover:bg-slate-50 cursor-pointer transition-colors group flex flex-col xl:flex-row xl:items-center justify-between gap-4"
                             >
-                                <div className="flex items-center gap-4 sm:gap-6">
-                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-blue-700 font-black text-lg shadow-sm border border-blue-200/50 group-hover:scale-105 transition-transform">
+                                <div className="flex items-center gap-3 sm:gap-4">
+                                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 flex shrink-0 items-center justify-center text-blue-700 font-black text-base sm:text-lg shadow-sm border border-blue-200/50 group-hover:scale-105 transition-transform">
                                         {patient.full_name?.charAt(0).toUpperCase()}
                                     </div>
-                                    <div>
-                                        <h3 className="font-bold text-slate-900 text-lg group-hover:text-blue-700 transition-colors">
+                                    <div className="min-w-0">
+                                        <h3 className="font-bold text-slate-900 text-base sm:text-lg truncate group-hover:text-blue-700 transition-colors">
                                             {patient.full_name}
                                         </h3>
-                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-slate-500">
-                                            <span className="font-medium bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md text-xs">{terms.mrd}: {patient.mrd_number}</span>
-                                            {patient.phone && <span>{patient.phone}</span>}
-                                            {patient.age && <span>{/^\d+$/.test(patient.age.trim()) ? `${patient.age} yrs` : patient.age}</span>}
-                                            {patient.gender && <span className="capitalize">{patient.gender}</span>}
+                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5 text-xs sm:text-sm text-slate-500">
+                                            <span className="font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px] sm:text-xs border border-slate-200">{terms.mrd}: {patient.mrd_number}</span>
+                                            {patient.phone && <span className="truncate">{patient.phone}</span>}
+                                            {patient.age && <span className="whitespace-nowrap">{/^\d+$/.test(patient.age.trim()) ? `${patient.age} yrs` : patient.age}</span>}
+                                            {patient.gender && <span className="capitalize whitespace-nowrap">{patient.gender}</span>}
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="hidden sm:flex border-blue-200 text-blue-600 hover:bg-blue-50 gap-2 font-bold bg-white"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSelectedPatientForAppointment(patient.record_id.toString());
-                                            setIsAppointmentModalOpen(true);
-                                        }}
-                                    >
-                                        <Calendar size={14} />
-                                        Add Appointment
-                                    </Button>
-                                    <div className="hidden sm:flex text-xs text-slate-400 font-medium">
-                                        View Profile & Timeline
+                                
+                                <div className="flex items-center justify-between xl:justify-end gap-2 sm:gap-3 border-t xl:border-t-0 border-slate-100 pt-3 xl:pt-0">
+                                    <div className="flex items-center gap-1 sm:gap-2">
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-8 px-2 sm:px-3 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 bg-white border border-emerald-100 shadow-sm flex items-center gap-1.5"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                router.push(`/hospital/hms/admissions?patient_id=${patient.record_id}&action=admit`);
+                                            }}
+                                            title="Admit to IPD"
+                                        >
+                                            <BedDouble size={14} />
+                                            <span className="hidden md:inline text-xs font-bold">Admit</span>
+                                        </Button>
+                                        
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-8 px-2 sm:px-3 text-amber-600 hover:text-amber-700 hover:bg-amber-50 bg-white border border-amber-100 shadow-sm flex items-center gap-1.5"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                router.push(`/hospital/accounting/invoices/new?patient_id=${patient.record_id}`);
+                                            }}
+                                            title="New Invoice"
+                                        >
+                                            <Receipt size={14} />
+                                            <span className="hidden md:inline text-xs font-bold">Bill</span>
+                                        </Button>
+
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-8 px-2 sm:px-3 text-blue-600 hover:text-blue-700 hover:bg-blue-50 bg-white border border-blue-100 shadow-sm flex items-center gap-1.5"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedPatientForAppointment(patient.record_id.toString());
+                                                setIsAppointmentModalOpen(true);
+                                            }}
+                                            title="Book Appointment"
+                                        >
+                                            <CalendarPlus size={14} />
+                                            <span className="hidden md:inline text-xs font-bold">Appt</span>
+                                        </Button>
                                     </div>
-                                    <div className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center group-hover:border-blue-300 group-hover:bg-blue-50 transition-colors shadow-sm">
+                                    
+                                    <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center group-hover:border-blue-300 group-hover:bg-blue-50 transition-colors shrink-0">
                                         <ChevronRight size={16} className="text-slate-400 group-hover:text-blue-600" />
                                     </div>
                                 </div>

@@ -252,8 +252,8 @@ export default function GlobalPatientRegister() {
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                    <form onSubmit={handleSubmit} id="global-register-form" className="space-y-8">
+                <div className="flex-1 overflow-y-auto p-6">
+                    <form onSubmit={handleSubmit} id="global-register-form" className="space-y-8 pb-8">
                         {/* Section: Basic Details */}
                         <div>
                             <h3 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2 border-b border-slate-100 pb-2">
@@ -306,7 +306,7 @@ export default function GlobalPatientRegister() {
                                             />
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 md:col-span-2">
                                         <div className="space-y-2">
                                             <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Date of Birth</Label>
                                             <Input 
@@ -337,7 +337,7 @@ export default function GlobalPatientRegister() {
                                                 <Input 
                                                     type="number"
                                                     placeholder="25"
-                                                    className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500"
+                                                    className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500 min-w-0"
                                                     value={formData.age}
                                                     onChange={e => setFormData({...formData, age: e.target.value})}
                                                     required
@@ -381,7 +381,7 @@ export default function GlobalPatientRegister() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="space-y-2">
+                                <div className="space-y-2 md:col-span-2">
                                     <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Current Address</Label>
                                     <div className="relative">
                                         <MapPin className="absolute left-3 top-3 w-4 h-4 text-slate-400" />

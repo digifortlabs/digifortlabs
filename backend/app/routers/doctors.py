@@ -22,6 +22,7 @@ class DoctorCreate(BaseModel):
     specialization: Optional[str] = None
     consultation_fee: float = 0.0
     ipd_charge: float = 0.0
+    ipd_charge_type: str = "PER_DAY"
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     create_login_account: bool = False
@@ -35,6 +36,7 @@ class DoctorUpdate(BaseModel):
     specialization: Optional[str] = None
     consultation_fee: Optional[float] = None
     ipd_charge: Optional[float] = None
+    ipd_charge_type: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     is_active: Optional[bool] = None
@@ -49,6 +51,7 @@ class DoctorProfileResponse(BaseModel):
     specialization: Optional[str] = None
     consultation_fee: float
     ipd_charge: float = 0.0
+    ipd_charge_type: str = "PER_DAY"
     is_active: bool
     is_residential: Optional[bool] = True
     user_id: Optional[int] = None
@@ -189,6 +192,7 @@ def create_doctor(
         specialization=data.specialization,
         consultation_fee=data.consultation_fee,
         ipd_charge=data.ipd_charge,
+        ipd_charge_type=data.ipd_charge_type,
         is_residential=getattr(data, 'is_residential', True)
     )
     db.add(profile)
@@ -249,6 +253,8 @@ def update_doctor(
         profile.consultation_fee = data.consultation_fee
     if data.ipd_charge is not None:
         profile.ipd_charge = data.ipd_charge
+    if data.ipd_charge_type is not None:
+        profile.ipd_charge_type = data.ipd_charge_type
 
     db.commit()
     db.refresh(profile)

@@ -345,7 +345,7 @@ class Patient(Base):
     # Relationships
     hospital = relationship("Hospital", back_populates="patients")
     box = relationship("PhysicalBox")
-    physical_box = relationship("PhysicalBox", back_populates="patients")
+    physical_box = relationship("PhysicalBox", back_populates="patients", overlaps="box")
     files = relationship("PDFFile", back_populates="patient")
     patient_invoices = relationship("PatientInvoice", back_populates="patient")
     ledger_transactions = relationship("PatientLedgerTransaction", back_populates="patient", cascade="all, delete-orphan")
@@ -827,6 +827,7 @@ class DoctorProfile(Base):
     specialization = Column(String, nullable=True) # e.g., "Endodontist"
     consultation_fee = Column(Float, default=0.0)
     ipd_charge = Column(Float, default=0.0)
+    ipd_charge_type = Column(String, default="PER_DAY") # "PER_DAY" or "PER_VISIT"
     is_active = Column(Boolean, default=True)
     is_residential = Column(Boolean, default=True) # True = Single hospital doctor, False = Multi-hospital visiting doctor
     
@@ -834,6 +835,19 @@ class DoctorProfile(Base):
     department = relationship("Department")
     hospital = relationship("Hospital")
     patient_assignments = relationship("PatientDoctorAssignment", back_populates="doctor_profile", cascade="all, delete-orphan")
+    doctor_visits = relationship("IPDDoctorVisit", back_populates="doctor", cascade="all, delete-orphan")
+
+class IPDDoctorVisit(Base):
+    __tablename__ = "ipd_doctor_visits"
+    visit_id = Column(Integer, primary_key=True, index=True)
+    admission_id = Column(Integer, ForeignKey("ipd_admissions.admission_id"), nullable=False)
+    doctor_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=False)
+    visit_date = Column(DateTime, nullable=False)
+    charge_amount = Column(Float, nullable=False)
+    notes = Column(String, nullable=True)
+
+    admission = relationship("IPDAdmission", back_populates="doctor_visits")
+    doctor = relationship("DoctorProfile", back_populates="doctor_visits")
 
 class DoctorSchedule(Base):
     __tablename__ = "doctor_schedules"
@@ -1499,6 +1513,9 @@ class Ward(Base):
     floor_number = Column(String, default="1")
     total_beds = Column(Integer, nullable=False)
     daily_charge = Column(Float, default=500.0)
+    doctor_charge = Column(Float, default=0.0)
+    nursing_charge = Column(Float, default=0.0)
+    bio_medical_wastage_charge = Column(Float, default=0.0)
     occupied_beds = Column(Integer, default=0)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -1543,6 +1560,13 @@ class IPDAdmission(Base):
     pre_op_assessment = Column(JSON, nullable=True) # {bp, pulse, temp, weight, allergies, comorbidities, fitness_status, notes, consent_signed, assessed_by, timestamp}
     post_op_assessment = Column(JSON, nullable=True) # {bp, pulse, temp, recovery_status, notes, assessed_by, timestamp}
     
+    diet_orders = Column(JSON, default=list) # [{timestamp, diet_type, instructions, prescribed_by}]
+    bed_history = Column(JSON, default=list) # [{ward_id, bed_id, start_date, end_date, transfer_reason}]
+    
+    medical_cleared = Column(Boolean, default=False)
+    pharmacy_cleared = Column(Boolean, default=False)
+    billing_cleared = Column(Boolean, default=False)
+    
     ot_required = Column(Boolean, default=False)
     
     
@@ -1554,6 +1578,7 @@ class IPDAdmission(Base):
     ward = relationship("Ward")
     bed = relationship("Bed")
     doctor = relationship("DoctorProfile")
+    doctor_visits = relationship("IPDDoctorVisit", back_populates="admission", cascade="all, delete-orphan")
     patient_invoice = relationship("PatientInvoice", back_populates="ipd_admissions")
 
 class OperationTheater(Base):
@@ -1593,6 +1618,11 @@ class Surgery(Base):
     
     pre_op_assessment = Column(JSON, nullable=True)
     post_op_assessment = Column(JSON, nullable=True)
+    
+    # OT Tracking
+    timestamps = Column(JSON, nullable=True)
+    implant_register = Column(JSON, nullable=True)
+    narcotics_log = Column(JSON, nullable=True)
     
     doctor_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
     anesthesiologist_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)

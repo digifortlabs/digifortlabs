@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import toast from 'react-hot-toast';
-import { Activity, Plus, Search, Edit2, Trash2, X, FileText, Upload, Clock, User as UserIcon, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Activity, Plus, Search, Edit2, Trash2, X, FileText, Upload, Clock, User as UserIcon, CheckCircle2, ChevronRight, LayoutGrid, List } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 const MODALITIES = ["All", "Pathology", "Radiology", "CT Scan", "MRI", "Cardiology", "Microbiology"];
@@ -17,6 +17,7 @@ export default function DiagnosticsCenterPage() {
     const [modalityFilter, setModalityFilter] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
     // Data States
     const [catalog, setCatalog] = useState<any[]>([]);
@@ -247,18 +248,103 @@ export default function DiagnosticsCenterPage() {
                         </button>
                     ))}
                 </div>
-                <div className="relative w-full md:w-80">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <Input 
-                        placeholder={activeTab === 'catalog' ? "Search tests by name..." : "Search patient or test..."}
-                        className="pl-9 bg-slate-50 border-slate-200 rounded-xl focus-visible:ring-blue-500"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <div className="relative flex-1 md:w-80">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <Input 
+                            placeholder={activeTab === 'catalog' ? "Search tests by name..." : "Search patient or test..."}
+                            className="pl-9 bg-slate-50 border-slate-200 rounded-xl focus-visible:ring-blue-500"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+                    {activeTab !== 'catalog' && (
+                        <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+                            <Button variant={viewMode === 'grid' ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode('grid')} className={`rounded-lg ${viewMode === 'grid' ? "bg-white shadow-sm text-blue-700" : "text-slate-500"}`}><LayoutGrid className="w-4 h-4" /></Button>
+                            <Button variant={viewMode === 'list' ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode('list')} className={`rounded-lg ${viewMode === 'list' ? "bg-white shadow-sm text-blue-700" : "text-slate-500"}`}><List className="w-4 h-4" /></Button>
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* Content Area */}
+            {viewMode === 'grid' && activeTab !== 'catalog' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {isLoading ? (
+                        <div className="col-span-full py-12 text-center text-slate-400 font-medium">Loading data...</div>
+                    ) : activeTab === 'active' ? (
+                        filteredActive.length === 0 ? (
+                            <div className="col-span-full py-12 text-center text-slate-400 font-medium">No active orders found.</div>
+                        ) : (
+                            filteredActive.map(order => (
+                                <Card key={order.order_id} className="hover:border-blue-200 hover:shadow-md transition-all duration-200 bg-white">
+                                    <CardContent className="p-6 space-y-4">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <div className="font-bold text-lg text-slate-800">{order.patient_name}</div>
+                                                <div className="text-xs text-slate-500 font-mono">MRD: {order.mrd_number}</div>
+                                            </div>
+                                            <Badge className="bg-blue-50 text-blue-700 border-blue-200">{order.status}</Badge>
+                                        </div>
+                                        <div className="bg-slate-50 rounded-lg p-3">
+                                            <div className="font-bold text-slate-700">{order.test_name}</div>
+                                            <div className="text-sm text-slate-500 mt-1 flex justify-between items-center">
+                                                <Badge variant="outline">{order.category || 'Pathology'}</Badge>
+                                                <span className="flex items-center gap-1"><UserIcon className="w-3 h-3"/> {order.doctor_name}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-end">
+                                            <div className="text-xs font-medium text-amber-600">
+                                                {formatDistanceToNow(new Date(order.ordered_at), { addSuffix: true })}
+                                            </div>
+                                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => { setUploadOrder(order); setIsUploadModalOpen(true); }}>
+                                                <Upload className="w-3 h-3 mr-1" /> Upload
+                                            </Button>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))
+                        )
+                    ) : (
+                        filteredCompleted.length === 0 ? (
+                            <div className="col-span-full py-12 text-center text-slate-400 font-medium">No completed orders found.</div>
+                        ) : (
+                            filteredCompleted.map(order => (
+                                <Card key={order.order_id} className="hover:border-emerald-200 hover:shadow-md transition-all duration-200 bg-white">
+                                    <CardContent className="p-6 space-y-4">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <div className="font-bold text-lg text-slate-800">{order.patient_name}</div>
+                                                <div className="text-xs text-slate-500 font-mono">MRD: {order.mrd_number}</div>
+                                            </div>
+                                            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Done</Badge>
+                                        </div>
+                                        <div className="bg-slate-50 rounded-lg p-3">
+                                            <div className="font-bold text-slate-700">{order.test_name}</div>
+                                            <div className="text-sm text-slate-500 mt-1 flex justify-between items-center">
+                                                <Badge variant="outline">{order.category || 'Pathology'}</Badge>
+                                                <span className="flex items-center gap-1"><UserIcon className="w-3 h-3"/> {order.doctor_name}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-end">
+                                            <div className="text-xs font-medium text-slate-500">
+                                                {order.completed_at ? formatDistanceToNow(new Date(order.completed_at), { addSuffix: true }) : ''}
+                                            </div>
+                                            {order.report_file_url ? (
+                                                <Button variant="outline" size="sm" className="border-blue-200 text-blue-700" onClick={() => window.open(order.report_file_url, '_blank')}>
+                                                    <FileText className="w-3 h-3 mr-1" /> View
+                                                </Button>
+                                            ) : (
+                                                <span className="text-slate-400 text-xs italic">No PDF Attached</span>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))
+                        )
+                    )}
+                </div>
+            ) : (
             <Card className="border-slate-200 shadow-sm overflow-hidden rounded-3xl bg-white">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse min-w-[800px]">
@@ -403,6 +489,7 @@ export default function DiagnosticsCenterPage() {
                     </table>
                 </div>
             </Card>
+            )}
 
             {/* Catalog Action Buttons (only visible in Catalog tab) */}
             {activeTab === 'catalog' && (

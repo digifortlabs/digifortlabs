@@ -95,14 +95,14 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
     const showWarehouseMenu = showStorage || showRequests || showArchive || showDrafts;
 
     return (
-        <nav className="sticky top-0 w-full z-40 bg-slate-900 border-b border-slate-800 shadow-sm">
+        <nav className="sticky top-0 w-full z-40 bg-white border-b border-slate-200 shadow-sm">
             <div className="w-full px-4 lg:px-6">
                 <div className="flex items-center justify-between h-16">
                     {/* Mobile Menu Toggle */}
                     <div className="flex md:hidden">
                         <button
                             onClick={() => setIsMenuOpen(!isMenuOpen)}
-                            className="text-slate-400 hover:text-white p-2 transition-colors"
+                            className="text-slate-500 hover:text-slate-800 p-2 transition-colors"
                         >
                             {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
                         </button>
@@ -160,7 +160,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                         <div className="relative">
                             <button
                                 onClick={() => setIsProfileOpen(!isProfileOpen)}
-                                className="flex items-center gap-2 p-1 rounded-full hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                className="flex items-center gap-2 p-1 rounded-full hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                             >
                                 <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-indigo-500/20 border border-indigo-400">
                                     {(userEmail || 'U').charAt(0).toUpperCase()}
@@ -169,9 +169,9 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
                             {/* Dropdown Menu */}
                             {isProfileOpen && (
-                                <div className="absolute right-0 mt-3 w-72 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                                <div className="absolute right-0 mt-3 w-72 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
                                     {/* Header */}
-                                    <div className="p-4 border-b border-slate-800 bg-slate-800/30">
+                                    <div className="p-4 border-b border-slate-200 bg-slate-50">
                                         <p className="text-sm font-bold text-white truncate">{userEmail}</p>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
@@ -186,7 +186,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                             <Link
                                                 href="/settings"
                                                 onClick={() => setIsProfileOpen(false)}
-                                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-100 hover:text-white transition-colors"
                                             >
                                                 <Settings size={16} /> Settings
                                             </Link>
@@ -196,7 +196,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                             <Link
                                                 href="/server-manager"
                                                 onClick={() => setIsProfileOpen(false)}
-                                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-amber-500 hover:bg-slate-800 hover:text-amber-400 transition-colors"
+                                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-amber-500 hover:bg-slate-100 hover:text-amber-400 transition-colors"
                                             >
                                                 <HardDrive size={16} /> Server Manager
                                             </Link>
@@ -205,14 +205,14 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                         <Link
                                             href="/downloads"
                                             onClick={() => setIsProfileOpen(false)}
-                                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-100 hover:text-white transition-colors"
                                         >
                                             <Archive size={16} /> Scanner App
                                         </Link>
                                     </div>
 
                                     {/* Footer */}
-                                    <div className="p-2 border-t border-slate-800 mt-1">
+                                    <div className="p-2 border-t border-slate-200 mt-1">
                                         <button
                                             onClick={handleLogout}
                                             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-red-500 hover:bg-red-500/10 transition-colors"
@@ -230,7 +230,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
             {/* Mobile Menu Overlay */}
             {
                 isMenuOpen && (
-                    <div className="md:hidden bg-slate-900 border-b border-slate-800 shadow-2xl animate-in fade-in slide-in-from-top-5 duration-200">
+                    <div className="md:hidden bg-white border-b border-slate-200 shadow-2xl animate-in fade-in slide-in-from-top-5 duration-200">
                         <div className="flex flex-col p-4 space-y-2">
                             {/* Mobile Quick Action */}
                             {!isPlatformStaff && (
@@ -250,8 +250,8 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 href={dashboardPath}
                                 onClick={() => setIsMenuOpen(false)}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${pathname === '/' || pathname === '/hospital-overview'
-                                    ? 'bg-slate-800 text-white'
-                                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                    ? 'bg-indigo-50 text-indigo-600'
+                                    : 'text-slate-300 hover:bg-slate-100 hover:text-white'
                                     }`}
                             >
                                 <LayoutDashboard size={18} /> Overview
@@ -263,7 +263,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                     onClick={() => setIsMenuOpen(false)}
                                     className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/hospitals')
                                         ? 'bg-indigo-600 text-white'
-                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        : 'text-slate-300 hover:bg-slate-100 hover:text-white'
                                         }`}
                                 >
                                     <Building2 size={18} /> Clients
@@ -278,8 +278,8 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                         localStorage.removeItem('mrd_hospital_id');
                                     }}
                                     className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/records')
-                                        ? 'bg-slate-800 text-white'
-                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        ? 'bg-indigo-50 text-indigo-600'
+                                        : 'text-slate-300 hover:bg-slate-100 hover:text-white'
                                         }`}
                                 >
                                     <Database size={18} /> Records
@@ -293,8 +293,8 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                             href="/user_mgmt"
                                             onClick={() => setIsMenuOpen(false)}
                                             className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/user_mgmt')
-                                                ? 'bg-slate-800 text-white'
-                                                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                                ? 'bg-indigo-50 text-indigo-600'
+                                                : 'text-slate-300 hover:bg-slate-100 hover:text-white'
                                                 }`}
                                         >
                                             <UsersIcon size={18} /> Staff Management
@@ -305,8 +305,8 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                         href="/requests"
                                         onClick={() => setIsMenuOpen(false)}
                                         className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/requests')
-                                            ? 'bg-slate-800 text-white'
-                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                            ? 'bg-indigo-50 text-indigo-600'
+                                            : 'text-slate-300 hover:bg-slate-100 hover:text-white'
                                             }`}
                                     >
                                         <FileClock size={18} /> File Requests
@@ -316,8 +316,8 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                         href="/archive"
                                         onClick={() => setIsMenuOpen(false)}
                                         className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/archive')
-                                            ? 'bg-slate-800 text-white'
-                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                            ? 'bg-indigo-50 text-indigo-600'
+                                            : 'text-slate-300 hover:bg-slate-100 hover:text-white'
                                             }`}
                                     >
                                         <Archive size={18} /> Physical Archive
@@ -332,8 +332,8 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                         href="/reports"
                                         onClick={() => setIsMenuOpen(false)}
                                         className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/reports')
-                                            ? 'bg-slate-800 text-white'
-                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                            ? 'bg-indigo-50 text-indigo-600'
+                                            : 'text-slate-300 hover:bg-slate-100 hover:text-white'
                                             }`}
                                     >
                                         <FileText size={18} /> Reports
@@ -342,8 +342,8 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                         href="/accounting"
                                         onClick={() => setIsMenuOpen(false)}
                                         className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/accounting')
-                                            ? 'bg-slate-800 text-white'
-                                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                            ? 'bg-indigo-50 text-indigo-600'
+                                            : 'text-slate-300 hover:bg-slate-100 hover:text-white'
                                             }`}
                                     >
                                         <Receipt size={18} /> Accounting
@@ -356,8 +356,8 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                     href="/audit"
                                     onClick={() => setIsMenuOpen(false)}
                                     className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/audit')
-                                        ? 'bg-slate-800 text-white'
-                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        ? 'bg-indigo-50 text-indigo-600'
+                                        : 'text-slate-300 hover:bg-slate-100 hover:text-white'
                                         }`}
                                 >
                                     <Shield size={18} /> Audit Logs
@@ -369,22 +369,22 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                     href="/inventory"
                                     onClick={() => setIsMenuOpen(false)}
                                     className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/inventory') && !isActive('/inventory/requests')
-                                        ? 'bg-slate-800 text-white'
-                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        ? 'bg-indigo-50 text-indigo-600'
+                                        : 'text-slate-300 hover:bg-slate-100 hover:text-white'
                                         }`}
                                 >
                                     <Box size={18} /> Inventory
                                 </Link>
                             )}
 
-                            <div className="pt-4 mt-4 border-t border-slate-800">
+                            <div className="pt-4 mt-4 border-t border-slate-200">
                                 {(userRole === 'hospital_admin' || userRole === 'superadmin' || userRole === 'superadmin_staff' || userRole === 'group_admin') && (
                                 <Link
                                     href="/settings"
                                     onClick={() => setIsMenuOpen(false)}
                                     className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${isActive('/settings')
-                                        ? 'bg-slate-800 text-white'
-                                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                                        ? 'bg-indigo-50 text-indigo-600'
+                                        : 'text-slate-300 hover:bg-slate-100 hover:text-white'
                                         }`}
                                 >
                                         <Settings size={18} /> Settings

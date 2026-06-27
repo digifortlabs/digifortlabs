@@ -22,6 +22,10 @@ interface IPDAdmissionModalProps {
 export default function IPDAdmissionModal({ isOpen, onClose, patientId, patientName, onSuccess }: IPDAdmissionModalProps) {
     const [isSaving, setIsSaving] = useState(false);
     
+    // Fee Collection
+    const [feeAmount, setFeeAmount] = useState('500');
+    const [paymentMethod, setPaymentMethod] = useState('PENDING');
+    
     const [wards, setWards] = useState<any[]>([]);
     const [beds, setBeds] = useState<any[]>([]);
     const [doctors, setDoctors] = useState<any[]>([]);
@@ -51,6 +55,8 @@ export default function IPDAdmissionModal({ isOpen, onClose, patientId, patientN
                 is_mediclaim: false,
                 mediclaim_details: ''
             });
+            setFeeAmount('500');
+            setPaymentMethod('PENDING');
         }
     }, [isOpen]);
 
@@ -107,6 +113,18 @@ export default function IPDAdmissionModal({ isOpen, onClose, patientId, patientN
                 method: 'POST',
                 body: payload
             });
+            
+            // Handle Admission Deposit Fee
+            if (feeAmount && parseFloat(feeAmount) > 0 && paymentMethod !== 'PENDING') {
+                await apiFetch(`/patient-ledger/${patientId}/deposit`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        amount: parseFloat(feeAmount),
+                        payment_method: paymentMethod,
+                        notes: 'IPD Admission Initial Deposit / Registration Fee'
+                    })
+                });
+            }
             
             // Dispatch event so dashboards refresh
             window.dispatchEvent(new Event('ipd-admissions-updated'));
@@ -288,6 +306,39 @@ export default function IPDAdmissionModal({ isOpen, onClose, patientId, patientN
                                     </div>
                                 </div>
                             )}
+                        </div>
+
+                        {/* Initial Deposit Info */}
+                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-4">
+                            <h4 className="font-semibold text-slate-800 flex items-center gap-2">
+                                <FileText size={16} className="text-slate-400" /> Initial Registration & Admission Deposit
+                            </h4>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Deposit Amount (₹)</Label>
+                                    <Input 
+                                        type="number" 
+                                        value={feeAmount}
+                                        onChange={(e) => setFeeAmount(e.target.value)}
+                                        placeholder="e.g. 5000"
+                                        className="bg-white"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Payment Status</Label>
+                                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                                        <SelectTrigger className="bg-white">
+                                            <SelectValue placeholder="Select Payment" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="PENDING">Pending (Add to Bill)</SelectItem>
+                                            <SelectItem value="CASH">Paid by Cash</SelectItem>
+                                            <SelectItem value="UPI">Paid by UPI</SelectItem>
+                                            <SelectItem value="CARD">Paid by Card</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
                         </div>
                     </form>
                 </div>

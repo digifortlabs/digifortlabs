@@ -2,28 +2,28 @@ import { Skeleton } from "./skeleton";
 
 export default function DashboardSkeleton() {
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-950 w-full">
+    <div className="flex h-screen overflow-hidden bg-white w-full">
       {/* Sidebar Skeleton (hidden on mobile, visible on lg) */}
-      <div className="hidden lg:flex flex-col w-64 border-r border-slate-800 bg-slate-950 p-4">
+      <div className="hidden lg:flex flex-col w-64 border-r border-slate-200/60 bg-white p-4">
         {/* Logo Area */}
         <div className="h-14 flex items-center mb-6">
-          <Skeleton className="h-8 w-10 rounded bg-slate-800" />
-          <Skeleton className="h-6 w-32 ml-3 bg-slate-800" />
+          <Skeleton className="h-8 w-10 rounded bg-slate-200" />
+          <Skeleton className="h-6 w-32 ml-3 bg-slate-200" />
         </div>
         
         {/* Nav Links */}
         <div className="space-y-3 mt-4 flex-1">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="flex items-center gap-3 py-2">
-              <Skeleton className="h-5 w-5 rounded bg-slate-800" />
-              <Skeleton className="h-4 w-3/4 bg-slate-800" />
+              <Skeleton className="h-5 w-5 rounded bg-slate-200" />
+              <Skeleton className="h-4 w-3/4 bg-slate-200" />
             </div>
           ))}
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
         {/* Navbar Skeleton */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center px-6 justify-between shrink-0">
           {/* Mobile menu button skeleton */}

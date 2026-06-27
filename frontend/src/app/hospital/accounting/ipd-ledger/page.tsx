@@ -6,8 +6,13 @@ import { apiFetch } from '@/config/api';
 import { toast } from 'sonner';
 import { 
     Users, Search, Wallet, ShieldCheck, 
-    ArrowRight, Activity, Plus, CreditCard, ChevronLeft
+    ArrowRight, Activity, Plus, CreditCard, ChevronLeft, X
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 interface IPDStatusResponse {
     patient_id: number;
@@ -26,6 +31,16 @@ export default function IPDLedgerPage() {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [patients, setPatients] = useState<IPDStatusResponse[]>([]);
+
+    const [depositPatient, setDepositPatient] = useState<IPDStatusResponse | null>(null);
+    const [cashlessPatient, setCashlessPatient] = useState<IPDStatusResponse | null>(null);
+
+    // Modal Form States
+    const [amount, setAmount] = useState("");
+    const [paymentMethod, setPaymentMethod] = useState("CASH");
+    const [reference, setReference] = useState("");
+    const [notes, setNotes] = useState("");
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -51,8 +66,63 @@ export default function IPDLedgerPage() {
     const filteredPatients = patients.filter(p => 
         p.patient_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
         p.mrd_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.bed_details.toLowerCase().includes(searchQuery.toLowerCase())
+        (p.bed_details && p.bed_details.toLowerCase().includes(searchQuery.toLowerCase()))
     );
+
+    const handleDepositSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!depositPatient || !amount) return;
+        setIsSaving(true);
+        try {
+            await apiFetch(`/patient-ledger/${depositPatient.patient_id}/deposit`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    amount: parseFloat(amount),
+                    payment_method: paymentMethod,
+                    reference_number: reference,
+                    notes: notes
+                })
+            });
+            toast.success("Advance deposit recorded successfully!");
+            setDepositPatient(null);
+            fetchData();
+        } catch (error: any) {
+            toast.error(error.message || "Failed to record deposit");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleCashlessSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!cashlessPatient || !amount) return;
+        setIsSaving(true);
+        try {
+            await apiFetch(`/patient-ledger/${cashlessPatient.patient_id}/cashless-approval`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    amount: parseFloat(amount),
+                    payment_method: "TPA", // backend requires payment_method in payload
+                    reference_number: reference,
+                    notes: notes
+                })
+            });
+            toast.success("Cashless approval updated!");
+            setCashlessPatient(null);
+            fetchData();
+        } catch (error: any) {
+            toast.error(error.message || "Failed to record cashless approval");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const resetForms = () => {
+        setAmount("");
+        setPaymentMethod("CASH");
+        setReference("");
+        setNotes("");
+    };
 
     return (
         <div className="min-h-screen bg-slate-50/50 p-6">
@@ -161,10 +231,18 @@ export default function IPDLedgerPage() {
                                         
                                         <td className="py-5 px-6">
                                             <div className="flex items-center justify-center gap-2">
-                                                <button className="p-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 rounded-xl transition-colors tooltip-trigger" title="Collect Advance Deposit">
+                                                <button 
+                                                    onClick={() => { resetForms(); setDepositPatient(patient); }}
+                                                    className="p-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 rounded-xl transition-colors tooltip-trigger" 
+                                                    title="Collect Advance Deposit"
+                                                >
                                                     <Wallet size={16} />
                                                 </button>
-                                                <button className="p-2.5 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 rounded-xl transition-colors tooltip-trigger" title="Update Cashless Approval">
+                                                <button 
+                                                    onClick={() => { resetForms(); setCashlessPatient(patient); }}
+                                                    className="p-2.5 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 rounded-xl transition-colors tooltip-trigger" 
+                                                    title="Update Cashless Approval"
+                                                >
                                                     <ShieldCheck size={16} />
                                                 </button>
                                                 <button 
@@ -182,6 +260,92 @@ export default function IPDLedgerPage() {
                     </table>
                 </div>
             </div>
+
+            {/* Advance Deposit Modal */}
+            {depositPatient && (
+                <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
+                        <div className="px-6 py-4 border-b border-slate-100 bg-emerald-50 flex justify-between items-center">
+                            <div>
+                                <h2 className="text-lg font-bold text-emerald-800 flex items-center gap-2">
+                                    <Wallet size={18} />
+                                    Collect Advance Deposit
+                                </h2>
+                                <p className="text-xs text-emerald-600 mt-1">{depositPatient.patient_name} ({depositPatient.mrd_number})</p>
+                            </div>
+                            <button onClick={() => setDepositPatient(null)} className="text-emerald-500 hover:bg-emerald-100 p-2 rounded-full"><X size={18}/></button>
+                        </div>
+                        <form onSubmit={handleDepositSubmit} className="p-6 space-y-4">
+                            <div className="space-y-2">
+                                <Label>Deposit Amount (₹)</Label>
+                                <Input type="number" required value={amount} onChange={e => setAmount(e.target.value)} placeholder="e.g. 10000" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Payment Method</Label>
+                                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="CASH">Cash</SelectItem>
+                                        <SelectItem value="UPI">UPI</SelectItem>
+                                        <SelectItem value="CARD">Card</SelectItem>
+                                        <SelectItem value="NEFT">NEFT / Bank Transfer</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Transaction / Reference Number (Optional)</Label>
+                                <Input value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. UPI Ref #..." />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Notes</Label>
+                                <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any specific instructions..." />
+                            </div>
+                            <div className="pt-4 flex justify-end gap-2">
+                                <Button type="button" variant="outline" onClick={() => setDepositPatient(null)}>Cancel</Button>
+                                <Button type="submit" disabled={isSaving} className="bg-emerald-600 hover:bg-emerald-700">Record Deposit</Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Cashless Approval Modal */}
+            {cashlessPatient && (
+                <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
+                        <div className="px-6 py-4 border-b border-slate-100 bg-blue-50 flex justify-between items-center">
+                            <div>
+                                <h2 className="text-lg font-bold text-blue-800 flex items-center gap-2">
+                                    <ShieldCheck size={18} />
+                                    Update Cashless Approval
+                                </h2>
+                                <p className="text-xs text-blue-600 mt-1">{cashlessPatient.patient_name} ({cashlessPatient.mrd_number})</p>
+                            </div>
+                            <button onClick={() => setCashlessPatient(null)} className="text-blue-500 hover:bg-blue-100 p-2 rounded-full"><X size={18}/></button>
+                        </div>
+                        <form onSubmit={handleCashlessSubmit} className="p-6 space-y-4">
+                            <div className="space-y-2">
+                                <Label>Approved Amount (₹)</Label>
+                                <Input type="number" required value={amount} onChange={e => setAmount(e.target.value)} placeholder="e.g. 50000" />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>TPA / Pre-Auth Reference Number</Label>
+                                <Input required value={reference} onChange={e => setReference(e.target.value)} placeholder="e.g. TPA-AUTH-9912..." />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>TPA Name / Notes</Label>
+                                <Textarea required value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Star Health Insurance..." />
+                            </div>
+                            <div className="pt-4 flex justify-end gap-2">
+                                <Button type="button" variant="outline" onClick={() => setCashlessPatient(null)}>Cancel</Button>
+                                <Button type="submit" disabled={isSaving} className="bg-blue-600 hover:bg-blue-700">Save Approval</Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
