@@ -1315,8 +1315,8 @@ def get_medication_alerts(
                     pass
 
         # Check for abnormal vitals in the latest reading
-        if adm.vitals_history and len(adm.vitals_history) > 0:
-            latest_vitals = adm.vitals_history[-1]
+        if adm.vitals_log and len(adm.vitals_log) > 0:
+            latest_vitals = adm.vitals_log[-1]
             abnormal_flags = []
             
             try:
