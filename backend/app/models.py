@@ -1479,6 +1479,13 @@ class EmergencyVisit(Base):
     treatment = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     
+    # Extended ER Clinical Fields
+    hpi = Column(Text, nullable=True)
+    allergies = Column(Text, nullable=True)
+    past_history = Column(Text, nullable=True)
+    abcde_assessment = Column(JSON, default=dict)
+    stat_orders = Column(Text, nullable=True)
+    
     status = Column(String, default="Active") # Active, Admitted, Discharged
     is_mediclaim = Column(Boolean, default=False)
     mediclaim_details = Column(String, nullable=True)

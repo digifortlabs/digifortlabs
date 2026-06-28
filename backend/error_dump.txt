@@ -133,7 +133,7 @@
     |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
     |     result = context.run(func, *args)
     |              ^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "D:\Website\DIGIFORTLABS\backend\app\routers\hms.py", line 1311, in get_medication_alerts
+    |   File "D:\Website\DIGIFORTLABS\backend\app\routers\hms.py", line 1318, in get_medication_alerts
     |     if adm.vitals_history and len(adm.vitals_history) > 0:
     |        ^^^^^^^^^^^^^^^^^^
     | AttributeError: 'IPDAdmission' object has no attribute 'vitals_history'
@@ -267,7 +267,7 @@ Traceback (most recent call last):
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
     result = context.run(func, *args)
              ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\app\routers\hms.py", line 1311, in get_medication_alerts
+  File "D:\Website\DIGIFORTLABS\backend\app\routers\hms.py", line 1318, in get_medication_alerts
     if adm.vitals_history and len(adm.vitals_history) > 0:
        ^^^^^^^^^^^^^^^^^^
 AttributeError: 'IPDAdmission' object has no attribute 'vitals_history'

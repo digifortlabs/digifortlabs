@@ -10,6 +10,8 @@ import {
 import toast from 'react-hot-toast';
 import { apiFetch } from '@/config/api';
 import { formatDateTime } from '@/lib/dateFormatter';
+import LiveHospitalMap from '@/components/dashboard/LiveHospitalMap';
+import RecentActivityLog from '@/components/dashboard/RecentActivityLog';
 
 const QUICK_ACTIONS = [
     { label: 'Patients', desc: 'View & manage patient records', icon: Users, href: '/hospital/patients', color: 'blue' },
@@ -54,6 +56,10 @@ export default function HospitalPage() {
             }
         };
         fetchStats();
+        
+        // Poll every 15 seconds for live activity updates
+        const intervalId = setInterval(fetchStats, 15000);
+        return () => clearInterval(intervalId);
     }, []);
 
     useEffect(() => {
@@ -86,7 +92,7 @@ export default function HospitalPage() {
 
 
     return (
-        <div className="space-y-8">
+        <div className="page-container">
 
             {/* ── PAGE HEADER ── */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -112,41 +118,9 @@ export default function HospitalPage() {
                 </div>
             </div>
 
-            {/* ── KPI CARDS ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                {[
-                    {
-                        label: 'Total Patients',
-                        value: stats?.patients?.total?.toLocaleString() ?? '0',
-                        color: 'bg-emerald-50 border-emerald-200 text-emerald-600',
-                        valColor: 'text-emerald-500',
-                    },
-                    {
-                        label: 'Storage Used',
-                        value: stats?.storage?.usage ?? '0 B',
-                        color: 'bg-blue-50 border-blue-200 text-blue-600',
-                        valColor: 'text-blue-500',
-                    },
-                    {
-                        label: 'System Health',
-                        value: stats?.system?.health ?? 'Optimal',
-                        color: 'bg-yellow-50 border-yellow-200 text-yellow-600',
-                        valColor: 'text-yellow-500',
-                    },
-                    {
-                        label: 'All Systems',
-                        value: 'Nominal',
-                        color: 'bg-slate-50 border-slate-200 text-slate-600',
-                        valColor: 'text-slate-500',
-                    },
-                ].map((kpi, i) => {
-                    return (
-                        <div key={i} className={`rounded-md border p-6 flex flex-col items-center justify-center text-center transition-colors ${kpi.color}`}>
-                            <p className="text-[11px] font-medium uppercase tracking-wider mb-2 text-slate-500">{kpi.label}</p>
-                            <p className={`text-2xl font-semibold ${kpi.valColor}`}>{kpi.value}</p>
-                        </div>
-                    );
-                })}
+            {/* ── LIVE HOSPITAL MAP ── */}
+            <div className="mt-2">
+                <LiveHospitalMap recentActivity={stats?.recent_activity || []} clinicalOps={stats?.clinical_ops} />
             </div>
 
             {/* ── CLINICAL OPERATIONS ── */}
@@ -203,35 +177,9 @@ export default function HospitalPage() {
                 </div>
             </div>
 
-            {/* ── RECENT ACTIVITY ── */}
-            {stats?.recent_activity?.length > 0 && (
-                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                        <div className="flex items-center gap-2">
-                            <Activity size={16} className="text-blue-600" strokeWidth={2.5} />
-                            <h3 className="text-sm font-black text-slate-800">Recent Activity</h3>
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-400">{stats.recent_activity.length} events</span>
-                    </div>
-                    <div className="divide-y divide-slate-50">
-                        {stats.recent_activity.slice(0, 5).map((log: any) => {
-                            const isError = log.action.includes('FAIL') || log.action.includes('ERROR');
-                            return (
-                                <div key={log.id} className="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50/60 transition-colors">
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isError ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>
-                                        {isError ? <AlertTriangle size={14} strokeWidth={2.5} /> : <CheckCircle2 size={14} strokeWidth={2.5} />}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-bold text-slate-700 truncate">{log.action.replace(/_/g, ' ')}</p>
-                                        {log.details && <p className="text-xs text-slate-400 truncate">{log.details}</p>}
-                                    </div>
-                                    <span className="text-[10px] text-slate-400 font-bold shrink-0">{log.time}</span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
+            {/* ── RECENT ACTIVITY LOG ── */}
+            <RecentActivityLog logs={stats?.recent_activity || []} />
+
         </div>
     );
 }

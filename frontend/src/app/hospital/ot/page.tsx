@@ -34,15 +34,17 @@ export default function OTDashboard() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [viewMode, setViewMode] = useState('grid');
-    const [activeTab, setActiveTab] = useState('overview');
+    const [activeTab, setActiveTab] = useState('rooms');
     const [userRole, setUserRole] = useState<string>('');
     const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null);
 
     const [isAssignOpen, setIsAssignOpen] = useState(false);
     const [selectedOt, setSelectedOt] = useState<any>(null);
     const [isAddOtOpen, setIsAddOtOpen] = useState(false);
+    const [isEditOtOpen, setIsEditOtOpen] = useState(false);
     
     // Forms
+    const [editOtForm, setEditOtForm] = useState({ ot_id: '', ot_name: '', ot_type: 'General' });
     const [assignForm, setAssignForm] = useState({ 
         patient_id: '', surgery_id: '', doctor_id: '', scheduled_start: '', scheduled_end: '',
         current_surgery_name: '', current_anesthesia_type: 'General',
@@ -69,7 +71,8 @@ export default function OTDashboard() {
     
     const [preOpForm, setPreOpForm] = useState({
         bp: '', pulse: '', temp: '', weight: '', allergies: '', comorbidities: '', fitness_status: 'Fit', notes: '', 
-        consent_signed: false, jewellery_removed: false, site_marked: false, blood_reserved: false, who_checklist_followed: false
+        consent_signed: false, jewellery_removed: false, site_marked: false, blood_reserved: false, who_checklist_followed: false,
+        ot_id: ''
     });
     const [intraOpForm, setIntraOpForm] = useState({
         implants: '', narcotics: '', sponge_count: '', operative_notes: '',
@@ -157,6 +160,18 @@ export default function OTDashboard() {
         }
     };
 
+    const handleEditOt = async () => {
+        try {
+            await apiFetch(`hms/ots/${editOtForm.ot_id}`, { method: 'PATCH', body: JSON.stringify(editOtForm) });
+            setIsEditOtOpen(false);
+            setEditOtForm({ ot_id: '', ot_name: '', ot_type: 'General' });
+            loadData();
+            toast.success('OT Room updated successfully');
+        } catch (e: any) {
+            toast.error(e.message || 'Failed to update OT Room');
+        }
+    };
+
     const openScheduleModal = (ot: any = null, surgery: any = null) => {
         const now = new Date();
         const tzOffset = now.getTimezoneOffset() * 60000;
@@ -232,7 +247,7 @@ export default function OTDashboard() {
                 patient_out: surg?.timestamps?.patient_out || ''
             });
         } else {
-            setPreOpForm({ bp: '', pulse: '', temp: '', weight: '', allergies: '', comorbidities: '', fitness_status: 'Fit', notes: '', consent_signed: false, jewellery_removed: false, site_marked: false, blood_reserved: false, who_checklist_followed: false });
+            setPreOpForm({ bp: '', pulse: '', temp: '', weight: '', allergies: '', comorbidities: '', fitness_status: 'Fit', notes: '', consent_signed: false, jewellery_removed: false, site_marked: false, blood_reserved: false, who_checklist_followed: false, ot_id: '' });
             setPostOpForm({ bp: '', pulse: '', temp: '', recovery_status: 'Stable', notes: '' });
             setIntraOpForm({ implants: '', narcotics: '', sponge_count: '', operative_notes: '', patient_in: '', anesthesia_start: '', surgery_start: '', surgery_end: '', patient_out: '' });
         }
@@ -257,7 +272,7 @@ export default function OTDashboard() {
                     newStatus = updatedPreOp.fitness_status === 'Fit' ? 'PAC Cleared' : 'PAC Pending';
                 }
                 await apiFetch(`hms/surgeries/${surg.surgery_id}`, {
-                    method: 'PATCH', body: JSON.stringify({ pre_op_assessment: updatedPreOp, status: newStatus })
+                    method: 'PATCH', body: JSON.stringify({ pre_op_assessment: updatedPreOp, status: newStatus, ot_id: updatedPreOp.ot_id ? parseInt(updatedPreOp.ot_id) : null })
                 });
             } else if (assessmentTab === 'intra') {
                 let implantsParsed = null;
@@ -472,6 +487,9 @@ export default function OTDashboard() {
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="bg-slate-100/50 p-1">
+                    <TabsTrigger value="rooms" className="flex items-center gap-2">
+                        <LayoutGrid className="w-4 h-4" /> OT Rooms
+                    </TabsTrigger>
                     <TabsTrigger value="overview">Surgery Requests</TabsTrigger>
                     <TabsTrigger value="surgeries" className="flex items-center gap-2">
                         <Scissors className="w-4 h-4" /> Surgery Schedule
@@ -735,6 +753,61 @@ export default function OTDashboard() {
                         })}
                     </div>
                 </TabsContent>
+
+                {/* OT ROOMS TAB */}
+                <TabsContent value="rooms" className="mt-6 space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        {ots.map((ot: any) => (
+                            <Card key={ot.ot_id} className="bg-white border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
+                                <CardContent className="p-6">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg">
+                                                <Activity size={20} />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-slate-900">{ot.ot_name}</h3>
+                                                <p className="text-xs text-slate-500">{ot.ot_type} Room</p>
+                                            </div>
+                                        </div>
+                                        <Badge variant="outline" className={cn(
+                                            "capitalize text-[10px] font-bold tracking-wider",
+                                            ot.status === 'in_use' ? 'bg-rose-50 text-rose-600 border-rose-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                                        )}>
+                                            {ot.status.replace('_', ' ')}
+                                        </Badge>
+                                    </div>
+                                    <div className="space-y-3 pt-4 border-t border-slate-100">
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-500">Current Patient</span>
+                                            <span className="font-medium text-slate-900">{ot.patient_name || '-'}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-slate-500">Lead Surgeon</span>
+                                            <span className="font-medium text-slate-900">{ot.doctor_name ? `Dr. ${ot.doctor_name}` : '-'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
+                                        <Button variant="outline" size="sm" className="w-full text-slate-600" onClick={() => {
+                                            setEditOtForm({ ot_id: ot.ot_id.toString(), ot_name: ot.ot_name, ot_type: ot.ot_type });
+                                            setIsEditOtOpen(true);
+                                        }}>
+                                            <Edit className="w-4 h-4 mr-2" /> Edit Room
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+
+                        {ots.length === 0 && (
+                            <div className="col-span-full py-12 text-center border-2 border-dashed border-slate-200 rounded-xl">
+                                <Activity className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                                <h3 className="text-lg font-medium text-slate-900">No Operation Theater Rooms Found</h3>
+                                <p className="text-slate-500 mt-1">Click &quot;Add OT Room&quot; to configure your surgical spaces.</p>
+                            </div>
+                        )}
+                    </div>
+                </TabsContent>
             </Tabs>
 
             {/* Modals from old HMS logic */}
@@ -756,6 +829,28 @@ export default function OTDashboard() {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsAddOtOpen(false)}>Cancel</Button>
                         <Button onClick={handleCreateOt} disabled={!otForm.ot_name} className="bg-blue-600">Create Room</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isEditOtOpen} onOpenChange={setIsEditOtOpen}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader><DialogTitle>Edit OT Room</DialogTitle></DialogHeader>
+                    <div className="space-y-3 py-2">
+                        <div className="space-y-2">
+                            <Label>OT Room Name *</Label>
+                            <Input placeholder="e.g., OT Room 1 (Cardiac)" value={editOtForm.ot_name} onChange={e => setEditOtForm({ ...editOtForm, ot_name: e.target.value })} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>OT Room Type</Label>
+                            <select className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm" value={editOtForm.ot_type} onChange={e => setEditOtForm({ ...editOtForm, ot_type: e.target.value })}>
+                                <option>General</option><option>Cardiac</option><option>Neuro</option><option>Ortho</option><option>Ophthalmic</option>
+                            </select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsEditOtOpen(false)}>Cancel</Button>
+                        <Button onClick={handleEditOt} disabled={!editOtForm.ot_name} className="bg-blue-600">Update Room</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -924,11 +1019,24 @@ export default function OTDashboard() {
                                         <div className="space-y-1"><Label className="text-xs">Allergies</Label><Input value={preOpForm.allergies} onChange={e => setPreOpForm({...preOpForm, allergies: e.target.value})} /></div>
                                         <div className="space-y-1"><Label className="text-xs">Comorbidities</Label><Input value={preOpForm.comorbidities} onChange={e => setPreOpForm({...preOpForm, comorbidities: e.target.value})} /></div>
                                     </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-xs">Fitness for Surgery (PAC)</Label>
-                                        <select className="w-full border border-slate-200 rounded-md p-2 text-sm" value={preOpForm.fitness_status} onChange={e => setPreOpForm({...preOpForm, fitness_status: e.target.value})}>
-                                            <option value="Fit">Fit for Surgery</option><option value="High Risk">High Risk</option><option value="Unfit">Unfit</option>
-                                        </select>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <Label className="text-xs">Fitness for Surgery (PAC)</Label>
+                                            <select className="w-full border border-slate-200 rounded-md p-2 text-sm" value={preOpForm.fitness_status} onChange={e => setPreOpForm({...preOpForm, fitness_status: e.target.value})}>
+                                                <option value="Fit">Fit for Surgery</option><option value="High Risk">High Risk</option><option value="Unfit">Unfit</option>
+                                            </select>
+                                        </div>
+                                        {preOpForm.fitness_status === 'Fit' && (
+                                            <div className="space-y-1">
+                                                <Label className="text-xs">Map to OT Room (Optional)</Label>
+                                                <select className="w-full border border-slate-200 rounded-md p-2 text-sm bg-blue-50/50" value={preOpForm.ot_id || ''} onChange={e => setPreOpForm({...preOpForm, ot_id: e.target.value})}>
+                                                    <option value="">-- Select OT Room --</option>
+                                                    {ots.map(o => (
+                                                        <option key={o.ot_id} value={o.ot_id.toString()}>{o.ot_name} ({o.ot_type})</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 

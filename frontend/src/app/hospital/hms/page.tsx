@@ -179,7 +179,7 @@ export default function HMSDashboard() {
     }
 
     return (
-        <div className="p-6 space-y-6 max-w-7xl mx-auto pb-24">
+        <div className="page-container">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
@@ -256,7 +256,7 @@ export default function HMSDashboard() {
                                 <CardTitle className="text-lg">Wards</CardTitle>
                                 <div className="relative w-64">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                    <Input placeholder="Search wards..." className="pl-9 bg-slate-50 border-none" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                                    <Input placeholder="Search wards..." className="pl-9 bg-white border border-slate-200 shadow-sm rounded-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                                 </div>
                             </div>
                         </CardHeader>
@@ -267,22 +267,22 @@ export default function HMSDashboard() {
                                         const wardAdmissions = admissions.filter(a => a.ward_id === ward.ward_id).length;
                                         const wardOccupancy = ward.total_beds > 0 ? Math.round((wardAdmissions / ward.total_beds) * 100) : 0;
                                         return (
-                                            <div key={ward.ward_id} className="p-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer group transition-colors"
+                                            <div key={ward.ward_id} className="list-item-card group border-b border-slate-100 last:border-0"
                                                 onClick={() => router.push(`/hospital/hms/beds?ward=${ward.ward_id}`)}>
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                                                        <Bed className="w-5 h-5 text-blue-600" />
+                                                <div className="flex items-center gap-3 sm:gap-4">
+                                                    <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-md bg-blue-50 border border-blue-100 flex items-center justify-center">
+                                                        <Bed className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                                                     </div>
-                                                    <div>
-                                                        <p className="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors">{ward.ward_name}</p>
-                                                        <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                                                    <div className="min-w-0">
+                                                        <h3 className="font-semibold text-slate-900 text-sm truncate group-hover:text-blue-700 transition-colors">{ward.ward_name}</h3>
+                                                        <div className="meta-text-container">
                                                             <span>Floor {ward.floor_number || 1}</span>
                                                             <span>•</span>
                                                             <span>{wardAdmissions}/{ward.total_beds} beds</span>
                                                             <span>•</span>
                                                             <span>₹{ward.daily_charge || 500}/day</span>
                                                             <span>•</span>
-                                                            <span className={wardOccupancy > 80 ? 'text-rose-600 font-medium' : 'text-slate-500'}>{wardOccupancy}% occupied</span>
+                                                            <span className={wardOccupancy > 80 ? 'text-rose-600 font-bold' : 'text-slate-500'}>{wardOccupancy}% occupied</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -373,7 +373,7 @@ export default function HMSDashboard() {
 
             <Dialog open={isAddWardOpen} onOpenChange={(open) => {
                 setIsAddWardOpen(open);
-                if (!open) setWardForm({ ward_id: null, ward_name: '', ward_type: 'General', total_beds: '', floor_number: '', daily_charge: '500' });
+                if (!open) setWardForm({ ward_id: null, ward_name: '', ward_type: 'General', total_beds: '', floor_number: '', daily_charge: '500', doctor_charge: '0', nursing_charge: '0', bio_medical_wastage_charge: '0' });
             }}>
                 <DialogContent className="max-w-md">
                     <DialogHeader><DialogTitle>{wardForm.ward_id ? 'Edit Ward' : 'Add New Ward'}</DialogTitle></DialogHeader>

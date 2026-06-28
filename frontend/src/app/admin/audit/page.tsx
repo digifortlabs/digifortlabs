@@ -3,8 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '@/config/api';
 import { format } from 'date-fns';
-import { Search, Download, Clock, User, Activity, Filter } from 'lucide-react';
+import { Search, Download, Clock, User, Activity, Filter, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface AuditLog {
     log_id: number;
@@ -21,6 +25,8 @@ export default function AuditPage() {
     const [totalPages, setTotalPages] = useState(1);
     const [search, setSearch] = useState('');
     const [actionFilter, setActionFilter] = useState('');
+    const [isEditOpen, setIsEditOpen] = useState(false);
+    const [editLog, setEditLog] = useState<{log_id: number; action: string; details: string} | null>(null);
 
     // Fetch Logs
     const fetchLogs = async () => {
@@ -70,6 +76,22 @@ export default function AuditPage() {
         } catch (error) {
             console.error(error);
             toast.error('Export failed');
+        }
+    };
+
+    const handleUpdateLog = async () => {
+        if (!editLog) return;
+        try {
+            await apiFetch(`audit/logs/${editLog.log_id}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ action: editLog.action, details: editLog.details })
+            });
+            toast.success("Audit log updated");
+            setIsEditOpen(false);
+            setEditLog(null);
+            fetchLogs();
+        } catch (e: any) {
+            toast.error(e.message || "Failed to update audit log");
         }
     };
 
@@ -134,6 +156,7 @@ export default function AuditPage() {
                             </th>
                             <th className="px-3 py-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">Action</th>
                             <th className="px-3 py-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">Activity Details</th>
+                            <th className="px-3 py-1 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -171,6 +194,17 @@ export default function AuditPage() {
                                     <td className="px-3 py-0.5 text-[10px] text-slate-500 font-medium leading-relaxed max-w-md truncate group-hover:whitespace-normal group-hover:overflow-visible transition-all">
                                         {log.details}
                                     </td>
+                                    <td className="px-3 py-0.5 text-right">
+                                        <button 
+                                            onClick={() => {
+                                                setEditLog({ log_id: log.log_id, action: log.action, details: log.details });
+                                                setIsEditOpen(true);
+                                            }}
+                                            className="text-slate-400 hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50"
+                                        >
+                                            <Edit size={14} />
+                                        </button>
+                                    </td>
                                 </tr>
                             ))
                         )}
@@ -198,6 +232,46 @@ export default function AuditPage() {
                 </div>
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Page {page} / {totalPages}</span>
             </div>
+
+            {/* Edit Modal */}
+            <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Edit Audit Log</DialogTitle>
+                    </DialogHeader>
+                    {editLog && (
+                        <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                                <Label>Action</Label>
+                                <select 
+                                    className="w-full border border-slate-200 rounded-md p-2 h-10 text-sm" 
+                                    value={editLog.action} 
+                                    onChange={e => setEditLog({ ...editLog, action: e.target.value })}
+                                >
+                                    <option value="LOGIN">LOGIN</option>
+                                    <option value="UPLOAD">UPLOAD</option>
+                                    <option value="VIEW">VIEW</option>
+                                    <option value="DELETE">DELETE</option>
+                                    <option value="UPDATE">UPDATE</option>
+                                    <option value="CREATE">CREATE</option>
+                                    <option value="EXPORT">EXPORT</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Details</Label>
+                                <Input 
+                                    value={editLog.details} 
+                                    onChange={e => setEditLog({ ...editLog, details: e.target.value })} 
+                                />
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
+                        <Button onClick={handleUpdateLog} className="bg-slate-900 text-white">Save Changes</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

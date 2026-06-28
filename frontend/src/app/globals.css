@@ -208,3 +208,57 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  /* Common UI Elements for Lists & Dashboards */
+  .search-bar-container {
+    @apply p-4 border-b border-slate-100 bg-white flex flex-col md:flex-row gap-4 items-center justify-between;
+  }
+  
+  .search-input-wrapper {
+    @apply relative w-full md:max-w-md;
+  }
+
+  .list-item-card {
+    @apply p-3 sm:p-4 hover:bg-slate-50 cursor-pointer transition-colors flex flex-col xl:flex-row xl:items-center justify-between gap-4;
+  }
+
+  .avatar-square {
+    @apply w-10 h-10 sm:w-12 sm:h-12 rounded-md bg-blue-50 flex shrink-0 items-center justify-center text-blue-700 font-bold text-sm shadow-sm border border-blue-100;
+  }
+
+  .meta-badge {
+    @apply font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-xs sm:text-sm border border-slate-200;
+  }
+
+  .meta-text-container {
+    @apply flex flex-wrap items-center gap-x-2 sm:gap-x-4 gap-y-1 mt-1 text-xs text-slate-500;
+  }
+
+  .page-container {
+    @apply space-y-6 max-w-7xl mx-auto pb-24;
+  }
+
+  .card-container {
+    @apply bg-white rounded-md border border-slate-200 shadow-sm overflow-hidden;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap;
+  }
+  .status-badge-success {
+    @apply bg-emerald-50 text-emerald-700 border border-emerald-200/50;
+  }
+  .status-badge-warning {
+    @apply bg-amber-50 text-amber-700 border border-amber-200/50;
+  }
+  .status-badge-error {
+    @apply bg-red-50 text-red-700 border border-red-200/50;
+  }
+  .status-badge-info {
+    @apply bg-blue-50 text-blue-700 border border-blue-200/50;
+  }
+  .status-badge-neutral {
+    @apply bg-slate-100 text-slate-700 border border-slate-200/50;
+  }
+}

@@ -42,7 +42,6 @@ const CATEGORIZED_NAV_ITEMS = [
             { label: 'Dashboard', href: '/hospital', icon: LayoutDashboard },
             { label: 'Patients', href: '/hospital/patients', icon: Users, roles: ['hospital_admin', 'doctor_opd', 'reception_staff'] },
             { label: 'Records & Archives', href: '/hospital/records', icon: Users, roles: ['hospital_admin', 'mrd_staff'] },
-            { label: 'Recycle Bin', href: '/hospital/recycle-bin', icon: Trash2, roles: ['hospital_admin', 'platform_staff'] },
             { label: 'Appointments', href: '/hospital/appointments', icon: CalendarDays, roles: ['hospital_admin', 'doctor_opd', 'reception_staff'] },
         ]
     },
@@ -66,6 +65,7 @@ const CATEGORIZED_NAV_ITEMS = [
             { label: 'Inventory & Stock', href: '/hospital/inventory', icon: Package, roles: ['hospital_admin', 'mrd_staff'], module: 'inventory' },
             { label: 'Staff Management', href: '/hospital/staff', icon: UserPlus, roles: ['hospital_admin'] },
             { label: 'Doctors Directory', href: '/hospital/doctors', icon: Users, roles: ['hospital_admin'] },
+            { label: 'Recycle Bin', href: '/hospital/recycle-bin', icon: Trash2, roles: ['hospital_admin', 'platform_staff'] },
             { label: 'Portal Settings', href: '/hospital/settings', icon: Settings, roles: ['hospital_admin'] },
         ]
     }

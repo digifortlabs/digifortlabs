@@ -177,6 +177,7 @@ class SurgeryAssessmentUpdate(BaseModel):
     anesthesiologist_id: Optional[int] = None
     current_diagnosis: Optional[str] = None
     special_requirements: Optional[str] = None
+    ot_id: Optional[int] = None
     
     # OT Tracking
     timestamps: Optional[dict] = None
@@ -2018,6 +2019,28 @@ def create_ot(
     db.refresh(new_ot)
     return new_ot
 
+@router.patch("/ots/{ot_id}")
+def update_ot(
+    ot_id: int,
+    payload: OTCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update an existing Operation Theater Room"""
+    ot = db.query(OperationTheater).filter(
+        OperationTheater.ot_id == ot_id,
+        OperationTheater.hospital_id == current_user.hospital_id
+    ).first()
+    
+    if not ot:
+        raise HTTPException(status_code=404, detail="OT Room not found")
+        
+    ot.ot_name = payload.ot_name
+    ot.ot_type = payload.ot_type
+    db.commit()
+    db.refresh(ot)
+    return ot
+
 @router.get("/ots")
 def get_ots(
     db: Session = Depends(get_db),
@@ -2679,6 +2702,8 @@ def update_surgery_assessment(
         surgery.post_op_assessment = assessment_data.post_op_assessment
     if assessment_data.status is not None:
         surgery.status = assessment_data.status
+    if assessment_data.ot_id is not None:
+        surgery.ot_id = assessment_data.ot_id
     if assessment_data.timestamps is not None:
         surgery.timestamps = assessment_data.timestamps
     if assessment_data.implant_register is not None:

@@ -574,10 +574,10 @@ export default function RecordManager({ mode }: RecordManagerProps) {
                                             <div
                                                 key={p.record_id || i}
                                                 onClick={() => setSelectedPatientId(p.record_id)}
-                                                className={`bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition-all cursor-pointer group ${selectedPatientId === p.record_id ? 'ring-2 ring-indigo-500 border-indigo-200' : 'hover:border-slate-300'}`}
+                                                className={`bg-white rounded-md border border-slate-200 p-4 shadow-sm hover:bg-slate-50 transition-colors cursor-pointer group ${selectedPatientId === p.record_id ? 'ring-2 ring-indigo-500 border-indigo-200' : 'hover:border-slate-300'}`}
                                             >
                                                 <div className="flex justify-between items-start mb-4">
-                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg transition-colors ${avatarColor}`}>
+                                                    <div className={`w-10 h-10 rounded-md flex items-center justify-center font-bold text-sm transition-colors ${avatarColor}`}>
                                                         {p.full_name?.[0]}
                                                     </div>
                                                     <div className="flex items-center gap-1.5">
@@ -587,8 +587,8 @@ export default function RecordManager({ mode }: RecordManagerProps) {
                                                         <span className="text-[10px] font-black uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded-lg">{p.patient_category}</span>
                                                     </div>
                                                 </div>
-                                                <h3 className="font-black text-slate-900 line-clamp-1 mb-1 text-sm">{p.full_name}</h3>
-                                                <p className="text-xs text-slate-500 font-bold mb-4">{p.patient_u_id} • {p.age}</p>
+                                                <h3 className="font-semibold text-slate-900 line-clamp-1 mb-0.5 text-sm">{p.full_name}</h3>
+                                                <p className="text-xs text-slate-500 font-medium mb-4">{p.patient_u_id} • {p.age}</p>
                                                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{formatDate(p.admission_date)}</span>
                                                     <div className="flex items-center gap-1 text-indigo-600 font-black text-[10px]">
@@ -665,7 +665,7 @@ export default function RecordManager({ mode }: RecordManagerProps) {
                                                         {/* Name */}
                                                         <td className="px-4 py-3">
                                                             <div className="flex items-center gap-2.5">
-                                                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs shrink-0 ${avatarBg}`}>
+                                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-xs shrink-0 ${avatarBg}`}>
                                                                     {p.full_name?.[0]}
                                                                 </div>
                                                                 <div>

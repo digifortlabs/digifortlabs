@@ -243,6 +243,31 @@ def get_dashboard_stats(
         db.rollback()
         logger.info(f"Stats Error (Billing): {e}")
 
+    # 18. Recent Activity Feed
+    recent_activity = []
+    try:
+        q_logs = db.query(AuditLog)
+        if target_hospital_id:
+            q_logs = q_logs.filter(AuditLog.hospital_id == target_hospital_id)
+            
+        logs = q_logs.order_by(AuditLog.timestamp.desc()).limit(15).all()
+        for log in logs:
+            user_name = "System"
+            if log.user:
+                user_name = log.user.full_name
+            
+            recent_activity.append({
+                "log_id": log.log_id,
+                "action": log.action,
+                "module": log.module,
+                "details": log.details,
+                "user_name": user_name,
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None
+            })
+    except Exception as e:
+        db.rollback()
+        logger.info(f"Stats Error (Recent Activity): {e}")
+
     # 9. Open Boxes Count
     open_boxes_count = 0
     try:
@@ -292,47 +317,48 @@ def get_dashboard_stats(
         db.rollback()
         logger.info(f"Stats Error (Activity): {e}")
     
-    # 13. Enhanced Recent Activity with Patient Names
+    # 13. Enhanced Recent Activity Feed
     audit_data_enhanced = []
     try:
-        q_audit_enhanced = db.query(AuditLog).filter(AuditLog.action.like("FILE_%"))
+        q_audit_enhanced = db.query(AuditLog)
         
         if target_hospital_id:
             q_audit_enhanced = q_audit_enhanced.filter(AuditLog.hospital_id == target_hospital_id)
             
-        recent_audits_enhanced = q_audit_enhanced.order_by(AuditLog.timestamp.desc()).limit(10).all()
+        recent_audits_enhanced = q_audit_enhanced.order_by(AuditLog.timestamp.desc()).limit(15).all()
         
         for log in recent_audits_enhanced:
-            # Try to extract patient info from details
             patient_name = "Unknown"
-            action_type = log.action.replace("FILE_", "")
-            
-            # Parse details for patient name if available
             if log.details:
-                # Assuming details might contain patient info
-                patient_name = log.details.split(" - ")[0] if " - " in log.details else log.details[:30]
+                patient_name = log.details.split(" - ")[0] if " - " in log.details else log.details[:50]
+                
+            user_name = "System"
+            if log.user:
+                user_name = log.user.full_name or log.user.email
             
             audit_data_enhanced.append({
                 "id": log.log_id,
-                "action": action_type,
+                "action": log.action,
+                "user": user_name,
                 "patient": patient_name,
                 "details": log.details,
-                "time": log.timestamp.strftime("%H:%M") if log.timestamp else "N/A",
-                "user": log.user.email if log.user else "System"
+                "module": log.module,
+                "time": log.timestamp.strftime("%I:%M %p") if log.timestamp else "N/A",
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None
             })
     except Exception as e:
         db.rollback()
-        logger.info(f"Stats Error (Recent Audits): {e}")
+        logger.info(f"Stats Error (Activity Feed): {e}")
 
     # 14. Recent Uploads (last 24 hours)
     recent_uploads_count = todays_scans_count
     
-    # 15. Clinical Operations Breakdown (OPD, IPD, OT, ER)
+    # 15. Clinical Operations Breakdown (OPD, IPD, OT, ER, RECEPTION)
     clinical_ops = {
-        "opd_today": 0,
-        "ipd_admitted": 0,
-        "ot_in_use": 0,
-        "er_active": 0
+        "opd_today": 0, "ipd_admitted": 0, "ot_in_use": 0, "er_active": 0, "reception_active": 0,
+        "lists": {
+            "opd": [], "ipd": [], "ot": [], "er": [], "reception": [], "waiting": []
+        }
     }
     try:
         today_start_local = datetime.combine(date.today(), datetime.min.time()).replace(tzinfo=timezone.utc)
@@ -342,24 +368,62 @@ def get_dashboard_stats(
         if target_hospital_id:
             q_opd = q_opd.filter(OPDVisit.hospital_id == target_hospital_id)
         clinical_ops["opd_today"] = q_opd.count()
+        for r in q_opd.limit(20).all():
+            clinical_ops["lists"]["opd"].append({
+                "id": f"OPD-{r.visit_id}", "status": r.status, 
+                "patient": r.patient.full_name if r.patient else "Unknown", 
+                "condition": r.chief_complaint if hasattr(r, 'chief_complaint') else None
+            })
         
         # IPD Admitted
         q_ipd = db.query(IPDAdmission).filter(IPDAdmission.status == 'admitted')
         if target_hospital_id:
             q_ipd = q_ipd.filter(IPDAdmission.hospital_id == target_hospital_id)
         clinical_ops["ipd_admitted"] = q_ipd.count()
+        for r in q_ipd.limit(20).all():
+            bed_str = getattr(getattr(r, 'bed', None), 'label', f"BED-{r.bed_id}")
+            clinical_ops["lists"]["ipd"].append({
+                "id": bed_str, "status": "occupied", 
+                "patient": r.patient.full_name if r.patient else "Unknown", 
+                "condition": r.diagnosis
+            })
         
         # OT In Use
         q_ot = db.query(OperationTheater).filter(OperationTheater.status == 'IN_USE')
         if target_hospital_id:
             q_ot = q_ot.filter(OperationTheater.hospital_id == target_hospital_id)
         clinical_ops["ot_in_use"] = q_ot.count()
+        for r in q_ot.limit(20).all():
+            clinical_ops["lists"]["ot"].append({
+                "id": f"OT-{r.ot_id}", "status": "occupied", 
+                "patient": r.patient.full_name if r.patient else "Unknown", 
+                "condition": getattr(r, 'procedure_name', 'Operation')
+            })
         
         # ER Active
         q_er = db.query(EmergencyVisit).filter(EmergencyVisit.status == 'Active')
         if target_hospital_id:
             q_er = q_er.filter(EmergencyVisit.hospital_id == target_hospital_id)
         clinical_ops["er_active"] = q_er.count()
+        for r in q_er.limit(20).all():
+            clinical_ops["lists"]["er"].append({
+                "id": f"ER-{r.emergency_id}", "status": getattr(r, 'triage_level', 'active').lower(), 
+                "patient": r.patient.full_name if r.patient else "Unknown", 
+                "condition": getattr(r, 'chief_complaint', 'Emergency')
+            })
+            
+        # Reception / Waiting Area (Recent Patients Today)
+        q_rec = q_patients.filter(Patient.created_at >= today_start_local)
+        clinical_ops["reception_active"] = q_rec.count()
+        for r in q_rec.limit(20).all():
+            clinical_ops["lists"]["reception"].append({
+                "id": r.uhid, "status": "waiting", 
+                "patient": r.full_name, 
+                "condition": "Registered"
+            })
+        
+        # Mirror reception to waiting for now
+        clinical_ops["lists"]["waiting"] = clinical_ops["lists"]["reception"]
         
     except Exception as e:
         db.rollback()

@@ -335,7 +335,7 @@ export default function DentalDashboard() {
     }
 
     return (
-        <div className="p-6 space-y-8 bg-slate-50/50 min-h-screen">
+        <div className="page-container">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -608,7 +608,7 @@ export default function DentalDashboard() {
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                     <Input
                                         placeholder="Search patients..."
-                                        className="pl-10 h-11 bg-slate-50 border-slate-200 rounded-xl focus-visible:ring-indigo-500 font-medium"
+                                        className="pl-10 h-11 bg-white border-slate-200 shadow-sm rounded-full focus-visible:ring-indigo-500 font-medium"
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
@@ -627,17 +627,17 @@ export default function DentalDashboard() {
                                         <div
                                             key={patient.patient_id}
                                             onClick={() => setSelectedPatient(patient)}
-                                            className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between hover:bg-slate-50/80 cursor-pointer transition-all group gap-4"
+                                            className="list-item-card group border-b border-slate-100 last:border-0"
                                         >
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-50 to-blue-100/60 border border-indigo-200/50 flex items-center justify-center text-indigo-700 font-black text-lg shadow-sm shrink-0">
+                                            <div className="flex items-center gap-3 sm:gap-4">
+                                                <div className="avatar-square">
                                                     {patient.full_name.charAt(0)}
                                                 </div>
-                                                <div>
-                                                    <h4 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors text-base">
+                                                <div className="min-w-0">
+                                                    <h3 className="font-semibold text-slate-900 text-sm truncate group-hover:text-indigo-600 transition-colors">
                                                         {patient.full_name}
-                                                    </h4>
-                                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-bold text-slate-400 mt-1 uppercase tracking-wider">
+                                                    </h3>
+                                                    <div className="meta-text-container uppercase tracking-wider text-[11px] font-bold">
                                                         <span className="flex items-center gap-1.5">
                                                             <Phone className="w-3.5 h-3.5 text-slate-300" /> {patient.phone}
                                                         </span>

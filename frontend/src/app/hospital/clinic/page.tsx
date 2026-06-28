@@ -147,7 +147,7 @@ export default function ClinicOPDDashboard() {
     }
 
     return (
-        <div className="p-6 space-y-6 max-w-7xl mx-auto pb-24">
+        <div className="page-container">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -219,7 +219,7 @@ export default function ClinicOPDDashboard() {
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                     <Input
                                         placeholder="Search patients..."
-                                        className="pl-9 bg-slate-50 border-none"
+                                        className="pl-9 bg-white border border-slate-200 shadow-sm rounded-full"
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
@@ -235,19 +235,18 @@ export default function ClinicOPDDashboard() {
                                         <div
                                             key={patient.opd_patient_id}
                                             onClick={() => router.push(`/hospital/clinic/${patient.patient_id}`)}
-                                            className="p-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition-colors group"
+                                            className="list-item-card group border-b border-slate-100 last:border-0"
                                         >
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold">
+                                            <div className="flex items-center gap-3 sm:gap-4">
+                                                <div className="avatar-square">
                                                     {patient.full_name?.charAt(0)}
                                                 </div>
-                                                <div>
-                                                    <h4 className="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors">
+                                                <div className="min-w-0">
+                                                    <h3 className="font-bold text-slate-900 text-sm truncate group-hover:text-blue-700 transition-colors">
                                                         {patient.full_name}
-                                                    </h4>
-                                                    <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
-                                                        <span>{patient.mrd_number}</span>
-                                                        <span>•</span>
+                                                    </h3>
+                                                    <div className="meta-text-container">
+                                                        <span className="meta-badge">{patient.mrd_number}</span>
                                                         <span>{patient.phone}</span>
                                                         {patient.blood_group && (
                                                             <>

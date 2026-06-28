@@ -58,7 +58,7 @@ export default function DashboardPageShell({
                             placeholder={searchPlaceholder}
                             value={searchTerm}
                             onChange={(e) => onSearchChange(e.target.value)}
-                            className="w-full pl-9 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 focus:bg-white font-medium transition-all text-sm placeholder:text-slate-400"
+                            className="w-full pl-9 pr-9 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 focus:bg-white font-medium transition-all text-sm placeholder:text-slate-400"
                         />
                         {isSearching && (
                             <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-indigo-500" size={14} />

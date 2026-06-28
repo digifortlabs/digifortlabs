@@ -77,7 +77,7 @@ export default function PatientsDirectory() {
     }, [searchTerm, hospitalId]);
 
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="page-container">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
@@ -95,8 +95,8 @@ export default function PatientsDirectory() {
             </div>
 
             <Card className="border-slate-200/60 shadow-sm bg-white overflow-hidden">
-                <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row gap-4 items-center justify-between">
-                    <div className="relative w-full md:w-96">
+                <div className="search-bar-container">
+                    <div className="search-input-wrapper">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <Input 
                             placeholder={`Search by Name, ${terms.mrd} Number, or Phone...`}
@@ -118,21 +118,40 @@ export default function PatientsDirectory() {
                             <div 
                                 key={patient.record_id}
                                 onClick={() => router.push(`/hospital/patients/${patient.record_id}`)}
-                                className="p-3 sm:p-4 hover:bg-slate-50 cursor-pointer transition-colors group flex flex-col xl:flex-row xl:items-center justify-between gap-4"
+                                className="list-item-card group"
                             >
                                 <div className="flex items-center gap-3 sm:gap-4">
-                                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 flex shrink-0 items-center justify-center text-blue-700 font-black text-base sm:text-lg shadow-sm border border-blue-200/50 group-hover:scale-105 transition-transform">
+                                    <div className="avatar-square">
                                         {patient.full_name?.charAt(0).toUpperCase()}
                                     </div>
                                     <div className="min-w-0">
-                                        <h3 className="font-bold text-slate-900 text-base sm:text-lg truncate group-hover:text-blue-700 transition-colors">
+                                        <h3 className="font-semibold text-slate-900 text-sm truncate group-hover:text-blue-700 transition-colors">
                                             {patient.full_name}
                                         </h3>
-                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5 text-xs sm:text-sm text-slate-500">
-                                            <span className="font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px] sm:text-xs border border-slate-200">{terms.mrd}: {patient.mrd_number}</span>
-                                            {patient.phone && <span className="truncate">{patient.phone}</span>}
-                                            {patient.age && <span className="whitespace-nowrap">{/^\d+$/.test(patient.age.trim()) ? `${patient.age} yrs` : patient.age}</span>}
-                                            {patient.gender && <span className="capitalize whitespace-nowrap">{patient.gender}</span>}
+                                        <div className="meta-text-container">
+                                            <div className="flex items-center gap-2">
+                                                <span className="meta-badge">
+                                                    {terms.mrd}:
+                                                </span>
+                                                <span className="text-sm font-medium">
+                                                    {patient.mrd_number || ''}
+                                                </span>
+                                            </div>
+                                            {patient.phone && (
+                                                <span className="truncate">
+                                                    {patient.phone}
+                                                </span>
+                                            )}
+                                            {patient.age && (
+                                                <span className="whitespace-nowrap">
+                                                    {/^\d+$/.test(patient.age.trim()) ? `${patient.age} Years` : patient.age}
+                                                </span>
+                                            )}
+                                            {patient.gender && (
+                                                <span className="capitalize whitespace-nowrap">
+                                                    {patient.gender}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

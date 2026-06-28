@@ -12,6 +12,12 @@ from ..database import get_db
 from ..models import AuditLog, User, UserRole
 from .auth import get_current_user
 
+from pydantic import BaseModel
+
+class AuditLogUpdate(BaseModel):
+    action: Optional[str] = None
+    details: Optional[str] = None
+
 router = APIRouter()
 
 @router.get("/logs")
@@ -99,6 +105,43 @@ def get_audit_logs(
             } for log in logs
         ],
         "total": total,
-        "page": page,
         "pages": (total + page_size - 1) // page_size
+    }
+
+@router.patch("/logs/{log_id}")
+def update_audit_log(
+    log_id: int,
+    log_update: AuditLogUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    query = db.query(AuditLog).filter(AuditLog.log_id == log_id)
+    
+    if current_user.role == UserRole.HOSPITAL_ADMIN:
+        # Ensure the log belongs to a user in their hospital
+        query = query.join(User).filter(User.hospital_id == current_user.hospital_id)
+        
+    log = query.first()
+    
+    if not log:
+        raise HTTPException(status_code=404, detail="Audit log not found")
+        
+    if log_update.action is not None:
+        log.action = log_update.action
+    if log_update.details is not None:
+        log.details = log_update.details
+        
+    db.commit()
+    db.refresh(log)
+    
+    return {
+        "log_id": log.log_id,
+        "timestamp": log.timestamp,
+        "action": log.action,
+        "details": log.details,
+        "user_id": log.user_id,
+        "user_email": log.user.email if log.user else "System"
     }

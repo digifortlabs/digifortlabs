@@ -4,11 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Clock, Search, RefreshCcw, User, ShieldAlert, HeartPulse } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertTriangle, Clock, Search, RefreshCcw, User, ShieldAlert, HeartPulse, MoreHorizontal, UserPlus, LogOut, Activity, CheckCircle } from 'lucide-react';
 import { apiFetch } from '@/config/api';
 import FastRegistrationModal from '@/components/emergency/FastRegistrationModal';
 import UpdateVitalsModal from '@/components/emergency/UpdateVitalsModal';
 import EmergencyChartModal from '@/components/emergency/EmergencyChartModal';
+import AssignDoctorModal from '@/components/emergency/AssignDoctorModal';
+import EditEmergencyModal from '@/components/emergency/EditEmergencyModal';
 import IPDAdmissionModal from '@/components/IPDAdmissionModal';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
@@ -19,9 +22,11 @@ export default function EmergencyDashboard() {
     const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     
-    const [vitalsModalData, setVitalsModalData] = useState<{isOpen: boolean, emergencyId: number | null, initialVitals: any | null}>({ isOpen: false, emergencyId: null, initialVitals: null });
-    const [chartModalData, setChartModalData] = useState<{isOpen: boolean, emergencyId: number | null, patientDetails: any | null}>({ isOpen: false, emergencyId: null, patientDetails: null });
-    const [ipdModalData, setIpdModalData] = useState<{isOpen: boolean, patientId: number | null, emergencyId: number | null, patientName: string}>({ isOpen: false, patientId: null, emergencyId: null, patientName: '' });
+    const [vitalsModalData, setVitalsModalData] = useState({ isOpen: false, emergencyId: null as number | null, initialVitals: {} as any });
+    const [chartModalData, setChartModalData] = useState({ isOpen: false, emergencyId: null as number | null, patientDetails: null as any });
+    const [assignDoctorModalData, setAssignDoctorModalData] = useState({ isOpen: false, emergencyId: null as number | null, patientName: '' });
+    const [ipdModalData, setIpdModalData] = useState({ isOpen: false, patientId: null as number | null, emergencyId: null as number | null, patientName: '' });
+    const [editModalData, setEditModalData] = useState({ isOpen: false, emergencyDetails: null as any });
 
     const fetchEmergencies = async () => {
         setIsLoading(true);
@@ -51,6 +56,22 @@ export default function EmergencyDashboard() {
             console.error("Failed to fetch emergencies", error);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleIpdAdmissionSuccess = () => {
+        fetchEmergencies();
+    };
+
+    const handleDelete = async (emergencyId: number) => {
+        if (!window.confirm("Are you sure you want to delete this emergency record? This action cannot be undone.")) return;
+        
+        try {
+            await apiFetch(`emergency/${emergencyId}`, { method: 'DELETE' });
+            fetchEmergencies();
+        } catch (err: any) {
+            console.error("Failed to delete emergency record", err);
+            alert("Failed to delete record: " + err.message);
         }
     };
 
@@ -89,16 +110,16 @@ export default function EmergencyDashboard() {
     };
 
     return (
-        <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto pb-24">
+        <div className="page-container">
             
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <div className="flex items-center gap-3 mb-1">
-                        <div className="bg-red-100 p-2 rounded-xl">
+                        <div className="bg-red-100 p-2 rounded-md">
                             <AlertTriangle className="w-6 h-6 text-red-600" />
                         </div>
-                        <h1 className="text-3xl font-black text-slate-900 tracking-tight">ER Triage Dashboard</h1>
+                        <h1 className="text-xl font-bold text-slate-900 tracking-tight">ER Triage Dashboard</h1>
                     </div>
                     <p className="text-sm font-medium text-slate-500 ml-12">Live emergency queue sorted by severity</p>
                 </div>
@@ -115,7 +136,7 @@ export default function EmergencyDashboard() {
                     </Button>
                     <Button 
                         onClick={() => setIsRegisterModalOpen(true)}
-                        className="bg-red-600 hover:bg-red-700 text-white font-bold shadow-lg shadow-red-600/30 px-6 h-11 rounded-xl"
+                        className="bg-red-600 hover:bg-red-700 text-white font-medium shadow-sm px-6 h-9 rounded-md"
                     >
                         <Plus className="w-5 h-5 mr-2" />
                         New Emergency
@@ -130,9 +151,9 @@ export default function EmergencyDashboard() {
                     <CardContent className="p-4 flex items-center justify-between">
                         <div>
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Active</p>
-                            <h3 className="text-2xl font-black text-slate-800">{emergencies.length}</h3>
+                            <h3 className="text-lg font-bold text-slate-800">{emergencies.length}</h3>
                         </div>
-                        <div className="bg-red-50 p-3 rounded-2xl text-red-600">
+                        <div className="bg-red-50 p-3 rounded-md text-red-600">
                             <HeartPulse className="w-5 h-5" />
                         </div>
                     </CardContent>
@@ -143,11 +164,11 @@ export default function EmergencyDashboard() {
                     <CardContent className="p-4 flex items-center justify-between">
                         <div>
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Critical (Red/Orange)</p>
-                            <h3 className="text-2xl font-black text-slate-800">
+                            <h3 className="text-lg font-bold text-slate-800">
                                 {emergencies.filter(e => e.triage_level === 'Red' || e.triage_level === 'Orange').length}
                             </h3>
                         </div>
-                        <div className="bg-orange-50 p-3 rounded-2xl text-orange-600">
+                        <div className="bg-orange-50 p-3 rounded-md text-orange-600">
                             <AlertTriangle className="w-5 h-5" />
                         </div>
                     </CardContent>
@@ -158,11 +179,11 @@ export default function EmergencyDashboard() {
                     <CardContent className="p-4 flex items-center justify-between">
                         <div>
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">MLC Cases</p>
-                            <h3 className="text-2xl font-black text-slate-800">
+                            <h3 className="text-lg font-bold text-slate-800">
                                 {emergencies.filter(e => e.is_medico_legal).length}
                             </h3>
                         </div>
-                        <div className="bg-slate-100 p-3 rounded-2xl text-slate-700">
+                        <div className="bg-slate-100 p-3 rounded-md text-slate-700">
                             <ShieldAlert className="w-5 h-5" />
                         </div>
                     </CardContent>
@@ -176,24 +197,24 @@ export default function EmergencyDashboard() {
                     placeholder="Search patients or complaints..." 
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-white border-slate-200 shadow-sm rounded-xl h-11"
+                    className="pl-10 bg-white border-slate-200 shadow-sm rounded-md h-9"
                 />
             </div>
 
             {/* Triage Board */}
             <div className="space-y-4">
                 {isLoading && emergencies.length === 0 ? (
-                    <div className="text-center py-12 bg-white rounded-3xl border border-slate-100 border-dashed">
+                    <div className="text-center py-12 bg-white rounded-md border border-slate-100 border-dashed">
                         <RefreshCcw className="w-8 h-8 text-slate-300 animate-spin mx-auto mb-4" />
                         <p className="text-slate-500 font-medium">Loading triage board...</p>
                     </div>
                 ) : filteredEmergencies.length === 0 ? (
-                    <div className="text-center py-16 bg-white rounded-3xl border border-slate-100 border-dashed">
-                        <div className="bg-green-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <div className="text-center py-16 bg-white rounded-md border border-slate-100 border-dashed">
+                        <div className="bg-green-50 w-16 h-16 rounded-md flex items-center justify-center mx-auto mb-4">
                             <HeartPulse className="w-8 h-8 text-green-500" />
                         </div>
-                        <h3 className="text-lg font-bold text-slate-700 mb-1">ER is clear</h3>
-                        <p className="text-slate-500 text-sm">No active emergency patients at the moment.</p>
+                        <h3 className="text-sm font-semibold text-slate-700 mb-1">ER is clear</h3>
+                        <p className="text-slate-500 text-xs">No active emergency patients at the moment.</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -208,10 +229,15 @@ export default function EmergencyDashboard() {
                                             <Badge className={`${getTriageColor(em.triage_level)} border uppercase tracking-wider text-[10px] px-2 py-0.5 rounded-lg mb-2`}>
                                                 {getTriageLabel(em.triage_level)}
                                             </Badge>
-                                            <h3 className="text-lg font-black text-slate-800 line-clamp-1">{em.patient_name || 'Unknown Patient'}</h3>
+                                            <h3 className="text-sm font-semibold text-slate-800 line-clamp-1">{em.patient_name || 'Unknown Patient'}</h3>
                                             <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 font-medium">
                                                 <Clock className="w-3.5 h-3.5" />
                                                 Arrived {format(new Date(em.visit_date), 'h:mm a')}
+                                            </div>
+                                            <div className="mt-2">
+                                                <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${!em.doctor_name ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}>
+                                                    {!em.doctor_name ? 'WAITING FOR DOCTOR' : 'IN TREATMENT'}
+                                                </Badge>
                                             </div>
                                         </div>
                                         {em.is_medico_legal && (
@@ -221,7 +247,7 @@ export default function EmergencyDashboard() {
                                         )}
                                     </div>
                                     
-                                    <div className="space-y-3 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                    <div className="space-y-3 bg-slate-50 p-3 rounded-md border border-slate-200">
                                         <div>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Chief Complaint</p>
                                             <p className="text-sm text-slate-700 font-medium line-clamp-2">{em.chief_complaint || 'Not specified'}</p>
@@ -241,21 +267,64 @@ export default function EmergencyDashboard() {
                                     </div>
 
                                     <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
-                                        <Button 
-                                            size="sm" 
-                                            variant="outline" 
-                                            onClick={() => setVitalsModalData({ isOpen: true, emergencyId: em.emergency_id, initialVitals: em })}
-                                            className="w-full text-xs font-bold rounded-xl border-slate-200 text-slate-600"
-                                        >
-                                            Update Vitals
-                                        </Button>
-                                        <Button 
-                                            size="sm" 
-                                            onClick={() => setChartModalData({ isOpen: true, emergencyId: em.emergency_id, patientDetails: em })}
-                                            className="w-full text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-900 text-white shadow-sm"
-                                        >
-                                            View Chart
-                                        </Button>
+                                        {!em.doctor_name ? (
+                                            <Button 
+                                                size="sm" 
+                                                onClick={() => setAssignDoctorModalData({ isOpen: true, emergencyId: em.emergency_id, patientName: em.patient_name || 'Unknown' })}
+                                                className="w-full text-xs font-medium rounded-md bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+                                            >
+                                                <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                                                Assign Doctor
+                                            </Button>
+                                        ) : (
+                                            <>
+                                                <Button 
+                                                    size="sm" 
+                                                    variant="outline" 
+                                                    onClick={() => setVitalsModalData({ isOpen: true, emergencyId: em.emergency_id, initialVitals: em })}
+                                                    className="w-full text-xs font-medium rounded-md border-slate-200 text-slate-600"
+                                                >
+                                                    <Activity className="w-3.5 h-3.5 mr-1.5" />
+                                                    Vitals
+                                                </Button>
+                                                <Button 
+                                                    size="sm" 
+                                                    onClick={() => setChartModalData({ isOpen: true, emergencyId: em.emergency_id, patientDetails: em })}
+                                                    className="w-full text-xs font-medium rounded-md bg-slate-800 hover:bg-slate-900 text-white shadow-sm"
+                                                >
+                                                    View Chart
+                                                </Button>
+                                            </>
+                                        )}
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button size="sm" variant="outline" className="px-2 border-slate-200 rounded-md">
+                                                    <MoreHorizontal className="w-4 h-4 text-slate-500" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-48">
+                                                <DropdownMenuItem onClick={() => setEditModalData({ isOpen: true, emergencyDetails: em })}>
+                                                    <Activity className="w-4 h-4 mr-2 text-indigo-600" />
+                                                    <span>Edit Details</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => {
+                                                    setIpdModalData({ isOpen: true, patientId: em.patient_id, emergencyId: em.emergency_id, patientName: em.patient_name || 'Unknown' });
+                                                }}>
+                                                    <LogOut className="w-4 h-4 mr-2 text-indigo-600" />
+                                                    <span>Admit to IPD</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => {
+                                                    alert("Discharge flow would open here.");
+                                                }}>
+                                                    <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+                                                    <span>Discharge Patient</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleDelete(em.emergency_id)} className="text-red-600 focus:text-red-600 focus:bg-red-50">
+                                                    <LogOut className="w-4 h-4 mr-2" />
+                                                    <span>Delete Record</span>
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -289,12 +358,27 @@ export default function EmergencyDashboard() {
                 }}
             />
 
+            <AssignDoctorModal
+                isOpen={assignDoctorModalData.isOpen}
+                onClose={() => setAssignDoctorModalData({ ...assignDoctorModalData, isOpen: false })}
+                onSuccess={fetchEmergencies}
+                emergencyId={assignDoctorModalData.emergencyId!}
+                patientName={assignDoctorModalData.patientName}
+            />
+
+            <EditEmergencyModal
+                isOpen={editModalData.isOpen}
+                onClose={() => setEditModalData({ isOpen: false, emergencyDetails: null })}
+                onSuccess={fetchEmergencies}
+                emergencyDetails={editModalData.emergencyDetails}
+            />
+            
             <IPDAdmissionModal
                 isOpen={ipdModalData.isOpen}
                 onClose={() => setIpdModalData({ ...ipdModalData, isOpen: false })}
+                onSuccess={handleIpdAdmissionSuccess}
                 patientId={ipdModalData.patientId!}
                 patientName={ipdModalData.patientName}
-                onSuccess={fetchEmergencies}
             />
         </div>
     );

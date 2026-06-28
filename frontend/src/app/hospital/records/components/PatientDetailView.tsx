@@ -916,7 +916,7 @@ export default function PatientDetailView({ patientId, onBack, onDeleteSuccess, 
                                 )}
                                 <div className="flex flex-wrap items-center gap-2 mb-3">
                                     {/* Avatar + Name */}
-                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg shrink-0 ${patient.gender?.toLowerCase().startsWith('f') ? 'bg-pink-50 text-pink-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-lg shrink-0 ${patient.gender?.toLowerCase().startsWith('f') ? 'bg-pink-50 text-pink-600' : 'bg-indigo-50 text-indigo-600'}`}>
                                         {patient.full_name?.[0]}
                                     </div>
                                     <h1 className="text-xl font-black text-slate-900 tracking-tight">{patient.full_name}</h1>

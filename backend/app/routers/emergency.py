@@ -40,6 +40,16 @@ class EmergencyVisitUpdate(BaseModel):
     weight: Optional[float] = None
     is_mediclaim: Optional[bool] = None
     mediclaim_details: Optional[str] = None
+    hpi: Optional[str] = None
+    allergies: Optional[str] = None
+    past_history: Optional[str] = None
+    abcde_assessment: Optional[dict] = None
+    stat_orders: Optional[str] = None
+    mode_of_arrival: Optional[str] = None
+    is_medico_legal: Optional[bool] = None
+    police_station: Optional[str] = None
+    ambulance_driver: Optional[str] = None
+    chief_complaint: Optional[str] = None
 
 class EmergencyVisitResponse(BaseModel):
     emergency_id: int
@@ -60,6 +70,11 @@ class EmergencyVisitResponse(BaseModel):
     diagnosis: Optional[str] = None
     treatment: Optional[str] = None
     notes: Optional[str] = None
+    hpi: Optional[str] = None
+    allergies: Optional[str] = None
+    past_history: Optional[str] = None
+    abcde_assessment: Optional[dict] = None
+    stat_orders: Optional[str] = None
     is_mediclaim: bool = False
     mediclaim_details: Optional[str] = None
     status: str
@@ -182,3 +197,22 @@ def update_emergency(
             response.doctor_name = doc.full_name
             
     return response
+
+@router.delete("/{emergency_id}")
+def delete_emergency(
+    emergency_id: int,
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    visit = db.query(EmergencyVisit).filter(
+        EmergencyVisit.emergency_id == emergency_id,
+        EmergencyVisit.hospital_id == current_user.hospital_id
+    ).first()
+    
+    if not visit:
+        raise HTTPException(status_code=404, detail="Emergency visit not found")
+        
+    db.delete(visit)
+    db.commit()
+    
+    return {"message": "Emergency visit deleted successfully"}
