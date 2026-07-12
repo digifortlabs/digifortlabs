@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Search, ShoppingCart, Plus, Minus, Trash2, Printer } from 'lucide-react';
 import { apiFetch } from '@/config/api';
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 
 interface InventoryItem {
     id: number;

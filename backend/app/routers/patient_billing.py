@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import (
     PatientInvoice, PatientInvoiceItem, Patient, Hospital, User,
     OPDVisit, DentalTreatment, IPDAdmission, UserRole
@@ -113,10 +114,10 @@ def get_dashboard_patients(
     for row in unbilled_dental: unbilled_ids.add(row[0])
     for row in unbilled_reg: unbilled_ids.add(row[0])
     
-    pending_invoices = db.query(PatientInvoice).filter(
+    pending_invoices = crud_all.patient_invoice.get_multi(db, 
         PatientInvoice.hospital_id == hospital_id,
         PatientInvoice.status == "PENDING"
-    ).all()
+    )
     pending_invoice_map = {inv.patient_id: inv.invoice_id for inv in pending_invoices}
     
     results = []
@@ -145,10 +146,10 @@ def get_unbilled_records(
     Normalizes the records for the frontend invoice compiler.
     """
     # Verify patient exists and belongs to this hospital
-    patient = db.query(Patient).filter(
+    patient = crud_all.patient.get_first(db, 
         Patient.record_id == patient_id,
         Patient.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -158,7 +159,7 @@ def get_unbilled_records(
     items = []
 
     # 0. Check if patient has any previous invoices for first-time registration fee injection
-    invoice_count = db.query(PatientInvoice).filter(PatientInvoice.patient_id == patient_id).count()
+    invoice_count = crud_all.patient_invoice.count(db, PatientInvoice.patient_id == patient_id)
     if invoice_count == 0:
         reg_fee = getattr(patient.hospital, "patient_registration_fee", 500.0)
         if reg_fee is None:
@@ -353,7 +354,7 @@ def get_unbilled_records(
             log_date = dnote.get("timestamp", datetime.now().isoformat())
             d_user_id = dnote.get("doctor_id")
             
-            doc_profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == d_user_id).first() if d_user_id else None
+            doc_profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == d_user_id) if d_user_id else None
             ipd_charge = getattr(doc_profile, "ipd_charge", 0.0) if doc_profile else 0.0
             if ipd_charge is None:
                 ipd_charge = 0.0
@@ -374,11 +375,11 @@ def get_unbilled_records(
                 })
 
     # Check if there is a pending invoice for this patient
-    pending_inv = db.query(PatientInvoice).filter(
+    pending_inv = crud_all.patient_invoice.get_first(db, 
         PatientInvoice.patient_id == patient_id,
         PatientInvoice.hospital_id == current_user.hospital_id,
         PatientInvoice.status == "PENDING"
-    ).order_by(PatientInvoice.bill_date.desc()).first()
+    ).order_by(PatientInvoice.bill_date.desc())
 
     pending_invoice_data = None
     if pending_inv:
@@ -446,14 +447,14 @@ def list_patient_invoices(
     """
     Retrieve all patient invoices for the logged-in hospital.
     """
-    query = db.query(PatientInvoice).filter(PatientInvoice.hospital_id == current_user.hospital_id)
+    query = db.query(PatientInvoice).filter(PatientInvoice.hospital_id == current_user.hospital_id).first()
     
     if patient_id:
         query = query.filter(PatientInvoice.patient_id == patient_id)
     if status:
         query = query.filter(PatientInvoice.status == status)
         
-    invoices = query.order_by(PatientInvoice.bill_date.desc()).all()
+    invoices = query.order_by(PatientInvoice.bill_date.desc())
     
     results = []
     for inv in invoices:
@@ -475,10 +476,10 @@ def get_patient_invoice(
     """
     Get detailed patient invoice.
     """
-    invoice = db.query(PatientInvoice).filter(
+    invoice = crud_all.patient_invoice.get_first(db, 
         PatientInvoice.invoice_id == invoice_id,
         PatientInvoice.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -536,7 +537,7 @@ def get_daily_billing_report(
     invoices = db.query(PatientInvoice).filter(
         PatientInvoice.hospital_id == current_user.hospital_id,
         PatientInvoice.bill_date.between(start_dt, end_dt)
-    ).all()
+    )
 
     total_billed = sum(inv.total_amount for inv in invoices)
     total_gst = sum(inv.tax_amount for inv in invoices)

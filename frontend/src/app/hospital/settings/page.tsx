@@ -19,6 +19,7 @@ import LoginActivityPanel from './components/LoginActivityPanel';
 import AccountSettings from './components/AccountSettings';
 import PlatformConfig from './components/PlatformConfig';
 import DepartmentSettings from './components/DepartmentSettings';
+import NumberSetup from './components/NumberSetup';
 import toast from 'react-hot-toast';
 
 export default function SettingsPage() {
@@ -238,6 +239,17 @@ export default function SettingsPage() {
                 >
                     <Activity size={13} /> Activity & Logs
                 </button>
+
+                <button
+                    onClick={() => setActiveTab('numbering')}
+                    className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-150 ${
+                        activeTab === 'numbering' 
+                            ? 'bg-white text-blue-700 shadow-xs border border-slate-200/20' 
+                            : 'text-slate-500 hover:text-blue-600'
+                    }`}
+                >
+                    Auto-Numbering
+                </button>
             </div>
 
             {/* Tab Content */}
@@ -257,6 +269,10 @@ export default function SettingsPage() {
 
                 {activeTab === 'departments' && (
                     <DepartmentSettings />
+                )}
+
+                {activeTab === 'numbering' && hospitalId && (
+                    <NumberSetup hospitalId={hospitalId.toString()} />
                 )}
 
                 {activeTab === 'platform' && isPlatformAdmin && (

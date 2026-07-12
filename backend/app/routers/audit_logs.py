@@ -118,7 +118,7 @@ def update_audit_log(
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN]:
         raise HTTPException(status_code=403, detail="Not authorized")
         
-    query = db.query(AuditLog).filter(AuditLog.log_id == log_id)
+    query = db.query(AuditLog).filter(AuditLog.log_id == log_id).first()
     
     if current_user.role == UserRole.HOSPITAL_ADMIN:
         # Ensure the log belongs to a user in their hospital

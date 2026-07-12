@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Truck, Plus, Trash2 } from 'lucide-react';
 import { apiFetch } from '@/config/api';
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 
 interface Supplier {
     supplier_id: number;

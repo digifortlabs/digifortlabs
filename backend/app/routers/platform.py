@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 import os
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import SystemSetting, User, UserRole, Permission
 from ..routers.auth import get_current_user, require_permission
 from ..audit import log_audit
@@ -30,7 +31,7 @@ async def health_check():
 async def get_settings(db: Session = Depends(get_db)):
     # All users can arguably see settings (like announcement), but only admin can edit.
     try:
-        settings = db.query(SystemSetting).all()
+        settings = crud_all.system_setting.get_multi(db)
         # Filter out any unexpected None entries to prevent AttributeError
         return {s.key: s.value for s in settings if s}
     except Exception as e:
@@ -44,7 +45,7 @@ async def get_settings(db: Session = Depends(get_db)):
 async def update_setting(key: str, update: SettingUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_PLATFORM_SETTINGS))):
     # RBAC handles authorization instead of hardcoded SUPER_ADMIN check
     
-    setting = db.query(SystemSetting).filter(SystemSetting.key == key).first()
+    setting = crud_all.system_setting.get_first(db, SystemSetting.key == key)
     if not setting:
         setting = SystemSetting(key=key, value=update.value)
         db.add(setting)
@@ -104,11 +105,11 @@ async def run_bulk_ocr(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Find candidates
-    candidates = db.query(PDFFile).filter(
+    candidates = crud_all.p_d_f_file.get_multi(db, 
         PDFFile.upload_status == 'confirmed',
         PDFFile.is_searchable == False,
         PDFFile.processing_stage != 'analyzing' # Skip already running
-    ).limit(limit).all()
+    ).limit(limit)
     
     if not candidates:
         return {"status": "success", "message": "No pending files found for OCR."}
@@ -191,19 +192,19 @@ async def get_ocr_status(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     try:
-        pending = db.query(PDFFile).filter(
+        pending = crud_all.p_d_f_file.count(db, 
             PDFFile.upload_status == 'confirmed',
             PDFFile.is_searchable == False,
             PDFFile.processing_stage != 'analyzing'
-        ).count()
+        )
 
-        analyzing = db.query(PDFFile).filter(
+        analyzing = crud_all.p_d_f_file.count(db, 
             PDFFile.processing_stage == 'analyzing'
-        ).count()
+        )
 
-        completed = db.query(PDFFile).filter(
+        completed = crud_all.p_d_f_file.count(db, 
             PDFFile.is_searchable == True
-        ).count()
+        )
 
         return {
             "pending_ocr": pending,

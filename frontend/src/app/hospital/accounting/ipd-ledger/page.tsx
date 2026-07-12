@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/config/api';
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 import { 
     Users, Search, Wallet, ShieldCheck, 
     ArrowRight, Activity, Plus, CreditCard, ChevronLeft, X

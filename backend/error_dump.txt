@@ -133,10 +133,10 @@
     |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
     |     result = context.run(func, *args)
     |              ^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "D:\Website\DIGIFORTLABS\backend\app\routers\hms.py", line 1318, in get_medication_alerts
-    |     if adm.vitals_history and len(adm.vitals_history) > 0:
-    |        ^^^^^^^^^^^^^^^^^^
-    | AttributeError: 'IPDAdmission' object has no attribute 'vitals_history'
+    |   File "D:\Website\DIGIFORTLABS\backend\app\routers\doctors.py", line 95, in get_doctors
+    |     query = query.filter(DoctorProfile.hospital_id == target_hospital_id)
+    |             ^^^^^^^^^^^^
+    | AttributeError: 'DoctorProfile' object has no attribute 'filter'
     +------------------------------------
 
 The above exception was the direct cause of the following exception:
@@ -267,7 +267,7 @@ Traceback (most recent call last):
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
     result = context.run(func, *args)
              ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\app\routers\hms.py", line 1318, in get_medication_alerts
-    if adm.vitals_history and len(adm.vitals_history) > 0:
-       ^^^^^^^^^^^^^^^^^^
-AttributeError: 'IPDAdmission' object has no attribute 'vitals_history'
+  File "D:\Website\DIGIFORTLABS\backend\app\routers\doctors.py", line 95, in get_doctors
+    query = query.filter(DoctorProfile.hospital_id == target_hospital_id)
+            ^^^^^^^^^^^^
+AttributeError: 'DoctorProfile' object has no attribute 'filter'

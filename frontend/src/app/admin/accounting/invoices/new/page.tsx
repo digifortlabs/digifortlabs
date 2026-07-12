@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/config/api';
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 import { 
     FileText, Plus, Trash2, IndianRupee, Save, ArrowLeft, Loader2, CheckSquare, Square, Stethoscope, BedDouble, Beaker
 } from 'lucide-react';

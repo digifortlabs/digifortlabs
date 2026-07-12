@@ -199,7 +199,7 @@ export default function HospitalOverview() {
                             <div className="text-[10px] font-bold text-slate-400 uppercase bg-white/5 px-2 py-1 rounded">Last 7 Days</div>
                         </div>
                         {stats?.activity_trend && stats.activity_trend.length > 0 ? (
-                            <ResponsiveContainer width="100%" height={200}>
+                            <ResponsiveContainer width="100%" height={200} minWidth={1} minHeight={1}>
                                 <AreaChart data={stats.activity_trend}>
                                     <defs>
                                         <linearGradient id="colorInflow" x1="0" y1="0" x2="0" y2="1">

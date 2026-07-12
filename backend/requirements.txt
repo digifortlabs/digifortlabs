@@ -10,7 +10,7 @@ celery
 redis
 python-jose[cryptography]
 passlib[bcrypt]
-pypdf
+
 moviepy
 imageio-ffmpeg
 email-validator
@@ -33,9 +33,7 @@ fastapi-csrf-protect
 alembic
 pydantic-settings
 jinja2
-ocrmypdf
-pikepdf
-pdfminer.six
+
 markdown
 reportlab
 gunicorn

@@ -1,5 +1,6 @@
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from ..crud import crud_all
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -91,7 +92,7 @@ def update_stock(
     item = db.query(InventoryItem).filter(
         InventoryItem.item_id == item_id,
         InventoryItem.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
         
@@ -152,10 +153,10 @@ def delete_item(item_id: int, db: Session = Depends(get_db), current_user: User 
     if current_user.role not in ["superadmin", "hospital_admin"]:
          raise HTTPException(status_code=403, detail="Not authorized")
          
-    item = db.query(InventoryItem).filter(
+    item = crud_all.inventory_item.get_first(db, 
         InventoryItem.item_id == item_id,
         InventoryItem.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
         

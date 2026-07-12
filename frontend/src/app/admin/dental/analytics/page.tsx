@@ -146,7 +146,7 @@ export default function AnalyticsDashboard() {
                     <CardContent>
                         <div className="h-[300px] w-full">
                             {data.monthly_trend.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height={250} minWidth={1} minHeight={1}>
                                     <LineChart data={data.monthly_trend}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                                         <XAxis
@@ -193,7 +193,7 @@ export default function AnalyticsDashboard() {
                     <CardContent>
                         <div className="h-[300px] w-full flex items-center justify-center">
                             {data.revenue_by_type.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height={250} minWidth={1} minHeight={1}>
                                     <PieChart>
                                         <Pie
                                             data={data.revenue_by_type}

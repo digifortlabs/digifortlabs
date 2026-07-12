@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { MedicineAutocomplete } from '@/components/pharmacy/MedicineAutocomplete';
 import { apiFetch } from '@/config/api';
 import { formatDate } from '@/lib/dateFormatter';
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 
 export default function ClinicPatientDetail() {
     const params = useParams();

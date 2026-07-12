@@ -10,7 +10,7 @@ import { apiFetch } from '@/config/api';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 import { AlertTriangle } from 'lucide-react';
 
 function ExpiryAlertWidget() {

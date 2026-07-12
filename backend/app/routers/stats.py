@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import (
     AuditLog,
     FileRequest,
@@ -24,6 +25,11 @@ from ..models import (
     EmergencyVisit,
 )
 from ..routers.auth import get_current_user
+
+
+import time
+_DASHBOARD_CACHE = {}
+_CACHE_TTL = 30  # seconds
 
 router = APIRouter(
     tags=["stats"]
@@ -49,6 +55,14 @@ def get_dashboard_stats(
     else:
         target_hospital_id = current_user.hospital_id
         is_drilled_down = False
+
+    # Cache check
+    cache_key = f"{target_hospital_id}_{is_drilled_down}"
+    now_ts = time.time()
+    if cache_key in _DASHBOARD_CACHE:
+        cached_data, cached_time = _DASHBOARD_CACHE[cache_key]
+        if now_ts - cached_time < _CACHE_TTL:
+            return cached_data
 
     # Initialize trend times and queries outside try-except to prevent uninitialized errors
     now = datetime.now(timezone.utc)
@@ -111,7 +125,7 @@ def get_dashboard_stats(
     # 3. Warehouse Data
     try:
         if is_super and not is_drilled_down:
-            box_count = db.query(PhysicalBox).count()
+            box_count = crud_all.physical_box.count(db)
             warehouse_capacity_pct = round((box_count / 5000) * 100, 1) if box_count > 0 else 0
         else:
             # For individual hospital, show their specific box count if assigned
@@ -150,7 +164,7 @@ def get_dashboard_stats(
         if target_hospital_id:
             q_audit = q_audit.filter(AuditLog.hospital_id == target_hospital_id)
             
-        recent_audits = q_audit.order_by(AuditLog.timestamp.desc()).limit(8).all()
+        recent_audits = q_audit.order_by(AuditLog.timestamp.desc()).limit(8)
         audit_data = [{
             "id": log.log_id,
             "action": log.action.replace("FILE_", ""), # Remove prefix for cleaner UI
@@ -250,7 +264,7 @@ def get_dashboard_stats(
         if target_hospital_id:
             q_logs = q_logs.filter(AuditLog.hospital_id == target_hospital_id)
             
-        logs = q_logs.order_by(AuditLog.timestamp.desc()).limit(15).all()
+        logs = q_logs.order_by(AuditLog.timestamp.desc()).limit(15)
         for log in logs:
             user_name = "System"
             if log.user:
@@ -271,7 +285,7 @@ def get_dashboard_stats(
     # 9. Open Boxes Count
     open_boxes_count = 0
     try:
-        q_open_boxes = db.query(PhysicalBox).filter(PhysicalBox.is_open == True)
+        q_open_boxes = crud_all.physical_box.get_multi(db, PhysicalBox.is_open == True)
         if target_hospital_id:
             q_open_boxes = q_open_boxes.filter(PhysicalBox.hospital_id == target_hospital_id)
         open_boxes_count = q_open_boxes.count()
@@ -325,7 +339,7 @@ def get_dashboard_stats(
         if target_hospital_id:
             q_audit_enhanced = q_audit_enhanced.filter(AuditLog.hospital_id == target_hospital_id)
             
-        recent_audits_enhanced = q_audit_enhanced.order_by(AuditLog.timestamp.desc()).limit(15).all()
+        recent_audits_enhanced = q_audit_enhanced.order_by(AuditLog.timestamp.desc()).limit(15)
         
         for log in recent_audits_enhanced:
             patient_name = "Unknown"
@@ -364,11 +378,11 @@ def get_dashboard_stats(
         today_start_local = datetime.combine(date.today(), datetime.min.time()).replace(tzinfo=timezone.utc)
         
         # OPD Today
-        q_opd = db.query(OPDVisit).filter(OPDVisit.visit_date >= today_start_local)
+        q_opd = crud_all.o_p_d_visit.get_multi(db, OPDVisit.visit_date >= today_start_local)
         if target_hospital_id:
             q_opd = q_opd.filter(OPDVisit.hospital_id == target_hospital_id)
         clinical_ops["opd_today"] = q_opd.count()
-        for r in q_opd.limit(20).all():
+        for r in q_opd.limit(20):
             clinical_ops["lists"]["opd"].append({
                 "id": f"OPD-{r.visit_id}", "status": r.status, 
                 "patient": r.patient.full_name if r.patient else "Unknown", 
@@ -376,11 +390,11 @@ def get_dashboard_stats(
             })
         
         # IPD Admitted
-        q_ipd = db.query(IPDAdmission).filter(IPDAdmission.status == 'admitted')
+        q_ipd = crud_all.i_p_d_admission.count(db, IPDAdmission.status == 'admitted')
         if target_hospital_id:
             q_ipd = q_ipd.filter(IPDAdmission.hospital_id == target_hospital_id)
         clinical_ops["ipd_admitted"] = q_ipd.count()
-        for r in q_ipd.limit(20).all():
+        for r in q_ipd.limit(20):
             bed_str = getattr(getattr(r, 'bed', None), 'label', f"BED-{r.bed_id}")
             clinical_ops["lists"]["ipd"].append({
                 "id": bed_str, "status": "occupied", 
@@ -389,11 +403,11 @@ def get_dashboard_stats(
             })
         
         # OT In Use
-        q_ot = db.query(OperationTheater).filter(OperationTheater.status == 'IN_USE')
+        q_ot = crud_all.operation_theater.count(db, OperationTheater.status == 'IN_USE')
         if target_hospital_id:
             q_ot = q_ot.filter(OperationTheater.hospital_id == target_hospital_id)
         clinical_ops["ot_in_use"] = q_ot.count()
-        for r in q_ot.limit(20).all():
+        for r in q_ot.limit(20):
             clinical_ops["lists"]["ot"].append({
                 "id": f"OT-{r.ot_id}", "status": "occupied", 
                 "patient": r.patient.full_name if r.patient else "Unknown", 
@@ -401,11 +415,11 @@ def get_dashboard_stats(
             })
         
         # ER Active
-        q_er = db.query(EmergencyVisit).filter(EmergencyVisit.status == 'Active')
+        q_er = crud_all.emergency_visit.count(db, EmergencyVisit.status == 'Active')
         if target_hospital_id:
             q_er = q_er.filter(EmergencyVisit.hospital_id == target_hospital_id)
         clinical_ops["er_active"] = q_er.count()
-        for r in q_er.limit(20).all():
+        for r in q_er.limit(20):
             clinical_ops["lists"]["er"].append({
                 "id": f"ER-{r.emergency_id}", "status": getattr(r, 'triage_level', 'active').lower(), 
                 "patient": r.patient.full_name if r.patient else "Unknown", 
@@ -449,7 +463,7 @@ def get_dashboard_stats(
     except:
        pass
 
-    return {
+    response_data = {
         "hospital_name": hospital_name,
         "is_detailed": bool(target_hospital_id),
         "users": {
@@ -496,6 +510,9 @@ def get_dashboard_stats(
         "traffic_data": [],
         "clinical_ops": clinical_ops
     }
+    
+    _DASHBOARD_CACHE[cache_key] = (response_data, time.time())
+    return response_data
 
 @router.get("/group")
 def get_group_stats(
@@ -509,13 +526,13 @@ def get_group_stats(
              raise HTTPException(status_code=403, detail="Not authorized for group views")
 
     group_id = current_user.hospital.group_id
-    hospitals = db.query(Hospital).filter(Hospital.group_id == group_id).all()
+    hospitals = crud_all.hospital.get_multi(db, Hospital.group_id == group_id)
     hospital_ids = [h.hospital_id for h in hospitals]
 
     # Aggregate counts
-    total_patients = db.query(Patient).filter(Patient.hospital_id.in_(hospital_ids), Patient.is_deleted == False).count()
+    total_patients = db.query(Patient).filter(Patient.hospital_id.in_(hospital_ids), Patient.is_deleted == False).all()
     total_files = db.query(PDFFile).join(Patient).filter(Patient.hospital_id.in_(hospital_ids)).count()
-    total_users = db.query(User).filter(User.hospital_id.in_(hospital_ids)).count()
+    total_users = crud_all.user.count(db, User.hospital_id.in_(hospital_ids))
     
     # Revenue aggregation
     total_revenue = 0
@@ -527,7 +544,7 @@ def get_group_stats(
         branch_stats.append({
             "hospital_id": h.hospital_id,
             "name": h.legal_name,
-            "patient_count": db.query(Patient).filter(Patient.hospital_id == h.hospital_id, Patient.is_deleted == False).count(),
+            "patient_count": crud_all.patient.count(db, Patient.hospital_id == h.hospital_id, Patient.is_deleted == False),
             "file_count": branch_files,
             "revenue": round(rev, 2)
         })
@@ -551,13 +568,13 @@ def get_global_stats(
     if current_user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(status_code=403, detail="Not authorized for global metrics")
 
-    hospital_count = db.query(Hospital).count()
-    total_users = db.query(User).count()
-    total_files = db.query(PDFFile).count()
+    hospital_count = crud_all.hospital.count(db)
+    total_users = crud_all.user.count(db)
+    total_files = crud_all.p_d_f_file.count(db)
     
     # Active Users (last 15 mins)
     fifteen_mins_ago = datetime.now(timezone.utc) - timedelta(minutes=15)
-    active_users = db.query(User).filter(User.last_active_at >= fifteen_mins_ago).count()
+    active_users = crud_all.user.count(db, User.last_active_at >= fifteen_mins_ago)
 
     return {
         "hospitals": hospital_count,

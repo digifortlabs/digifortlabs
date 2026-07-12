@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
+from ..crud import crud_all
 from ..models import QAIssue, User, UserRole, PDFFile
 from ..routers.auth import get_current_user
 from pydantic import BaseModel
@@ -54,7 +55,7 @@ def report_qa_issue(
     current_user: User = Depends(get_current_user)
 ):
     # Verify file ownership
-    db_file = db.query(PDFFile).filter(PDFFile.file_id == request.file_id).first()
+    db_file = crud_all.p_d_f_file.get_first(db, PDFFile.file_id == request.file_id)
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
         
@@ -82,7 +83,7 @@ def resolve_qa_issue(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    issue = db.query(QAIssue).filter(QAIssue.issue_id == issue_id).first()
+    issue = crud_all.q_a_issue.get_first(db, QAIssue.issue_id == issue_id)
     if not issue:
         raise HTTPException(status_code=404, detail="Issue not found")
         
@@ -103,7 +104,7 @@ def ignore_qa_issue(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    issue = db.query(QAIssue).filter(QAIssue.issue_id == issue_id).first()
+    issue = crud_all.q_a_issue.get_first(db, QAIssue.issue_id == issue_id)
     if not issue:
         raise HTTPException(status_code=404, detail="Issue not found")
         

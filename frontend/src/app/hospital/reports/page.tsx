@@ -349,7 +349,7 @@ export default function ReportsPage() {
                                     </h3>
                                     <div className="h-64">
                                         {data && data.length > 0 ? (
-                                            <ResponsiveContainer width="100%" height="100%">
+                                            <ResponsiveContainer width="100%" height={250} minWidth={1} minHeight={1}>
                                                 <BarChart data={
                                                     (() => {
                                                         const rawData = data.reduce((acc: any, curr: any) => {
@@ -397,7 +397,7 @@ export default function ReportsPage() {
                                     </h3>
                                     <div className="h-64">
                                         {summary ? (
-                                            <ResponsiveContainer width="100%" height="100%">
+                                            <ResponsiveContainer width="100%" height={250} minWidth={1} minHeight={1}>
                                                 <PieChart>
                                                     <Pie
                                                         data={Object.entries(summary).slice(0, 5).map(([name, value]) => ({ name, value }))}

@@ -6,6 +6,7 @@ import uuid
 from typing import List, Optional, Union
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, Response, Request, Form
+from ..crud import crud_all
 from pydantic import BaseModel
 from sqlalchemy import or_, cast, Date
 from sqlalchemy.orm import Session, joinedload
@@ -35,7 +36,7 @@ def process_upload_task(file_id: int, temp_path: str, original_filename: str, us
     s3_manager = S3Manager()
     try:
         # Retrieve File Record
-        db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+        db_file = crud_all.p_d_f_file.get_first(db, PDFFile.file_id == file_id)
         if not db_file:
             logger.info(f"[ERROR] Process Task Failed: File {file_id} not found in DB")
             return
@@ -234,7 +235,7 @@ def run_manual_ocr_task(file_id: int):
     db = SessionLocal()
     s3_manager = S3Manager()
     try:
-        db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+        db_file = crud_all.p_d_f_file.get_first(db, PDFFile.file_id == file_id)
         if not db_file:
             return
 
@@ -328,7 +329,7 @@ def run_manual_ocr_task(file_id: int):
                 # Platform Fallback
                 if not is_enabled or not api_key:
                     from ..models import SystemSetting
-                    platform_ai = db.query(SystemSetting).filter(SystemSetting.key == "platform_ai_settings").first()
+                    platform_ai = crud_all.system_setting.get_first(db, SystemSetting.key == "platform_ai_settings")
                     if platform_ai and platform_ai.value:
                         import json
                         try:
@@ -389,7 +390,7 @@ def process_pdf_background_legacy(file_id: int, file_bytes: bytes):
     try:
         text = extract_text_from_pdf(file_bytes)
         if text:
-            db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+            db_file = crud_all.p_d_f_file.get_first(db, PDFFile.file_id == file_id)
             if db_file:
                 db_file.ocr_text = text
                 db_file.is_searchable = True
@@ -562,31 +563,31 @@ def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session =
 
     # 1.8 Check Duplication of MRD and UHID if updated
     if patient_update.patient_u_id and patient_update.patient_u_id.strip() and patient_update.patient_u_id.strip() != db_patient.patient_u_id:
-        existing_mrd = db.query(Patient).filter(
+        existing_mrd = crud_all.patient.get_first(db, 
             Patient.hospital_id == db_patient.hospital_id,
             Patient.patient_u_id == patient_update.patient_u_id.strip(),
             Patient.record_id != patient_id
-        ).first()
+        )
         if existing_mrd:
             raise HTTPException(status_code=400, detail=f"MRD Number '{patient_update.patient_u_id}' already exists.")
 
     if patient_update.uhid and patient_update.uhid.strip() and patient_update.uhid.strip() != db_patient.uhid:
-        existing_uhid = db.query(Patient).filter(
+        existing_uhid = crud_all.patient.get_first(db, 
             Patient.hospital_id == db_patient.hospital_id,
             Patient.uhid == patient_update.uhid.strip(),
             Patient.record_id != patient_id
-        ).first()
+        )
         if existing_uhid:
             raise HTTPException(status_code=400, detail=f"UHID '{patient_update.uhid}' already exists.")
 
     # Check Duplication of Aadhaar if updated
     if patient_update.aadhaar_number and patient_update.aadhaar_number.strip() and patient_update.aadhaar_number.strip() != db_patient.aadhaar_number:
-        existing_aadhaar = db.query(Patient).filter(
+        existing_aadhaar = crud_all.patient.get_first(db, 
             Patient.hospital_id == db_patient.hospital_id,
             Patient.aadhaar_number == patient_update.aadhaar_number.strip(),
             Patient.is_deleted == False,
             Patient.record_id != patient_id
-        ).first()
+        )
         if existing_aadhaar:
             raise HTTPException(status_code=400, detail=f"Patient with Aadhaar Number '{patient_update.aadhaar_number}' is already registered.")
 
@@ -594,13 +595,13 @@ def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session =
     effective_name = patient_update.full_name or db_patient.full_name
     effective_contact = patient_update.contact_number or db_patient.contact_number
     if (patient_update.full_name or patient_update.contact_number):
-        existing_name_contact = db.query(Patient).filter(
+        existing_name_contact = crud_all.patient.get_first(db, 
             Patient.hospital_id == db_patient.hospital_id,
             Patient.full_name.ilike(effective_name.strip()),
             Patient.contact_number == effective_contact.strip(),
             Patient.is_deleted == False,
             Patient.record_id != patient_id
-        ).first()
+        )
         if existing_name_contact:
             raise HTTPException(status_code=400, detail=f"Patient '{effective_name}' with Contact Number '{effective_contact}' is already registered.")
 
@@ -635,17 +636,17 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
     if current_user.hospital and current_user.hospital.custom_pricing:
         max_patients = current_user.hospital.custom_pricing.get("max_patients")
         if max_patients:
-            current_count = db.query(Patient).filter(Patient.hospital_id == hospital_id, Patient.is_deleted == False).count()
+            current_count = crud_all.patient.count(db, Patient.hospital_id == hospital_id, Patient.is_deleted == False)
             if current_count >= max_patients:
                 from fastapi import status
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Patient quota exceeded (Max: {max_patients}). Please upgrade to add more patients.")
 
     # 1. Check for Duplicate MRD (Explicit Check for better error)
     if patient.patient_u_id and patient.patient_u_id.strip():
-        existing_mrd = db.query(Patient).filter(
+        existing_mrd = crud_all.patient.get_first(db, 
             Patient.hospital_id == hospital_id,
             Patient.patient_u_id == patient.patient_u_id.strip()
-        ).first()
+        )
         
         if existing_mrd:
             raise HTTPException(status_code=400, detail=f"MRD Number '{patient.patient_u_id}' already exists.")
@@ -656,31 +657,31 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
         res = get_next_uhid(hospital_id=hospital_id, db=db, current_user=current_user)
         patient.uhid = res["next_id"]
     else:
-        existing_uhid = db.query(Patient).filter(
+        existing_uhid = crud_all.patient.get_first(db, 
             Patient.hospital_id == hospital_id,
             Patient.uhid == patient.uhid.strip()
-        ).first()
+        )
         if existing_uhid:
             raise HTTPException(status_code=400, detail=f"UHID '{patient.uhid}' already exists.")
 
     # 1.6 Check for Duplicate Aadhaar Number (if provided)
     if patient.aadhaar_number and patient.aadhaar_number.strip():
-        existing_aadhaar = db.query(Patient).filter(
+        existing_aadhaar = crud_all.patient.get_first(db, 
             Patient.hospital_id == hospital_id,
             Patient.aadhaar_number == patient.aadhaar_number.strip(),
             Patient.is_deleted == False
-        ).first()
+        )
         if existing_aadhaar:
             raise HTTPException(status_code=400, detail=f"Patient with Aadhaar Number '{patient.aadhaar_number}' is already registered.")
 
     # 1.7 Check for Duplicate Name + Contact Number
     if patient.full_name and patient.contact_number:
-        existing_name_contact = db.query(Patient).filter(
+        existing_name_contact = crud_all.patient.get_first(db, 
             Patient.hospital_id == hospital_id,
             Patient.full_name.ilike(patient.full_name.strip()),
             Patient.contact_number == patient.contact_number.strip(),
             Patient.is_deleted == False
-        ).first()
+        )
         if existing_name_contact:
             raise HTTPException(
                 status_code=409, 
@@ -755,7 +756,7 @@ def get_patient_timeline(
     current_user: User = Depends(get_current_user)
 ):
     # Fetch Patient to ensure existence and permission
-    patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+    patient = crud_all.patient.get_first(db, Patient.record_id == patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
         
@@ -790,7 +791,7 @@ def get_patient_timeline(
         
     # 3. Admissions (IPD)
     from ..models import IPDAdmission
-    admissions = db.query(IPDAdmission).filter(IPDAdmission.patient_id == patient_id).all()
+    admissions = crud_all.i_p_d_admission.get_multi(db, IPDAdmission.patient_id == patient_id)
     for adm in admissions:
         # Use patient's ipd_number for now, or could be stored on admission
         timeline.append({
@@ -831,7 +832,7 @@ async def upload_patient_file(
         
         # 0. Authorization
         is_platform = current_user.role in ["superadmin", "superadmin_staff"]
-        patient = db.query(Patient).filter(Patient.record_id == patient_id, Patient.is_deleted == False).first()
+        patient = crud_all.patient.get_first(db, Patient.record_id == patient_id, Patient.is_deleted == False)
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
             
@@ -842,7 +843,7 @@ async def upload_patient_file(
         if current_user.hospital and current_user.hospital.custom_pricing:
             max_records = current_user.hospital.custom_pricing.get("max_records")
             if max_records:
-                current_count = db.query(PDFFile).filter(PDFFile.hospital_id == current_user.hospital_id).count()
+                current_count = crud_all.p_d_f_file.count(db, PDFFile.hospital_id == current_user.hospital_id)
                 if current_count >= max_records:
                     raise HTTPException(status_code=403, detail=f"Record quota exceeded (Max: {max_records}). Please upgrade to upload more records.")
 
@@ -972,7 +973,7 @@ def trigger_manual_ocr(
     
     # Optionally delete old extractions
     from ..models import AIExtraction
-    db.query(AIExtraction).filter(AIExtraction.file_id == file_id).delete()
+    crud_all.a_i_extraction.get_first(db, AIExtraction.file_id == file_id).delete()
     
     db.commit()
     
@@ -998,7 +999,7 @@ def search_files(q: str, hospital_id: Optional[int] = None, db: Session = Depend
             PDFFile.ocr_text.ilike(f"%{q}%"),
             PDFFile.tags.ilike(f"%{q}%")
         )
-    ).all()
+    )
     
     # Audit Search (Optional - can be noisy)
     # try:
@@ -1068,36 +1069,14 @@ def get_next_uhid(hospital_id: Optional[int] = None, db: Session = Depends(get_d
     if not target_hospital_id:
         raise HTTPException(status_code=400, detail="Hospital Context Required")
 
-    hospital = db.query(Hospital).filter(Hospital.hospital_id == target_hospital_id).first()
-    id_settings = hospital.id_generation_settings or {} if hospital else {}
+    from app.services.id_generator import generate_next_id, get_hospital_id_settings
     
-    conf_prefix = id_settings.get("uhid_prefix", "")
-    conf_postfix = id_settings.get("uhid_postfix", "")
-    conf_padding = int(id_settings.get("uhid_padding", 4))
-
-    # Fetch all UHIDs for this hospital to find max
-    patients = db.query(Patient.uhid).filter(Patient.hospital_id == target_hospital_id).all()
+    settings = get_hospital_id_settings(db, target_hospital_id, "uhid")
+    mode = settings.get("mode", "semi-auto")
     
-    max_val = 0
-    prefix = conf_prefix or "DF-" 
+    next_id = generate_next_id(db, target_hospital_id, "uhid", Patient, Patient.uhid)
     
-    import re
-    
-    for p in patients:
-        uid = p.uhid
-        if not uid: continue
-        # Extract number from string
-        numbers = re.findall(r'\d+', uid)
-        if numbers:
-            num_part = int(numbers[-1])
-            if num_part > max_val:
-                max_val = num_part
-
-    # If no patients, start at 1
-    next_val = max_val + 1
-        
-    padded = str(next_val).zfill(conf_padding)
-    return {"next_id": f"{conf_prefix or prefix}{padded}{conf_postfix}"}
+    return {"next_id": next_id, "mode": mode}
 
 @router.get("/doctors", response_model=List[str])
 def get_unique_doctors(
@@ -1158,7 +1137,7 @@ def get_patients(
         if is_doctor:
             from ..models import PatientDoctorAssignment, DoctorProfile
             # Find the doctor profile for this user
-            doctor_profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user.user_id).first()
+            doctor_profile = crud_all.doctor_profile.get_first(db, DoctorProfile.user_id == current_user.user_id)
             if doctor_profile:
                 query = query.join(PatientDoctorAssignment).filter(PatientDoctorAssignment.doctor_profile_id == doctor_profile.profile_id)
             else:
@@ -1207,7 +1186,7 @@ def get_patient(patient_id: int, db: Session = Depends(get_db), current_user: Us
         query = query.filter(Patient.hospital_id == current_user.hospital_id)
         if is_doctor:
             from ..models import PatientDoctorAssignment, DoctorProfile
-            doctor_profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user.user_id).first()
+            doctor_profile = crud_all.doctor_profile.get_first(db, DoctorProfile.user_id == current_user.user_id)
             if doctor_profile:
                 query = query.join(PatientDoctorAssignment).filter(PatientDoctorAssignment.doctor_profile_id == doctor_profile.profile_id)
             else:
@@ -1253,7 +1232,7 @@ def check_uhid_exists(uhid_no: str, db: Session = Depends(get_db), current_user:
     # but for hospital staff, search their own DB first.
     
     # Finding ANY patient record with this UHID
-    patient = db.query(Patient).filter(Patient.uhid == uhid_no, Patient.is_deleted == False).order_by(Patient.created_at.desc()).first()
+    patient = crud_all.patient.get_first(db, Patient.uhid == uhid_no, Patient.is_deleted == False).order_by(Patient.created_at.desc())
     
     if patient:
         return {
@@ -1353,7 +1332,7 @@ async def extract_patient_details_from_file(
         # Check Hospital first
         if current_user.hospital_id:
             from ..models import Hospital
-            hosp = db.query(Hospital).filter(Hospital.hospital_id == current_user.hospital_id).first()
+            hosp = crud_all.hospital.get_first(db, Hospital.hospital_id == current_user.hospital_id)
             if hosp and hosp.ai_settings:
                 ai_config = hosp.ai_settings
                 api_key = ai_config.get("api_key")
@@ -1362,7 +1341,7 @@ async def extract_patient_details_from_file(
         # Check Platform Fallback
         if not is_enabled or not api_key:
             from ..models import SystemSetting
-            platform_ai = db.query(SystemSetting).filter(SystemSetting.key == "platform_ai_settings").first()
+            platform_ai = crud_all.system_setting.get_first(db, SystemSetting.key == "platform_ai_settings")
             if platform_ai and platform_ai.value:
                 import json
                 try:
@@ -1627,7 +1606,7 @@ def serve_file(
 
 @router.get("/files/{file_id}/status")
 def get_file_status(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+    file = crud_all.p_d_f_file.get_first(db, PDFFile.file_id == file_id)
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
         
@@ -1650,7 +1629,7 @@ def request_restore_from_glacier(
     Request S3 to restore a file from Glacier/Cold Storage.
     Emails the hospital admin once ready.
     """
-    pdf_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+    pdf_file = crud_all.p_d_f_file.get_first(db, PDFFile.file_id == file_id)
     if not pdf_file:
         raise HTTPException(status_code=404, detail="File not found")
         
@@ -1699,7 +1678,7 @@ def monitor_restoration_and_email(file_id: int, hospital_email: str):
     try:
         # Check every 60s for 6 hours (Standard retrieval limit). 
         for _ in range(360): 
-            f = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+            f = crud_all.p_d_f_file.get_first(db, PDFFile.file_id == file_id)
             if not f: break
             
             info = s3_manager.get_object_info(f.s3_key)
@@ -1729,7 +1708,7 @@ def monitor_restoration_and_email(file_id: int, hospital_email: str):
 
 @router.post("/files/{file_id}/cancel")
 def cancel_upload(file_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+    file = crud_all.p_d_f_file.get_first(db, PDFFile.file_id == file_id)
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
         
@@ -1880,12 +1859,12 @@ async def delete_file(
     logger.info(f"[DELETE] DELETE request for file_id: {file_id}")
     
     # Get the file
-    db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+    db_file = crud_all.p_d_f_file.get_first(db, PDFFile.file_id == file_id)
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
     
     # Authorization check
-    patient = db.query(Patient).filter(Patient.record_id == db_file.record_id, Patient.is_deleted == False).first()
+    patient = crud_all.patient.get_first(db, Patient.record_id == db_file.record_id, Patient.is_deleted == False)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     
@@ -1915,9 +1894,9 @@ async def delete_file(
     
     # Update storage usage
     file_size_mb = db_file.file_size_mb
-    usage = db.query(BandwidthUsage).filter(
+    usage = crud_all.bandwidth_usage.get_first(db, 
         BandwidthUsage.hospital_id == patient.hospital_id
-    ).first()
+    )
     if usage:
         usage.used_mb = max(0, usage.used_mb - file_size_mb)
     
@@ -1944,7 +1923,7 @@ def update_file_tags(
     current_user: User = Depends(get_current_user)
 ):
     """Update manual tags for a file"""
-    db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+    db_file = crud_all.p_d_f_file.get_first(db, PDFFile.file_id == file_id)
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
         
@@ -2018,7 +1997,7 @@ def request_file_download(
     SuperAdmin: Immediate direct download link.
     Hospital User: Email delivery as attachment (From info@), limit 5 per lifetime.
     """
-    pdf_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+    pdf_file = crud_all.p_d_f_file.get_first(db, PDFFile.file_id == file_id)
     if not pdf_file:
         raise HTTPException(status_code=404, detail="File not found")
         
@@ -2120,19 +2099,19 @@ class AssignDoctorRequest(BaseModel):
 
 @router.post("/{patient_id}/assign-doctor")
 def assign_doctor(patient_id: int, request: AssignDoctorRequest, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_PATIENTS))):
-    patient = db.query(Patient).filter(Patient.record_id == patient_id, Patient.hospital_id == current_user.hospital_id).first()
+    patient = crud_all.patient.get_first(db, Patient.record_id == patient_id, Patient.hospital_id == current_user.hospital_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     
     from ..models import DoctorProfile, PatientDoctorAssignment
-    doctor = db.query(DoctorProfile).filter(DoctorProfile.profile_id == request.profile_id, DoctorProfile.hospital_id == current_user.hospital_id).first()
+    doctor = crud_all.doctor_profile.get_first(db, DoctorProfile.profile_id == request.profile_id, DoctorProfile.hospital_id == current_user.hospital_id)
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
         
-    existing = db.query(PatientDoctorAssignment).filter(
+    existing = crud_all.patient_doctor_assignment.get_first(db, 
         PatientDoctorAssignment.patient_id == patient_id,
         PatientDoctorAssignment.doctor_profile_id == request.profile_id
-    ).first()
+    )
     
     if existing:
         return {"message": "Doctor already assigned"}
@@ -2146,14 +2125,14 @@ def assign_doctor(patient_id: int, request: AssignDoctorRequest, db: Session = D
 def unassign_doctor(patient_id: int, profile_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_PATIENTS))):
     from ..models import PatientDoctorAssignment
     # Check patient access implicitly
-    patient = db.query(Patient).filter(Patient.record_id == patient_id, Patient.hospital_id == current_user.hospital_id).first()
+    patient = crud_all.patient.get_first(db, Patient.record_id == patient_id, Patient.hospital_id == current_user.hospital_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
         
-    assignment = db.query(PatientDoctorAssignment).filter(
+    assignment = crud_all.patient_doctor_assignment.get_first(db, 
         PatientDoctorAssignment.patient_id == patient_id,
         PatientDoctorAssignment.doctor_profile_id == profile_id
-    ).first()
+    )
     
     if assignment:
         db.delete(assignment)
@@ -2173,7 +2152,7 @@ def get_recycled_patients(
 ):
     """Get list of soft-deleted patients (Recycle Bin)"""
     is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
-    query = db.query(Patient).filter(Patient.is_deleted == True)
+    query = db.query(Patient).filter(Patient.is_deleted == True).first()
     
     if not is_platform:
         query = query.filter(Patient.hospital_id == current_user.hospital_id)
@@ -2212,7 +2191,7 @@ def restore_patient(
 ):
     """Restore a patient from the recycle bin"""
     is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
-    patient = db.query(Patient).filter(Patient.record_id == patient_id, Patient.is_deleted == True).first()
+    patient = crud_all.patient.get_first(db, Patient.record_id == patient_id, Patient.is_deleted == True)
     
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found in recycle bin")

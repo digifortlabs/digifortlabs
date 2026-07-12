@@ -56,12 +56,12 @@ class BandwidthMiddleware(BaseHTTPMiddleware):
                 )
                 db.add(usage_record)
             
-            # Check Limit
-            if usage_record.used_mb + size_mb > usage_record.quota_limit_mb:
-                return JSONResponse(
-                    status_code=429,
-                    content={"detail": "Monthly bandwidth quota exceeded (1GB Limit)."}
-                )
+            # Check Limit (Disabled for now)
+            # if usage_record.used_mb + size_mb > usage_record.quota_limit_mb:
+            #     return JSONResponse(
+            #         status_code=429,
+            #         content={"detail": "Monthly bandwidth quota exceeded (1GB Limit)."}
+            #     )
 
             # Process Request
             response = await call_next(request)

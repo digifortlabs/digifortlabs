@@ -6,6 +6,7 @@ from datetime import datetime
 from fastapi import File, UploadFile, Form
 import os
 from ..database import get_db
+from ..crud import crud_all
 from ..models import User, LabTestCatalog, LabOrder, LabResult, Patient, DoctorProfile
 from .auth import get_current_user
 
@@ -56,7 +57,7 @@ def get_catalog(
             t = LabTestCatalog(hospital_id=target_hospital, test_name=name, price=price)
             db.add(t)
         db.commit()
-        catalog = db.query(LabTestCatalog).filter(LabTestCatalog.hospital_id == target_hospital).all()
+        catalog = crud_all.lab_test_catalog.get_multi(db, LabTestCatalog.hospital_id == target_hospital)
         
     return catalog
 
@@ -118,7 +119,7 @@ def seed_comprehensive_catalog(
         existing = db.query(LabTestCatalog).filter(
             LabTestCatalog.hospital_id == target_hospital,
             LabTestCatalog.test_name.ilike(name)
-        ).first()
+        )
         if not existing:
             new_test = LabTestCatalog(
                 hospital_id=target_hospital,
@@ -139,10 +140,10 @@ def add_catalog_item(
 ):
     target_hospital = current_user.hospital_id
     
-    existing = db.query(LabTestCatalog).filter(
+    existing = crud_all.lab_test_catalog.get_first(db, 
         LabTestCatalog.hospital_id == target_hospital, 
         LabTestCatalog.test_name.ilike(payload.test_name)
-    ).first()
+    )
     
     if existing:
         return existing
@@ -167,10 +168,10 @@ def update_catalog_item(
 ):
     target_hospital = current_user.hospital_id
     
-    existing = db.query(LabTestCatalog).filter(
+    existing = crud_all.lab_test_catalog.get_first(db, 
         LabTestCatalog.hospital_id == target_hospital, 
         LabTestCatalog.test_id == test_id
-    ).first()
+    )
     
     if not existing:
         raise HTTPException(status_code=404, detail="Test not found in catalog")
@@ -191,10 +192,10 @@ def delete_catalog_item(
 ):
     target_hospital = current_user.hospital_id
     
-    existing = db.query(LabTestCatalog).filter(
+    existing = crud_all.lab_test_catalog.get_first(db, 
         LabTestCatalog.hospital_id == target_hospital, 
         LabTestCatalog.test_id == test_id
-    ).first()
+    )
     
     if not existing:
         raise HTTPException(status_code=404, detail="Test not found in catalog")
@@ -212,16 +213,21 @@ def create_orders(
     from ..models import IPDAdmission, PatientInvoice, PatientInvoiceItem
     
     # Determine doctor if applicable
-    doctor = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user.user_id).first()
+    doctor = crud_all.doctor_profile.get_first(db, DoctorProfile.user_id == current_user.user_id)
     
     created_orders = []
     total_ipd_charge = 0.0
     
+    from app.services.id_generator import generate_next_id
+
     for t_id in payload.test_ids:
-        test_info = db.query(LabTestCatalog).filter(LabTestCatalog.test_id == t_id).first()
+        test_info = crud_all.lab_test_catalog.get_first(db, LabTestCatalog.test_id == t_id)
         test_price = test_info.price if test_info else 0.0
         
+        generated_order_number = generate_next_id(db, current_user.hospital_id, "pathlab_order", LabOrder, LabOrder.order_number)
+        
         order = LabOrder(
+            order_number=generated_order_number,
             patient_id=payload.patient_id,
             hospital_id=current_user.hospital_id,
             doctor_id=doctor.profile_id if doctor else None,
@@ -246,7 +252,7 @@ def create_orders(
             total_ipd_charge += test_price
             
             # Add line item immediately
-            adm = db.query(IPDAdmission).filter(IPDAdmission.admission_id == payload.visit_id).first()
+            adm = crud_all.i_p_d_admission.get_first(db, IPDAdmission.admission_id == payload.visit_id)
             if adm and adm.patient_invoice_id:
                 invoice_item = PatientInvoiceItem(
                     invoice_id=adm.patient_invoice_id,
@@ -261,9 +267,9 @@ def create_orders(
                 
     # Finalize IPD Invoice subtotal
     if payload.visit_type == "IPD" and payload.visit_id and total_ipd_charge > 0:
-        adm = db.query(IPDAdmission).filter(IPDAdmission.admission_id == payload.visit_id).first()
+        adm = crud_all.i_p_d_admission.get_first(db, IPDAdmission.admission_id == payload.visit_id)
         if adm and adm.patient_invoice_id:
-            invoice = db.query(PatientInvoice).filter(PatientInvoice.invoice_id == adm.patient_invoice_id).first()
+            invoice = crud_all.patient_invoice.get_first(db, PatientInvoice.invoice_id == adm.patient_invoice_id)
             if invoice:
                 invoice.subtotal = float(invoice.subtotal or 0) + total_ipd_charge
                 invoice.total_amount = float(invoice.total_amount or 0) + total_ipd_charge
@@ -293,6 +299,7 @@ def get_pending_orders(
     for order, res, test, pat, doc in orders:
         result.append({
             "order_id": order.order_id,
+            "order_number": order.order_number or f"LAB-{order.order_id}",
             "patient_name": pat.full_name,
             "mrd_number": pat.patient_u_id,
             "test_name": test.test_name,
@@ -326,6 +333,7 @@ def get_completed_orders(
     for order, res, test, pat, doc in orders:
         result.append({
             "order_id": order.order_id,
+            "order_number": order.order_number or f"LAB-{order.order_id}",
             "patient_name": pat.full_name,
             "mrd_number": pat.patient_u_id,
             "test_name": test.test_name,
@@ -347,23 +355,23 @@ def delete_order(
 ):
     from ..models import IPDAdmission, PatientInvoice, PatientInvoiceItem
     
-    order = db.query(LabOrder).filter(LabOrder.order_id == order_id).first()
+    order = crud_all.lab_order.get_first(db, LabOrder.order_id == order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
         
-    invoice_item = db.query(PatientInvoiceItem).filter(
+    invoice_item = crud_all.patient_invoice_item.get_first(db, 
         PatientInvoiceItem.charge_type == "LAB_TEST",
         PatientInvoiceItem.reference_id == order.order_id
-    ).first()
+    )
     
     if invoice_item:
-        invoice = db.query(PatientInvoice).filter(PatientInvoice.invoice_id == invoice_item.invoice_id).first()
+        invoice = crud_all.patient_invoice.get_first(db, PatientInvoice.invoice_id == invoice_item.invoice_id)
         if invoice:
             invoice.subtotal = float(invoice.subtotal or 0) - float(invoice_item.amount or 0)
             invoice.total_amount = float(invoice.total_amount or 0) - float(invoice_item.amount or 0)
         db.delete(invoice_item)
         
-    db.query(LabResult).filter(LabResult.order_id == order_id).delete()
+    crud_all.lab_result.get_first(db, LabResult.order_id == order_id).delete()
     db.delete(order)
     db.commit()
     
@@ -385,7 +393,7 @@ def enter_result(
     result.technician_id = current_user.user_id
     result.completed_at = datetime.now()
     
-    order = db.query(LabOrder).filter(LabOrder.order_id == payload.order_id).first()
+    order = crud_all.lab_order.get_first(db, LabOrder.order_id == payload.order_id)
     if order:
         order.status = "Completed"
         
@@ -405,7 +413,7 @@ def enter_result_with_upload(
 ):
     from ..services.s3_handler import S3Manager
     
-    result = db.query(LabResult).filter(LabResult.order_id == order_id, LabResult.test_id == test_id).first()
+    result = crud_all.lab_result.get_first(db, LabResult.order_id == order_id, LabResult.test_id == test_id)
     if not result:
         raise HTTPException(status_code=404, detail="Lab result record not found")
         
@@ -425,7 +433,7 @@ def enter_result_with_upload(
         if success:
             result.report_file_url = url
             
-    order = db.query(LabOrder).filter(LabOrder.order_id == order_id).first()
+    order = crud_all.lab_order.get_first(db, LabOrder.order_id == order_id)
     if order:
         order.status = "Completed"
         
@@ -439,7 +447,7 @@ def delete_report(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    result = db.query(LabResult).filter(LabResult.order_id == order_id, LabResult.test_id == test_id).first()
+    result = crud_all.lab_result.get_first(db, LabResult.order_id == order_id, LabResult.test_id == test_id)
     if not result:
         raise HTTPException(status_code=404, detail="Lab result record not found")
     

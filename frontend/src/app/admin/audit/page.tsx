@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { apiFetch } from '@/config/api';
+import { apiFetch, API_URL } from '@/config/api';
 import { format } from 'date-fns';
 import { Search, Download, Clock, User, Activity, Filter, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -59,7 +59,7 @@ export default function AuditPage() {
 
     const handleExport = async () => {
         try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/audit/logs?export_csv=true`, {
+            const response = await fetch(`${API_URL}/audit/logs?export_csv=true`, {
                 credentials: 'include'
             });
 

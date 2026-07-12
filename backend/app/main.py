@@ -142,6 +142,10 @@ async def latency_middleware(request, call_next):
     return response
 
 from fastapi.middleware.cors import CORSMiddleware
+import re
+
+# CORS origin validation regex (matches localhost, 127.0.0.1, and any subdomain of digifortlabs.com)
+CORS_ORIGIN_REGEX = r"^https?://(localhost|127\.0\.0\.1|(.*\.)?digifortlabs\.com)(:\d+)?$"
 
 @app.middleware("http")
 async def remove_trailing_slash(request: Request, call_next):
@@ -171,10 +175,19 @@ app.add_middleware(BandwidthMiddleware)
 
 # IMPORTANT: CORS must be added LAST to be the outermost middleware 
 # and handle preflight requests before security headers or rate limits.
-CORS_ORIGIN_REGEX = r"^(https://(.*\.)?digifortlabs\.com|http://(.*\.)?localhost(:\d+)?|http://(.*\.)?127\.0\.0\.1(:\d+)?)$"
 
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=[
+        "https://digifortlabs.com",
+        "https://admin.digifortlabs.com",
+        "https://www.digifortlabs.com",
+        "https://dome.digifortlabs.com",
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001"
+    ],
     allow_origin_regex=CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
@@ -356,12 +369,13 @@ app.include_router(clinic.router, dependencies=[Depends(require_module("clinic")
 from .routers import emergency
 app.include_router(emergency.router)
 
-from .routers import tpa, nursing, pharmacy, pharmacy_inventory, lab
+from .routers import tpa, nursing, pharmacy, pharmacy_inventory, lab, maternity
 app.include_router(tpa.router)
 app.include_router(nursing.router)
 app.include_router(pharmacy.router)
 app.include_router(pharmacy_inventory.router)
 app.include_router(lab.router)
+app.include_router(maternity.router)
 
 from .routers import whatsapp
 app.include_router(whatsapp.router)

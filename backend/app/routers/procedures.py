@@ -9,6 +9,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import ICD11ProcedureCode, Patient, PatientProcedure, User
 from ..routers.auth import get_current_user
 from ..services.icd11_service import icd_service
@@ -50,7 +51,7 @@ def search_procedures(q: str, db: Session = Depends(get_db), current_user: User 
     
     try:
         # 1. Local Search (Prioritized: Exact Code > Prefix Code > Description)
-        local_results = db.query(ICD11ProcedureCode).filter(
+        local_results = crud_all.i_c_d11_procedure_code.get_first(db, 
             or_(
                 ICD11ProcedureCode.code.ilike(f"{q}%"),
                 ICD11ProcedureCode.description.ilike(f"%{q}%")
@@ -103,15 +104,15 @@ def add_patient_procedure(
     """Add a procedure to a patient record."""
     
     # 1. Verify Patient
-    patient = db.query(Patient).filter(
+    patient = crud_all.patient.get_first(db, 
         Patient.record_id == patient_id,
         Patient.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not patient:
         raise HTTPException(status_code=404, detail="Patient record not found")
 
     # 2. Verify Procedure Code
-    code_exists = db.query(ICD11ProcedureCode).filter(ICD11ProcedureCode.code == proc.code).first()
+    code_exists = crud_all.i_c_d11_procedure_code.get_first(db, ICD11ProcedureCode.code == proc.code)
     if not code_exists:
         raise HTTPException(status_code=400, detail="Invalid Procedure Code")
 
@@ -140,14 +141,14 @@ def add_patient_procedure(
 @router.get("/patients/{patient_id}/procedures", response_model=List[PatientProcedureResponse])
 def get_patient_procedures(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get all procedures for a patient."""
-    patient = db.query(Patient).filter(
+    patient = crud_all.patient.get_first(db, 
         Patient.record_id == patient_id,
         Patient.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not patient:
         raise HTTPException(status_code=404, detail="Patient record not found")
     
-    procs = db.query(PatientProcedure).filter(PatientProcedure.record_id == patient_id).order_by(PatientProcedure.performed_at.desc()).all()
+    procs = db.query(PatientProcedure).filter(PatientProcedure.record_id == patient_id).all().order_by(PatientProcedure.performed_at.desc())
     
     results = []
     for p in procs:
@@ -174,7 +175,7 @@ def delete_patient_procedure(patient_id: int, proc_id: int, db: Session = Depend
     proc = db.query(PatientProcedure).filter(
         PatientProcedure.procedure_id == proc_id,
         PatientProcedure.record_id == patient_id
-    ).first()
+    )
     
     if not proc:
         raise HTTPException(status_code=404, detail="Procedure not found")

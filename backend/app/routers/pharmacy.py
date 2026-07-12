@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from datetime import datetime
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import User, Prescription, Patient, OPDVisit, InventoryItem, PharmacyDispense, PharmacyDirectSale
 from .auth import get_current_user
 
@@ -84,24 +85,28 @@ def dispense_prescription(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    rx = db.query(Prescription).filter(Prescription.prescription_id == payload.prescription_id).first()
+    rx = crud_all.prescription.get_first(db, Prescription.prescription_id == payload.prescription_id)
     if not rx:
         raise HTTPException(status_code=404, detail="Prescription not found")
         
-    visit = db.query(OPDVisit).filter(OPDVisit.visit_id == rx.visit_id).first()
+    visit = crud_all.o_p_d_visit.get_first(db, OPDVisit.visit_id == rx.visit_id)
     
     # Try to find medicine in inventory to deduct stock
-    inventory_item = db.query(InventoryItem).filter(
+    inventory_item = crud_all.inventory_item.get_first(db, 
         InventoryItem.hospital_id == visit.hospital_id,
         InventoryItem.name.ilike(rx.medicine_name)
-    ).first()
+    )
     
     if inventory_item:
         if inventory_item.current_stock < payload.quantity:
             raise HTTPException(status_code=400, detail="Insufficient stock in pharmacy")
         inventory_item.current_stock -= payload.quantity
     
+    from app.services.id_generator import generate_next_id
+    generated_dispense = generate_next_id(db, visit.hospital_id, "pharma_bill", PharmacyDispense, PharmacyDispense.dispense_number)
+    
     dispense = PharmacyDispense(
+        dispense_number=generated_dispense,
         prescription_id=rx.prescription_id,
         patient_id=visit.patient_id,
         hospital_id=visit.hospital_id,
@@ -127,8 +132,7 @@ def search_medicines(
 ):
     target_hospital = hospital_id if hospital_id else current_user.hospital_id
     
-    medicines = db.query(InventoryItem).filter(
-        InventoryItem.hospital_id == target_hospital,
+    medicines = db.query(InventoryItem).filter(InventoryItem.hospital_id == target_hospital,
         InventoryItem.category == "Medicine",
         InventoryItem.name.ilike(f"%{query}%")
     ).all()
@@ -145,10 +149,10 @@ def auto_add_medicine(
     target_hospital = hospital_id if hospital_id else current_user.hospital_id
     
     # Check if exists
-    existing = db.query(InventoryItem).filter(
+    existing = crud_all.inventory_item.get_first(db, 
         InventoryItem.hospital_id == target_hospital,
         InventoryItem.name.ilike(name)
-    ).first()
+    )
     
     if existing:
         return {"id": existing.item_id, "name": existing.name}
@@ -185,7 +189,7 @@ def get_ipd_pending_prescriptions(
     ).filter(
         IPDAdmission.hospital_id == target_hospital,
         IPDAdmission.status.in_(["admitted", "recovery"])
-    ).all()
+    )
     
     result = []
     for adm, pat, ward, bed in admissions:
@@ -219,7 +223,7 @@ def dispense_ipd_prescription(
 ):
     from ..models import IPDAdmission, InventoryItem, PatientInvoice, PatientInvoiceItem
     
-    adm = db.query(IPDAdmission).filter(IPDAdmission.admission_id == payload.admission_id).first()
+    adm = crud_all.i_p_d_admission.get_first(db, IPDAdmission.admission_id == payload.admission_id)
     if not adm:
         raise HTTPException(status_code=404, detail="Admission not found")
         
@@ -237,10 +241,10 @@ def dispense_ipd_prescription(
         raise HTTPException(status_code=400, detail="Order already dispensed")
         
     # Deduct stock if inventory exists
-    inventory_item = db.query(InventoryItem).filter(
+    inventory_item = crud_all.inventory_item.get_first(db, 
         InventoryItem.hospital_id == adm.hospital_id,
         InventoryItem.name.ilike(target_order.get("medicine_name"))
-    ).first()
+    )
     
     if inventory_item:
         if inventory_item.current_stock < payload.quantity:
@@ -269,7 +273,7 @@ def dispense_ipd_prescription(
         )
         db.add(invoice_item)
         
-        invoice = db.query(PatientInvoice).filter(PatientInvoice.invoice_id == adm.patient_invoice_id).first()
+        invoice = crud_all.patient_invoice.get_first(db, PatientInvoice.invoice_id == adm.patient_invoice_id)
         if invoice:
             invoice.subtotal = float(invoice.subtotal or 0) + payload.total_price
             invoice.total_amount = float(invoice.total_amount or 0) + payload.total_price
@@ -289,21 +293,21 @@ def create_direct_sale(
     from ..models import MedicineBatch
     # 1. Deduct Stock using FEFO
     for item in payload.items:
-        inventory_item = db.query(InventoryItem).filter(
+        inventory_item = crud_all.inventory_item.get_first(db, 
             InventoryItem.item_id == item.item_id,
             InventoryItem.hospital_id == current_user.hospital_id
-        ).first()
+        )
         
         if not inventory_item or inventory_item.current_stock < item.quantity:
             raise HTTPException(status_code=400, detail=f"Insufficient stock for {item.name}")
             
         qty_to_deduct = item.quantity
         
-        batches = db.query(MedicineBatch).filter(
+        batches = crud_all.medicine_batch.get_multi(db, 
             MedicineBatch.item_id == item.item_id,
             MedicineBatch.hospital_id == current_user.hospital_id,
             MedicineBatch.current_stock > 0
-        ).order_by(MedicineBatch.expiry_date.asc().nulls_last()).all()
+        ).order_by(MedicineBatch.expiry_date.asc().nulls_last())
         
         for batch in batches:
             if qty_to_deduct <= 0:
@@ -318,8 +322,12 @@ def create_direct_sale(
                 
         inventory_item.current_stock -= item.quantity
 
+    from app.services.id_generator import generate_next_id
+    generated_bill = generate_next_id(db, current_user.hospital_id, "pharma_bill", PharmacyDirectSale, PharmacyDirectSale.bill_number)
+
     # 2. Record Sale
     sale = PharmacyDirectSale(
+        bill_number=generated_bill,
         hospital_id=current_user.hospital_id,
         pharmacist_id=current_user.user_id,
         patient_id=payload.patient_id,
@@ -343,8 +351,8 @@ def get_direct_sales(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    sales = db.query(PharmacyDirectSale).filter(
+    sales = crud_all.pharmacy_direct_sale.get_multi(db, 
         PharmacyDirectSale.hospital_id == current_user.hospital_id
-    ).order_by(PharmacyDirectSale.sale_id.desc()).limit(limit).all()
+    ).order_by(PharmacyDirectSale.sale_id.desc()).limit(limit)
     
     return sales

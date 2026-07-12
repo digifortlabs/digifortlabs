@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from ..crud import crud_all
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import List, Dict, Any
@@ -64,7 +65,7 @@ def get_ent_patients(
     
     result = []
     for ep in patients:
-        base_patient = db.query(Patient).filter(Patient.record_id == ep.patient_id).first()
+        base_patient = crud_all.patient.get_first(db, Patient.record_id == ep.patient_id)
         if base_patient:
             patient_dict = {
                 "ent_patient_id": ep.ent_patient_id,
@@ -90,10 +91,10 @@ def create_ent_patient(
 ):
     """Register a patient to the ENT department"""
     # Check if exists
-    existing = db.query(ENTPatient).filter(
+    existing = crud_all.e_n_t_patient.get_first(db, 
         ENTPatient.patient_id == patient.patient_id,
         ENTPatient.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if existing:
         return existing
@@ -117,17 +118,17 @@ def get_ent_patient_detail(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    ent_patient = db.query(ENTPatient).filter(
+    ent_patient = crud_all.e_n_t_patient.get_first(db, 
         ENTPatient.patient_id == patient_id,
         ENTPatient.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not ent_patient:
         raise HTTPException(status_code=404, detail="ENT record not found for this patient")
         
-    audiometry = db.query(AudiometryTest).filter(AudiometryTest.patient_id == patient_id).all()
-    exams = db.query(ENTExamination).filter(ENTExamination.patient_id == patient_id).all()
-    surgeries = db.query(ENTSurgery).filter(ENTSurgery.patient_id == patient_id).all()
+    audiometry = crud_all.audiometry_test.get_first(db, AudiometryTest.patient_id == patient_id)
+    exams = crud_all.e_n_t_examination.get_multi(db, ENTExamination.patient_id == patient_id)
+    surgeries = crud_all.e_n_t_surgery.get_multi(db, ENTSurgery.patient_id == patient_id)
     
     return {
         "ent_profile": ent_patient,
@@ -144,10 +145,10 @@ def add_audiometry_test(
     current_user: User = Depends(get_current_user)
 ):
     # Verify Patient ownership
-    patient = db.query(Patient).filter(
+    patient = crud_all.patient.get_first(db, 
         Patient.record_id == patient_id,
         Patient.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not patient:
         raise HTTPException(status_code=404, detail="Patient record not found")
         
@@ -172,10 +173,10 @@ def add_ent_examination(
     current_user: User = Depends(get_current_user)
 ):
     # Verify Patient ownership
-    patient = db.query(Patient).filter(
+    patient = crud_all.patient.get_first(db, 
         Patient.record_id == exam.patient_id,
         Patient.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not patient:
         raise HTTPException(status_code=404, detail="Patient record not found")
         
@@ -200,10 +201,10 @@ def schedule_surgery(
     import dateutil.parser  # type: ignore
     
     # Verify Patient ownership
-    patient = db.query(Patient).filter(
+    patient = crud_all.patient.get_first(db, 
         Patient.record_id == surgery.patient_id,
         Patient.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not patient:
         raise HTTPException(status_code=404, detail="Patient record not found")
         
@@ -234,11 +235,11 @@ def get_surgeries(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    surgeries = db.query(ENTSurgery).filter(ENTSurgery.hospital_id == current_user.hospital_id).order_by(ENTSurgery.scheduled_date.asc()).all()
+    surgeries = db.query(ENTSurgery).filter(ENTSurgery.hospital_id == current_user.hospital_id).all().order_by(ENTSurgery.scheduled_date.asc())
     # attach patient names
     result = []
     for s in surgeries:
-        patient = db.query(Patient).filter(Patient.record_id == s.patient_id).first()
+        patient = crud_all.patient.get_first(db, Patient.record_id == s.patient_id)
         result.append({
             "surgery_id": s.surgery_id,
             "patient_id": s.patient_id,
@@ -261,9 +262,9 @@ def get_ent_stats(
     ).filter(
         ENTPatient.hospital_id == current_user.hospital_id,
         Patient.is_deleted == False
-    ).count()
-    total_surgeries = db.query(ENTSurgery).filter(ENTSurgery.hospital_id == current_user.hospital_id).count()
-    total_audiometry = db.query(AudiometryTest).filter(AudiometryTest.hospital_id == current_user.hospital_id).count()
+    )
+    total_surgeries = crud_all.e_n_t_surgery.count(db, ENTSurgery.hospital_id == current_user.hospital_id)
+    total_audiometry = crud_all.audiometry_test.count(db, AudiometryTest.hospital_id == current_user.hospital_id)
     
     return {
         "total_patients": total_patients,

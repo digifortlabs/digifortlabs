@@ -8,6 +8,7 @@ import hashlib
 import logging
 import secrets
 from typing import Optional, cast
+from .. import context
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
@@ -26,6 +27,7 @@ otp_request_tracker = defaultdict(list)
 
 from ..core.config import settings
 from ..database import get_db
+from ..crud import crud_all
 from ..models import SystemSetting, User, UserRole, PasswordResetOTP, Permission, ROLE_PERMISSIONS, UserTrustedDevice
 from ..utils import create_access_token, verify_password, get_password_hash
 from ..audit import log_audit
@@ -65,7 +67,7 @@ class EmailCheckRequest(BaseModel):
 @router.post("/check-email/", include_in_schema=False)
 def check_email(data: EmailCheckRequest, db: Session = Depends(get_db)):
     """Check if an email belongs to a hospital and return the target subdomain slug."""
-    user = db.query(User).filter(func.lower(User.email) == func.lower(data.email), User.is_deleted == False).first()  # noqa: E712
+    user = crud_all.user.get_first(db, func.lower(User.email) == func.lower(data.email), User.is_deleted == False)  # noqa: E712
     if not user:
         raise HTTPException(status_code=404, detail="Email address not found in our registry.")
         
@@ -106,7 +108,7 @@ async def login_for_access_token(
     logger.info("[AUTH] Login attempt for: %s", form_data.username)
     
     # Query user (Case insensitive)
-    user = db.query(User).filter(func.lower(User.email) == func.lower(form_data.username)).first()
+    user = crud_all.user.get_first(db, func.lower(User.email) == func.lower(form_data.username))
     if not user:
         # Security: Generic invalid credentials
         try:
@@ -223,10 +225,10 @@ async def login_for_access_token(
             
             if trusted_token:
                 token_hash = hmac.new(settings.SECRET_KEY.get_secret_value().encode(), trusted_token.encode(), hashlib.sha256).hexdigest()
-                trusted_device = db.query(UserTrustedDevice).filter(
+                trusted_device = crud_all.user_trusted_device.get_first(db, 
                     UserTrustedDevice.user_id == user.user_id,
                     UserTrustedDevice.device_token_hash == token_hash
-                ).first()
+                )
                 if trusted_device:
                     logger.info("[AUTH] Trusted Device recognized for %s. Skipping MFA.", user.email)
                     is_trusted = True
@@ -242,7 +244,7 @@ async def login_for_access_token(
                     otp_code = str(secrets.randbelow(900000) + 100000)
                     
                     from ..models import LoginOTP
-                    db.query(LoginOTP).filter(LoginOTP.user_id == user.user_id, LoginOTP.device_id == device_signature).delete()
+                    crud_all.login_o_t_p.get_first(db, LoginOTP.user_id == user.user_id, LoginOTP.device_id == device_signature).delete()
                     
                     new_otp = LoginOTP(
                         user_id=user.user_id,
@@ -347,6 +349,19 @@ async def login_for_access_token(
         hospital_slug = user.hospital.hospital_slug or re.sub(r'[^a-z0-9]', '', user.hospital.legal_name.lower())
     else:
         hospital_slug = None
+        
+    # Calculate target_subdomain just like in /check-email
+    is_demo = user.email.lower() == os.environ.get("DEMO_ACCOUNT_EMAIL", "demo@digifortlabs.com").lower()
+    target_subdomain = 'dashboard'
+    if is_demo:
+        target_subdomain = 'demo'
+    elif user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN, UserRole.WAREHOUSE_MANAGER]:
+        target_subdomain = 'admin'
+    elif user.subdomain:
+        target_subdomain = user.subdomain
+    elif hospital_slug:
+        target_subdomain = hospital_slug
+
     response = JSONResponse(content={
         "message": "Login successful",
         "access_token": access_token, # Needed for desktop app handoff
@@ -354,6 +369,7 @@ async def login_for_access_token(
         "role": user.role,
         "email": user.email,
         "hospital_slug": hospital_slug,
+        "target_subdomain": target_subdomain,
         "specialty": user.hospital.specialty if user.hospital else "General",
         "enabled_modules": user.hospital.enabled_modules if user.hospital else ["core"],
         "terminology": user.hospital.terminology if user.hospital else {}
@@ -390,7 +406,7 @@ async def verify_device_otp(req: VerifyDeviceRequest, db: Session = Depends(get_
     and issues the final access token.
     """
     # 1. Verify credentials again (acts as a secure bound session)
-    user = db.query(User).filter(func.lower(User.email) == func.lower(req.email)).first()
+    user = crud_all.user.get_first(db, func.lower(User.email) == func.lower(req.email))
     if not user or not verify_password(req.password, user.hashed_password):
         log_audit(db, None, "LOGIN_FAILED", f"MFA failed for {req.email}: Invalid credentials")
         raise HTTPException(status_code=401, detail="Invalid username or password.")
@@ -408,11 +424,11 @@ async def verify_device_otp(req: VerifyDeviceRequest, db: Session = Depends(get_
             
     # 3. Verify OTP
     from ..models import LoginOTP
-    otp_record = db.query(LoginOTP).filter(
+    otp_record = crud_all.login_o_t_p.get_first(db, 
         LoginOTP.user_id == user.user_id,
         LoginOTP.device_id == req.device_id,
         LoginOTP.otp_code == req.otp_code
-    ).first()
+    )
     
     if not otp_record:
         # Increment failed attempts on MFA failure
@@ -447,7 +463,7 @@ async def verify_device_otp(req: VerifyDeviceRequest, db: Session = Depends(get_
         user.known_devices = json.dumps(known_devices)  # type: ignore[assignment]
     
     # 5. Clean up OTPs and reset locks
-    db.query(LoginOTP).filter(LoginOTP.user_id == user.user_id, LoginOTP.device_id == req.device_id).delete()
+    crud_all.login_o_t_p.get_first(db, LoginOTP.user_id == user.user_id, LoginOTP.device_id == req.device_id).delete()
     user.failed_login_attempts = 0  # type: ignore[assignment]
     user.locked_until = None  # type: ignore[assignment]
     
@@ -552,7 +568,7 @@ async def request_password_reset(request: PasswordResetRequest, db: Session = De
         return {"message": "If this email is registered, you will receive an OTP shortly."}
     
     # Invalidate previous active OTPs
-    db.query(PasswordResetOTP).filter(
+    crud_all.password_reset_o_t_p.get_first(db, 
         func.lower(PasswordResetOTP.email) == email,
         PasswordResetOTP.is_used == False  # noqa: E712 - SQLAlchemy requires == for column comparison
     ).update({PasswordResetOTP.is_used: True}, synchronize_session=False)
@@ -591,7 +607,7 @@ async def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_d
         func.lower(PasswordResetOTP.email) == email,
         PasswordResetOTP.is_used == False,  # noqa: E712 - SQLAlchemy requires == for column comparison
         PasswordResetOTP.expires_at > datetime.now(IST).replace(microsecond=0)
-    ).first()
+    )
 
     if not otp_entry:
         raise HTTPException(status_code=400, detail="Invalid or expired OTP")
@@ -609,7 +625,7 @@ async def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_d
         raise HTTPException(status_code=400, detail=f"Invalid OTP. {5 - otp_entry.attempt_count} attempts remaining.")
 
     # Update User Password
-    user = db.query(User).filter(func.lower(User.email) == email).first()
+    user = crud_all.user.get_first(db, func.lower(User.email) == email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -675,7 +691,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
     is_desktop_worker = payload.get("is_desktop_worker", False)
     
     
-    user = db.query(User).filter(func.lower(User.email) == func.lower(email)).first()
+    user = crud_all.user.get_first(db, func.lower(User.email) == func.lower(email))
     if user is None:
         logger.debug("[AUTH] User with email %s not found in database.", email)
         raise credentials_exception
@@ -691,7 +707,7 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
             )
     
     # Global Maintenance Mode Check
-    maintenance = db.query(SystemSetting).filter(SystemSetting.key == "maintenance_mode").first()
+    maintenance = crud_all.system_setting.get_first(db, SystemSetting.key == "maintenance_mode")
     if maintenance and maintenance.value == "true" and user.role != UserRole.SUPER_ADMIN:
          raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -739,8 +755,13 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
                 from ..models import Hospital
                 user.is_global_mocked = True # type: ignore
                 user.hospital_id = requested_hospital_id # type: ignore[assignment]
-                user.hospital = db.query(Hospital).filter(Hospital.hospital_id == requested_hospital_id).first()
+                user.hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == requested_hospital_id)
     
+    # Set context variables for auditing
+    context.set_current_user_id(user.user_id)
+    if user.hospital_id:
+        context.set_current_hospital_id(user.hospital_id)
+        
     return user
 
 
@@ -903,7 +924,7 @@ async def register_hospital(data: HospitalRegistrationRequest, db: Session = Dep
     email_lower = data.email.lower()
 
     # 1. Check if email exists
-    if db.query(User).filter(func.lower(User.email) == email_lower).first():
+    if crud_all.user.get_first(db, func.lower(User.email) == email_lower):
         raise HTTPException(status_code=400, detail="Email is already registered.")
 
     # 2. Determine initial enabled modules based on industry logic
@@ -939,7 +960,7 @@ async def register_hospital(data: HospitalRegistrationRequest, db: Session = Dep
         
         counter = 1
         original_subdomain = subdomain
-        while db.query(User).filter(User.subdomain == subdomain).first():
+        while crud_all.user.get_first(db, User.subdomain == subdomain):
             subdomain = f"{original_subdomain}{counter}"
             counter += 1
 
@@ -1071,17 +1092,17 @@ def get_subdomain_hospital_id(request: Request, db: Session = Depends(get_db)) -
     # Query database for the hospital matching the subdomain slug
     import re
     target = subdomain.lower()
-    hospital = db.query(Hospital).filter(
+    hospital = crud_all.hospital.get_first(db, 
         Hospital.is_deleted == False,  # noqa: E712 - SQLAlchemy requires == for column comparison
         Hospital.hospital_slug == target
-    ).first()
+    )
     if hospital:
         return cast(int, hospital.hospital_id)
     # Fallback: derive from legal_name for rows without a stored slug
     for h in db.query(Hospital).filter(
         Hospital.is_deleted == False,  # noqa: E712
         Hospital.hospital_slug == None  # noqa: E711
-    ).all():
+    ):
         if re.sub(r'[^a-z0-9]', '', h.legal_name.lower()) == target:
             return cast(int, h.hospital_id)
             

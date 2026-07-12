@@ -29,9 +29,6 @@ except ImportError:
     logger.info("Warning: OCR Dependencies missing. Falling back to text-only mode.")
 
 
-from pypdf import PdfReader
-
-
 def extract_text_from_pdf(file_bytes: bytes) -> str:
     """
     Extracts text from a PDF file provided as bytes.
@@ -41,10 +38,10 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
     text = ""
     try:
         # 1. Digital Extraction
-        reader = PdfReader(io.BytesIO(file_bytes))
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
         digital_text = ""
-        for page in reader.pages:
-            content = page.extract_text()
+        for page in doc:
+            content = page.get_text()
             if content:
                 digital_text += content + "\n"
         

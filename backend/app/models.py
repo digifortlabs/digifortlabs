@@ -896,6 +896,7 @@ class Appointment(Base):
 class PharmacyDispense(Base):
     __tablename__ = "pharmacy_dispenses"
     dispense_id = Column(Integer, primary_key=True, index=True)
+    dispense_number = Column(String, index=True, nullable=True) # Custom string ID
     prescription_id = Column(Integer, ForeignKey("prescriptions.prescription_id"), nullable=False)
     patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
@@ -917,6 +918,7 @@ class PharmacyDispense(Base):
 class PharmacyDirectSale(Base):
     __tablename__ = "pharmacy_direct_sales"
     sale_id = Column(Integer, primary_key=True, index=True)
+    bill_number = Column(String, index=True, nullable=True) # Custom string ID
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
     pharmacist_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
     
@@ -1022,6 +1024,7 @@ class LabTestCatalog(Base):
 class LabOrder(Base):
     __tablename__ = "lab_orders"
     order_id = Column(Integer, primary_key=True, index=True)
+    order_number = Column(String, index=True, nullable=True) # Custom string ID
     patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
     hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
     doctor_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
@@ -1824,3 +1827,74 @@ class MediclaimClaim(Base):
     patient = relationship("Patient")
     hospital = relationship("Hospital")
 
+
+class MaternityPatient(Base):
+    __tablename__ = "maternity_patients"
+    maternity_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False, unique=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    
+    gravidity = Column(Integer, nullable=True)
+    parity = Column(Integer, nullable=True)
+    lmp = Column(DateTime, nullable=True)  # Last Menstrual Period
+    edd = Column(DateTime, nullable=True)  # Expected Date of Delivery
+    blood_group = Column(String, nullable=True)
+    high_risk = Column(Boolean, default=False)
+    risk_factors = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+    
+    patient = relationship("Patient")
+    hospital = relationship("Hospital")
+
+
+class ANCVisit(Base):
+    __tablename__ = "maternity_anc_visits"
+    anc_id = Column(Integer, primary_key=True, index=True)
+    maternity_id = Column(Integer, ForeignKey("maternity_patients.maternity_id"), nullable=False)
+    doctor_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
+    
+    visit_date = Column(DateTime, server_default=func.now())
+    weight = Column(Float, nullable=True)
+    blood_pressure = Column(String, nullable=True)
+    fundal_height = Column(String, nullable=True)
+    fetal_heart_rate = Column(String, nullable=True)
+    presentation = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)
+    
+    maternity_patient = relationship("MaternityPatient", backref="anc_visits")
+    doctor = relationship("DoctorProfile")
+
+
+class DeliveryRecord(Base):
+    __tablename__ = "maternity_delivery_records"
+    delivery_id = Column(Integer, primary_key=True, index=True)
+    maternity_id = Column(Integer, ForeignKey("maternity_patients.maternity_id"), nullable=False)
+    doctor_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
+    
+    delivery_date = Column(DateTime, nullable=False)
+    delivery_type = Column(String, nullable=False) # Normal, C-Section, Assisted
+    complications = Column(Text, nullable=True)
+    discharge_date = Column(DateTime, nullable=True)
+    notes = Column(Text, nullable=True)
+    
+    maternity_patient = relationship("MaternityPatient", backref="delivery_records")
+    doctor = relationship("DoctorProfile")
+
+
+class NewbornRecord(Base):
+    __tablename__ = "maternity_newborn_records"
+    newborn_id = Column(Integer, primary_key=True, index=True)
+    delivery_id = Column(Integer, ForeignKey("maternity_delivery_records.delivery_id"), nullable=False)
+    pediatrician_id = Column(Integer, ForeignKey("doctor_profiles.profile_id"), nullable=True)
+    
+    gender = Column(String, nullable=False)
+    birth_weight = Column(Float, nullable=False)
+    birth_time = Column(DateTime, nullable=False)
+    apgar_1min = Column(Integer, nullable=True)
+    apgar_5min = Column(Integer, nullable=True)
+    notes = Column(Text, nullable=True)
+    
+    delivery_record = relationship("DeliveryRecord", backref="newborn_records")
+    pediatrician = relationship("DoctorProfile")

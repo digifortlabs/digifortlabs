@@ -6,6 +6,7 @@ from datetime import datetime, time, timezone, timedelta, date
 from pydantic import BaseModel
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import Appointment, Department, DoctorProfile, DoctorSchedule, User, Hospital
 from .auth import get_current_user
 
@@ -118,7 +119,7 @@ def get_next_available_slot(
 ) -> tuple[datetime, datetime, Optional[str]]:
     day_of_week = target_date.weekday() # 0 = Monday, 6 = Sunday
     
-    all_schedules = db.query(DoctorSchedule).filter(
+    all_schedules = crud_all.doctor_schedule.get_multi(db, 
         DoctorSchedule.doctor_id == doctor_id,
         DoctorSchedule.day_of_week == day_of_week,
         DoctorSchedule.is_active == True
@@ -136,13 +137,13 @@ def get_next_available_slot(
     if target_date < now.date():
         raise ValueError("Cannot book appointments in the past.")
 
-    appointments = db.query(Appointment).filter(
+    appointments = crud_all.appointment.get_multi(db, 
         Appointment.doctor_id == doctor_id,
         Appointment.hospital_id == hospital_id,
         Appointment.appointment_date >= datetime.combine(target_date, time.min),
         Appointment.appointment_date <= datetime.combine(target_date, time.max),
         Appointment.status.in_(["Scheduled", "Arrived", "In-Consultation"])
-    ).order_by(Appointment.end_time.asc()).all()
+    ).order_by(Appointment.end_time.asc())
 
     search_start = now if target_date == now.date() else datetime.combine(target_date, time.min)
     if preferred_time:
@@ -182,7 +183,7 @@ def get_next_available_slot(
                     break
             
             if not conflict:
-                sample = db.query(Appointment).filter(Appointment.hospital_id == hospital_id).first()
+                sample = crud_all.appointment.get_multi(db, Appointment.hospital_id == hospital_id)
                 use_tz = timezone.utc if (sample and sample.end_time and sample.end_time.tzinfo) else None
                 if use_tz:
                     current_time = current_time.replace(tzinfo=use_tz)
@@ -208,10 +209,10 @@ async def get_departments(
     if not target_hospital_id:
         return []
 
-    departments = db.query(Department).filter(
+    departments = crud_all.department.get_multi(db, 
         Department.hospital_id == target_hospital_id,
         Department.is_active == True
-    ).all()
+    )
     return departments
 
 @router.post("/departments", response_model=DepartmentResponse)
@@ -246,10 +247,10 @@ async def update_department(
     if current_user.role not in ['superadmin', 'hospital_admin', 'website_admin']:
         raise HTTPException(status_code=403, detail="Not enough permissions")
         
-    dept = db.query(Department).filter(
+    dept = crud_all.department.get_first(db, 
         Department.department_id == department_id,
         Department.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not dept:
         raise HTTPException(status_code=404, detail="Department not found")
         
@@ -274,15 +275,15 @@ async def delete_department(
     if current_user.role not in ['superadmin', 'hospital_admin', 'website_admin']:
         raise HTTPException(status_code=403, detail="Not enough permissions")
         
-    dept = db.query(Department).filter(
+    dept = crud_all.department.get_first(db, 
         Department.department_id == department_id,
         Department.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not dept:
         raise HTTPException(status_code=404, detail="Department not found")
         
     # Check if doctors are assigned
-    active_doctors = db.query(DoctorProfile).filter(
+    active_doctors = crud_all.doctor_profile.get_multi(db, 
         DoctorProfile.department_id == department_id
     ).count()
     
@@ -361,7 +362,7 @@ async def create_appointment(
                 Appointment.start_time.between(payload.start_time, payload.end_time),
                 Appointment.end_time.between(payload.start_time, payload.end_time)
             )
-        ).first()
+        )
         
         if conflict:
             raise HTTPException(
@@ -386,7 +387,7 @@ async def create_appointment(
             raise HTTPException(status_code=400, detail="Cannot determine hospital_id for appointment. Doctor profile does not have a hospital_id.")
     
     logger.info(f"Final hospital_id to be used for appointment: {hospital_id}")
-    hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == hospital_id)
     id_settings = hospital.id_generation_settings or {} if hospital else {}
 
     # Auto-generate OPD number if visiting OPD
@@ -396,7 +397,7 @@ async def create_appointment(
         conf_padding = int(id_settings.get("opd_padding", 4))
         conf_postfix = id_settings.get("opd_postfix", "")
 
-        appts = db.query(Appointment.opd_number).filter(Appointment.hospital_id == hospital_id).all()
+        appts = db.query(Appointment.opd_number).filter(Appointment.hospital_id == hospital_id)
         max_val = 0
         import re
         for a in appts:
@@ -420,10 +421,10 @@ async def create_appointment(
     
     # Auto-assign patient to doctor if not already assigned
     from ..models import PatientDoctorAssignment
-    existing_assignment = db.query(PatientDoctorAssignment).filter(
+    existing_assignment = crud_all.patient_doctor_assignment.get_first(db, 
         PatientDoctorAssignment.patient_id == payload.patient_id,
         PatientDoctorAssignment.doctor_profile_id == payload.doctor_id
-    ).first()
+    )
     
     if not existing_assignment:
         new_assignment = PatientDoctorAssignment(
@@ -434,10 +435,10 @@ async def create_appointment(
         
     # Auto-initialize specialty patient profiles based on department
     from ..models import Department, Patient
-    department = db.query(Department).filter(Department.department_id == payload.department_id).first()
+    department = crud_all.department.get_first(db, Department.department_id == payload.department_id)
     if department:
         dept_name = department.name.lower()
-        patient = db.query(Patient).filter(Patient.record_id == payload.patient_id).first()
+        patient = crud_all.patient.get_first(db, Patient.record_id == payload.patient_id)
         if patient:
             if "dental" in dept_name:
                 from ..models import DentalPatient
@@ -481,7 +482,7 @@ async def get_appointments(
     db: Session = Depends(get_db)
 ):
     """Get appointments with optional filters."""
-    query = db.query(Appointment).filter(Appointment.hospital_id == current_user.hospital_id)
+    query = db.query(Appointment).filter(Appointment.hospital_id == current_user.hospital_id).first()
     
     if date:
         # Simple date casting approximation
@@ -512,10 +513,10 @@ async def update_appointment_status(
     if status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
         
-    appointment = db.query(Appointment).filter(
+    appointment = crud_all.appointment.get_first(db, 
         Appointment.appointment_id == appointment_id,
         Appointment.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
@@ -528,12 +529,12 @@ async def update_appointment_status(
         if now > appointment.end_time:
             delay = now - appointment.end_time
             
-            subsequent_appts = db.query(Appointment).filter(
+            subsequent_appts = crud_all.appointment.get_multi(db, 
                 Appointment.doctor_id == appointment.doctor_id,
                 Appointment.appointment_date == appointment.appointment_date,
                 Appointment.start_time > appointment.start_time,
                 Appointment.status.in_(["Scheduled", "Arrived"])
-            ).all()
+            )
             
             for appt in subsequent_appts:
                 appt.start_time += delay
@@ -556,10 +557,10 @@ async def update_appointment(
     db: Session = Depends(get_db)
 ):
     """Update centralized appointment details with conflict checking."""
-    appointment = db.query(Appointment).filter(
+    appointment = crud_all.appointment.get_first(db, 
         Appointment.appointment_id == appointment_id,
         Appointment.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
@@ -579,7 +580,7 @@ async def update_appointment(
         end_t = payload.end_time or appointment.end_time
         appt_date = payload.appointment_date or appointment.appointment_date
         
-        conflict = db.query(Appointment).filter(
+        conflict = crud_all.appointment.get_first(db, 
             Appointment.doctor_id == doc_id,
             Appointment.appointment_id != appointment_id,
             Appointment.status.in_(["Scheduled", "Arrived", "In-Consultation"]),
@@ -588,7 +589,7 @@ async def update_appointment(
                 Appointment.start_time.between(start_t, end_t),
                 Appointment.end_time.between(start_t, end_t)
             )
-        ).first()
+        )
         
         if conflict:
             raise HTTPException(
@@ -611,10 +612,10 @@ async def delete_appointment(
     db: Session = Depends(get_db)
 ):
     """Delete a centralized appointment."""
-    appointment = db.query(Appointment).filter(
+    appointment = crud_all.appointment.get_first(db, 
         Appointment.appointment_id == appointment_id,
         Appointment.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not appointment:
         raise HTTPException(status_code=404, detail="Appointment not found")
@@ -658,11 +659,11 @@ async def get_doctor_day_schedule(
     target_date = datetime.strptime(date, "%Y-%m-%d").date()
     day_of_week = target_date.weekday()
     
-    schedules = db.query(DoctorSchedule).filter(
+    schedules = crud_all.doctor_schedule.get_multi(db, 
         DoctorSchedule.doctor_id == doctor_id,
         DoctorSchedule.day_of_week == day_of_week,
         DoctorSchedule.is_active == True
-    ).order_by(DoctorSchedule.start_time).all()
+    ).order_by(DoctorSchedule.start_time)
     
     return [
         DoctorScheduleBlockResponse(
@@ -690,7 +691,7 @@ def get_next_slot(
     doctor = db.query(DoctorProfile).filter(
         DoctorProfile.profile_id == doctor_id,
         DoctorProfile.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
@@ -699,11 +700,11 @@ def get_next_slot(
     
     # Check if the slot fits in the schedule
     day_of_week = target_date.weekday()
-    schedule = db.query(DoctorSchedule).filter(
+    schedule = crud_all.doctor_schedule.get_first(db, 
         DoctorSchedule.doctor_id == doctor_id,
         DoctorSchedule.day_of_week == day_of_week,
         DoctorSchedule.is_active == True
-    ).first()
+    )
     
     available = True
     message = "Slot available"

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DigifortLabs Documentation Viewer</title>
+    <style>
+        :root {
+            --sidebar-width: 250px;
+            --primary-color: #2c3e50;
+            --highlight-color: #3498db;
+            --bg-color: #f5f7fa;
+        }
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            height: 100vh;
+            background-color: var(--bg-color);
+            overflow: hidden;
+        }
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px 0;
+            overflow-y: auto;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+        .sidebar h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 1.5em;
+            padding: 0 20px;
+        }
+        .nav-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .nav-item {
+            padding: 15px 25px;
+            cursor: pointer;
+            transition: background 0.3s;
+            border-left: 4px solid transparent;
+        }
+        .nav-item:hover {
+            background-color: #34495e;
+            border-left-color: var(--highlight-color);
+        }
+        .nav-item.active {
+            background-color: #34495e;
+            border-left-color: var(--highlight-color);
+            font-weight: bold;
+        }
+        .main-content {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+        }
+        /* The container for the injected markdown/html */
+        #viewer {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            max-width: 900px;
+            margin: 0 auto;
+            min-height: 80vh;
+        }
+        
+        /* Loading spinner */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--highlight-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 100px auto;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Error message */
+        .error {
+            color: #e74c3c;
+            text-align: center;
+            padding: 50px;
+            display: none;
+        }
+    </style>
+    <!-- Include Marked.js for standard Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Include Mermaid JS for diagrams -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        window.mermaid = mermaid;
+        mermaid.initialize({ startOnLoad: false, theme: 'default' });
+    </script>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>DigifortLabs</h2>
+        <ul class="nav-list" id="navList">
+            <li class="nav-item active" data-file="index.md">Table of Contents</li>
+            <li class="nav-item" data-file="chapter_1.md">Chapter 1: Patient Mgt</li>
+            <li class="nav-item" data-file="chapter_2.md">Chapter 2: OPD & IPD</li>
+            <li class="nav-item" data-file="chapter_3.md">Chapter 3: Pharmacy</li>
+            <li class="nav-item" data-file="chapter_4.md">Chapter 4: Billing</li>
+            <li class="nav-item" data-file="chapter_5.md">Chapter 5: Laboratory</li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <div class="loader" id="loader"></div>
+        <div class="error" id="errorMsg">
+            <h3>Could not load file.</h3>
+            <p>Note: Fetching local files directly (file://) is blocked by modern browsers due to CORS policy. Please serve this folder using a local web server (e.g., <code>npx serve .</code> or VS Code Live Server).</p>
+        </div>
+        <div id="viewer"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const navItems = document.querySelectorAll('.nav-item');
+            const viewer = document.getElementById('viewer');
+            const loader = document.getElementById('loader');
+            const errorMsg = document.getElementById('errorMsg');
+
+            // Load the default active file
+            loadFile('index.md');
+
+            navItems.forEach(item => {
+                item.addEventListener('click', (e) => {
+                    // Update active state
+                    navItems.forEach(nav => nav.classList.remove('active'));
+                    e.currentTarget.classList.add('active');
+                    
+                    // Load the file
+                    const fileToLoad = e.currentTarget.getAttribute('data-file');
+                    loadFile(fileToLoad);
+                });
+            });
+
+            async function loadFile(filename) {
+                viewer.innerHTML = '';
+                errorMsg.style.display = 'none';
+                loader.style.display = 'block';
+
+                try {
+                    const response = await fetch(filename);
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    const text = await response.text();
+                    
+                    loader.style.display = 'none';
+                    
+                    // Check if it's already an HTML file wrapped in .md
+                    if (text.includes('<!DOCTYPE html>') || text.includes('<html>')) {
+                        // Extract just the body/container content to avoid nesting html tags
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(text, 'text/html');
+                        const container = doc.querySelector('.container') || doc.body;
+                        viewer.innerHTML = container.innerHTML;
+                    } else {
+                        // Parse standard markdown
+                        viewer.innerHTML = marked.parse(text);
+                    }
+
+                    // Re-initialize mermaid diagrams if any exist
+                    if (window.mermaid) {
+                        try {
+                            window.mermaid.run({
+                                nodes: document.querySelectorAll('.mermaid')
+                            });
+                        } catch (err) {
+                            console.warn('Mermaid failed to render', err);
+                        }
+                    }
+
+                } catch (error) {
+                    console.error('Error loading file:', error);
+                    loader.style.display = 'none';
+                    errorMsg.style.display = 'block';
+                }
+            }
+        });
+    </script>
+</body>
+</html>

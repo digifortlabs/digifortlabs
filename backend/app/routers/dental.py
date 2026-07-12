@@ -10,6 +10,7 @@ import os
 import re
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import (
     DentalPatient, Appointment, Department, DentalTreatment, Dental3DScan, User, Patient, TreatmentPlan, TreatmentPhase,
     InsuranceProvider, InsuranceClaim, DentalLab, DentalLabOrder, OrthoRecord, CommunicationLog, DentalInventoryItem,
@@ -350,9 +351,9 @@ class DentalInventoryItemResponse(DentalInventoryItemBase):
 
 
 def get_or_create_dental_patient(patient_id: int, db: Session):
-    patient = db.query(DentalPatient).filter((DentalPatient.patient_id == patient_id) | (DentalPatient.main_patient_id == patient_id)).first()
+    patient = crud_all.dental_patient.get_first(db, (DentalPatient.patient_id == patient_id) | (DentalPatient.main_patient_id == patient_id))
     if not patient:
-        main_patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+        main_patient = crud_all.patient.get_first(db, Patient.record_id == patient_id)
         if main_patient:
             patient = DentalPatient(
                 full_name=main_patient.full_name,
@@ -393,14 +394,14 @@ def get_dental_stats(
     today_end = datetime.combine(today, datetime.max.time())
     
     # Try to find the dental department ID dynamically
-    dental_dept = db.query(Department).filter(
+    dental_dept = crud_all.department.get_first(db, 
         Department.hospital_id == hospital_id,
         Department.name.ilike('%Dental%')
-    ).first()
+    )
     
     # Fallback to older queries temporarily during refactoring 
     if dental_dept:
-        appointments_query = db.query(Appointment).filter(
+        appointments_query = db.query(Appointment).filter( 
             Appointment.hospital_id == hospital_id,
             Appointment.department_id == dental_dept.department_id
         )
@@ -444,9 +445,9 @@ def get_next_dental_ids(
         raise HTTPException(status_code=400, detail="Hospital context required")
 
     # Fetch latest patient for this hospital
-    latest_patient = db.query(DentalPatient).filter(
+    latest_patient = crud_all.dental_patient.get_first(db, 
         DentalPatient.hospital_id == hospital_id
-    ).order_by(DentalPatient.patient_id.desc()).first()
+    ).order_by(DentalPatient.patient_id.desc())
 
     current_year = datetime.now().year
     
@@ -483,7 +484,7 @@ def check_uhid_exists(uhid_no: str, db: Session = Depends(get_db), current_user:
     uhid_no = uhid_no.upper().strip()
     
     # 1. Check Dental Patients first
-    dental_patient = db.query(DentalPatient).filter(DentalPatient.uhid == uhid_no).order_by(DentalPatient.created_at.desc()).first()
+    dental_patient = crud_all.dental_patient.get_first(db, DentalPatient.uhid == uhid_no).order_by(DentalPatient.created_at.desc())
     
     if dental_patient:
         return {
@@ -500,7 +501,7 @@ def check_uhid_exists(uhid_no: str, db: Session = Depends(get_db), current_user:
         }
         
     # 2. Check General Patients
-    general_patient = db.query(Patient).filter(Patient.uhid == uhid_no).order_by(Patient.created_at.desc()).first()
+    general_patient = crud_all.patient.get_first(db, Patient.uhid == uhid_no).order_by(Patient.created_at.desc())
     
     if general_patient:
         # Map fields (General uses contact_number vs Dental phone)
@@ -531,7 +532,7 @@ def get_patients(
     if current_user.hospital_id:
         query = query.filter(DentalPatient.hospital_id == current_user.hospital_id)
     
-    patients = query.offset(skip).limit(limit).all()
+    patients = query.offset(skip).limit(limit)
     return patients
 
 @router.post("/patients", response_model=DentalPatientResponse)
@@ -546,17 +547,17 @@ def create_patient(
 
     # Duplicate Checks
     if patient.phone:
-        existing = db.query(DentalPatient).filter(DentalPatient.hospital_id == hospital_id, DentalPatient.phone == patient.phone).first()
+        existing = crud_all.dental_patient.get_first(db, DentalPatient.hospital_id == hospital_id, DentalPatient.phone == patient.phone)
         if existing:
             raise HTTPException(status_code=400, detail=f"Patient with phone number {patient.phone} already exists.")
             
     if patient.uhid:
-        existing = db.query(DentalPatient).filter(DentalPatient.hospital_id == hospital_id, DentalPatient.uhid == patient.uhid).first()
+        existing = crud_all.dental_patient.get_first(db, DentalPatient.hospital_id == hospital_id, DentalPatient.uhid == patient.uhid)
         if existing:
             raise HTTPException(status_code=400, detail=f"Patient with UHID {patient.uhid} already exists.")
 
     if patient.opd_number:
-        existing = db.query(DentalPatient).filter(DentalPatient.hospital_id == hospital_id, DentalPatient.opd_number == patient.opd_number).first()
+        existing = crud_all.dental_patient.get_first(db, DentalPatient.hospital_id == hospital_id, DentalPatient.opd_number == patient.opd_number)
         if existing:
             raise HTTPException(status_code=400, detail=f"Patient with OPD number {patient.opd_number} already exists.")
 
@@ -564,10 +565,10 @@ def create_patient(
         # Check if core Patient exists
         core_patient = None
         if patient.uhid:
-            core_patient = db.query(Patient).filter(Patient.hospital_id == hospital_id, Patient.uhid == patient.uhid).first()
+            core_patient = crud_all.patient.get_first(db, Patient.hospital_id == hospital_id, Patient.uhid == patient.uhid)
         
         if not core_patient and patient.phone:
-            core_patient = db.query(Patient).filter(Patient.hospital_id == hospital_id, Patient.contact_number == patient.phone).first()
+            core_patient = crud_all.patient.get_first(db, Patient.hospital_id == hospital_id, Patient.contact_number == patient.phone)
             
         if not core_patient:
             # Create core Patient
@@ -598,7 +599,7 @@ def get_patient(
     current_user: User = Depends(get_current_user)
 ):
     from sqlalchemy import or_
-    query = db.query(DentalPatient).filter(
+    query = db.query(DentalPatient).filter( 
         or_(
             DentalPatient.patient_id == patient_id,
             DentalPatient.main_patient_id == patient_id
@@ -611,10 +612,10 @@ def get_patient(
     if not patient:
         # Auto-create stub DentalPatient from global Patient if it exists
         from ..models import Patient
-        global_patient = db.query(Patient).filter(
+        global_patient = crud_all.patient.get_first(db, 
             Patient.record_id == patient_id, 
             Patient.hospital_id == current_user.hospital_id
-        ).first()
+        )
         if global_patient:
             patient = DentalPatient(
                 hospital_id=current_user.hospital_id,
@@ -643,7 +644,7 @@ def update_patient(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    db_patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
+    db_patient = crud_all.dental_patient.get_first(db, DentalPatient.patient_id == patient_id)
     if not db_patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     
@@ -653,29 +654,29 @@ def update_patient(
 
     # Duplicate Checks (excluding current patient)
     if patient_update.phone:
-        existing = db.query(DentalPatient).filter(
+        existing = crud_all.dental_patient.get_first(db, 
             DentalPatient.hospital_id == db_patient.hospital_id, 
             DentalPatient.phone == patient_update.phone,
             DentalPatient.patient_id != patient_id
-        ).first()
+        )
         if existing:
             raise HTTPException(status_code=400, detail=f"Another patient with phone {patient_update.phone} already exists.")
 
     if patient_update.uhid:
-        existing = db.query(DentalPatient).filter(
+        existing = crud_all.dental_patient.get_first(db, 
             DentalPatient.hospital_id == db_patient.hospital_id, 
             DentalPatient.uhid == patient_update.uhid,
             DentalPatient.patient_id != patient_id
-        ).first()
+        )
         if existing:
             raise HTTPException(status_code=400, detail=f"Another patient with UHID {patient_update.uhid} already exists.")
 
     if patient_update.opd_number:
-        existing = db.query(DentalPatient).filter(
+        existing = crud_all.dental_patient.get_first(db, 
             DentalPatient.hospital_id == db_patient.hospital_id, 
             DentalPatient.opd_number == patient_update.opd_number,
             DentalPatient.patient_id != patient_id
-        ).first()
+        )
         if existing:
             raise HTTPException(status_code=400, detail=f"Another patient with OPD number {patient_update.opd_number} already exists.")
     
@@ -692,7 +693,7 @@ def delete_patient(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    db_patient = db.query(DentalPatient).filter(DentalPatient.patient_id == patient_id).first()
+    db_patient = crud_all.dental_patient.get_first(db, DentalPatient.patient_id == patient_id)
     if not db_patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     
@@ -762,7 +763,7 @@ def get_treatments(
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    treatments = db.query(DentalTreatment).filter(DentalTreatment.patient_id == patient_id).all()
+    treatments = crud_all.dental_treatment.get_first(db, DentalTreatment.patient_id == patient_id)
     return treatments
 
 @router.post("/treatments", response_model=TreatmentResponse)
@@ -815,7 +816,7 @@ def get_treatment_plans(
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
         
-    return db.query(TreatmentPlan).filter(TreatmentPlan.patient_id == patient_id).all()
+    return crud_all.treatment_plan.get_multi(db, TreatmentPlan.patient_id == patient_id)
 
 @router.patch("/treatment-plans/{plan_id}", response_model=TreatmentPlanResponse)
 def update_treatment_plan(
@@ -824,7 +825,7 @@ def update_treatment_plan(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    db_plan = db.query(TreatmentPlan).filter(TreatmentPlan.plan_id == plan_id).first()
+    db_plan = crud_all.treatment_plan.get_first(db, TreatmentPlan.plan_id == plan_id)
     if not db_plan:
         raise HTTPException(status_code=404, detail="Treatment plan not found")
         
@@ -848,7 +849,7 @@ def create_treatment_phase(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    db_plan = db.query(TreatmentPlan).filter(TreatmentPlan.plan_id == plan_id).first()
+    db_plan = crud_all.treatment_plan.get_first(db, TreatmentPlan.plan_id == plan_id)
     if not db_plan:
         raise HTTPException(status_code=404, detail="Treatment plan not found")
         
@@ -870,12 +871,12 @@ def update_treatment_phase(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    db_phase = db.query(TreatmentPhase).filter(TreatmentPhase.phase_id == phase_id).first()
+    db_phase = crud_all.treatment_phase.get_first(db, TreatmentPhase.phase_id == phase_id)
     if not db_phase:
         raise HTTPException(status_code=404, detail="Treatment phase not found")
         
     # Check access via plan -> patient
-    db_plan = db.query(TreatmentPlan).filter(TreatmentPlan.plan_id == db_phase.plan_id).first()
+    db_plan = crud_all.treatment_plan.get_first(db, TreatmentPlan.plan_id == db_phase.plan_id)
     if not db_plan:
         raise HTTPException(status_code=404, detail="Plan not found")
     patient = get_or_create_dental_patient(db_plan.patient_id, db)
@@ -933,7 +934,7 @@ def get_periodontal_exams(
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
         
-    return db.query(PeriodontalExam).filter(PeriodontalExam.patient_id == patient_id).order_by(PeriodontalExam.exam_date.desc()).all()
+    return crud_all.periodontal_exam.get_first(db, PeriodontalExam.patient_id == patient_id).order_by(PeriodontalExam.exam_date.desc())
 
 @router.get("/periodontal-exams/{exam_id}", response_model=PeriodontalExamResponse)
 def get_periodontal_exam(
@@ -941,7 +942,7 @@ def get_periodontal_exam(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    db_exam = db.query(PeriodontalExam).filter(PeriodontalExam.exam_id == exam_id).first()
+    db_exam = crud_all.periodontal_exam.get_first(db, PeriodontalExam.exam_id == exam_id)
     if not db_exam:
         raise HTTPException(status_code=404, detail="Exam not found")
         
@@ -1055,7 +1056,7 @@ def get_revenue_analytics(
         .with_entities(DentalTreatment.treatment_type, func.sum(DentalTreatment.cost).label('total_cost')) \
         .group_by(DentalTreatment.treatment_type) \
         .order_by(func.sum(DentalTreatment.cost).desc()) \
-        .limit(5).all()
+        .limit(5)
         
     revenue_by_type = [{"name": row[0], "value": float(row[1] or 0.0)} for row in by_type]
 
@@ -1117,7 +1118,7 @@ def create_insurance_provider(
 
 @router.get("/patients/{patient_id}/insurance/claims", response_model=List[InsuranceClaimResponse])
 def get_patient_claims(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return db.query(InsuranceClaim).filter(InsuranceClaim.patient_id == patient_id).all()
+    return crud_all.insurance_claim.get_multi(db, InsuranceClaim.patient_id == patient_id)
 
 @router.post("/patients/{patient_id}/insurance/claims", response_model=InsuranceClaimResponse)
 def create_patient_claim(patient_id: int, claim: InsuranceClaimCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -1132,7 +1133,7 @@ def create_patient_claim(patient_id: int, claim: InsuranceClaimCreate, db: Sessi
 @router.get("/labs", response_model=List[DentalLabResponse])
 def get_dental_labs(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not current_user.hospital_id: return []
-    return db.query(DentalLab).filter(DentalLab.hospital_id == current_user.hospital_id).all()
+    return crud_all.dental_lab.get_multi(db, DentalLab.hospital_id == current_user.hospital_id)
 
 @router.post("/labs", response_model=DentalLabResponse)
 def create_dental_lab(lab: DentalLabCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -1145,7 +1146,7 @@ def create_dental_lab(lab: DentalLabCreate, db: Session = Depends(get_db), curre
 
 @router.get("/patients/{patient_id}/lab-orders", response_model=List[DentalLabOrderResponse])
 def get_patient_lab_orders(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return db.query(DentalLabOrder).filter(DentalLabOrder.patient_id == patient_id).all()
+    return crud_all.dental_lab_order.get_multi(db, DentalLabOrder.patient_id == patient_id)
 
 @router.post("/patients/{patient_id}/lab-orders", response_model=DentalLabOrderResponse)
 def create_patient_lab_order(patient_id: int, order: DentalLabOrderCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -1159,7 +1160,7 @@ def create_patient_lab_order(patient_id: int, order: DentalLabOrderCreate, db: S
 
 @router.get("/patients/{patient_id}/ortho", response_model=List[OrthoRecordResponse])
 def get_patient_ortho_records(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return db.query(OrthoRecord).filter(OrthoRecord.patient_id == patient_id).order_by(OrthoRecord.visit_date.desc()).all()
+    return crud_all.ortho_record.get_multi(db, OrthoRecord.patient_id == patient_id).order_by(OrthoRecord.visit_date.desc())
 
 @router.post("/patients/{patient_id}/ortho", response_model=OrthoRecordResponse)
 def create_patient_ortho_record(patient_id: int, rec: OrthoRecordCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -1173,7 +1174,7 @@ def create_patient_ortho_record(patient_id: int, rec: OrthoRecordCreate, db: Ses
 
 @router.get("/patients/{patient_id}/communications", response_model=List[CommunicationLogResponse])
 def get_patient_communications(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return db.query(CommunicationLog).filter(CommunicationLog.patient_id == patient_id).order_by(CommunicationLog.sent_at.desc()).all()
+    return crud_all.communication_log.get_multi(db, CommunicationLog.patient_id == patient_id).order_by(CommunicationLog.sent_at.desc())
 
 @router.post("/patients/{patient_id}/communications", response_model=CommunicationLogResponse)
 def create_patient_communication(patient_id: int, comm: CommunicationLogCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -1189,7 +1190,7 @@ def create_patient_communication(patient_id: int, comm: CommunicationLogCreate, 
 def get_dental_inventory(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not current_user.hospital_id:
         return []
-    return db.query(DentalInventoryItem).filter(DentalInventoryItem.hospital_id == current_user.hospital_id).all()
+    return crud_all.dental_inventory_item.get_multi(db, DentalInventoryItem.hospital_id == current_user.hospital_id)
 
 @router.post("/inventory", response_model=DentalInventoryItemResponse)
 def create_dental_inventory_item(item: DentalInventoryItemCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -1263,9 +1264,9 @@ def get_patient_scans(
     if current_user.hospital_id and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    scans = db.query(Dental3DScan).filter(
+    scans = crud_all.dental3_d_scan.get_multi(db, 
         Dental3DScan.patient_id == patient_id
-    ).order_by(Dental3DScan.uploaded_at.desc()).all()
+    ).order_by(Dental3DScan.uploaded_at.desc())
 
     result = []
     for scan in scans:
@@ -1282,11 +1283,11 @@ def delete_dental_scan(
     current_user: User = Depends(get_current_user)
 ):
     """Delete a single scan from S3 and the database."""
-    scan = db.query(Dental3DScan).filter(Dental3DScan.scan_id == scan_id).first()
+    scan = crud_all.dental3_d_scan.get_first(db, Dental3DScan.scan_id == scan_id)
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
 
-    patient = db.query(DentalPatient).filter(DentalPatient.patient_id == scan.patient_id).first()
+    patient = crud_all.dental_patient.get_first(db, DentalPatient.patient_id == scan.patient_id)
     if current_user.hospital_id and patient and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
 

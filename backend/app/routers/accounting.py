@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, not_
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import (
     Invoice, InvoiceItem, PDFFile, Hospital, User, Patient,
     AccountingVendor, AccountingExpense, AccountingTransaction, AccountingConfig, UserRole
@@ -243,16 +244,16 @@ def get_invoices(
         
         # Populate TDS and Received Amount for PAID invoices
         if inv.status == "PAID":
-            tds_txn = db.query(AccountingTransaction).filter(
+            tds_txn = crud_all.accounting_transaction.get_first(db, 
                 AccountingTransaction.voucher_type == "TDS",
                 AccountingTransaction.voucher_id == inv.invoice_id
-            ).first()
+            )
             res.tds_amount = tds_txn.credit if tds_txn else 0.0  # type: ignore
 
-            rcpt_txn = db.query(AccountingTransaction).filter(
+            rcpt_txn = crud_all.accounting_transaction.get_first(db, 
                 AccountingTransaction.voucher_type == "RECEIPT",
                 AccountingTransaction.voucher_id == inv.invoice_id
-            ).first()
+            )
             res.received_amount = rcpt_txn.credit if rcpt_txn else inv.total_amount  # type: ignore
         else:
             res.tds_amount = 0.0
@@ -269,7 +270,7 @@ def get_invoice_details(
     current_user: User = Depends(get_current_user)
 ):
     """Get full details of a single invoice including items."""
-    invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
+    invoice = crud_all.invoice.get_first(db, Invoice.invoice_id == invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
         
@@ -309,16 +310,16 @@ def get_invoice_details(
     
     # Populate TDS and Received Amount for PAID invoices
     if invoice.status == "PAID":
-        tds_txn = db.query(AccountingTransaction).filter(
+        tds_txn = crud_all.accounting_transaction.get_first(db, 
             AccountingTransaction.voucher_type == "TDS",
             AccountingTransaction.voucher_id == invoice.invoice_id
-        ).first()
+        )
         res.tds_amount = tds_txn.credit if tds_txn else 0.0  # type: ignore
 
-        rcpt_txn = db.query(AccountingTransaction).filter(
+        rcpt_txn = crud_all.accounting_transaction.get_first(db, 
             AccountingTransaction.voucher_type == "RECEIPT",
             AccountingTransaction.voucher_id == invoice.invoice_id
-        ).first()
+        )
         res.received_amount = rcpt_txn.credit if rcpt_txn else invoice.total_amount  # type: ignore
     else:
         res.tds_amount = 0.0
@@ -351,7 +352,7 @@ def update_invoice(
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Only Super Admins can update invoices")
         
-    invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
+    invoice = crud_all.invoice.get_first(db, Invoice.invoice_id == invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
@@ -381,7 +382,7 @@ def update_invoice(
             # However, for 'Manage Invoice' UI, we might need a sync logic.
             
             # Simple approach: Delete existing and add new
-            db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).delete()
+            crud_all.invoice_item.get_first(db, InvoiceItem.invoice_id == invoice_id).delete()
             
             subtotal = 0.0
             for item in req.items:
@@ -408,7 +409,7 @@ def update_invoice(
         elif req.is_gst_bill is not None:
             # Case where only GST flag was toggled but items stayed same
             # We need subtotal to recalculate tax
-            items = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).all()
+            items = crud_all.invoice_item.get_multi(db, InvoiceItem.invoice_id == invoice_id)
             subtotal = sum((i.amount - i.discount) for i in items)
             
             rate = invoice.gst_rate or 0.0
@@ -422,10 +423,10 @@ def update_invoice(
         db.refresh(invoice)
 
         # 4. Sync Ledger Entry
-        txn = db.query(AccountingTransaction).filter(
+        txn = crud_all.accounting_transaction.get_first(db, 
             AccountingTransaction.voucher_type == "INVOICE",
             AccountingTransaction.voucher_id == invoice.invoice_id
-        ).first()
+        )
         
         if txn:
             txn.debit = invoice.total_amount
@@ -458,7 +459,7 @@ def delete_invoice_item(
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Only Super Admins can edit invoices")
         
-    item = db.query(InvoiceItem).filter(InvoiceItem.item_id == item_id).first()
+    item = crud_all.invoice_item.get_first(db, InvoiceItem.item_id == item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
         
@@ -486,10 +487,10 @@ def delete_invoice_item(
     db.commit()
 
     # Sync Ledger Entry (Debit)
-    txn = db.query(AccountingTransaction).filter(
+    txn = crud_all.accounting_transaction.get_first(db, 
         AccountingTransaction.voucher_type == "INVOICE",
         AccountingTransaction.voucher_id == invoice.invoice_id
-    ).first()
+    )
     
     if txn:
         txn.debit = invoice.total_amount
@@ -540,7 +541,7 @@ def generate_invoice(
         if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
             raise HTTPException(status_code=403, detail="Only Super Admins can generate invoices")
             
-        hospital = db.query(Hospital).filter(Hospital.hospital_id == req.hospital_id).first()
+        hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == req.hospital_id)
         if not hospital:
             raise HTTPException(status_code=404, detail="Hospital not found")
             
@@ -549,7 +550,7 @@ def generate_invoice(
             PDFFile.file_id.in_(req.file_ids),
             Patient.hospital_id == req.hospital_id,
             PDFFile.is_paid == False
-        ).all()
+        )
         
         if not files and not req.custom_items and not (req.include_registration_fee and hospital and not hospital.is_reg_fee_paid):
             raise HTTPException(status_code=400, detail="No valid, unpaid files, custom items, or registration fee to bill for this invoice")
@@ -564,50 +565,50 @@ def generate_invoice(
         # Generate or Use Custom Invoice Number
         if req.custom_invoice_number:
             invoice_number = req.custom_invoice_number
-            # We do NOT increment the auto-counter if manual override is used, 
-            # to prevent gaps/jumps unless explicitly handled. 
-            # User must manually update config if they want to skip ahead.
+            # Check for collision
+            if crud_all.invoice.get_first(db, Invoice.invoice_number == invoice_number):
+                raise HTTPException(status_code=400, detail=f"Invoice number '{invoice_number}' already exists!")
         else:
-            # Determine prefix and current counter based on GST vs Non-GST
+            # Determine prefix based on GST vs Non-GST
             if req.is_gst_bill:
                 prefix = config.invoice_prefix
-                current_counter = config.next_invoice_number
                 invoice_type = 'gst'
             else:
                 prefix = config.invoice_prefix_nongst or "BOS"
-                current_counter = config.next_invoice_number_nongst or 1
                 invoice_type = 'nongst'
             
-            # OPTIMIZED: Check cache table for available numbers (O(1) instead of O(n))
-            from ..models import AvailableInvoiceNumber
-            available = db.query(AvailableInvoiceNumber).filter(
-                AvailableInvoiceNumber.invoice_type == invoice_type,
-                AvailableInvoiceNumber.financial_year == config.current_fy
-            ).order_by(AvailableInvoiceNumber.number).first()
-            
-            if available:
-                # Reuse deleted invoice number
-                next_number = available.number
-                db.delete(available)  # Remove from available pool
-            else:
-                # No gaps, use next counter
-                next_number = current_counter
-                # Increment counter
-                if req.is_gst_bill:
-                    config.next_invoice_number += 1  # type: ignore
+            while True:
+                # OPTIMIZED: Check cache table for available numbers (O(1) instead of O(n))
+                from ..models import AvailableInvoiceNumber
+                available = db.query(AvailableInvoiceNumber).filter(
+                    AvailableInvoiceNumber.invoice_type == invoice_type,
+                    AvailableInvoiceNumber.financial_year == config.current_fy
+                ).order_by(AvailableInvoiceNumber.number).first()
+                
+                if available:
+                    # Reuse deleted invoice number
+                    next_number = available.number
+                    db.delete(available)  # Remove from available pool
+                    db.flush()
                 else:
-                    config.next_invoice_number_nongst = (config.next_invoice_number_nongst or 1) + 1  # type: ignore
-            
-            # Generate the invoice number
-            invoice_number = config.number_format.format(
-                prefix=prefix,
-                fy=config.current_fy,
-                number=next_number
-            )
-        
-        # Check for collision (Manual or Auto)
-        if db.query(Invoice).filter(Invoice.invoice_number == invoice_number).first():
-            raise HTTPException(status_code=400, detail=f"Invoice number '{invoice_number}' already exists!")
+                    # No gaps, use next counter
+                    if req.is_gst_bill:
+                        next_number = config.next_invoice_number
+                        config.next_invoice_number += 1  # type: ignore
+                    else:
+                        next_number = config.next_invoice_number_nongst or 1
+                        config.next_invoice_number_nongst = next_number + 1  # type: ignore
+
+                # Generate the invoice number
+                invoice_number = config.number_format.format(
+                    prefix=prefix,
+                    fy=config.current_fy,
+                    number=next_number
+                )
+                
+                # Check if it already exists
+                if not crud_all.invoice.get_first(db, Invoice.invoice_number == invoice_number):
+                    break
             
         # Calculate total and items
         total_amount = 0.0
@@ -810,7 +811,7 @@ def receive_payment(
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Only Super Admins can process payments")
         
-    invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
+    invoice = crud_all.invoice.get_first(db, Invoice.invoice_id == invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
         
@@ -818,7 +819,7 @@ def receive_payment(
     
     if is_edit_payment:
         # Clear existing RECEIPT and TDS ledger entries for this invoice to prevent double-entry duplication
-        db.query(AccountingTransaction).filter(
+        crud_all.accounting_transaction.get_first(db, 
             AccountingTransaction.party_type == "HOSPITAL",
             AccountingTransaction.party_id == invoice.hospital_id,
             AccountingTransaction.voucher_id == invoice.invoice_id,
@@ -831,10 +832,10 @@ def receive_payment(
     invoice.payment_date = req.payment_date or datetime.now()  # type: ignore
     
     # Mark all associated files as PAID
-    items = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).all()
+    items = crud_all.invoice_item.get_multi(db, InvoiceItem.invoice_id == invoice_id)
     file_ids = [item.file_id for item in items if item.file_id is not None] # Only include actual file_ids
     
-    db.query(PDFFile).filter(PDFFile.file_id.in_(file_ids)).update({
+    crud_all.p_d_f_file.get_multi(db, PDFFile.file_id.in_(file_ids)).update({
         "is_paid": True,
         "payment_date": datetime.now()
     }, synchronize_session=False)
@@ -912,7 +913,7 @@ def delete_payment(
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Only Super Admins can delete payments")
         
-    invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
+    invoice = crud_all.invoice.get_first(db, Invoice.invoice_id == invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
         
@@ -926,11 +927,11 @@ def delete_payment(
     invoice.payment_date = None  # type: ignore
     
     # Mark all associated files as UNPAID
-    items = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).all()
+    items = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).all().all()
     file_ids = [item.file_id for item in items if item.file_id is not None]
     
     if file_ids:
-        db.query(PDFFile).filter(PDFFile.file_id.in_(file_ids)).update({
+        crud_all.p_d_f_file.get_multi(db, PDFFile.file_id.in_(file_ids)).update({
             "is_paid": False,
             "payment_date": None
         }, synchronize_session=False)
@@ -966,7 +967,7 @@ async def get_unbilled_files(hospital_id: int, db: Session = Depends(get_db)):
         Patient.hospital_id == hospital_id,
         PDFFile.upload_status == 'confirmed',  # Only confirmed files (not drafts)
         not_(PDFFile.file_id.in_(billed_file_ids))  # type: ignore
-    ).all()
+    )
     
     results = []
     for f in pfiles:
@@ -1000,7 +1001,7 @@ def send_invoice_email(
     """Send the invoice details to the hospital admin via email."""
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Only Super Admins can send invoice emails")
-    invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
+    invoice = crud_all.invoice.get_first(db, Invoice.invoice_id == invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
         
@@ -1008,6 +1009,8 @@ def send_invoice_email(
     if not hospital or not hospital.email:
         raise HTTPException(status_code=400, detail="Hospital email not found")
         
+    config = db.query(AccountingConfig).first()
+    
     # Call email service
     success = EmailService.send_invoice_email(
         recipient_email=invoice.hospital.email,
@@ -1020,10 +1023,10 @@ def send_invoice_email(
             "hsn": item.hsn_code
         } for item in invoice.items],
         bank_details={
-            "name": invoice.hospital.bank_name,
-            "account": invoice.hospital.bank_account_no,
-            "ifsc": invoice.hospital.bank_ifsc,
-            "gst": invoice.hospital.gst_number
+            "name": config.company_bank_name if config else None,
+            "account": config.company_bank_acc if config else None,
+            "ifsc": config.company_bank_ifsc if config else None,
+            "gst": config.company_gst if config else None
         }
     )
     
@@ -1042,7 +1045,7 @@ def delete_invoice(
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Only Super Admins can delete invoices")
         
-    invoice = db.query(Invoice).filter(Invoice.invoice_id == invoice_id).first()
+    invoice = crud_all.invoice.get_first(db, Invoice.invoice_id == invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
         
@@ -1055,7 +1058,7 @@ def delete_invoice(
             invoice.hospital.is_reg_fee_paid = False  # type: ignore
 
     # Delete associated Ledger Entry
-    db.query(AccountingTransaction).filter(
+    crud_all.accounting_transaction.get_first(db, 
         AccountingTransaction.voucher_type == "INVOICE",
         AccountingTransaction.voucher_id == invoice_id
     ).delete()
@@ -1074,7 +1077,7 @@ def delete_invoice(
     # Recycle the invoice number for reuse
     config = None
     try:
-        config = db.query(AccountingConfig).first()
+        config = db.query(AccountingConfig)
         if config and invoice.invoice_number:
             # Format: PREFIX/FY/NUMBER
             parts = invoice.invoice_number.split('/')
@@ -1089,11 +1092,11 @@ def delete_invoice(
                 
                 from ..models import AvailableInvoiceNumber
                 # Add to pool if not already there
-                exists = db.query(AvailableInvoiceNumber).filter(
+                exists = crud_all.available_invoice_number.get_first(db, 
                     AvailableInvoiceNumber.number == raw_number,
                     AvailableInvoiceNumber.invoice_type == inv_type,
                     AvailableInvoiceNumber.financial_year == fy
-                ).first()
+                )
                 
                 if not exists:
                     pool_entry = AvailableInvoiceNumber(
@@ -1112,7 +1115,7 @@ def delete_invoice(
     db.commit()
     
     # Check if table is empty, if so, reset pool and counters
-    if db.query(Invoice).count() == 0:
+    if db.query(Invoice) == 0:
         if config:
             config.next_invoice_number = 1  # type: ignore
             config.next_invoice_number_nongst = 1  # type: ignore

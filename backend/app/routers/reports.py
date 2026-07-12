@@ -10,6 +10,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload, subqueryload
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import (
     AuditLog,
     Hospital,
@@ -172,7 +173,7 @@ def get_inventory_report(
     
     for b in boxes:
         # Patient Count
-        p_count = db.query(Patient).filter(Patient.physical_box_id == b.box_id).count()
+        p_count = crud_all.patient.count(db, Patient.physical_box_id == b.box_id)
         utilization = round((p_count / (b.capacity or 50)) * 100, 1) if b.capacity else 0
         
         row = {
@@ -217,7 +218,7 @@ def get_audit_report(
     query = apply_hospital_filter(query, AuditLog, current_user, hospital_id)
     query = apply_date_filter(query, AuditLog.timestamp, start_date, end_date)
     
-    logs = query.order_by(AuditLog.timestamp.desc()).limit(limit).all()
+    logs = query.order_by(AuditLog.timestamp.desc()).limit(limit)
     
     data = []
     for log in logs:
@@ -259,7 +260,7 @@ def mark_files_as_paid(
     if current_user.role != UserRole.SUPER_ADMIN:
          raise HTTPException(status_code=403, detail="Only Super Admin can manage payments")
          
-    files = db.query(PDFFile).filter(PDFFile.file_id.in_(payload.file_ids)).all()
+    files = crud_all.p_d_f_file.get_multi(db, PDFFile.file_id.in_(payload.file_ids))
     count = 0
     for f in files:
         f.is_paid = payload.is_paid  # type: ignore

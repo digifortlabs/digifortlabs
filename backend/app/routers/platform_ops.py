@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import (
     Warehouse,
     PhysicalRack,
@@ -38,7 +39,7 @@ def create_warehouse(warehouse: WarehouseCreate, db: Session = Depends(get_db), 
     if current_user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(status_code=403, detail="Only Super Admins can manage warehouses")
         
-    exists = db.query(Warehouse).filter(Warehouse.name == warehouse.name).first()
+    exists = crud_all.warehouse.get_first(db, Warehouse.name == warehouse.name)
     if exists:
         raise HTTPException(status_code=400, detail="Warehouse with this name already exists")
         
@@ -53,15 +54,15 @@ def get_warehouses(db: Session = Depends(get_db), current_user: User = Depends(g
     if current_user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(status_code=403, detail="Access denied")
         
-    return db.query(Warehouse).all()
+    return crud_all.warehouse.get_multi(db)
 
 @router.post("/assign-rack")
 def assign_rack_to_warehouse(req: AssignRackRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(status_code=403, detail="Access denied")
         
-    rack = db.query(PhysicalRack).filter(PhysicalRack.rack_id == req.rack_id).first()
-    warehouse = db.query(Warehouse).filter(Warehouse.warehouse_id == req.warehouse_id).first()
+    rack = crud_all.physical_rack.get_first(db, PhysicalRack.rack_id == req.rack_id)
+    warehouse = crud_all.warehouse.get_first(db, Warehouse.warehouse_id == req.warehouse_id)
     
     if not rack or not warehouse:
         raise HTTPException(status_code=404, detail="Rack or Warehouse not found")

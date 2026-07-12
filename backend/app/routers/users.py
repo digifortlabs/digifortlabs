@@ -7,6 +7,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import AuditLog, Hospital, User, UserRole, Permission
 from ..routers.auth import get_current_user, require_permission
 
@@ -17,7 +18,7 @@ router = APIRouter(redirect_slashes=False)
 
 @router.delete("/{user_id}")
 def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_USERS))):
-    target_user = db.query(User).filter(User.user_id == user_id, User.is_deleted == False).first()
+    target_user = crud_all.user.get_first(db, User.user_id == user_id, User.is_deleted == False)
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
         
@@ -118,11 +119,11 @@ def get_users(db: Session = Depends(get_db), current_user: User = Depends(get_cu
             return db.query(User).filter(User.is_deleted == False).all()
 
         elif current_user.role == UserRole.HOSPITAL_ADMIN:
-            return db.query(User).filter(User.hospital_id == current_user.hospital_id, User.is_deleted == False).all()
+            return crud_all.user.get_multi(db, User.hospital_id == current_user.hospital_id, User.is_deleted == False)
             
         else: # HOSPITAL_STAFF
             # Hospital staff can only see themselves (Issue 46)
-            return db.query(User).filter(User.user_id == current_user.user_id, User.is_deleted == False).all()
+            return crud_all.user.get_multi(db, User.user_id == current_user.user_id, User.is_deleted == False)
             
     except Exception as e:
         import traceback
@@ -166,11 +167,11 @@ def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: U
                  raise HTTPException(status_code=400, detail="Cannot create hospital user without hospital context")
 
     if target_hospital_id:
-        hospital = db.query(Hospital).filter(Hospital.hospital_id == target_hospital_id).first()
+        hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == target_hospital_id)
         if not hospital:
             raise HTTPException(status_code=404, detail="Hospital not found")
         
-        current_count = db.query(User).filter(User.hospital_id == target_hospital_id, User.is_deleted == False).count()
+        current_count = crud_all.user.count(db, User.hospital_id == target_hospital_id, User.is_deleted == False)
         
         # Use Hospital-specific limit if set, otherwise fallback to Plan limit (which is now just a label)
         # Default max_users in DB is 2.
@@ -226,7 +227,7 @@ class UserUpdate(BaseModel):
 
 @router.patch("/{user_id}")
 def update_user(user_id: int, data: UserUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_USERS))):
-    target_user = db.query(User).filter(User.user_id == user_id).first()
+    target_user = crud_all.user.get_first(db, User.user_id == user_id)
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
         
@@ -312,14 +313,14 @@ def get_login_activity(
         users = db.query(User).filter(
             User.last_login_at.isnot(None),
             User.is_deleted == False
-        ).order_by(User.last_login_at.desc()).limit(limit).all()
+        ).order_by(User.last_login_at.desc()).limit(limit)
     else:
         # Hospital Admin sees only their hospital users
-        users = db.query(User).filter(
+        users = crud_all.user.get_multi(db, 
             User.hospital_id == current_user.hospital_id,
             User.last_login_at.isnot(None),
             User.is_deleted == False
-        ).order_by(User.last_login_at.desc()).limit(limit).all()
+        ).order_by(User.last_login_at.desc()).limit(limit)
     
     # Format response
     result = []

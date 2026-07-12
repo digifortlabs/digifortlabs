@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 import uuid
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import User, UserRole, DoctorProfile, Department, Permission, DoctorSchedule
 from ..routers.auth import get_current_user, require_permission
 from ..utils import get_password_hash
@@ -89,7 +90,7 @@ def get_doctors(
     if current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF] and hospital_id:
         target_hospital_id = hospital_id
 
-    query = db.query(DoctorProfile).filter(DoctorProfile.is_active == True)
+    query = db.query(DoctorProfile).filter(DoctorProfile.is_active == True).first()
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF] or target_hospital_id is not None:
         query = query.filter(DoctorProfile.hospital_id == target_hospital_id)
         
@@ -130,10 +131,10 @@ def create_doctor(
         raise HTTPException(status_code=400, detail="Hospital ID is required")
 
     # 1. Check department
-    dept = db.query(Department).filter(
+    dept = crud_all.department.get_first(db, 
         Department.department_id == data.department_id,
         Department.hospital_id == target_hospital_id
-    ).first()
+    )
     if not dept:
         raise HTTPException(status_code=404, detail="Department not found")
 
@@ -153,7 +154,7 @@ def create_doctor(
             password_to_use = ''.join(secrets.choice(alphabet) for i in range(12))
             is_auto_generated = True
 
-        existing_user = db.query(User).filter(User.email == data.email).first()
+        existing_user = crud_all.user.get_first(db, User.email == data.email)
         if existing_user:
             new_user_id = existing_user.user_id
         else:
@@ -215,12 +216,12 @@ def update_doctor(
     current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_USERS))
 ):
     if current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
-        profile = db.query(DoctorProfile).filter(DoctorProfile.profile_id == profile_id).first()
+        profile = crud_all.doctor_profile.get_first(db, DoctorProfile.profile_id == profile_id)
     else:
-        profile = db.query(DoctorProfile).filter(
+        profile = crud_all.doctor_profile.get_first(db, 
             DoctorProfile.profile_id == profile_id, 
             DoctorProfile.hospital_id == current_user.hospital_id
-        ).first()
+        )
 
     if not profile:
         raise HTTPException(status_code=404, detail="Doctor profile not found")
@@ -243,7 +244,7 @@ def update_doctor(
         profile.is_residential = data.is_residential
         
     if data.department_id is not None:
-        dept = db.query(Department).filter(Department.department_id == data.department_id, Department.hospital_id == profile.hospital_id).first()
+        dept = crud_all.department.get_first(db, Department.department_id == data.department_id, Department.hospital_id == profile.hospital_id)
         if not dept:
             raise HTTPException(status_code=404, detail="Department not found")
         profile.department_id = data.department_id
@@ -266,10 +267,10 @@ def delete_doctor(
     db: Session = Depends(get_db), 
     current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_USERS))
 ):
-    profile = db.query(DoctorProfile).filter(
+    profile = crud_all.doctor_profile.get_first(db, 
         DoctorProfile.profile_id == profile_id, 
         DoctorProfile.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not profile:
         raise HTTPException(status_code=404, detail="Doctor profile not found")
 
@@ -294,13 +295,13 @@ async def get_my_schedule(
     db: Session = Depends(get_db)
 ):
     """Get the current doctor's weekly schedule."""
-    profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user.user_id).first()
+    profile = crud_all.doctor_profile.get_first(db, DoctorProfile.user_id == current_user.user_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Doctor profile not found")
         
-    schedules = db.query(DoctorSchedule).filter(
+    schedules = crud_all.doctor_schedule.get_first(db, 
         DoctorSchedule.doctor_id == profile.profile_id
-    ).all()
+    )
     return schedules
 
 @router.post("/me/schedule", response_model=List[ScheduleBlockResponse])
@@ -310,11 +311,11 @@ async def update_my_schedule(
     db: Session = Depends(get_db)
 ):
     """Update the current doctor's weekly schedule."""
-    profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user.user_id).first()
+    profile = crud_all.doctor_profile.get_first(db, DoctorProfile.user_id == current_user.user_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Doctor profile not found")
         
-    db.query(DoctorSchedule).filter(DoctorSchedule.doctor_id == profile.profile_id).delete()
+    crud_all.doctor_schedule.get_first(db, DoctorSchedule.doctor_id == profile.profile_id).delete()
     
     new_schedules = []
     for block in blocks:
@@ -343,7 +344,7 @@ async def get_doctor_schedule_full(
     """Get the full weekly schedule for a doctor."""
     schedules = db.query(DoctorSchedule).filter(
         DoctorSchedule.doctor_id == doctor_id
-    ).all()
+    )
     return schedules
 
 @router.post("/{doctor_id}/schedule", response_model=List[ScheduleBlockResponse])

@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from '@/config/api';
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Info, X } from 'lucide-react';
@@ -23,37 +24,32 @@ export default function MaintenanceBanner() {
         // Fetch platform settings
         async function fetchSettings() {
             try {
-                const res = await fetch(`${API_URL}/platform/settings`);
-                if (res.ok) {
-                    const data = await res.json();
-                    setSettings(data);
+                const data = await apiFetch(`/platform/settings`);
+                setSettings(data);
 
-                    // AUTO-LOGOUT: If maintenance mode is ON and user is NOT Super Admin
-                    if (data.maintenance_mode === 'true' && !logoutScheduledRef.current) {
-                        const role = localStorage.getItem('userRole') || '';
+                // AUTO-LOGOUT: If maintenance mode is ON and user is NOT Super Admin
+                if (data.maintenance_mode === 'true' && !logoutScheduledRef.current) {
+                    const role = localStorage.getItem('userRole') || '';
 
-                        // Logout all users except Super Admins
-                        if (role !== 'superadmin') {
-                            // console.log('🔒 Maintenance mode detected - showing warning before logout');
-                            logoutScheduledRef.current = true; // Mark logout as scheduled
-                            setShowMaintenanceWarning(true);
+                    // Logout all users except Super Admins
+                    if (role !== 'superadmin') {
+                        // console.log('🔒 Maintenance mode detected - showing warning before logout');
+                        logoutScheduledRef.current = true; // Mark logout as scheduled
+                        setShowMaintenanceWarning(true);
 
-                            // Give user 3 seconds to see the message before logout
-                            setTimeout(async () => {
-                                try {
-                                    // Make a real logout call to the backend to clear the HttpOnly cookie
-                                    await fetch(`${API_URL}/auth/logout`, { method: 'POST' });
-                                } catch (e) {
-                                    // Ignore network errors on logout
-                                }
+                        // Give user 3 seconds to see the message before logout
+                        setTimeout(async () => {
+                            try {
+                                // Make a real logout call to the backend to clear the HttpOnly cookie
+                                await apiFetch(`/auth/logout`, { method: 'POST' });
+                            } catch (e) {
+                                // Ignore network errors on logout
+                            }
 
-                                localStorage.clear();
-                                router.push('/login?reason=maintenance');
-                            }, 3000);
-                        }
+                            localStorage.clear();
+                            router.push('/login?reason=maintenance');
+                        }, 3000);
                     }
-                } else {
-                    console.error("Failed to fetch platform settings:", res.status, res.statusText);
                 }
             } catch (error) {
                 console.error("Failed to fetch platform settings:", error);

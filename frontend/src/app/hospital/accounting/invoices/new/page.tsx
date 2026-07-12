@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/config/api';
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 import { 
     FileText, ArrowLeft, Plus, Trash2, IndianRupee, Save, Loader2, CheckCircle2, AlertCircle, ShoppingCart,
     CheckSquare, Square, Stethoscope, BedDouble, Beaker

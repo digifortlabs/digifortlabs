@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from ..audit import log_audit
 from ..database import get_db
+from ..crud import crud_all
 from ..models import (
     AuditLog, 
     Hospital, 
@@ -31,6 +32,11 @@ from ..utils import get_password_hash
 from .auth import get_current_user, require_permission
 from ..models import Permission
 from ..services.email_service import EmailService
+
+
+import time
+_PLATFORM_STATS_CACHE = {}
+_CACHE_TTL = 30  # seconds
 
 router = APIRouter()
 
@@ -190,7 +196,7 @@ def check_domain_availability(slug: str, db: Session = Depends(get_db)):
     if not clean_slug:
         return {"available": False, "message": "Invalid slug"}
     
-    conflict = db.query(Hospital).filter(Hospital.hospital_slug == clean_slug).first()
+    conflict = crud_all.hospital.get_first(db, Hospital.hospital_slug == clean_slug)
     if conflict:
         return {"available": False, "message": "Subdomain is already taken"}
     return {"available": True, "message": "Subdomain is available"}
@@ -209,7 +215,7 @@ async def upload_hospital_logo(
     if current_user.role != UserRole.SUPER_ADMIN and current_user.hospital_id != hospital_id:
         raise HTTPException(status_code=403, detail="Not authorized")
         
-    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    db_hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == hospital_id)
     if not db_hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
         
@@ -287,7 +293,7 @@ async def upload_hospital_document(
     if current_user.role not in (UserRole.SUPER_ADMIN,) and current_user.hospital_id != hospital_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    db_hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == hospital_id)
     if not db_hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
 
@@ -359,7 +365,7 @@ async def delete_hospital_document(
     if current_user.role not in (UserRole.SUPER_ADMIN,) and current_user.hospital_id != hospital_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    db_hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == hospital_id)
     if not db_hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
 
@@ -396,7 +402,7 @@ def get_document_presigned_url(
     if current_user.role not in (UserRole.SUPER_ADMIN,) and current_user.hospital_id != hospital_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    db_hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == hospital_id)
     if not db_hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
 
@@ -411,9 +417,16 @@ def get_document_presigned_url(
 @router.get("/stats/platform")
 def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
     # RBAC handles authorization instead of hardcoded SUPER_ADMIN check
+
+    # Cache check
+    now_ts = time.time()
+    if 'stats' in _PLATFORM_STATS_CACHE:
+        cached_data, cached_time = _PLATFORM_STATS_CACHE['stats']
+        if now_ts - cached_time < _CACHE_TTL:
+            return cached_data
     
-    total_hospitals = db.query(Hospital).filter(Hospital.is_deleted == False).count()
-    active_hospitals = db.query(Hospital).filter(Hospital.is_active == True, Hospital.is_deleted == False).count()
+    total_hospitals = crud_all.hospital.count(db, Hospital.is_deleted == False)
+    active_hospitals = crud_all.hospital.count(db, Hospital.is_active == True, Hospital.is_deleted == False)
     
     # Active Users (distinct user sessions active in AuditLog or User.last_active_at in last 5 minutes)
     from datetime import datetime, timedelta
@@ -426,29 +439,29 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
     ).distinct().count()
     
     # 2. Count from User.last_active_at
-    live_users_active_field = db.query(User).filter(
+    live_users_active_field = crud_all.user.count(db, 
         User.last_active_at >= five_mins_ago,
         User.is_active == True,
         User.is_deleted == False
-    ).count()
+    )
     
     # Use max to be robust and accurate, ensuring at least 1 (current user)
     live_active_users = max(live_users_audit, live_users_active_field, 1)
     
     # Check for pending approvals
-    pending_approvals = db.query(Hospital).filter(Hospital.pending_updates is not None, Hospital.is_deleted == False).count()
+    pending_approvals = crud_all.hospital.count(db, Hospital.pending_updates is not None, Hospital.is_deleted == False)
     
     # Tier Distribution
     tiers = {
-        "Enterprise": db.query(Hospital).filter(Hospital.subscription_tier == "Enterprise", Hospital.is_deleted == False).count(),
-        "Professional": db.query(Hospital).filter(Hospital.subscription_tier == "Professional", Hospital.is_deleted == False).count(),
-        "Standard": db.query(Hospital).filter(Hospital.subscription_tier == "Standard", Hospital.is_deleted == False).count(),
-        "Starter": db.query(Hospital).filter(Hospital.subscription_tier == "Starter", Hospital.is_deleted == False).count(),
+        "Enterprise": crud_all.hospital.count(db, Hospital.subscription_tier == "Enterprise", Hospital.is_deleted == False),
+        "Professional": crud_all.hospital.count(db, Hospital.subscription_tier == "Professional", Hospital.is_deleted == False),
+        "Standard": crud_all.hospital.count(db, Hospital.subscription_tier == "Standard", Hospital.is_deleted == False),
+        "Starter": crud_all.hospital.count(db, Hospital.subscription_tier == "Starter", Hospital.is_deleted == False),
     }
     
     # Storage & Bandwidth Insights
     # Only count confirmed uploads
-    total_files = db.query(PDFFile).filter(PDFFile.upload_status == 'confirmed').count()
+    total_files = crud_all.p_d_f_file.count(db, PDFFile.upload_status == 'confirmed')
     total_bytes = db.query(func.sum(PDFFile.file_size)).filter(PDFFile.upload_status == 'confirmed').scalar() or 0
     total_bytes_val = total_bytes or 0
     total_gigabytes = total_bytes_val / (1024 * 1024 * 1024)
@@ -461,7 +474,7 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
     ).select_from(Hospital).join(Patient).join(PDFFile).filter(
         PDFFile.upload_status == 'confirmed',
         Hospital.is_deleted == False
-    ).group_by(Hospital.hospital_id).order_by(desc("total_usage")).limit(5).all()
+    ).group_by(Hospital.hospital_id).order_by(desc("total_usage")).limit(5)
     
     usage_list = [{"name": h[0], "usage_mb": round((h[1] or 0) / (1024*1024), 2)} for h in top_hospitals]
     
@@ -475,7 +488,7 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
     }
     
     projected_revenue = 0.0
-    active_clients_list = db.query(Hospital).filter(Hospital.is_active == True, Hospital.is_deleted == False).all()
+    active_clients_list = crud_all.hospital.get_multi(db, Hospital.is_active == True, Hospital.is_deleted == False)
     for h in active_clients_list:
         base = base_fees.get(str(h.subscription_tier), 500.0)
         # Variable usage-based metric: Price per Patient MRD File * expected volume
@@ -484,7 +497,7 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
         variable = (h.price_per_file or 100.0) * volume
         projected_revenue += (base + variable)
         
-    return {
+    response_data = {
         "total_hospitals": total_hospitals,
         "active_hospitals": active_hospitals,
         "total_users": live_active_users,
@@ -496,6 +509,9 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
         "top_consumers": usage_list,
         "projected_revenue": round(cast(float, projected_revenue), 2)
     }
+    
+    _PLATFORM_STATS_CACHE['stats'] = (response_data, time.time())
+    return response_data
 
 @router.post("", response_model=HospitalResponse, include_in_schema=False)
 def activate_ssl(subdomain: str):
@@ -521,7 +537,7 @@ def create_hospital(hospital: HospitalCreate, background_tasks: BackgroundTasks,
     # RBAC handles authorization instead of hardcoded SUPER_ADMIN check
 
     # Check for duplicate email
-    if db.query(Hospital).filter(Hospital.email == hospital.email).first():
+    if crud_all.hospital.get_multi(db, Hospital.email == hospital.email):
         raise HTTPException(status_code=400, detail="Hospital with this email already exists")
 
     # Intercept Independent Doctor
@@ -535,7 +551,7 @@ def create_hospital(hospital: HospitalCreate, background_tasks: BackgroundTasks,
         
         counter = 1
         original_subdomain = subdomain
-        while db.query(User).filter(User.subdomain == subdomain).first():
+        while crud_all.user.get_first(db, User.subdomain == subdomain):
             subdomain = f"{original_subdomain}{counter}"
             counter += 1
 
@@ -638,7 +654,7 @@ def create_hospital(hospital: HospitalCreate, background_tasks: BackgroundTasks,
     db.flush() 
 
     # Create Hospital Admin User (Step 3)
-    if not db.query(User).filter(User.email == hospital.admin_email).first():
+    if not db.query(User).filter(User.email == hospital.admin_email):
         new_admin = User(
             email=hospital.admin_email,
             full_name=hospital.admin_full_name,
@@ -708,12 +724,12 @@ def create_hospital_admin(hospital_id: int, admin_data: AdminCreate, db: Session
     # RBAC handles authorization 
     
     # Check if hospital exists
-    hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == hospital_id)
     if not hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
 
     # Check if email exists
-    if db.query(User).filter(User.email == admin_data.email).first():
+    if crud_all.user.get_first(db, User.email == admin_data.email):
         raise HTTPException(status_code=400, detail="Email already registered")
         
     # Create Admin
@@ -748,7 +764,7 @@ def onboard_hospital(
     if current_user.hospital_id != hospital_id or current_user.role != UserRole.HOSPITAL_ADMIN:
         raise HTTPException(status_code=403, detail="Not authorized to onboard this hospital")
 
-    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    db_hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == hospital_id)
     if not db_hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
         
@@ -781,7 +797,7 @@ def onboard_hospital(
 @router.patch("/{hospital_id}", response_model=HospitalResponse)
 def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITAL_SETTINGS))):
     # 1. Fetch Hospital
-    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id, Hospital.is_deleted == False).first()
+    db_hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == hospital_id, Hospital.is_deleted == False)
     if not db_hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
 
@@ -801,7 +817,7 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, backgroun
         clean_slug = re.sub(r'[^a-z0-9-]', '', update_data['hospital_slug'].lower().strip())
         if not clean_slug:
             raise HTTPException(status_code=400, detail="Invalid subdomain slug")
-        conflict = db.query(Hospital).filter(Hospital.hospital_slug == clean_slug, Hospital.hospital_id != hospital_id).first()
+        conflict = crud_all.hospital.get_first(db, Hospital.hospital_slug == clean_slug, Hospital.hospital_id != hospital_id)
         if conflict:
             raise HTTPException(status_code=400, detail=f"Subdomain '{clean_slug}' is already taken")
         update_data['hospital_slug'] = clean_slug
@@ -820,11 +836,11 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, backgroun
         
         # Sync Email to Admin User if changed
         if new_email and new_email != old_email:
-             admin_user = db.query(User).filter(
+             admin_user = crud_all.user.get_first(db, 
                  User.hospital_id == hospital_id, 
                  User.email == old_email,
                  User.role == UserRole.HOSPITAL_ADMIN
-             ).first()
+             )
              
              if admin_user:
                  admin_user.email = new_email  # type: ignore[assignment]
@@ -873,11 +889,11 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, backgroun
             
         # Sync Email to Admin User if changed
         if new_email and new_email != old_email:
-             admin_user = db.query(User).filter(
+             admin_user = crud_all.user.get_first(db, 
                  User.hospital_id == hospital_id, 
                  User.email == old_email,
                  User.role == UserRole.HOSPITAL_ADMIN
-             ).first()
+             )
              
              if admin_user:
                  admin_user.email = new_email  # type: ignore[assignment]
@@ -904,7 +920,7 @@ def update_hospital(hospital_id: int, hospital_update: HospitalUpdate, backgroun
 
 @router.post("/{hospital_id}/approve")
 def approve_update(hospital_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
-    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    db_hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == hospital_id)
     if not db_hospital or not db_hospital.pending_updates:
         raise HTTPException(status_code=404, detail="No pending updates found")
 
@@ -932,7 +948,7 @@ def approve_update(hospital_id: int, background_tasks: BackgroundTasks, db: Sess
 
 @router.post("/{hospital_id}/reject")
 def reject_update(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
-    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    db_hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == hospital_id)
     if not db_hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
         
@@ -945,7 +961,7 @@ def reject_update(hospital_id: int, db: Session = Depends(get_db), current_user:
 
 @router.get("/{hospital_id}", response_model=HospitalResponse)
 def read_hospital(hospital_id: int, db: Session = Depends(get_db)):
-    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id, Hospital.is_deleted == False).first()
+    db_hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == hospital_id, Hospital.is_deleted == False)
     if db_hospital is None:
         raise HTTPException(status_code=404, detail="Hospital not found")
     return db_hospital
@@ -1004,7 +1020,7 @@ def get_hospital_usage(hospital_id: int, db: Session = Depends(get_db), current_
 
 @router.delete("/{hospital_id}")
 def delete_hospital(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
-    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id, Hospital.is_deleted == False).first()
+    db_hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == hospital_id, Hospital.is_deleted == False)
     if not db_hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
     
@@ -1013,7 +1029,7 @@ def delete_hospital(hospital_id: int, db: Session = Depends(get_db), current_use
     db_hospital.is_active = False  # type: ignore[assignment]
     
     # Also soft-delete all users of this hospital
-    db.query(User).filter(User.hospital_id == hospital_id).update({"is_deleted": True, "is_active": False}, synchronize_session=False)
+    crud_all.user.get_first(db, User.hospital_id == hospital_id).update({"is_deleted": True, "is_active": False}, synchronize_session=False)
     
     # Also soft-delete all patients of this hospital
     db.query(Patient).filter(Patient.hospital_id == hospital_id).update({"is_deleted": True}, synchronize_session=False)
@@ -1030,7 +1046,7 @@ def delete_hospital(hospital_id: int, db: Session = Depends(get_db), current_use
 
 @router.post("/{hospital_id}/restore")
 def restore_hospital(hospital_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_permission(Permission.MANAGE_HOSPITALS))):
-    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first().first()
     if not db_hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
     
@@ -1039,7 +1055,7 @@ def restore_hospital(hospital_id: int, db: Session = Depends(get_db), current_us
     db_hospital.is_active = True  # type: ignore[assignment]
     
     # Also restore all users of this hospital
-    db.query(User).filter(User.hospital_id == hospital_id).update({"is_deleted": False, "is_active": True}, synchronize_session=False)
+    crud_all.user.get_first(db, User.hospital_id == hospital_id).update({"is_deleted": False, "is_active": True}, synchronize_session=False)
     
     # Also restore all patients of this hospital
     db.query(Patient).filter(Patient.hospital_id == hospital_id).update({"is_deleted": False}, synchronize_session=False)
@@ -1191,7 +1207,7 @@ def permanently_delete_hospital(
     (patients, files, invoices, appointments, users, ...). Safety gate: the
     hospital must already be soft-deleted (sitting in the Recycle Bin).
     """
-    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+    db_hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first().first()
     if not db_hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
 

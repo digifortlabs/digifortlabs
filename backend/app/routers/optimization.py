@@ -1,4 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from ..crud import crud_all
 from fastapi.responses import FileResponse, StreamingResponse
 from celery.result import AsyncResult
 import uuid
@@ -183,7 +184,7 @@ def download_file_for_ocr(file_id: int, db: Session = Depends(get_db), authentic
     """
     Streams the decrypted file bytes to the worker for OCR processing.
     """
-    db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+    db_file = crud_all.p_d_f_file.get_first(db, PDFFile.file_id == file_id)
     if not db_file or not db_file.s3_key:
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -206,7 +207,7 @@ def background_ai_extraction(file_id: int, extracted_text: str):
     
     db = SessionLocal()
     try:
-        db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+        db_file = crud_all.p_d_f_file.get_first(db, PDFFile.file_id == file_id)
         if not db_file:
             return
             
@@ -216,7 +217,7 @@ def background_ai_extraction(file_id: int, extracted_text: str):
         is_enabled = ai_config.get("enabled", False)
         
         if not is_enabled or not api_key:
-            platform_ai = db.query(SystemSetting).filter(SystemSetting.key == "platform_ai_settings").first()
+            platform_ai = crud_all.system_setting.get_first(db, SystemSetting.key == "platform_ai_settings")
             if platform_ai and platform_ai.value:
                 try:
                     plat_cfg = json.loads(str(platform_ai.value))
@@ -257,7 +258,7 @@ def submit_ocr_result(
     """
     Receives OCR text from worker, updates DB, and attempts AI extraction in background.
     """
-    db_file = db.query(PDFFile).filter(PDFFile.file_id == file_id).first()
+    db_file = crud_all.p_d_f_file.get_first(db, PDFFile.file_id == file_id)
     if not db_file:
         raise HTTPException(status_code=404, detail="File not found")
         

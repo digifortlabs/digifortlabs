@@ -53,6 +53,7 @@ export default function GlobalPatientRegister() {
     const [isSaving, setIsSaving] = useState(false);
     const [ageUnit, setAgeUnit] = useState<'Years' | 'Months' | 'Days'>('Years');
     const [namePrefix, setNamePrefix] = useState('Mr.');
+    const [uhidMode, setUhidMode] = useState<'auto' | 'semi-auto' | 'manual'>('auto');
 
     const [formData, setFormData] = useState({
         full_name: '',
@@ -83,22 +84,25 @@ export default function GlobalPatientRegister() {
 
     const autoGenerateIds = async () => {
         let finalUHID = `DF-${Math.floor(1000 + Math.random() * 9000)}`;
+        let mode = 'auto';
         try {
             const res = await apiFetch('/patients/next-id');
             if (res && res.next_id) {
                 finalUHID = res.next_id;
+                if (res.mode) mode = res.mode;
             }
         } catch (err) {
             console.error("Failed to fetch next sequential IDs:", err);
         }
-        return { finalUHID };
+        return { finalUHID, mode };
     };
 
     useEffect(() => {
         const handleOpen = async () => {
             setIsOpen(true);
             const today = new Date().toISOString().split('T')[0];
-            const { finalUHID } = await autoGenerateIds();
+            const { finalUHID, mode } = await autoGenerateIds();
+            setUhidMode(mode as any);
             setFormData(prev => ({
                 ...prev,
                 patient_u_id: '',
@@ -123,7 +127,8 @@ export default function GlobalPatientRegister() {
     };
 
     const resetForm = async () => {
-        const { finalUHID } = await autoGenerateIds();
+        const { finalUHID, mode } = await autoGenerateIds();
+        setUhidMode(mode as any);
         setFormData({
             full_name: '',
             uhid: finalUHID,
@@ -284,11 +289,14 @@ export default function GlobalPatientRegister() {
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-xs font-black uppercase tracking-widest text-slate-500">UHID (Auto-generated)</Label>
+                                        <Label className="text-xs font-black uppercase tracking-widest text-slate-500">
+                                            UHID ({uhidMode === 'manual' ? 'Manual' : uhidMode === 'semi-auto' ? 'Editable' : 'Auto-generated'})
+                                        </Label>
                                         <Input 
                                             placeholder="DF-1234"
-                                            className="h-11 border-slate-200 rounded-xl focus:ring-indigo-500 font-mono"
+                                            className={`h-11 border-slate-200 rounded-xl focus:ring-indigo-500 font-mono ${uhidMode === 'auto' ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''}`}
                                             value={formData.uhid}
+                                            readOnly={uhidMode === 'auto'}
                                             onChange={e => setFormData({...formData, uhid: toUpperCaseMRD(e.target.value)})}
                                         />
                                     </div>

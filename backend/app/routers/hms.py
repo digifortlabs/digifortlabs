@@ -6,6 +6,7 @@ from datetime import datetime, date, timedelta
 from pydantic import BaseModel
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import User, Patient, IPDAdmission, Ward, Bed, OperationTheater, MedicalEquipment, RFIDCard, Hospital, PatientInvoice, PatientInvoiceItem, EmergencyVisit, WhatsAppMessageQueue, Surgery
 from .auth import get_current_user
 
@@ -291,9 +292,7 @@ def get_wards(
 ):
     """Get all hospital wards"""
     effective_h_id = hospital_id or current_user.hospital_id
-    wards = db.query(Ward).filter(
-        Ward.hospital_id == effective_h_id
-    ).all()
+    wards = db.query(Ward).filter(Ward.hospital_id == effective_h_id).all()
     
     # Get bed counts efficiently
     bed_counts = db.query(Bed.ward_id, func.count(Bed.bed_id)).filter(
@@ -336,15 +335,15 @@ def get_ward_detail(
     current_user: User = Depends(get_current_user)
 ):
     """Get ward details with beds"""
-    ward = db.query(Ward).filter(
+    ward = crud_all.ward.get_first(db, 
         Ward.ward_id == ward_id,
         Ward.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not ward:
         raise HTTPException(status_code=404, detail="Ward not found")
     
-    beds = db.query(Bed).filter(Bed.ward_id == ward_id).all()
+    beds = crud_all.bed.get_first(db, Bed.ward_id == ward_id)
     
     return {
         "ward": ward,
@@ -359,7 +358,7 @@ def update_ward(
     current_user: User = Depends(get_current_user)
 ):
     """Update ward details"""
-    ward = db.query(Ward).filter(Ward.ward_id == ward_id, Ward.hospital_id == current_user.hospital_id).first()
+    ward = crud_all.ward.get_first(db, Ward.ward_id == ward_id, Ward.hospital_id == current_user.hospital_id)
     if not ward:
         raise HTTPException(status_code=404, detail="Ward not found")
         
@@ -392,10 +391,10 @@ def update_ward(
         else:
             # Remove excess unoccupied beds
             excess = ward.total_beds - ward_update.total_beds
-            available_beds = db.query(Bed).filter(
+            available_beds = crud_all.bed.get_first(db, 
                 Bed.ward_id == ward.ward_id,
                 Bed.is_occupied == False
-            ).order_by(Bed.bed_id.desc()).limit(excess).all()
+            ).order_by(Bed.bed_id.desc()).limit(excess)
             
             if len(available_beds) < excess:
                 raise HTTPException(status_code=400, detail="Cannot reduce total beds. Too many beds are currently occupied.")
@@ -416,17 +415,17 @@ def delete_ward(
     current_user: User = Depends(get_current_user)
 ):
     """Delete ward if empty"""
-    ward = db.query(Ward).filter(Ward.ward_id == ward_id, Ward.hospital_id == current_user.hospital_id).first()
+    ward = crud_all.ward.get_first(db, Ward.ward_id == ward_id, Ward.hospital_id == current_user.hospital_id)
     if not ward:
         raise HTTPException(status_code=404, detail="Ward not found")
         
     # Check if any beds are occupied
-    occupied = db.query(Bed).filter(Bed.ward_id == ward_id, Bed.is_occupied == True).count()
+    occupied = crud_all.bed.count(db, Bed.ward_id == ward_id, Bed.is_occupied == True)
     if occupied > 0:
         raise HTTPException(status_code=400, detail="Cannot delete ward with occupied beds")
         
     # Delete beds first
-    db.query(Bed).filter(Bed.ward_id == ward_id).delete()
+    crud_all.bed.count(db, Bed.ward_id == ward_id).delete()
     db.delete(ward)
     db.commit()
     return {"message": "Ward deleted"}
@@ -443,7 +442,7 @@ def create_bed(
     ward = db.query(Ward).filter(
         Ward.ward_id == bed.ward_id,
         Ward.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not ward:
         raise HTTPException(status_code=404, detail="Ward not found")
@@ -473,8 +472,7 @@ def get_beds(
     beds = query.all()
     
     # Active IPD admissions
-    active_admissions = db.query(IPDAdmission).filter(
-        IPDAdmission.hospital_id == current_user.hospital_id,
+    active_admissions = db.query(IPDAdmission).filter(IPDAdmission.hospital_id == current_user.hospital_id,
         IPDAdmission.status.in_(["admitted", "recovery"])
     ).all()
     
@@ -490,7 +488,7 @@ def get_beds(
         adm = admission_map.get(b.bed_id)
         if adm:
             status_val = "occupied"
-            patient = db.query(Patient).filter(Patient.record_id == adm.patient_id).first()
+            patient = crud_all.patient.get_first(db, Patient.record_id == adm.patient_id)
             if patient:
                 patient_name = patient.full_name
                 patient_id = patient.record_id
@@ -557,11 +555,11 @@ def update_bed_name(
         raise HTTPException(status_code=404, detail="Bed not found")
         
     # Check for duplicate bed number in the same ward
-    existing_bed = db.query(Bed).filter(
+    existing_bed = crud_all.bed.get_first(db, 
         Bed.ward_id == bed.ward_id,
         Bed.bed_number == name_update.bed_number,
         Bed.bed_id != bed_id
-    ).first()
+    )
     
     if existing_bed:
         raise HTTPException(status_code=400, detail=f"Bed name/number '{name_update.bed_number}' already exists in this ward.")
@@ -607,7 +605,7 @@ def admit_patient(
     current_user: User = Depends(get_current_user)
 ):
     """Admit patient to IPD"""
-    bed = db.query(Bed).filter(Bed.bed_id == admission.bed_id).first()
+    bed = crud_all.bed.get_first(db, Bed.bed_id == admission.bed_id)
     if not bed:
         raise HTTPException(status_code=404, detail="Bed not found")
     
@@ -619,13 +617,13 @@ def admit_patient(
     # Gender validation against Ward
     patient_gender = None
     if patient_id:
-        patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+        patient = crud_all.patient.get_first(db, Patient.record_id == patient_id)
         if patient: patient_gender = patient.gender
     else:
         patient_gender = admission.gender
         
     if patient_gender:
-        ward = db.query(Ward).filter(Ward.ward_id == bed.ward_id).first()
+        ward = crud_all.ward.get_first(db, Ward.ward_id == bed.ward_id)
         if ward and ward.ward_name:
             ward_name_lower = ward.ward_name.lower()
             patient_gender_lower = patient_gender.lower()
@@ -638,56 +636,25 @@ def admit_patient(
             if is_male_ward and patient_gender_lower == "female":
                 raise HTTPException(status_code=400, detail="Female patients cannot be admitted to a Male ward.")
     
-    hospital = db.query(Hospital).filter(Hospital.hospital_id == current_user.hospital_id).first()
+    hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == current_user.hospital_id)
     id_settings = hospital.id_generation_settings or {} if hospital else {}
     
     import re
     
     # IPD Generation
-    ipd_prefix = id_settings.get("ipd_prefix", "IPD-")
-    ipd_postfix = id_settings.get("ipd_postfix", "")
-    ipd_padding = int(id_settings.get("ipd_padding", 4))
+    from app.services.id_generator import generate_next_id
     
-    patients_with_ipd = db.query(Patient.ipd_number).filter(Patient.hospital_id == current_user.hospital_id).all()
-    max_ipd = 0
-    for p in patients_with_ipd:
-        if not p.ipd_number: continue
-        numbers = re.findall(r'\d+', p.ipd_number)
-        if numbers:
-            max_ipd = max(max_ipd, int(numbers[-1]))
-    generated_ipd = f"{ipd_prefix}{str(max_ipd + 1).zfill(ipd_padding)}{ipd_postfix}"
+    generated_ipd = generate_next_id(db, current_user.hospital_id, "ipd", Patient, Patient.ipd_number)
 
     if not patient_id:
         if not admission.patient_name:
             raise HTTPException(status_code=400, detail="Either patient_id or patient_name is required")
         
         # We also need a UHID for new patients
-        uhid_prefix = id_settings.get("uhid_prefix", "DF-")
-        uhid_postfix = id_settings.get("uhid_postfix", "")
-        uhid_padding = int(id_settings.get("uhid_padding", 4))
-        
-        patients_with_uhid = db.query(Patient.uhid).filter(Patient.hospital_id == current_user.hospital_id).all()
-        max_uhid = 0
-        for p in patients_with_uhid:
-            if not p.uhid: continue
-            numbers = re.findall(r'\d+', p.uhid)
-            if numbers:
-                max_uhid = max(max_uhid, int(numbers[-1]))
-        uhid_code = f"{uhid_prefix}{str(max_uhid + 1).zfill(uhid_padding)}{uhid_postfix}"
+        uhid_code = generate_next_id(db, current_user.hospital_id, "uhid", Patient, Patient.uhid)
         
         # MRD Generation
-        mrd_prefix = id_settings.get("mrd_prefix", "MRD-")
-        mrd_postfix = id_settings.get("mrd_postfix", "")
-        mrd_padding = int(id_settings.get("mrd_padding", 4))
-        
-        patients_with_mrd = db.query(Patient.patient_u_id).filter(Patient.hospital_id == current_user.hospital_id).all()
-        max_mrd = 0
-        for p in patients_with_mrd:
-            if not p.patient_u_id: continue
-            numbers = re.findall(r'\d+', p.patient_u_id)
-            if numbers:
-                max_mrd = max(max_mrd, int(numbers[-1]))
-        mrd_code = f"{mrd_prefix}{str(max_mrd + 1).zfill(mrd_padding)}{mrd_postfix}"
+        mrd_code = generate_next_id(db, current_user.hospital_id, "mrd", Patient, Patient.patient_u_id)
         
         new_patient = Patient(
             hospital_id=current_user.hospital_id,
@@ -708,22 +675,11 @@ def admit_patient(
         patient_id = new_patient.record_id
     else:
         # Update existing patient with IPD and conditionally MRD
-        existing_patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+        existing_patient = crud_all.patient.get_first(db, Patient.record_id == patient_id)
         if existing_patient:
             existing_patient.ipd_number = generated_ipd
             if not existing_patient.patient_u_id:
-                mrd_prefix = id_settings.get("mrd_prefix", "MRD-")
-                mrd_postfix = id_settings.get("mrd_postfix", "")
-                mrd_padding = int(id_settings.get("mrd_padding", 4))
-                
-                patients_with_mrd = db.query(Patient.patient_u_id).filter(Patient.hospital_id == current_user.hospital_id).all()
-                max_mrd = 0
-                for p in patients_with_mrd:
-                    if not p.patient_u_id: continue
-                    numbers = re.findall(r'\d+', p.patient_u_id)
-                    if numbers:
-                        max_mrd = max(max_mrd, int(numbers[-1]))
-                existing_patient.patient_u_id = f"{mrd_prefix}{str(max_mrd + 1).zfill(mrd_padding)}{mrd_postfix}"
+                existing_patient.patient_u_id = generate_next_id(db, current_user.hospital_id, "mrd", Patient, Patient.patient_u_id)
             db.add(existing_patient)
             db.flush()
     
@@ -746,8 +702,8 @@ def admit_patient(
     db.flush()
     
     # Create Draft IPD Running Bill
-    import time
-    invoice_number = f"INV-IPD-{current_user.hospital_id}-{int(time.time())}"
+    from app.services.id_generator import generate_next_id
+    invoice_number = generate_next_id(db, current_user.hospital_id, "invoice", PatientInvoice, PatientInvoice.invoice_number)
     new_invoice = PatientInvoice(
         hospital_id=current_user.hospital_id,
         patient_id=patient_id,
@@ -768,16 +724,16 @@ def admit_patient(
     bed.status = "OCCUPIED"  # type: ignore
     
     # Update ward counter
-    ward = db.query(Ward).filter(Ward.ward_id == admission.ward_id).first()
+    ward = crud_all.ward.get_first(db, Ward.ward_id == admission.ward_id)
     if ward:
-        ward.occupied_beds = db.query(Bed).filter(Bed.ward_id == ward.ward_id, Bed.is_occupied == True).count()  # type: ignore
+        ward.occupied_beds = crud_all.bed.get_first(db, Bed.ward_id == ward.ward_id, Bed.is_occupied == True)  # type: ignore
         
     # Auto-close any active Emergency Visits for this patient
-    active_er_visits = db.query(EmergencyVisit).filter(
+    active_er_visits = crud_all.emergency_visit.get_multi(db, 
         EmergencyVisit.patient_id == patient_id,
         EmergencyVisit.hospital_id == current_user.hospital_id,
         EmergencyVisit.status == "Active"
-    ).all()
+    )
     for er_visit in active_er_visits:
         er_visit.status = "Admitted"
         
@@ -794,7 +750,7 @@ def get_admissions(
 ):
     """Get all admissions"""
     effective_h_id = hospital_id or current_user.hospital_id
-    query = db.query(IPDAdmission).filter(
+    query = db.query(IPDAdmission).filter( 
         IPDAdmission.hospital_id == effective_h_id
     )
     
@@ -804,13 +760,13 @@ def get_admissions(
         else:
             query = query.filter(IPDAdmission.status == status)
     
-    admissions = query.order_by(IPDAdmission.admission_date.desc()).all()
+    admissions = query.order_by(IPDAdmission.admission_date.desc())
     
     result = []
     for adm in admissions:
-        patient = db.query(Patient).filter(Patient.record_id == adm.patient_id).first()
-        ward = db.query(Ward).filter(Ward.ward_id == adm.ward_id).first()
-        bed = db.query(Bed).filter(Bed.bed_id == adm.bed_id).first()
+        patient = crud_all.patient.get_first(db, Patient.record_id == adm.patient_id)
+        ward = crud_all.ward.get_first(db, Ward.ward_id == adm.ward_id)
+        bed = crud_all.bed.get_first(db, Bed.bed_id == adm.bed_id)
         
         result.append({
             "admission_id": adm.admission_id,
@@ -843,9 +799,9 @@ def get_active_admissions(
     
     result = []
     for adm in admissions:
-        patient = db.query(Patient).filter(Patient.record_id == adm.patient_id).first()
-        ward = db.query(Ward).filter(Ward.ward_id == adm.ward_id).first()
-        bed = db.query(Bed).filter(Bed.bed_id == adm.bed_id).first()
+        patient = crud_all.patient.get_first(db, Patient.record_id == adm.patient_id)
+        ward = crud_all.ward.get_first(db, Ward.ward_id == adm.ward_id)
+        bed = crud_all.bed.get_first(db, Bed.bed_id == adm.bed_id)
         
         result.append({
             "admission_id": adm.admission_id,
@@ -874,10 +830,10 @@ def update_ot_status(
     current_user: User = Depends(get_current_user)
 ):
     """Update OT required status for an admission"""
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
@@ -894,10 +850,10 @@ def discharge_patient(
     current_user: User = Depends(get_current_user)
 ):
     """Discharge patient and generate preliminary IPD bill"""
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
@@ -922,10 +878,10 @@ def discharge_patient(
     room_total = 0.0
     items_to_add = []
     days_admitted = 0
-    ward = db.query(Ward).filter(Ward.ward_id == admission.ward_id).first()
+    ward = crud_all.ward.get_first(db, Ward.ward_id == admission.ward_id)
     
     if admission.bed_history:
-        all_wards = {w.ward_id: w for w in db.query(Ward).all()}
+        all_wards = {w.ward_id: w for w in db.query(Ward)}
         
         current_date = admission.admission_date.date()
         end_date_only = discharge_date.date()
@@ -990,7 +946,7 @@ def discharge_patient(
     
     # Finalize Invoice (Using Existing Running Bill or Create New if missing)
     if admission.patient_invoice_id:
-        invoice = db.query(PatientInvoice).filter(PatientInvoice.invoice_id == admission.patient_invoice_id).first()
+        invoice = crud_all.patient_invoice.get_first(db, PatientInvoice.invoice_id == admission.patient_invoice_id)
     else:
         invoice = None
         
@@ -1064,7 +1020,7 @@ def discharge_patient(
             })
     
     # 2. Registration Fee (First-Time)
-    invoice_count = db.query(PatientInvoice).filter(PatientInvoice.patient_id == admission.patient_id).count()
+    invoice_count = crud_all.patient_invoice.count(db, PatientInvoice.patient_id == admission.patient_id)
     if invoice_count == 0:
         hospital = admission.patient.hospital if admission.patient else None
         raw_reg_fee = getattr(hospital, "patient_registration_fee", 500.0) if hospital else 500.0
@@ -1119,7 +1075,7 @@ def discharge_patient(
     doctor_notes = admission.doctor_notes or []
     for dnote in doctor_notes:
         d_user_id = dnote.get("doctor_id")
-        doc_profile = db.query(DoctorProfile).filter(DoctorProfile.user_id == d_user_id).first() if d_user_id else None
+        doc_profile = crud_all.doctor_profile.get_first(db, DoctorProfile.user_id == d_user_id) if d_user_id else None
         ipd_charge = getattr(doc_profile, "ipd_charge", 0.0) if doc_profile else 0.0
         if ipd_charge is None:
             ipd_charge = 0.0
@@ -1137,7 +1093,7 @@ def discharge_patient(
             })
 
     # Calculate GST rate
-    hospital = db.query(Hospital).filter(Hospital.hospital_id == current_user.hospital_id).first()
+    hospital = crud_all.hospital.get_first(db, Hospital.hospital_id == current_user.hospital_id)
     gst_rate = 18.0 if hospital and hospital.gst_number else 0.0
 
     if invoice:
@@ -1165,8 +1121,8 @@ def discharge_patient(
         if discharge_notes_text:
             invoice.remarks = (invoice.remarks or "") + "\n\nDischarge Summary:\n" + discharge_notes_text
     else:
-        import time
-        invoice_number = f"INV-IPD-{current_user.hospital_id}-{int(time.time())}"
+        from app.services.id_generator import generate_next_id
+        invoice_number = generate_next_id(db, current_user.hospital_id, "invoice", PatientInvoice, PatientInvoice.invoice_number)
         
         new_subtotal = sum(item["amount"] for item in items_to_add)
         tax_amount = round((new_subtotal * gst_rate) / 100.0, 2)
@@ -1207,7 +1163,7 @@ def discharge_patient(
     admission.patient_invoice_id = invoice.invoice_id
     
     # Update patient total bill & discharge date
-    patient = db.query(Patient).filter(Patient.record_id == admission.patient_id).first()
+    patient = crud_all.patient.get_first(db, Patient.record_id == admission.patient_id)
     if patient:
         invoice_diff = invoice.total_amount - old_invoice_total
         patient.total_bill_amount = (patient.total_bill_amount or 0.0) + invoice_diff
@@ -1255,14 +1211,14 @@ def discharge_patient(
     admission.doctor_notes = list(notes)
     
     # Free up bed
-    bed = db.query(Bed).filter(Bed.bed_id == admission.bed_id).first()
+    bed = crud_all.bed.get_first(db, Bed.bed_id == admission.bed_id)
     if bed:
         bed.is_occupied = False  # type: ignore
         bed.status = "AVAILABLE"  # type: ignore
         
         # Update ward counter
         if ward:
-            ward.occupied_beds = db.query(Bed).filter(Bed.ward_id == ward.ward_id, Bed.is_occupied == True).count()  # type: ignore
+            ward.occupied_beds = crud_all.bed.count(db, Bed.ward_id == ward.ward_id, Bed.is_occupied == True)  # type: ignore
             
     db.commit()
     db.refresh(admission)
@@ -1274,8 +1230,7 @@ def get_medication_alerts(
     current_user: User = Depends(get_current_user)
 ):
     """Fetch due or overdue medication alerts for all active admissions"""
-    active_admissions = db.query(IPDAdmission).filter(
-        IPDAdmission.hospital_id == current_user.hospital_id,
+    active_admissions = db.query(IPDAdmission).filter(IPDAdmission.hospital_id == current_user.hospital_id,
         IPDAdmission.status.in_(["admitted", "recovery"])
     ).all()
     
@@ -1284,9 +1239,9 @@ def get_medication_alerts(
     now = datetime.now()
     
     for adm in active_admissions:
-        patient = db.query(Patient).filter(Patient.record_id == adm.patient_id).first()
-        ward = db.query(Ward).filter(Ward.ward_id == adm.ward_id).first()
-        bed = db.query(Bed).filter(Bed.bed_id == adm.bed_id).first()
+        patient = crud_all.patient.get_first(db, Patient.record_id == adm.patient_id)
+        ward = crud_all.ward.get_first(db, Ward.ward_id == adm.ward_id)
+        bed = crud_all.bed.get_first(db, Bed.bed_id == adm.bed_id)
         
         for order in (adm.medication_orders or []):
             next_due_str = order.get("next_due")
@@ -1362,22 +1317,22 @@ def get_admission_detail(
     current_user: User = Depends(get_current_user)
 ):
     """Get admission details"""
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
     
-    patient = db.query(Patient).filter(Patient.record_id == admission.patient_id).first()
-    ward = db.query(Ward).filter(Ward.ward_id == admission.ward_id).first()
-    bed = db.query(Bed).filter(Bed.bed_id == admission.bed_id).first()
+    patient = crud_all.patient.get_first(db, Patient.record_id == admission.patient_id)
+    ward = crud_all.ward.get_first(db, Ward.ward_id == admission.ward_id)
+    bed = crud_all.bed.get_first(db, Bed.bed_id == admission.bed_id)
     from ..models import Surgery
-    surgeries = db.query(Surgery).filter(
+    surgeries = crud_all.surgery.get_first(db, 
         Surgery.admission_id == admission_id,
         Surgery.hospital_id == current_user.hospital_id
-    ).all()
+    )
     
     return {
         "admission": admission,
@@ -1396,10 +1351,10 @@ def get_ipd_lab_results(
     """Get all lab results for an IPD admission"""
     from ..models import LabOrder, LabResult, LabTestCatalog
     
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
@@ -1435,21 +1390,21 @@ def transfer_patient(
     current_user: User = Depends(get_current_user)
 ):
     """Transfer patient to a new bed"""
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not admission or admission.status not in ["admitted", "recovery"]:
         raise HTTPException(status_code=404, detail="Active admission not found")
         
-    new_bed = db.query(Bed).filter(Bed.bed_id == transfer.new_bed_id).first()
+    new_bed = crud_all.bed.get_first(db, Bed.bed_id == transfer.new_bed_id)
     if not new_bed or new_bed.is_occupied or new_bed.status != "AVAILABLE":
         raise HTTPException(status_code=400, detail="New bed is not available")
         
     # Gender validation against new Ward
-    patient = db.query(Patient).filter(Patient.record_id == admission.patient_id).first()
+    patient = crud_all.patient.get_first(db, Patient.record_id == admission.patient_id)
     if patient and patient.gender:
-        ward = db.query(Ward).filter(Ward.ward_id == new_bed.ward_id).first()
+        ward = crud_all.ward.get_first(db, Ward.ward_id == new_bed.ward_id)
         if ward and ward.ward_name:
             ward_name_lower = ward.ward_name.lower()
             patient_gender_lower = patient.gender.lower()
@@ -1462,24 +1417,24 @@ def transfer_patient(
             if is_male_ward and patient_gender_lower == "female":
                 raise HTTPException(status_code=400, detail="Female patients cannot be transferred to a Male ward.")
         
-    old_bed = db.query(Bed).filter(Bed.bed_id == admission.bed_id).first()
+    old_bed = crud_all.bed.get_first(db, Bed.bed_id == admission.bed_id)
     
     # Detach from old bed
     if old_bed:
         old_bed.is_occupied = False  # type: ignore
         old_bed.status = "AVAILABLE"  # type: ignore
         
-        old_ward = db.query(Ward).filter(Ward.ward_id == old_bed.ward_id).first()
+        old_ward = crud_all.ward.get_first(db, Ward.ward_id == old_bed.ward_id)
         if old_ward:
-            old_ward.occupied_beds = db.query(Bed).filter(Bed.ward_id == old_ward.ward_id, Bed.is_occupied == True).count()  # type: ignore
+            old_ward.occupied_beds = crud_all.bed.get_first(db, Bed.ward_id == old_ward.ward_id, Bed.is_occupied == True)  # type: ignore
     
     # Attach to new bed
     new_bed.is_occupied = True  # type: ignore
     new_bed.status = "OCCUPIED"  # type: ignore
     
-    new_ward = db.query(Ward).filter(Ward.ward_id == new_bed.ward_id).first()
+    new_ward = crud_all.ward.get_first(db, Ward.ward_id == new_bed.ward_id)
     if new_ward:
-        new_ward.occupied_beds = db.query(Bed).filter(Bed.ward_id == new_ward.ward_id, Bed.is_occupied == True).count()  # type: ignore
+        new_ward.occupied_beds = crud_all.bed.get_first(db, Bed.ward_id == new_ward.ward_id, Bed.is_occupied == True)  # type: ignore
         
     # Record bed history
     history = list(admission.bed_history) if admission.bed_history else []
@@ -1517,10 +1472,10 @@ def update_clearance(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
         
@@ -1542,10 +1497,10 @@ def add_diet_order(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
         
@@ -1577,10 +1532,10 @@ def add_doctor_order(
 ):
     """Add a medication order (Doctor)"""
     check_doctor_role(current_user)
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
         
@@ -1631,10 +1586,10 @@ def update_doctor_order(
 ):
     """Edit a medication order (Doctor)"""
     check_doctor_role(current_user)
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
         
@@ -1687,10 +1642,10 @@ def delete_doctor_order(
 ):
     """Delete (stop) a medication order (Doctor)"""
     check_doctor_role(current_user)
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
         
@@ -1727,10 +1682,10 @@ def mark_order_purchased(
     current_user: User = Depends(get_current_user)
 ):
     """Mark a medication order as sent to pharmacy/purchased"""
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
         
@@ -1768,14 +1723,14 @@ def send_prescriptions_whatsapp(
     current_user: User = Depends(get_current_user)
 ):
     """Send selected active prescriptions to the patient's WhatsApp"""
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
         
-    patient = db.query(Patient).filter(Patient.record_id == admission.patient_id).first()
+    patient = crud_all.patient.get_first(db, Patient.record_id == admission.patient_id)
     if not patient or not patient.contact_phone:
         raise HTTPException(status_code=400, detail="Patient does not have a contact phone number")
 
@@ -1837,10 +1792,10 @@ def administer_medication(
 ):
     """Log administered medication (Nurse)"""
     check_nurse_or_doctor_role(current_user)
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
         
@@ -1888,7 +1843,7 @@ def administer_medication(
         )
         db.add(new_inv_item)
         
-        invoice = db.query(PatientInvoice).filter(PatientInvoice.invoice_id == admission.patient_invoice_id).first()
+        invoice = crud_all.patient_invoice.get_first(db, PatientInvoice.invoice_id == admission.patient_invoice_id)
         if invoice:
             subtotal_val = float(invoice.subtotal) if invoice.subtotal is not None else 0.0  # type: ignore
             gst_rate_val = float(invoice.gst_rate) if invoice.gst_rate is not None else 18.0  # type: ignore
@@ -1915,10 +1870,10 @@ def add_doctor_note(
 ):
     """Add a ward round note (Doctor)"""
     check_doctor_role(current_user)
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
         
@@ -1944,10 +1899,10 @@ def record_vitals(
 ):
     """Log daily vitals for admitted patient"""
     check_nurse_or_doctor_role(current_user)
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
         
@@ -1976,10 +1931,10 @@ def record_fluid_balance(
 ):
     """Log fluid balance intake/output"""
     check_nurse_or_doctor_role(current_user)
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
         
@@ -2027,10 +1982,10 @@ def update_ot(
     current_user: User = Depends(get_current_user)
 ):
     """Update an existing Operation Theater Room"""
-    ot = db.query(OperationTheater).filter(
+    ot = crud_all.operation_theater.get_first(db, 
         OperationTheater.ot_id == ot_id,
         OperationTheater.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not ot:
         raise HTTPException(status_code=404, detail="OT Room not found")
@@ -2047,9 +2002,7 @@ def get_ots(
     current_user: User = Depends(get_current_user)
 ):
     """Get all OTs and schedules"""
-    ots = db.query(OperationTheater).filter(
-        OperationTheater.hospital_id == current_user.hospital_id
-    ).all()
+    ots = db.query(OperationTheater).filter(OperationTheater.hospital_id == current_user.hospital_id).all()
     
     result = []
     for ot in ots:
@@ -2057,19 +2010,19 @@ def get_ots(
         doctor_name = None
         
         if ot.current_patient_id:
-            patient = db.query(Patient).filter(Patient.record_id == ot.current_patient_id).first()
+            patient = crud_all.patient.get_first(db, Patient.record_id == ot.current_patient_id)
             patient_name = patient.full_name if patient else None
             
         if ot.current_doctor_id:
-            doc = db.query(User).filter(User.user_id == ot.current_doctor_id).first()
+            doc = crud_all.user.get_first(db, User.user_id == ot.current_doctor_id)
             doctor_name = doc.full_name if doc else None
             
         anesthesia_doctor_name = None
         if ot.anesthesiologist_id:
-            anes_doc = db.query(User).filter(User.user_id == ot.anesthesiologist_id).first()
+            anes_doc = crud_all.user.get_first(db, User.user_id == ot.anesthesiologist_id)
             if not anes_doc:
                 # Fallback to DoctorProfile
-                anes_doc_prof = db.query(DoctorProfile).filter(DoctorProfile.profile_id == ot.anesthesiologist_id).first()
+                anes_doc_prof = crud_all.doctor_profile.get_first(db, DoctorProfile.profile_id == ot.anesthesiologist_id)
                 if anes_doc_prof:
                     anesthesia_doctor_name = anes_doc_prof.user.full_name if anes_doc_prof.user else "Doctor"
             else:
@@ -2103,20 +2056,20 @@ def assign_ot(
     current_user: User = Depends(get_current_user)
 ):
     """Assign patient & surgeon to Operation Theater"""
-    ot = db.query(OperationTheater).filter(
+    ot = crud_all.operation_theater.get_first(db, 
         OperationTheater.ot_id == ot_id,
         OperationTheater.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not ot:
         raise HTTPException(status_code=404, detail="Operation Theater not found")
         
     # Scheduling conflict check
-    conflict = db.query(OperationTheater).filter(
+    conflict = crud_all.operation_theater.get_first(db, 
         OperationTheater.current_doctor_id == assignment.doctor_id,
         OperationTheater.status == "IN_USE",
         OperationTheater.ot_id != ot_id,
         OperationTheater.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if conflict:
         raise HTTPException(status_code=400, detail=f"Surgeon is already assigned to active OT: {conflict.ot_name}")
         
@@ -2133,7 +2086,7 @@ def assign_ot(
     
     # Update Surgery if linked
     if assignment.surgery_id:
-        surgery = db.query(Surgery).filter(Surgery.surgery_id == assignment.surgery_id).first()
+        surgery = crud_all.surgery.get_first(db, Surgery.surgery_id == assignment.surgery_id)
         if surgery:
             surgery.status = "Scheduled"
             if assignment.doctor_id:
@@ -2152,10 +2105,10 @@ def update_pre_op_assessment(
     current_user: User = Depends(get_current_user)
 ):
     """Update Pre-Op Assessment for an IPD Admission"""
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
@@ -2176,10 +2129,10 @@ def update_post_op_assessment(
     current_user: User = Depends(get_current_user)
 ):
     """Update Post-Op Assessment for an IPD Admission"""
-    admission = db.query(IPDAdmission).filter(
+    admission = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.admission_id == admission_id,
         IPDAdmission.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
@@ -2200,19 +2153,19 @@ def release_ot(
     current_user: User = Depends(get_current_user)
 ):
     """Complete surgery, release Operation Theater"""
-    ot = db.query(OperationTheater).filter(
+    ot = crud_all.operation_theater.get_first(db, 
         OperationTheater.ot_id == ot_id,
         OperationTheater.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not ot:
         raise HTTPException(status_code=404, detail="Operation Theater not found")
         
     if ot.current_patient_id:
         # Update IPD Admission Status & Billing
-        adm = db.query(IPDAdmission).filter(
+        adm = crud_all.i_p_d_admission.get_first(db, 
             IPDAdmission.patient_id == ot.current_patient_id,
             IPDAdmission.status.in_(["admitted", "recovery"])
-        ).first()
+        )
         
         if adm:
             # Update recovery state
@@ -2263,7 +2216,7 @@ def release_ot(
                 
                 # Recalculate invoice totals
                 db.flush()
-                inv = db.query(PatientInvoice).filter(PatientInvoice.invoice_id == adm.patient_invoice_id).first()
+                inv = db.query(PatientInvoice).filter(PatientInvoice.invoice_id == adm.patient_invoice_id).all()
                 if inv:
                     subtotal = sum(i.amount for i in inv.items if getattr(i, 'amount', None) is not None)
                     inv.subtotal_amount = subtotal
@@ -2305,9 +2258,7 @@ def get_equipment(
     current_user: User = Depends(get_current_user)
 ):
     """Get all medical equipments and locations"""
-    eqs = db.query(MedicalEquipment).filter(
-        MedicalEquipment.hospital_id == current_user.hospital_id
-    ).all()
+    eqs = db.query(MedicalEquipment).filter(MedicalEquipment.hospital_id == current_user.hospital_id).all()
     
     result = []
     for eq in eqs:
@@ -2315,18 +2266,18 @@ def get_equipment(
         patient_name = None
         
         if eq.current_ot_id:
-            ot = db.query(OperationTheater).filter(OperationTheater.ot_id == eq.current_ot_id).first()
+            ot = crud_all.operation_theater.get_first(db, OperationTheater.ot_id == eq.current_ot_id)
             location = f"OT: {ot.ot_name}" if ot else "OT"
         elif eq.current_bed_id:
-            bed = db.query(Bed).filter(Bed.bed_id == eq.current_bed_id).first()
-            ward = db.query(Ward).filter(Ward.ward_id == eq.current_ward_id).first()
+            bed = crud_all.bed.get_first(db, Bed.bed_id == eq.current_bed_id)
+            ward = crud_all.ward.get_first(db, Ward.ward_id == eq.current_ward_id)
             location = f"{ward.ward_name} - Bed {bed.bed_number}" if ward and bed else "Bed"
         elif eq.current_ward_id:
-            ward = db.query(Ward).filter(Ward.ward_id == eq.current_ward_id).first()
+            ward = crud_all.ward.get_first(db, Ward.ward_id == eq.current_ward_id)
             location = ward.ward_name if ward else "Ward"
             
         if eq.current_patient_id:
-            patient = db.query(Patient).filter(Patient.record_id == eq.current_patient_id).first()
+            patient = crud_all.patient.get_first(db, Patient.record_id == eq.current_patient_id)
             patient_name = patient.full_name if patient else None
             
         result.append({
@@ -2351,10 +2302,10 @@ def deploy_equipment(
     current_user: User = Depends(get_current_user)
 ):
     """Deploy device to Ward, Bed, Patient or Operation Theater"""
-    eq = db.query(MedicalEquipment).filter(
+    eq = crud_all.medical_equipment.get_first(db, 
         MedicalEquipment.equipment_id == equipment_id,
         MedicalEquipment.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not eq:
         raise HTTPException(status_code=404, detail="Medical device not found")
         
@@ -2373,10 +2324,10 @@ def retrieve_equipment(
     current_user: User = Depends(get_current_user)
 ):
     """Retrieve device back to warehouse"""
-    eq = db.query(MedicalEquipment).filter(
+    eq = crud_all.medical_equipment.get_first(db, 
         MedicalEquipment.equipment_id == equipment_id,
         MedicalEquipment.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not eq:
         raise HTTPException(status_code=404, detail="Medical device not found")
         
@@ -2396,10 +2347,10 @@ def update_equipment(
     current_user: User = Depends(get_current_user)
 ):
     """Update medical device details"""
-    eq = db.query(MedicalEquipment).filter(
+    eq = crud_all.medical_equipment.get_first(db, 
         MedicalEquipment.equipment_id == equipment_id,
         MedicalEquipment.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not eq:
         raise HTTPException(status_code=404, detail="Medical device not found")
     
@@ -2419,10 +2370,10 @@ def delete_equipment(
     current_user: User = Depends(get_current_user)
 ):
     """Delete medical device"""
-    eq = db.query(MedicalEquipment).filter(
+    eq = crud_all.medical_equipment.get_first(db, 
         MedicalEquipment.equipment_id == equipment_id,
         MedicalEquipment.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not eq:
         raise HTTPException(status_code=404, detail="Medical device not found")
     
@@ -2441,10 +2392,10 @@ def update_equipment_status(
     current_user: User = Depends(get_current_user)
 ):
     """Mark device as available or maintenance"""
-    eq = db.query(MedicalEquipment).filter(
+    eq = crud_all.medical_equipment.get_first(db, 
         MedicalEquipment.equipment_id == equipment_id,
         MedicalEquipment.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not eq:
         raise HTTPException(status_code=404, detail="Medical device not found")
     
@@ -2468,7 +2419,7 @@ def register_rfid(
     current_user: User = Depends(get_current_user)
 ):
     """Register blank RFID Card"""
-    existing = db.query(RFIDCard).filter(RFIDCard.card_number == card.card_number).first()
+    existing = crud_all.r_f_i_d_card.get_first(db, RFIDCard.card_number == card.card_number)
     if existing:
         raise HTTPException(status_code=400, detail="Card number already registered")
         
@@ -2488,9 +2439,7 @@ def get_rfids(
     current_user: User = Depends(get_current_user)
 ):
     """Get all hospital RFID Cards"""
-    cards = db.query(RFIDCard).filter(
-        RFIDCard.hospital_id == current_user.hospital_id
-    ).all()
+    cards = db.query(RFIDCard).filter(RFIDCard.hospital_id == current_user.hospital_id).all()
     
     result = []
     for c in cards:
@@ -2498,7 +2447,7 @@ def get_rfids(
         mrd_number = None
         
         if c.patient_id:
-            patient = db.query(Patient).filter(Patient.record_id == c.patient_id).first()
+            patient = crud_all.patient.get_first(db, Patient.record_id == c.patient_id)
             if patient:
                 patient_name = patient.full_name
                 mrd_number = patient.patient_u_id
@@ -2522,22 +2471,22 @@ def assign_rfid(
     current_user: User = Depends(get_current_user)
 ):
     """Link card to admitted patient"""
-    card = db.query(RFIDCard).filter(
+    card = crud_all.r_f_i_d_card.get_first(db, 
         RFIDCard.card_number == assignment.card_number,
         RFIDCard.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not card:
         raise HTTPException(status_code=404, detail="RFID Card not found")
         
-    patient = db.query(Patient).filter(
+    patient = crud_all.patient.get_first(db, 
         Patient.record_id == assignment.patient_id,
         Patient.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
         
     # Unlink any card currently assigned to this patient
-    db.query(RFIDCard).filter(
+    crud_all.r_f_i_d_card.get_first(db, 
         RFIDCard.patient_id == assignment.patient_id,
         RFIDCard.hospital_id == current_user.hospital_id
     ).update({RFIDCard.patient_id: None})
@@ -2556,7 +2505,7 @@ def scan_rfid(
     card = db.query(RFIDCard).filter(
         RFIDCard.card_number == card_number,
         RFIDCard.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not card:
         raise HTTPException(status_code=404, detail="RFID Card not recognized")
@@ -2568,20 +2517,20 @@ def scan_rfid(
     card.last_scanned_at = datetime.now()  # type: ignore
     db.commit()
     
-    patient = db.query(Patient).filter(Patient.record_id == card.patient_id).first()
+    patient = crud_all.patient.get_first(db, Patient.record_id == card.patient_id)
     if not patient:
          raise HTTPException(status_code=404, detail="Linked Patient record not found")
          
     # Active IPD admissions if any
-    adm = db.query(IPDAdmission).filter(
+    adm = crud_all.i_p_d_admission.get_first(db, 
         IPDAdmission.patient_id == patient.record_id,
         IPDAdmission.status.in_(["admitted", "recovery"])
-    ).first()
+    )
     
     admission_data = None
     if adm:
-        ward = db.query(Ward).filter(Ward.ward_id == adm.ward_id).first()
-        bed = db.query(Bed).filter(Bed.bed_id == adm.bed_id).first()
+        ward = crud_all.ward.get_first(db, Ward.ward_id == adm.ward_id)
+        bed = crud_all.bed.get_first(db, Bed.bed_id == adm.bed_id)
         
         admission_data = {
             "admission_id": adm.admission_id,
@@ -2592,11 +2541,11 @@ def scan_rfid(
             "vitals_log": adm.vitals_log or []
         }
         
-    ot_assignment = db.query(OperationTheater).filter(
+    ot_assignment = crud_all.operation_theater.get_first(db, 
         OperationTheater.current_patient_id == patient.record_id,
         OperationTheater.hospital_id == current_user.hospital_id,
         OperationTheater.status == "IN_USE"
-    ).first()
+    )
     ot_alert = f"Patient is currently scheduled/active in OT: {ot_assignment.ot_name}" if ot_assignment else None
         
     return {
@@ -2628,7 +2577,7 @@ def get_surgeries(
 ):
     """Get list of surgeries for the hospital"""
     from sqlalchemy.orm import joinedload
-    query = db.query(Surgery).filter(Surgery.hospital_id == current_user.hospital_id)
+    query = db.query(Surgery).filter(Surgery.hospital_id == current_user.hospital_id).first()
     
     if status:
         query = query.filter(Surgery.status == status)
@@ -2636,7 +2585,7 @@ def get_surgeries(
         query = query.filter(Surgery.admission_id == admission_id)
         
     # We join patient to easily get the patient name
-    surgeries = query.options(joinedload(Surgery.patient), joinedload(Surgery.admission)).all()
+    surgeries = query.options(joinedload(Surgery.patient), joinedload(Surgery.admission))
     
     result = []
     for s in surgeries:
@@ -2688,10 +2637,10 @@ def update_surgery_assessment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    surgery = db.query(Surgery).filter(
+    surgery = crud_all.surgery.get_first(db, 
         Surgery.surgery_id == surgery_id,
         Surgery.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not surgery:
         raise HTTPException(status_code=404, detail="Surgery not found")
@@ -2733,11 +2682,11 @@ def log_doctor_visit(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    admission = db.query(IPDAdmission).filter(IPDAdmission.admission_id == admission_id).first()
+    admission = crud_all.i_p_d_admission.get_first(db, IPDAdmission.admission_id == admission_id)
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
         
-    doctor = db.query(DoctorProfile).filter(DoctorProfile.profile_id == data.doctor_id).first()
+    doctor = crud_all.doctor_profile.get_first(db, DoctorProfile.profile_id == data.doctor_id)
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
         
@@ -2766,7 +2715,7 @@ def get_hms_stats(
     
     total_wards = db.query(Ward).filter(
         Ward.hospital_id == effective_h_id
-    ).count()
+    )
     
     total_beds = db.query(func.sum(Ward.total_beds)).filter(
         Ward.hospital_id == effective_h_id
@@ -2778,20 +2727,20 @@ def get_hms_stats(
         Bed.is_occupied == True
     ).count()
     
-    current_admissions = db.query(IPDAdmission).filter(
+    current_admissions = crud_all.i_p_d_admission.count(db, 
         IPDAdmission.hospital_id == effective_h_id,
         IPDAdmission.status.in_(["admitted", "recovery"])
-    ).count()
+    )
     
-    today_admissions = db.query(IPDAdmission).filter(
+    today_admissions = crud_all.i_p_d_admission.count(db, 
         IPDAdmission.hospital_id == effective_h_id,
         func.date(IPDAdmission.admission_date) == date.today()
-    ).count()
+    )
     
-    today_discharges = db.query(IPDAdmission).filter(
+    today_discharges = crud_all.i_p_d_admission.count(db, 
         IPDAdmission.hospital_id == effective_h_id,
         func.date(IPDAdmission.discharge_date) == date.today()
-    ).count()
+    )
     
     occupancy_rate = (occupied_beds / total_beds * 100) if total_beds > 0 else 0
     

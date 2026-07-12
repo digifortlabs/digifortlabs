@@ -118,10 +118,19 @@ export function getRootUrl(path: string = '') {
 export function getCurrentSubdomain(): string {
     if (typeof window === 'undefined') return '';
     const host = window.location.host.replace(/:\d+$/, '');
-    const parts = host.split('.');
+    
+    // For localhost development
     if (host.includes('.localhost')) {
+        const parts = host.split('.');
         return parts.length >= 2 && parts[0] !== 'localhost' ? parts[0] : '';
     }
-    return parts.length > 2 ? parts[0] : '';
+    
+    // For production (e.g. demo-hospital.digifortlabs.com)
+    const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'digifortlabs.com';
+    if (host.endsWith(`.${rootDomain}`)) {
+        return host.replace(`.${rootDomain}`, '');
+    }
+    
+    return '';
 }
 

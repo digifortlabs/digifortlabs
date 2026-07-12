@@ -10,6 +10,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import ICD11Code, Patient, PatientDiagnosis, User
 from .auth import get_current_user
 from ..services.icd11_service import icd_service
@@ -48,7 +49,7 @@ def search_diagnoses(q: str, db: Session = Depends(get_db), current_user: User =
     
     try:
         # 1. Local Search (Prioritized: Exact Code > Prefix Code > Description)
-        local_results = db.query(ICD11Code).filter(
+        local_results = crud_all.i_c_d11_code.get_first(db, 
             or_(
                 ICD11Code.code.ilike(f"{q}%"),
                 ICD11Code.description.ilike(f"%{q}%")
@@ -97,10 +98,10 @@ def search_diagnoses(q: str, db: Session = Depends(get_db), current_user: User =
 def get_patient_diagnoses(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get all diagnoses for a patient."""
     # Check access (simple check for now)
-    patient = db.query(Patient).filter(
+    patient = crud_all.patient.get_first(db, 
         Patient.record_id == patient_id,
         Patient.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not patient:
         raise HTTPException(status_code=404, detail="Patient record not found")
         
@@ -132,12 +133,12 @@ def add_patient_diagnosis(
     patient = db.query(Patient).filter(
         Patient.record_id == patient_id,
         Patient.hospital_id == current_user.hospital_id
-    ).first()
+    )
     if not patient:
         raise HTTPException(status_code=404, detail="Patient record not found")
 
     # Validate code
-    icd_code = db.query(ICD11Code).filter(ICD11Code.code == diagnosis.code).first()
+    icd_code = crud_all.i_c_d11_code.get_first(db, ICD11Code.code == diagnosis.code)
     if not icd_code:
         # Check if we can find it in live API before failing
         # This allows "on-the-fly" registration of official codes
@@ -181,10 +182,10 @@ def delete_patient_diagnosis(
     # Assuming 'website_admin', 'hospital_admin' can delete. 
     # Or purely whoever created it? Let's allow admins for now.
     
-    diag = db.query(PatientDiagnosis).filter(
+    diag = crud_all.patient_diagnosis.get_first(db, 
         PatientDiagnosis.diagnosis_id == diagnosis_id,
         PatientDiagnosis.record_id == patient_id
-    ).first()
+    )
     
     if not diag:
         raise HTTPException(status_code=404, detail="Diagnosis not found")

@@ -10,7 +10,7 @@ import { FlaskConical, Search, CheckCircle, FileText, Upload, Save, AlertCircle 
 import { apiFetch } from '@/config/api';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 
 export default function LabDashboard() {
     const [orders, setOrders] = useState<any[]>([]);
@@ -65,25 +65,10 @@ export default function LabDashboard() {
                 formData.append('file', reportFile);
             }
 
-            const token = localStorage.getItem('access_token');
-            const hospitalId = localStorage.getItem('hospital_id');
-            const baseUrl = typeof window !== 'undefined'
-                ? (window.location.hostname.includes('digifortlabs.com') ? 'https://digifortlabs.com/api' : '/api')
-                : 'http://localhost:8000';
-
-            const res = await fetch(`${baseUrl}/lab/results/upload`, {
+            await apiFetch('/lab/results/upload', {
                 method: 'POST',
-                headers: {
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-                    ...(hospitalId ? { 'X-Hospital-Id': hospitalId } : {})
-                },
                 body: formData
             });
-
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(errorText || "Failed to save result");
-            }
             
             toast.success("Lab result saved successfully.");
             setIsResultModalOpen(false);
@@ -158,6 +143,11 @@ export default function LabDashboard() {
                                     filteredOrders.map((order) => (
                                         <tr key={order.order_id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
                                             <td className="px-6 py-4">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-xs font-bold px-2 py-1 bg-slate-100 text-slate-700 rounded-md">
+                                                        {order.order_number || `#${order.order_id}`}
+                                                    </span>
+                                                </div>
                                                 <p className="font-bold text-slate-900">{order.patient_name}</p>
                                                 <p className="text-xs text-slate-500">MRD: {order.mrd_number}</p>
                                             </td>

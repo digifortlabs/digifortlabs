@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import (
     User, Hospital, AccountingVendor, AccountingExpense, AccountingTransaction, Invoice, AccountingConfig, UserRole
 )
@@ -134,13 +135,13 @@ def get_ledger(
 
     party_name = "Unknown"
     if party_type == "HOSPITAL":
-        h = db.query(Hospital).filter(Hospital.hospital_id == party_id).first()
+        h = crud_all.hospital.get_first(db, Hospital.hospital_id == party_id)
         party_name = h.legal_name if h else "Unknown Hospital"
     else:
-        v = db.query(AccountingVendor).filter(AccountingVendor.vendor_id == party_id).first()
+        v = crud_all.accounting_vendor.get_first(db, AccountingVendor.vendor_id == party_id)
         party_name = v.name if v else "Unknown Vendor"
 
-    query = db.query(AccountingTransaction).filter(AccountingTransaction.party_type == party_type)
+    query = db.query(AccountingTransaction).filter(AccountingTransaction.party_type == party_type).first()
     
     if party_id == 0:
         query = query.filter(AccountingTransaction.party_id.is_(None))
@@ -172,7 +173,7 @@ def create_expense(
          raise HTTPException(status_code=403, detail="Access denied")
 
     # Get Config
-    config = db.query(AccountingConfig).first()
+    config = db.query(AccountingConfig)
     if not config:
         config = AccountingConfig()
         db.add(config)
@@ -274,7 +275,7 @@ def get_accounting_overview(
     ).scalar() or 0.0
 
     # 1.5 Total Payables (Balance from all Vendor Ledgers)
-    v_transactions = db.query(AccountingTransaction).filter(AccountingTransaction.party_type == "VENDOR").all()
+    v_transactions = crud_all.accounting_transaction.get_multi(db, AccountingTransaction.party_type == "VENDOR")
     total_payables = sum(t.credit for t in v_transactions) - sum(t.debit for t in v_transactions)
 
     return {
@@ -305,7 +306,7 @@ def create_vendor(
 def list_vendors(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
          raise HTTPException(status_code=403, detail="Access denied")
-    return db.query(AccountingVendor).all()
+    return crud_all.accounting_vendor.get_multi(db)
 
 @router.put("/expenses/{expense_id}")
 def update_expense(
@@ -330,11 +331,11 @@ def update_expense(
     expense.date = req.date or expense.date  # type: ignore
     
     # Update Related Ledger Entries (Reset amounts)
-    internal_txn = db.query(AccountingTransaction).filter(
+    internal_txn = crud_all.accounting_transaction.get_first(db, 
         AccountingTransaction.voucher_type == "EXPENSE",
         AccountingTransaction.voucher_id == expense_id,
         AccountingTransaction.party_type == "INTERNAL"
-    ).first()
+    )
     
     if internal_txn:
         internal_txn.debit = req.amount + (req.tax_amount or 0.0)  # type: ignore
@@ -343,11 +344,11 @@ def update_expense(
 
     # If linked to vendor, update that too
     if expense.vendor_id:
-        vendor_txn = db.query(AccountingTransaction).filter(
+        vendor_txn = crud_all.accounting_transaction.get_first(db, 
             AccountingTransaction.voucher_type == "EXPENSE",
             AccountingTransaction.voucher_id == expense_id,
             AccountingTransaction.party_type == "VENDOR"
-        ).first()
+        )
         if vendor_txn:
             vendor_txn.credit = req.amount + (req.tax_amount or 0.0)  # type: ignore
             vendor_txn.description = f"Purchase/Expense: {req.description}"  # type: ignore
@@ -366,7 +367,7 @@ def delete_expense(
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
          raise HTTPException(status_code=403, detail="Access denied")
 
-    expense = db.query(AccountingExpense).filter(AccountingExpense.expense_id == expense_id).first()
+    expense = crud_all.accounting_expense.get_first(db, AccountingExpense.expense_id == expense_id)
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
 

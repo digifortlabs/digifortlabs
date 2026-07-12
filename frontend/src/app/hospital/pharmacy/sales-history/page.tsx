@@ -88,7 +88,7 @@ export default function SalesHistoryPage() {
                                 {filteredSales.map((sale) => (
                                     <tr key={sale.sale_id} className="hover:bg-slate-50 transition-colors group">
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="font-bold text-slate-900">#SALE-{sale.sale_id}</div>
+                                            <div className="font-bold text-slate-900">{sale.bill_number || `#SALE-${sale.sale_id}`}</div>
                                             <div className="text-xs text-slate-500 flex items-center gap-1 mt-1">
                                                 <Calendar className="w-3 h-3" />
                                                 {new Date(sale.sold_at).toLocaleString()}

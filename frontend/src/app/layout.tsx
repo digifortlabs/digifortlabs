@@ -4,7 +4,6 @@ import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 import SessionMonitor from "@/components/Auth/SessionMonitor";
-import { Toaster } from "@/components/ui/sonner";
 
 import { Toaster as HotToaster } from 'react-hot-toast';
 
@@ -29,7 +28,7 @@ export default function RootLayout({
       >
         {children}
         <SessionMonitor />
-        <Toaster />
+
         <HotToaster position="top-right" />
       </body>
     </html>

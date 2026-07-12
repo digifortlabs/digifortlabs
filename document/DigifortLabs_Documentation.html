@@ -1,0 +1,758 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DigifortLabs HMS Specification</title>
+    
+    <!-- Premium Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #e4e9f2 100%);
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --accent: #0ea5e9;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            line-height: 1.7; 
+            color: var(--text-main); 
+            background: var(--bg-gradient);
+            margin: 0;
+            padding: 40px 20px;
+            scroll-behavior: smooth;
+        }
+
+        .container { 
+            background: var(--card-bg); 
+            padding: 60px 80px; 
+            border-radius: 16px; 
+            box-shadow: var(--shadow); 
+            max-width: 1000px; 
+            margin: 0 auto; 
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.4);
+        }
+
+        h1, h2, h3, h4 { 
+            font-family: 'Outfit', sans-serif; 
+            color: var(--text-main); 
+            margin-top: 2.5em;
+        }
+
+        h1 { 
+            font-size: 2.5em; 
+            font-weight: 700;
+            border-bottom: 3px solid var(--primary); 
+            padding-bottom: 15px; 
+            margin-top: 1.5em;
+            display: inline-block;
+        }
+
+        h2 { 
+            font-size: 1.75em; 
+            color: var(--primary);
+            position: relative;
+            padding-left: 20px;
+        }
+        
+        h2::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 5px;
+            bottom: 5px;
+            width: 5px;
+            background: var(--accent);
+            border-radius: 4px;
+        }
+
+        h3 { color: var(--text-muted); font-size: 1.25em; }
+
+        a {
+            color: var(--primary);
+            text-decoration: none;
+            transition: color 0.2s ease;
+            font-weight: 500;
+        }
+        
+        a:hover {
+            color: var(--primary-hover);
+            text-decoration: underline;
+        }
+
+        /* Modern Tables */
+        table { 
+            border-collapse: separate; 
+            border-spacing: 0;
+            width: 100%; 
+            margin: 30px 0;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+        
+        th, td { 
+            padding: 16px 20px; 
+            text-align: left; 
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        th { 
+            background-color: #f8fafc; 
+            font-weight: 600; 
+            color: var(--text-main);
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 0.05em;
+        }
+        
+        tr {
+            transition: background-color 0.2s ease;
+        }
+
+        tr:hover td {
+            background-color: #f1f5f9;
+        }
+        
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Code Blocks & Mermaid */
+        pre { 
+            background-color: #0f172a; 
+            color: #f8fafc;
+            padding: 20px; 
+            border-radius: 10px; 
+            overflow-x: auto; 
+            font-family: 'Consolas', monospace;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        code { 
+            font-family: 'Consolas', monospace; 
+            background-color: #f1f5f9; 
+            color: #ef4444;
+            padding: 4px 8px; 
+            border-radius: 6px; 
+            font-size: 0.9em;
+        }
+        
+        pre code {
+            background-color: transparent;
+            color: inherit;
+            padding: 0;
+        }
+
+        /* Mermaid styling */
+        .mermaid { 
+            text-align: center; 
+            margin: 40px 0; 
+            background: #ffffff; 
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .mermaid:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .page-break { margin: 60px 0; border-top: 2px dashed var(--border-color); }
+        
+        /* Interactive TOC */
+        ol {
+            padding-left: 20px;
+        }
+        ol li {
+            margin-bottom: 12px;
+            font-size: 1.1em;
+        }
+        ol li a {
+            display: inline-block;
+            padding: 5px 0;
+            position: relative;
+        }
+        ol li a::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            bottom: 0;
+            left: 0;
+            background-color: var(--accent);
+            transform: scaleX(0);
+            transform-origin: bottom right;
+            transition: transform 0.3s ease-out;
+        }
+        ol li a:hover::after {
+            transform: scaleX(1);
+            transform-origin: bottom left;
+        }
+    </style>
+    <!-- Include Mermaid JS -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ 
+            startOnLoad: true, 
+            theme: 'base',
+            themeVariables: {
+                primaryColor: '#e0f2fe',
+                primaryTextColor: '#0f172a',
+                primaryBorderColor: '#38bdf8',
+                lineColor: '#64748b',
+                secondaryColor: '#f1f5f9',
+                tertiaryColor: '#fff'
+            }
+        });
+    </script>
+</head>
+<body>
+    <div class="container">
+        <p><a id="chapter-0"></a></p>
+<div style="text-align: center; margin-top: 100px; margin-bottom: 200px;">
+    <h1 style="font-size: 3em; color: #2c3e50; border-bottom: none;">DIGIFORTLABS</h1>
+    <h2 style="font-size: 2em; color: #3498db; margin-top: -20px;">Comprehensive Hospital Management System (HMS)</h2>
+    <br><br><br>
+    <h2 style="font-size: 2.5em; color: #333;">HMS Functional Requirement Specification</h2>
+    <br><br><br><br>
+    <p style="font-size: 1.2em;"><strong>Developed By:</strong> DigifortLabs</p>
+    <p style="font-size: 1.2em;"><strong>Prepared For:</strong> Hospital Administrators & Stakeholders</p>
+</div>
+
+<div class="page-break"></div>
+
+<h1>Table of Contents</h1>
+<ol>
+<li><strong><a href="#chapter-1">Chapter 1: Executive Summary & Patient Management</a></strong></li>
+<li><strong><a href="#chapter-2">Chapter 2: Inpatient (IPD) Operations</a></strong></li>
+<li><strong><a href="#chapter-3">Chapter 3: Pharmacy, Inventory & Supply Chain</a></strong></li>
+<li><strong><a href="#chapter-4">Chapter 4: Financial Accounting, Billing & TPA</a></strong></li>
+<li><strong><a href="#chapter-5">Chapter 5: Laboratory & Diagnostics (LIS/RIS)</a></strong></li>
+<li><strong><a href="#chapter-6">Chapter 6: SURGERY AND OPERATION THEATRE</a></strong></li>
+<li><strong><a href="#chapter-7">Chapter 7: Medical Records Department (MRD) & Telemedicine</a></strong></li>
+<li><strong><a href="#chapter-8">Chapter 8: Analytics, Reports & Business Intelligence</a></strong></li>
+<li><strong><a href="#chapter-9">Chapter 9: Configuration & Master Data Management</a></strong></li>
+<li><strong><a href="#chapter-10">Chapter 10: Human Resources, Staff Management & Onboarding</a></strong></li>
+</ol>
+
+<div class="page-break"></div>
+
+<p><a id="chapter-1"></a></p>
+<h1>Chapter 1: Executive Summary &amp; Patient Management</h1>
+<h2>1.1 Executive Summary</h2>
+<p>The <strong>DigifortLabs Hospital Management System (HMS)</strong> represents a paradigm shift in how modern healthcare institutions manage their clinical, administrative, and financial workflows. Built on a robust, highly scalable, and secure architecture (Next.js, React, and TypeScript), this platform eliminates data silos by unifying Patient Care, Medical Records, Pharmacy Logistics, Human Resources, and Financial Accounting into a single, cohesive ecosystem.</p>
+<p>This functional specification document serves as the architectural and operational blueprint for the system. It provides stakeholders, medical directors, and technical implementers with a granular understanding of every module, patient journey, and data structure within the platform.</p>
+<h3>Core Objectives</h3>
+<ul>
+<li><strong>Clinical Unification:</strong> Centralize Electronic Medical Records (EMR) to ensure continuity of care across all hospital departments.</li>
+<li><strong>Operational Efficiency:</strong> Automate complex workflows such as bed allocation, discharge summaries, and TPA billing calculations.</li>
+<li><strong>Financial Transparency:</strong> Enforce real-time accounting directly tied to pharmacy dispensing, laboratory orders, and clinical services.</li>
+<li><strong>Security &amp; Compliance:</strong> Implement strict Role-Based Access Control (RBAC) and HIPAA/GDPR-aligned data protection protocols.</li>
+</ul>
+<hr />
+<h2>1.2 Patient Registration &amp; OPD</h2>
+<p>When a patient first arrives at the hospital, the initial step is capturing their demographic data at the registration desk or reception.</p>
+<ul>
+<li><strong>Doctor Selection &amp; OPD Routing:</strong> Based on their disease or symptoms, the patient selects their respective specialized doctor. Once registered under the selected doctor, the patient proceeds directly to that specific OPD.</li>
+<li><strong>Emergency &amp; Trauma Routing:</strong> If a patient arrives under trauma or in a critical condition, the standard OPD registration is bypassed, and they are immediately directed to the <strong>Emergency Department</strong>. The patient or their accompanying relatives must pay the necessary emergency charges at the respective billing counter.</li>
+<li><strong>Consultation Queue &amp; Waiting Area:</strong> For standard cases, the patient is immediately added to the selected doctor's digital OPD queue. The patient will then wait in the designated OPD waiting area until his/her turn arrives as per the digital waiting list.</li>
+<li><strong>OPD Consultation (Doctor's Cabin):</strong> When their turn arrives, the patient enters the OPD. The particular doctor will examine the patient based on their complaints and seamlessly use the system to prescribe medications, laboratory tests, or radiology investigations.</li>
+<li><strong>Minor Procedures &amp; Additional Billing:</strong> If the doctor performs any minor procedures during the consultation (such as wound dressing), these are recorded in the system as extra OPD fees. The patient must pay these additional charges at the respective billing counter.</li>
+<li><strong>Diagnostic Billing &amp; Payment:</strong> If tests are prescribed on an OPD basis, the patient must first proceed to the Registration Desk, Reception, or Billing Counter. They are required to pay the specified amount for the doctor-suggested tests before they are cleared for the procedures.</li>
+<li><strong>Diagnostics &amp; Sample Collection:</strong> Once payment is verified, the patient is allowed to proceed to the respective department to provide laboratory samples (blood, urine, etc.) or undergo radiology imaging (X-Ray, CT, MRI, USG).</li>
+<li><strong>Results &amp; Report Waiting:</strong> After providing laboratory samples or completing radiology imaging, the patient will wait in the designated area until the diagnostic reports and test results are finalized and made available in the system.</li>
+<li><strong>Post-Diagnostic OPD Consultation:</strong> Once the reports are generated, the patient returns to the respective doctor's OPD cabin. After reviewing the diagnostic results, the doctor will prescribe necessary medications, recommend rest, advise inpatient admission, or schedule the next OPD follow-up based on the patient's specific requirements.</li>
+<li><strong>Physiotherapy Billing &amp; Treatment:</strong> If the doctor prescribes physiotherapy treatment, the patient must first pay the applicable charges at the billing counter. Once payment is confirmed, the patient will be directed to the Physiotherapy Department to receive the required therapeutic sessions and treatment plans.</li>
+<li><strong>Inpatient Admission (IPD):</strong> If the patient presents with major complaints requiring hospitalization, the doctor can directly admit the patient. The system allows the doctor to recommend admission to a specific ward or intensive care unit (ICU) based on the patient's choice and medical necessity.</li>
+<li><strong>Pharmacy Purchase &amp; Verification:</strong> If medications are prescribed, the patient proceeds to the Pharmacy Store to purchase them. Afterward, the patient returns to the OPD staff (nurse or doctor) to verify that the correct medicines have been dispensed.</li>
+<li><strong>Discharge &amp; Follow-up:</strong> If the patient does not require admission, they will go home after their consultation and medication verification. The patient will return for a follow-up appointment in the OPD as prescribed by the doctor or based on medical necessity.</li>
+</ul>
+<div class="page-break"></div>
+
+<p><a id="chapter-2"></a></p>
+<h1>Chapter 2: Inpatient (IPD) Operations</h1>
+<h2>2.3 Inpatient Department (IPD)</h2>
+<p>Managing the complexity of admitted patients requires strict coordination between doctors, nurses, billing, and pharmacy.</p>
+<h3>2.3.1 IPD Modules</h3>
+<ol>
+<li><strong>Bed &amp; Ward Management:</strong> Real-time visual layout of wards (ICU, General, Private) displaying bed occupancy, sanitation status, and patient mapping.</li>
+<li><strong>Nursing Station:</strong> Medication administration records (MAR), hourly vitals charts, and doctor order executions.</li>
+<li><strong>Discharge Summary Generator:</strong> Automatically aggregates admission notes, lab results, surgical notes, and daily progress notes into a formatted Discharge Summary.</li>
+</ol>
+<div class="page-break"></div>
+
+<p><a id="chapter-3"></a></p>
+<h1>Chapter 3: Pharmacy, Inventory &amp; Supply Chain</h1>
+<h2>3.1 Overview</h2>
+<p>The Inventory and Pharmacy Management module ensures critical medications and consumables are always in stock while preventing leakage and managing expiry dates.</p>
+<h2>3.2 Pharmacy Architecture</h2>
+<p>The system utilizes a multi-store, batch-tracked architecture.</p>
+<h3>3.2.1 Core Inventory Components</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Component</th>
+<th style="text-align: left;">Description</th>
+<th style="text-align: left;">Functionality</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Master Formulary</strong></td>
+<td style="text-align: left;">Central drug database.</td>
+<td style="text-align: left;">Categorizes by generic name, brand, schedule (e.g., Narcotics), and formulation.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Batch &amp; Expiry</strong></td>
+<td style="text-align: left;">Granular tracking.</td>
+<td style="text-align: left;">Enforces FEFO (First Expiry First Out) to minimize wastage and compliance risks.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Indent Management</strong></td>
+<td style="text-align: left;">Internal requisition system.</td>
+<td style="text-align: left;">Wards and departments request stock from the central medical store.</td>
+</tr>
+</tbody>
+</table>
+<h2>3.3 Master Drug Formulary Structure</h2>
+<p>The Master Formulary is the foundational database governing all medication-related activities within the hospital. It categorizes drugs hierarchically to support clinical decision-making (e.g., contraindication checking) and regulatory compliance (e.g., dispensing narcotics).</p>
+<h3>3.3.1 Key Formulary Data Fields</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Data Field</th>
+<th style="text-align: left;">Purpose in Workflow</th>
+<th style="text-align: left;">Example Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Generic Name (Salt)</strong></td>
+<td style="text-align: left;">Allows doctors to prescribe by generic molecule, and pharmacy to substitute with available brands.</td>
+<td style="text-align: left;"><em>Paracetamol 500mg</em></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Brand / Trade Name</strong></td>
+<td style="text-align: left;">For specific stock keeping and precise dispensing.</td>
+<td style="text-align: left;"><em>Crocin Advance</em></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Drug Class &amp; Category</strong></td>
+<td style="text-align: left;">Drives therapeutic alternatives and allergy warnings in the EMR.</td>
+<td style="text-align: left;"><em>Analgesic / Antipyretic</em></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Dosage Form &amp; Route</strong></td>
+<td style="text-align: left;">Prevents clinical errors (e.g., warning if an IV medication is prescribed as Oral).</td>
+<td style="text-align: left;"><em>Tablet / Oral</em></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Regulatory Schedule</strong></td>
+<td style="text-align: left;">Triggers mandatory dual-authentication (Nurse + Pharmacist) for high-risk drugs.</td>
+<td style="text-align: left;"><em>Schedule H1 / Narcotic</em></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Contraindications (Pregnancy/Lactation)</strong></td>
+<td style="text-align: left;">Integrates with the OPD/IPD modules to alert doctors if prescribing to a pregnant patient.</td>
+<td style="text-align: left;"><em>Category C</em></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Reorder Level &amp; Minimum Quantity</strong></td>
+<td style="text-align: left;">Automates the creation of purchase requisitions before stock-outs occur.</td>
+<td style="text-align: left;"><em>Reorder at: 500 strips</em></td>
+</tr>
+</tbody>
+</table>
+<h2>3.4 Supply Chain Flow</h2>
+<div class="mermaid">
+graph TD
+    A[Low Stock Alert] --> B[Generate Purchase Requisition]
+    B --> C[Approval Matrix]
+    C --> D[Purchase Order to Vendor]
+    D --> E[Goods Receipt Note (GRN)]
+    E --> F[QA & Barcoding]
+    F --> G[Main Medical Store]
+    G --> H[Ward Indent / Pharmacy Transfer]
+    H --> I[Dispense to Patient]
+</div>
+<div class="page-break"></div>
+
+<p><a id="chapter-4"></a></p>
+<h1>Chapter 4: Financial Accounting, Billing &amp; TPA</h1>
+<h2>4.1 Overview</h2>
+<p>The financial backbone of the hospital, automating complex billing rules, corporate packages, and Third-Party Administrator (TPA) insurance claims.</p>
+<h2>4.2 Billing Architecture</h2>
+<p>DigifortLabs HMS ensures zero revenue leakage by directly linking clinical orders to the patient folio.</p>
+<h3>4.2.1 Automated Revenue Workflows</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Clinical Action</th>
+<th style="text-align: left;">Billing Impact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Doctor orders Lab Test</strong></td>
+<td style="text-align: left;">Test charge added to Patient Unbilled Folio.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Nurse administers Medication</strong></td>
+<td style="text-align: left;">Pharmacy stock deducted; cost added to IPD bill.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Bed Transfer (Gen to ICU)</strong></td>
+<td style="text-align: left;">System auto-updates daily bed charges and doctor visit tariffs dynamically.</td>
+</tr>
+</tbody>
+</table>
+<h2>4.3 TPA &amp; Insurance Management</h2>
+<p>Managing cashless claims and corporate panels efficiently.</p>
+<ul>
+<li><strong>Pre-Authorization:</strong> Generates formatted pre-auth forms based on estimated treatment costs.</li>
+<li><strong>Co-Pay &amp; Deductibles:</strong> Mathematically splits the final bill between the patient's out-of-pocket responsibility and the Insurance provider's receivable account.</li>
+<li><strong>Claim Tracking:</strong> Dashboard to monitor Sent, Approved, Rejected, and Settled claims.</li>
+</ul>
+<h3>4.3.1 GIPSA (General Insurance Public Sector Association) Compliance</h3>
+<p>The system supports strict adherence to the GIPSA PPN (Preferred Provider Network) tariff structures. For GIPSA-aligned hospitals, the HMS automatically maps standard procedures to the pre-agreed package rates (e.g., standardizing the cost of a Total Knee Replacement regardless of minor ward variations), ensuring zero claim rejections due to over-billing.</p>
+<ul>
+<li><strong>GIPSA Package Mapping:</strong> Direct linking of clinical ICD codes to GIPSA package codes.</li>
+<li><strong>Exclusion Management:</strong> Automatically separating non-payable items (e.g., diet charges, specific consumables) into a co-pay bill for the patient as per GIPSA guidelines.</li>
+</ul>
+<h3>4.3.2 Integrated TPA Network</h3>
+<p>The billing module includes pre-configured tariff masters and API readiness for major Indian TPAs, including but not limited to:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Category</th>
+<th style="text-align: left;">Associated Companies / TPAs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>GIC / GIPSA Member Insurers</strong></td>
+<td style="text-align: left;">General Insurance Corporation of India (GIC), New India Assurance, National Insurance, Oriental Insurance, United India Insurance.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Major Private TPAs</strong></td>
+<td style="text-align: left;">Star Health, Medi Assist, Vidal Health, MDIndia, FHPL (Family Health Plan Ltd), Raksha TPA, Heritage Health.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Corporate Panels</strong></td>
+<td style="text-align: left;">Direct empanelment with PSUs (e.g., ONGC, BHEL) and private enterprises.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Government Schemes</strong></td>
+<td style="text-align: left;">Ayushman Bharat (PM-JAY), CGHS, ECHS.</td>
+</tr>
+</tbody>
+</table>
+<div class="page-break"></div>
+
+<p><a id="chapter-5"></a></p>
+<h1>Chapter 5: Laboratory &amp; Diagnostics (LIS/RIS)</h1>
+<h2>5.1 Overview</h2>
+<p>A fully integrated Laboratory Information System (LIS) that connects billing to sample collection and reporting.</p>
+<h2>5.2 LIS Workflow</h2>
+<div class="mermaid">
+graph LR
+    A[Test Ordered & Billed] --> B[Sample Collection (Phlebotomy)]
+    B --> C[Barcode Generation & Labeling]
+    C --> D[Sample Processing / Machine Interfacing]
+    D --> E[Result Entry & Validation]
+    E --> F[Pathologist Approval]
+    F --> G[Report Dispatched to EMR / Patient Portal]
+</div>
+<div class="page-break"></div>
+
+<p><a id="chapter-6"></a></p>
+<h1>Chapter 6: SURGERY AND OPERATION THEATRE</h1>
+<h2>6.1 Overview</h2>
+<p>The OT module manages complex clinical workflows that require specialized equipment, multidisciplinary teams, and unique documentation formats. A core component of this is the digital capturing and management of Surgical Consent Forms.</p>
+<h2>6.2 Operation Theatre (OT) Management</h2>
+<p>Managing surgical workflows from pre-op preparation to post-op recovery.</p>
+<h3>6.2.1 OT Workflow Features</h3>
+<ul>
+<li><strong>OT Scheduling &amp; Consent:</strong> Algorithmic booking of theatres, anesthetists, and surgeons. Digital capture of patient consent forms.</li>
+<li><strong>Surgical Notes &amp; PAC:</strong> Detailed Pre-Anesthesia Checkup (PAC) notes and structured surgical procedure logs.</li>
+<li><strong>OT Consumables Inventory:</strong> Real-time deduction of surgical kits, implants, and medicines directly to the patient's billing folio.</li>
+</ul>
+<div class="mermaid">
+graph TD
+    A[Surgery Recommended] --> B[PAC Clearance]
+    B --> C[OT Booking & Team Assignment]
+    C --> D[Pre-Op Preparation (Ward)]
+    D --> E[Surgery & Anesthesia Log]
+    E --> F[OT Pharmacy/Consumables Billed]
+    F --> G[Post-Op Recovery (ICU/Ward)]
+</div>
+<h3>6.2.2 Surgery List</h3>
+<p>To ensure accurate billing and insurance (TPA) claim processing, DigifortLabs HMS maintains a comprehensive Master Surgical Tariff list mapped directly to specific clinical departments.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Department</th>
+<th style="text-align: left;">Covered Surgeries / Procedures (Tariff List)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>General Surgery</strong></td>
+<td style="text-align: left;">Appendicectomy (Open &amp; Laparoscopic), Cholecystectomy, Hernia Repair (Inguinal, Umbilical, Incisional), Thyroidectomy, Mastectomy, Haemorrhoidectomy (Open &amp; Stapled), Fissurectomy, Fistula-in-Ano, Exploratory Laparotomy, Colostomy, Hydrocele, Gastrectomy, Adhesiolysis.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Gynaecology &amp; Obstetrics</strong></td>
+<td style="text-align: left;">Normal Delivery, Caesarian Section (LSCS), Hysterectomy (Abdominal, Vaginal, LAVH, TLH), Myomectomy, Ovarian Cystectomy, Tuboplasty, Dilatation &amp; Curettage (D&amp;C), Ectopic Pregnancy Operation, Colposcopy, Fimbrioplasty.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Urology</strong></td>
+<td style="text-align: left;">TURP (Prostate Resection), TURBT (Bladder Tumour), Nephrectomy (Radical/Partial), Nephrolithotomy (PCNL), Cystolithotomy, Ureterolithotomy, Pyeloplasty, Urethroplasty, Cystoscopy.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Plastic &amp; Reconstructive Surgery</strong></td>
+<td style="text-align: left;">Abdominoplasty, Breast Augmentation/Reduction, Cleft Lip &amp; Palate Repair, Rhinoplasty, Liposuction, Skin Grafting (Homograft/FTSG), Burn Management/Dressings, Flap Transplants (Local/Free Flap), Maxillofacial Fracture Reductions.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Paediatric Surgery</strong></td>
+<td style="text-align: left;">Omphalocele Repair, Hirschsprung's Pull Through, Hydrocephalus V-P Shunt, Syndactyly/Polydactyly Correction, Orchiopexy (Undescended Testis), Congenital Diaphragmatic Hernia, Thyroglossal Cyst Excision.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Gastroenterology (Endoscopic)</strong></td>
+<td style="text-align: left;">Upper GI Endoscopy, Endoscopic Sclerotherapy (EST), Endoscopic Variceal Ligation (EVL), PEG Tube Placement, Stricture Dilatation, Foreign Body Removal.</td>
+</tr>
+</tbody>
+</table>
+<h3>6.2.3 Standardized OT Forms &amp; Digital Consent Architecture</h3>
+<p>The DigifortLabs HMS digitizes a comprehensive suite of pre-operative, intra-operative, and post-operative forms to ensure strict clinical compliance and patient safety. The built-in library includes:</p>
+<ul>
+<li><strong>Pre-Operative Forms:</strong> Pre Operation Evaluation, Preoperative Assessment Form, Surgical Safety Checklist</li>
+<li><strong>Anaesthesia &amp; Sedation Forms:</strong> Pre Sedation Assessment, Consent for Anaesthesia, Consent for Procedural Sedation, Procedure Without Sedation Record</li>
+<li><strong>Post-Operative &amp; Discharge:</strong> Operation Note, Modified Aldrete Scorecard, Post Sedation Discharge Criteria</li>
+<li><strong>General Consent:</strong> Informed Consent for Medical Treatment</li>
+</ul>
+<p>Informed consent is a critical legal and ethical requirement. The HMS digitizes this process, allowing hospitals to generate, capture, and securely store dynamic consent forms tailored to specific surgical procedures.</p>
+<h4>Digital Consent Capabilities</h4>
+<ul>
+<li><strong>Biometric &amp; Stylus Signatures:</strong> Native support for capturing electronic signatures via tablets (e.g., iPads in the pre-op ward).</li>
+<li><strong>Multilingual Support:</strong> Auto-translation of consent terms into the patient's primary language.</li>
+<li><strong>Audit Trails:</strong> Immutable timestamps recording exactly when the patient, witness, and doctor signed the document.</li>
+</ul>
+<h4>Consent Templates by Surgery Type</h4>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Surgery / Procedure Type</th>
+<th style="text-align: left;">Specific Consent Clauses Included</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>General Surgery (e.g., Appendectomy)</strong></td>
+<td style="text-align: left;">Risks of general anesthesia, potential for open surgery conversion, infection risks.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Orthopedic Surgery (e.g., Joint Replacement)</strong></td>
+<td style="text-align: left;">Implant specifics (material, brand), deep vein thrombosis (DVT) risks, rehabilitation requirements.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Cardiothoracic Surgery</strong></td>
+<td style="text-align: left;">High-risk mortality clauses, bypass machine risks, ICU ventilation expectations.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Obstetrics / Maternity (C-Section)</strong></td>
+<td style="text-align: left;">Fetal distress risks, maternal hemorrhage, neonatal ICU admission clauses.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Ophthalmology (e.g., Cataract, LASIK)</strong></td>
+<td style="text-align: left;">Visual impairment risks, intraocular lens (IOL) choices, post-op vision expectations.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Blood Transfusion</strong></td>
+<td style="text-align: left;">Risks of bloodborne pathogens, allergic reactions, alternatives to transfusion.</td>
+</tr>
+</tbody>
+</table>
+<h4>Consent Workflow</h4>
+<div class="mermaid">
+sequenceDiagram
+    participant Doc as Surgeon / Doctor
+    participant System as DigifortLabs HMS
+    participant Patient
+    participant Vault as Secure EMR Vault
+
+    Doc->>System: Selects Scheduled Surgery
+    System->>System: Auto-generates Procedure-Specific Consent
+    System-->>Patient: Displays Digital Form (Tablet)
+    Patient->>System: Reads in Preferred Language
+    Patient->>System: Signs via Stylus (Patient + Witness)
+    Doc->>System: Countersigns Document
+    System->>Vault: Locks PDF with Digital Certificate
+</div>
+<h3>6.2.4 OT Cleaning, Turnaround &amp; Infection Control Protocols</h3>
+<p>To maintain stringent infection control standards between consecutive surgeries, the HMS mandates and logs adherence to the <strong>OT Turnaround Time (TAT) and Cleaning Protocol</strong>. The system blocks the induction of the next patient until the housekeeping and nursing staff digitally sign off on the cleaning checklist.</p>
+<p><strong>Between-Case Cleaning Protocol:</strong>
+- <strong>Surface Disinfection:</strong> Immediate mopping of the operating table, mayo stands, overhead surgical lights, and monitor touchscreens with a hospital-grade disinfectant (e.g., 1% Sodium Hypochlorite or Bacillocid).
+- <strong>Floor Cleaning:</strong> The floor area within the sterile perimeter is wet-mopped to remove organic spills (blood/fluids).
+- <strong>Waste Segregation:</strong> Secure removal of all bio-medical waste (BMW) bins (Yellow/Red bags) and sharp containers, logged into the BMW tracking module.
+- <strong>Air Quality &amp; Instrument Swap:</strong> Allowing adequate air exchanges (ventilation turnaround) before opening fresh sterile surgical sets and draping for the next patient.</p>
+<h3>6.2.5 Post-Operative Care &amp; Ward Transfer</h3>
+<p>Following the successful completion of the surgery, the HMS facilitates a seamless handover from the Operation Theatre to the designated recovery area. This ensures continuity of care, precise medication administration, and accurate tracking of the patient's post-operative stay.</p>
+<h4>Patient Handover &amp; Recovery Workflow</h4>
+<ul>
+<li><strong>OT to Recovery Room (PACU) or ICU:</strong> Immediate post-extubation, the patient is electronically transferred to the Post-Anesthesia Care Unit (PACU). If critical care is required, the patient will be shifted directly to the <strong>ICU / MICU / SICU</strong>. Vitals are continuously logged via integrated monitors until it is safe for ward transfer or step-down.</li>
+<li><strong>Ward / ICU Transfer Protocol:</strong> The receiving nursing station (Ward or Intensive Care Unit) receives an automated alert indicating the impending arrival of the post-op patient. The system enforces a digital handover checklist to ensure the receiving nurse gets all necessary post-op orders, drain details, and catheter statuses.</li>
+</ul>
+<h4>Inpatient Stay &amp; Medication Administration</h4>
+<p>Once settled in the inpatient ward, the HMS manages the remainder of the hospital stay:
+- <strong>Electronic Medication Administration Record (eMAR):</strong> The system generates a strict schedule for post-op antibiotics, analgesics, and DVT prophylaxis as prescribed by the surgeon. Nurses scan the medication barcode and the patient's wristband before administration to ensure the "Five Rights" of medication administration.
+- <strong>Surgical Wound Care &amp; Vitals:</strong> Scheduled nursing tasks are automatically queued for wound dressing changes, drain output measurements, and pain scoring (e.g., VAS scale).
+- <strong>Dietary Orders:</strong> The dietician module is updated with post-op dietary restrictions (e.g., NBM to clear liquids to soft diet), ensuring the IPD kitchen delivers the appropriate meals.</p>
+<div class="page-break"></div>
+
+<p><a id="chapter-7"></a></p>
+<h1>Chapter 7: Medical Records Department (MRD) &amp; Telemedicine</h1>
+<h2>7.1 Overview</h2>
+<p>Maintaining compliance and continuity of care through digitized Medical Records and modern communication channels.</p>
+<h2>7.2 Medical Records Department (MRD)</h2>
+<p>The MRD module ensures the hospital adheres to national compliance standards for data retention, morbidity reporting, and legal auditing.</p>
+<ul>
+<li><strong>ICD-10/ICD-11 Coding:</strong> Automated suggestions for diagnoses to ensure accurate morbidity and mortality reports.</li>
+<li><strong>File Tracking (Physical &amp; Digital):</strong> Barcode-based tracking for physical patient files borrowed by researchers or legal departments.</li>
+<li><strong>Archiving &amp; Recycle Bin:</strong> Secure archiving of old records with hard-delete prevention (soft delete to recycle bin) for compliance.</li>
+</ul>
+<h2>7.3 Telemedicine &amp; WhatsApp Integration</h2>
+<p>Bringing healthcare to the patient's smartphone via native API integrations.</p>
+<div class="mermaid">
+sequenceDiagram
+    participant Patient
+    participant WhatsApp API
+    participant HMS
+    participant Doctor
+
+    Patient->>WhatsApp API: Books Appointment via Chatbot
+    WhatsApp API->>HMS: Creates Slot & Temporary File
+    HMS-->>WhatsApp API: Sends Payment Link
+    Patient->>WhatsApp API: Completes Payment
+    HMS->>Doctor: Alerts Doctor of Video Consult
+    Doctor->>HMS: Generates E-Rx
+    HMS-->>WhatsApp API: Delivers PDF E-Rx to Patient
+</div>
+<div class="page-break"></div>
+
+<p><a id="chapter-8"></a></p>
+<h1>Chapter 8: Analytics, Reports &amp; Business Intelligence</h1>
+<h2>8.1 Overview</h2>
+<p>Data is the lifeblood of hospital administration. The Analytics module transforms thousands of daily transactions into actionable insights for the Management and Board.</p>
+<h2>8.2 Operational Dashboards</h2>
+<p>Real-time visibility into the hospital's performance metrics.</p>
+<h3>8.2.1 Key Metrics Tracked</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Metric Category</th>
+<th style="text-align: left;">Data Points Analyzed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Clinical Efficacy</strong></td>
+<td style="text-align: left;">Average Length of Stay (ALOS), Bed Occupancy Rate (BOR), Mortality Rates.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Financial Health</strong></td>
+<td style="text-align: left;">Daily Revenue Collection (OPD vs IPD), Department-wise Profitability, Pending TPA Receivables.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Inventory Trends</strong></td>
+<td style="text-align: left;">Fast-moving drugs, stock-out alerts, expiry loss value.</td>
+</tr>
+</tbody>
+</table>
+<h2>8.3 Automated Reporting Engine</h2>
+<ul>
+<li><strong>Statutory Reports:</strong> Auto-generation of mandatory government reports (e.g., infectious disease registries, birth/death certificates).</li>
+<li><strong>Scheduled Exports:</strong> Automatic daily dispatch of CSV/PDF reports to stakeholders via email.</li>
+</ul>
+<div class="page-break"></div>
+
+<p><a id="chapter-9"></a></p>
+<h1>Chapter 9: Configuration &amp; Master Data Management</h1>
+<h2>9.1 Overview</h2>
+<p>The Configuration module is the central nervous system of the HMS, allowing administrators to dictate the rules of the system without requiring code changes.</p>
+<h2>9.2 Master Data Architecture</h2>
+<p>Structured master tables prevent data duplication and ensure system-wide consistency.</p>
+<h3>9.2.1 Core Master Tables</h3>
+<ul>
+<li><strong>Service Master:</strong> Defining every billable item in the hospital (consultations, room rent, procedures, nursing charges) and linking them to specific departments.</li>
+<li><strong>Tariff &amp; Corporate Rules:</strong> Complex pricing engines where a single service (e.g., CBC Test) has dynamic pricing depending on the patient's ward (General vs ICU) or their TPA sponsor.</li>
+<li><strong>Role-Based Access Control (RBAC):</strong> Granular permission matrices to define what a specific user (e.g., Junior Nurse vs Head Nurse) can view, edit, or delete.</li>
+</ul>
+<div class="mermaid">
+graph TD
+    A[System Administrator] --> B[Service Master]
+    A --> C[Tariff Master]
+    A --> D[User Roles]
+    B --> E[Billing Engine]
+    C --> E
+    D --> F[Security & Audit Logs]
+</div>
+<div class="page-break"></div>
+
+<p><a id="chapter-10"></a></p>
+<h1>Chapter 10: Human Resources, Staff Management &amp; Onboarding</h1>
+<h2>10.1 Overview</h2>
+<p>Managing the hospital's workforce, from recruitment and credential verification to payroll and attendance.</p>
+<h2>10.2 Staff Lifecycle Management</h2>
+<h3>10.2.1 Onboarding &amp; Credentialing</h3>
+<ul>
+<li><strong>Digital Onboarding:</strong> Secure portals for new staff to upload medical licenses (e.g., Medical Council Registrations), degrees, and identification.</li>
+<li><strong>Credential Expiry Alerts:</strong> Automated notifications to HR and the Doctor when their medical license or malpractice insurance is about to expire.</li>
+</ul>
+<h3>10.2.2 Roster &amp; Attendance</h3>
+<p>Managing complex shift patterns unique to healthcare.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Feature</th>
+<th style="text-align: left;">Functional Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Shift Management</strong></td>
+<td style="text-align: left;">Dynamic 24/7 duty rosters for nursing staff, residents, and consultants.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Biometric Integration</strong></td>
+<td style="text-align: left;">API links to physical fingerprint/face-scanners for real-time attendance logging.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Leave Management</strong></td>
+<td style="text-align: left;">Hierarchical leave approval workflows ensuring wards are never understaffed.</td>
+</tr>
+</tbody>
+</table>
+<h2>10.3 Payroll &amp; Incentive Calculation</h2>
+<ul>
+<li><strong>Doctor Payouts:</strong> Specialized logic for calculating consultant fee-for-service (FFS) splits, flat salaries, or hybrid models based on the services they rendered during the month.</li>
+<li><strong>Statutory Deductions:</strong> Automated calculation of taxes, provident funds, and health insurance.</li>
+</ul>
+    </div>
+</body>
+</html>

@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import OPDPatient, Patient, OPDVisit, User
 from .auth import get_current_user
 
@@ -56,10 +57,10 @@ def register_opd_patient(
     target_hospital = hospital_id if hospital_id else current_user.hospital_id
     
     # Check if exists
-    existing = db.query(OPDPatient).filter(
+    existing = crud_all.o_p_d_patient.get_first(db, 
         OPDPatient.patient_id == payload.patient_id,
         OPDPatient.hospital_id == target_hospital
-    ).first()
+    )
     
     if existing:
         existing.blood_group = payload.blood_group
@@ -79,7 +80,7 @@ def register_opd_patient(
     db.add(new_opd)
     
     # Also update patient category to OPD
-    core_patient = db.query(Patient).filter(Patient.record_id == payload.patient_id).first()
+    core_patient = crud_all.patient.get_first(db, Patient.record_id == payload.patient_id)
     if core_patient:
         core_patient.patient_category = "OPD"
         
@@ -103,12 +104,12 @@ def get_clinic_stats(
     # Today visits
     today = datetime.now().date()
     from sqlalchemy import func
-    today_visits = db.query(OPDVisit).filter(
+    today_visits = crud_all.o_p_d_visit.get_first(db, 
         OPDVisit.hospital_id == target_hospital,
         func.date(OPDVisit.visit_date) == today
     ).count()
     
-    total_visits = db.query(OPDVisit).filter(OPDVisit.hospital_id == target_hospital).count()
+    total_visits = crud_all.o_p_d_visit.count(db, OPDVisit.hospital_id == target_hospital)
     
     return {
         "total_patients": total_patients,
@@ -153,7 +154,7 @@ def create_visit(
 
     # Get doctor if doctor
     from ..models import DoctorProfile
-    doc = db.query(DoctorProfile).filter(DoctorProfile.user_id == current_user.user_id).first()
+    doc = crud_all.doctor_profile.get_first(db, DoctorProfile.user_id == current_user.user_id)
     doctor_id = doc.profile_id if doc else None
     
     new_visit = OPDVisit(
@@ -189,7 +190,7 @@ def get_visits(
     visits = db.query(OPDVisit).filter(
         OPDVisit.patient_id == patient_id,
         OPDVisit.hospital_id == target_hospital
-    ).order_by(OPDVisit.visit_date.desc()).all()
+    ).order_by(OPDVisit.visit_date.desc())
     return visits
 
 @router.post('/prescriptions')

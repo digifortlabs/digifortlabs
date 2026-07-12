@@ -76,7 +76,7 @@ export default function ENTPatientDetail({ patientId, onBack }: ENTPatientDetail
 
         return (
             <div className="h-64 w-full mt-4">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={250} minWidth={1} minHeight={1}>
                     <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                         <XAxis dataKey="frequency" tick={{ fill: '#64748B' }} tickLine={false} axisLine={false} />

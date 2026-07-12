@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from datetime import datetime
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import User, IPDAdmission, Patient, NursingVitalsLog, Bed, Ward
 from .auth import get_current_user
 
@@ -60,7 +61,7 @@ def log_vitals(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    admission = db.query(IPDAdmission).filter(IPDAdmission.admission_id == payload.admission_id).first()
+    admission = crud_all.i_p_d_admission.get_first(db, IPDAdmission.admission_id == payload.admission_id)
     if not admission:
         raise HTTPException(status_code=404, detail="Admission not found")
         

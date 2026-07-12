@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import (
     FileRequest,
     Hospital,
@@ -28,14 +29,12 @@ router = APIRouter()
 
 # --- Helper Functions for Emails ---
 def get_hospital_admin_emails(db: Session, hospital_id: int) -> List[str]:
-    users = db.query(User).filter(
-        User.hospital_id == hospital_id,
-        User.role == UserRole.HOSPITAL_ADMIN
-    ).all()
+    users = db.query(User).filter(User.hospital_id == hospital_id,
+        User.role == UserRole.HOSPITAL_ADMIN).all()
     return [u.email for u in users if u.email]
 
 def get_super_admin_emails(db: Session) -> List[str]:
-    users = db.query(User).filter(User.role == UserRole.SUPER_ADMIN).all()
+    users = crud_all.user.get_multi(db, User.role == UserRole.SUPER_ADMIN)
     return [u.email for u in users if u.email]
 
 # --- Rack Models ---
@@ -167,7 +166,7 @@ def create_rack(rack: RackCreate, db: Session = Depends(get_db), current_user: U
         
         # Count existing racks in this aisle (Across all hospitals or per hospital?)
         # Since racks are now potentially global/shared, let's count all racks in this aisle.
-        query = db.query(PhysicalRack).filter(
+        query = db.query(PhysicalRack).filter( 
             PhysicalRack.aisle == rack.aisle
         )
         if target_hospital_id and current_user.role != UserRole.SUPER_ADMIN:
@@ -181,14 +180,14 @@ def create_rack(rack: RackCreate, db: Session = Depends(get_db), current_user: U
         final_label = f"RACK-A{rack.aisle}-{str(seq).zfill(2)}"
         
         # Safety check for collision (increment if needed)
-        while db.query(PhysicalRack).filter(PhysicalRack.label == final_label).first():
+        while crud_all.physical_rack.count(db, PhysicalRack.label == final_label):
             seq += 1
             final_label = f"RACK-A{rack.aisle}-{str(seq).zfill(2)}"
 
     # Check for duplicate label (Global check)
-    exists = db.query(PhysicalRack).filter(
+    exists = crud_all.physical_rack.get_first(db, 
         PhysicalRack.label == final_label
-    ).first()
+    )
     
     if exists:
         raise HTTPException(status_code=400, detail=f"Rack with label {final_label} already exists")
@@ -212,7 +211,7 @@ def update_rack(rack_id: int, rack_update: RackUpdate, db: Session = Depends(get
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.WAREHOUSE_MANAGER]:
         raise HTTPException(status_code=403, detail="Not authorized")
         
-    db_rack = db.query(PhysicalRack).filter(PhysicalRack.rack_id == rack_id).first()
+    db_rack = crud_all.physical_rack.get_first(db, PhysicalRack.rack_id == rack_id)
     if not db_rack:
         raise HTTPException(status_code=404, detail="Rack not found")
         
@@ -233,7 +232,7 @@ def delete_rack(rack_id: int, db: Session = Depends(get_db), current_user: User 
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.WAREHOUSE_MANAGER]:
         raise HTTPException(status_code=403, detail="Not authorized")
         
-    db_rack = db.query(PhysicalRack).filter(PhysicalRack.rack_id == rack_id).first()
+    db_rack = crud_all.physical_rack.get_first(db, PhysicalRack.rack_id == rack_id)
     if not db_rack:
         raise HTTPException(status_code=404, detail="Rack not found")
         
@@ -241,7 +240,7 @@ def delete_rack(rack_id: int, db: Session = Depends(get_db), current_user: User 
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Check for boxes
-    has_boxes = db.query(PhysicalBox).filter(PhysicalBox.rack_id == rack_id).first()
+    has_boxes = db.query(PhysicalBox).filter(PhysicalBox.rack_id == rack_id).all()
     if has_boxes:
         raise HTTPException(status_code=400, detail="Cannot delete rack containing boxes. Remove boxes first.")
 
@@ -278,7 +277,7 @@ def get_warehouse_layout(db: Session = Depends(get_db), current_user: User = Dep
         return []
 
     # Fetch all racks (Racks are now shared warehouse resources)
-    db_racks = db.query(PhysicalRack).all()
+    db_racks = db.query(PhysicalRack)
     
     if not db_racks:
         return []
@@ -338,7 +337,7 @@ def toggle_box_status(box_id: int, status: BoxStatusUpdate, db: Session = Depend
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN, UserRole.WAREHOUSE_MANAGER]:
         raise HTTPException(status_code=403, detail="Not authorized")
         
-    db_box = db.query(PhysicalBox).filter(PhysicalBox.box_id == box_id).first()
+    db_box = crud_all.physical_box.get_first(db, PhysicalBox.box_id == box_id)
     if not db_box:
         raise HTTPException(status_code=404, detail="Box not found")
         
@@ -349,7 +348,7 @@ def toggle_box_status(box_id: int, status: BoxStatusUpdate, db: Session = Depend
     if status.is_open:
         # Find all open boxes for this hospital and close them
         target_hospital_id = db_box.hospital_id
-        db.query(PhysicalBox).filter(
+        crud_all.physical_box.get_first(db, 
             PhysicalBox.hospital_id == target_hospital_id,
             PhysicalBox.is_open == True
         ).update({
@@ -374,7 +373,7 @@ def bulk_assign_files(req: BulkAssignRequest, db: Session = Depends(get_db), cur
         
     logger.info(f"[DEBUG] Bulk Assign: box_id={req.box_id}, identifiers={req.identifiers}, user={current_user.email}")
     
-    box = db.query(PhysicalBox).filter(PhysicalBox.box_id == req.box_id).first()
+    box = crud_all.physical_box.get_first(db, PhysicalBox.box_id == req.box_id)
     if not box:
         logger.info(f"[DEBUG] Bulk Assign: Box {req.box_id} NOT FOUND")
         raise HTTPException(status_code=404, detail="Box not found")
@@ -384,7 +383,7 @@ def bulk_assign_files(req: BulkAssignRequest, db: Session = Depends(get_db), cur
         raise HTTPException(status_code=400, detail="This box is CLOSED. Please open it first.")
 
     # Check current capacity
-    current_count = db.query(Patient).filter(Patient.physical_box_id == box.box_id).count()
+    current_count = crud_all.patient.get_first(db, Patient.physical_box_id == box.box_id)
     
     # Valid scope: Patients must belong to the same hospital as the box
     target_hospital_id = box.hospital_id
@@ -408,19 +407,19 @@ def bulk_assign_files(req: BulkAssignRequest, db: Session = Depends(get_db), cur
                 errors.append(f"{ident}: Box is FULL (capacity: {box.capacity})")
                 continue
             
-        p = db.query(Patient).filter(
+        p = crud_all.patient.count(db, 
             Patient.hospital_id == target_hospital_id,
             (Patient.patient_u_id == ident) | (Patient.uhid == ident)
-        ).first()
+        )
 
         if not p:
             # Try parsing as int for record_id (Frontend sends record_id)
             try:
                 rid = int(ident)
-                p = db.query(Patient).filter(
+                p = crud_all.patient.get_first(db, 
                     Patient.hospital_id == target_hospital_id, 
                     Patient.record_id == rid
-                ).first()
+                )
             except:
                 pass
         
@@ -529,7 +528,7 @@ def bulk_unassign_files(req: BulkUnassignRequest, db: Session = Depends(get_db),
 
 @router.get("/logs", response_model=List[MovementLogResponse])
 def get_movement_logs(limit: int = 50, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    logs = db.query(PhysicalMovementLog).order_by(PhysicalMovementLog.timestamp.desc()).limit(limit).all()
+    logs = db.query(PhysicalMovementLog).order_by(PhysicalMovementLog.timestamp.desc()).limit(limit)
     return [
         MovementLogResponse(
             id=log.log_id,
@@ -574,7 +573,7 @@ def get_boxes(db: Session = Depends(get_db), current_user: User = Depends(get_cu
     results = []
     
     for b in boxes:
-        count = db.query(Patient).filter(Patient.physical_box_id == b.box_id).count()
+        count = crud_all.patient.get_first(db, Patient.physical_box_id == b.box_id)
         hospital_name = b.hospital.legal_name if b.hospital else "Unknown"
         show_location = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
         
@@ -606,7 +605,7 @@ def create_box(box: BoxCreate, db: Session = Depends(get_db), current_user: User
         if box.hospital_id:
             target_hospital_id = box.hospital_id
         elif box.rack_id:
-             rack_obj = db.query(PhysicalRack).filter(PhysicalRack.rack_id == box.rack_id).first()
+             rack_obj = crud_all.physical_rack.get_first(db, PhysicalRack.rack_id == box.rack_id)
              if rack_obj: target_hospital_id = rack_obj.hospital_id
         
         if not target_hospital_id: target_hospital_id = 1
@@ -617,7 +616,7 @@ def create_box(box: BoxCreate, db: Session = Depends(get_db), current_user: User
     
     rack = None
     if box.rack_id:
-         rack = db.query(PhysicalRack).filter(PhysicalRack.rack_id == box.rack_id).first()
+         rack = crud_all.physical_rack.get_first(db, PhysicalRack.rack_id == box.rack_id)
     
     if not final_label or final_label.strip() == "":
         # Format: BOX-{YYYY}-{MM}-{SEQ}
@@ -628,7 +627,7 @@ def create_box(box: BoxCreate, db: Session = Depends(get_db), current_user: User
         # Let's use Rack Sequence if Rack exists, otherwise Global.
         # Decision: Global is safer for uniqueness.
         
-        count = db.query(PhysicalBox).filter(
+        count = crud_all.physical_box.get_first(db, 
             PhysicalBox.hospital_id == target_hospital_id,
             PhysicalBox.label.like(f"{prefix}%")
         ).count()
@@ -636,7 +635,7 @@ def create_box(box: BoxCreate, db: Session = Depends(get_db), current_user: User
         seq = count + 1
         final_label = f"{prefix}-{str(seq).zfill(3)}"
         
-        while db.query(PhysicalBox).filter(PhysicalBox.label == final_label).first():
+        while crud_all.physical_box.count(db, PhysicalBox.label == final_label):
             seq += 1
             final_label = f"{prefix}-{str(seq).zfill(3)}"
 
@@ -649,7 +648,7 @@ def create_box(box: BoxCreate, db: Session = Depends(get_db), current_user: User
         # Get all occupied slots
         occupied_slots = db.query(PhysicalBox.rack_row, PhysicalBox.rack_column).filter(
             PhysicalBox.rack_id == rack.rack_id
-        ).all()
+        )
         occupied_set = set((r, c) for r, c in occupied_slots if r and c)
         
         # Grid Search
@@ -704,7 +703,7 @@ def create_box(box: BoxCreate, db: Session = Depends(get_db), current_user: User
 
 @router.patch("/boxes/{box_id}", response_model=BoxResponse)
 def update_box(box_id: int, box_update: BoxUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    db_box = db.query(PhysicalBox).filter(PhysicalBox.box_id == box_id).first()
+    db_box = crud_all.physical_box.get_first(db, PhysicalBox.box_id == box_id)
     if not db_box:
         raise HTTPException(status_code=404, detail="Box not found")
         
@@ -715,7 +714,7 @@ def update_box(box_id: int, box_update: BoxUpdate, db: Session = Depends(get_db)
     if box_update.label is not None:
         # Check uniqueness if label changes
         if box_update.label != db_box.label:
-            exists = db.query(PhysicalBox).filter(PhysicalBox.label == box_update.label).first()
+            exists = crud_all.physical_box.get_first(db, PhysicalBox.label == box_update.label)
             if exists:
                 raise HTTPException(status_code=400, detail="Box with this label already exists")
         db_box.label = box_update.label
@@ -738,7 +737,7 @@ def update_box(box_id: int, box_update: BoxUpdate, db: Session = Depends(get_db)
     db.commit()
     db.refresh(db_box)
     
-    count = db.query(Patient).filter(Patient.physical_box_id == db_box.box_id).count()
+    count = crud_all.patient.get_first(db, Patient.physical_box_id == db_box.box_id)
     return BoxResponse(
         box_id=db_box.box_id,
         hospital_name=db_box.hospital.legal_name if db_box.hospital else "Unknown",
@@ -754,7 +753,7 @@ def update_box(box_id: int, box_update: BoxUpdate, db: Session = Depends(get_db)
 
 @router.delete("/boxes/{box_id}")
 def delete_box(box_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    db_box = db.query(PhysicalBox).filter(PhysicalBox.box_id == box_id).first()
+    db_box = crud_all.physical_box.get_first(db, PhysicalBox.box_id == box_id)
     if not db_box:
         raise HTTPException(status_code=404, detail="Box not found")
         
@@ -763,23 +762,23 @@ def delete_box(box_id: int, db: Session = Depends(get_db), current_user: User = 
         raise HTTPException(status_code=403, detail="Access denied")
 
     # 1. Check for Patients
-    has_patients = db.query(Patient).filter(Patient.physical_box_id == box_id).count()
+    has_patients = crud_all.patient.count(db, Patient.physical_box_id == box_id)
     if has_patients > 0:
         raise HTTPException(status_code=400, detail=f"Cannot delete: Box contains {has_patients} patient records.")
 
     # 2. Check for PDF Files (orphaned from patient but linked to box)
-    has_files = db.query(PDFFile).filter(PDFFile.box_id == box_id).count()
+    has_files = crud_all.p_d_f_file.count(db, PDFFile.box_id == box_id)
     if has_files > 0:
         raise HTTPException(status_code=400, detail=f"Cannot delete: Box contains {has_files} PDF files.")
 
     # 3. Check for File Requests (History)
-    has_requests = db.query(FileRequest).filter(FileRequest.box_id == box_id).count()
+    has_requests = crud_all.file_request.count(db, FileRequest.box_id == box_id)
     if has_requests > 0:
         # Check for ACTIVE requests
-        active_requests = db.query(FileRequest).filter(
+        active_requests = crud_all.file_request.count(db, 
             FileRequest.box_id == box_id, 
             FileRequest.status.in_([ "Pending", "In Transit", "Approved"])
-        ).count()
+        )
         
         if active_requests > 0:
              raise HTTPException(status_code=400, detail=f"Cannot delete: Box has {active_requests} ACTIVE file requests.")
@@ -838,8 +837,7 @@ def get_next_sequence(hospital_id: int, category: str = "GENERAL", db: Session =
     prefix = f"{hospital_code}/{cat_code}/"
     pattern = f"{prefix}%"
     
-    boxes = db.query(PhysicalBox).filter(
-        PhysicalBox.hospital_id == hospital_id,
+    boxes = db.query(PhysicalBox).filter(PhysicalBox.hospital_id == hospital_id,
         PhysicalBox.label.like(pattern)
     ).all()
     
@@ -865,7 +863,7 @@ def get_next_sequence(hospital_id: int, category: str = "GENERAL", db: Session =
 
 @router.get("/boxes/{box_id}/patients")
 def get_box_patients(box_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    db_box = db.query(PhysicalBox).filter(PhysicalBox.box_id == box_id).first()
+    db_box = crud_all.physical_box.get_first(db, PhysicalBox.box_id == box_id)
     if not db_box:
         raise HTTPException(status_code=404, detail="Box not found")
         
@@ -873,7 +871,7 @@ def get_box_patients(box_id: int, db: Session = Depends(get_db), current_user: U
     if current_user.role not in [UserRole.SUPER_ADMIN] and db_box.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    patients = db.query(Patient).filter(Patient.physical_box_id == box_id).all()
+    patients = crud_all.patient.get_first(db, Patient.physical_box_id == box_id)
     
     return [
         {
@@ -888,7 +886,7 @@ def get_box_patients(box_id: int, db: Session = Depends(get_db), current_user: U
 
 @router.post("/patients/{patient_id}/assign-box")
 def assign_patient_to_box(patient_id: int, request: AssignBoxRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+    patient = crud_all.patient.get_first(db, Patient.record_id == patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
         
@@ -896,7 +894,7 @@ def assign_patient_to_box(patient_id: int, request: AssignBoxRequest, db: Sessio
     if current_user.role not in [UserRole.SUPER_ADMIN] and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    box = db.query(PhysicalBox).filter(PhysicalBox.box_id == request.box_id).first()
+    box = crud_all.physical_box.get_first(db, PhysicalBox.box_id == request.box_id)
     if not box:
         raise HTTPException(status_code=404, detail="Box not found")
         
@@ -909,7 +907,7 @@ def assign_patient_to_box(patient_id: int, request: AssignBoxRequest, db: Sessio
 
 @router.post("/patients/{patient_id}/unassign-box")
 def unassign_patient_from_box(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+    patient = crud_all.patient.get_first(db, Patient.record_id == patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
         
@@ -934,7 +932,7 @@ def get_requests(db: Session = Depends(get_db), current_user: User = Depends(get
     show_box_info = current_user.role in [UserRole.SUPER_ADMIN, UserRole.WAREHOUSE_MANAGER, UserRole.PLATFORM_STAFF]
     
     for r in reqs:
-        box = db.query(PhysicalBox).filter(PhysicalBox.box_id == r.box_id).first()
+        box = crud_all.physical_box.get_first(db, PhysicalBox.box_id == r.box_id)
         
         display_label = "Unknown"
         if box:
@@ -972,7 +970,7 @@ def create_request(req: RequestCreate, db: Session = Depends(get_db), current_us
     try:
         # Get Box Label
         box_label = "Unknown"
-        box = db.query(PhysicalBox).filter(PhysicalBox.box_id == req.box_id).first()
+        box = crud_all.physical_box.get_first(db, PhysicalBox.box_id == req.box_id)
         if box: box_label = box.label
 
         recipients = get_super_admin_emails(db) + get_hospital_admin_emails(db, current_user.hospital_id)
@@ -995,7 +993,7 @@ def create_request(req: RequestCreate, db: Session = Depends(get_db), current_us
 
 @router.patch("/requests/{request_id}/status")
 def update_request_status(request_id: int, status: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    req = db.query(FileRequest).filter(FileRequest.request_id == request_id).first()
+    req = crud_all.file_request.get_first(db, FileRequest.request_id == request_id)
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
         
@@ -1013,7 +1011,7 @@ def update_request_status(request_id: int, status: str, db: Session = Depends(ge
     # --- EVENTS 2, 3, 4, 5: Status Updates ---
     try:
         box_label = "Unknown"
-        box = db.query(PhysicalBox).filter(PhysicalBox.box_id == req.box_id).first()
+        box = crud_all.physical_box.get_first(db, PhysicalBox.box_id == req.box_id)
         if box: box_label = box.label
         
         headline = f"Status Update: {status}"
@@ -1055,7 +1053,7 @@ def update_request_status(request_id: int, status: str, db: Session = Depends(ge
 
 @router.delete("/requests/{request_id}")
 def delete_request(request_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    req = db.query(FileRequest).filter(FileRequest.request_id == request_id).first()
+    req = crud_all.file_request.get_first(db, FileRequest.request_id == request_id)
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
         
@@ -1097,7 +1095,7 @@ def search_files(q: str, db: Session = Depends(get_db), current_user: User = Dep
         (Patient.full_name.ilike(search)) |
         (Patient.uhid.ilike(search)) |
         (Patient.patient_u_id.ilike(search))
-    ).limit(20).all()
+    ).limit(20)
     
     data = []
     

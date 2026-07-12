@@ -81,7 +81,7 @@ def queue_message(
 @router.get("/queue/pending", response_model=List[dict])
 def get_pending_messages(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Keep this for backwards compatibility just in case."""
-    query = db.query(WhatsAppMessageQueue).filter(WhatsAppMessageQueue.status == "pending")
+    query = db.query(WhatsAppMessageQueue).filter(WhatsAppMessageQueue.status == "pending").first()
     if current_user.role != UserRole.SUPER_ADMIN:
         if current_user.hospital_id is not None:
             query = query.filter(WhatsAppMessageQueue.hospital_id == current_user.hospital_id)

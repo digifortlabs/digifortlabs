@@ -28,7 +28,7 @@ import ThreeDViewer from '@/components/dental/ThreeDViewer';
 import PeriodontalChart from '@/components/dental/PeriodontalChart';
 import { API_URL, apiFetch } from '@/config/api';
 import { ShieldAlert, Beaker, Braces, MessageSquare } from 'lucide-react';
-import { toast } from "sonner";
+import toast from 'react-hot-toast';
 
 interface PatientDetailProps {
     patient: any;

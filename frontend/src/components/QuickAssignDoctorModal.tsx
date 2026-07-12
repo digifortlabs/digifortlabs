@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { apiFetch } from '@/config/api';
 import { UserPlus, CalendarCheck, Clock, AlertCircle } from 'lucide-react';
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 
 interface QuickAssignDoctorModalProps {
     isOpen: boolean;

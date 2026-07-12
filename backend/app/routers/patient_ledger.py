@@ -6,6 +6,7 @@ from datetime import datetime
 from sqlalchemy import func
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import User, Patient, PatientLedgerTransaction, Hospital, IPDAdmission, OPDVisit
 from .auth import get_current_user
 from ..services.patient_billing_service import PatientBillingService
@@ -87,7 +88,7 @@ def record_advance_deposit(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+    patient = crud_all.patient.get_first(db, Patient.record_id == patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
         
@@ -117,7 +118,7 @@ def record_cashless_approval(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+    patient = crud_all.patient.get_first(db, Patient.record_id == patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
         
@@ -142,9 +143,9 @@ def get_ledger_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    transactions = db.query(PatientLedgerTransaction).filter(
+    transactions = crud_all.patient_ledger_transaction.get_multi(db, 
         PatientLedgerTransaction.patient_id == patient_id,
         PatientLedgerTransaction.hospital_id == current_user.hospital_id
-    ).order_by(PatientLedgerTransaction.timestamp.desc()).all()
+    ).order_by(PatientLedgerTransaction.timestamp.desc())
     
     return transactions

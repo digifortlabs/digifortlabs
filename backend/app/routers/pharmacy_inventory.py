@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta
 
 from ..database import get_db
+from ..crud import crud_all
 from ..models import User, InventoryItem, PharmacySupplier, MedicineBatch, PurchaseInvoice, PurchaseItem
 from .auth import get_current_user
 
@@ -117,7 +118,7 @@ def create_purchase(payload: PurchaseInvoiceCreate, db: Session = Depends(get_db
         db.add(purchase_item)
 
         # Update Master Catalog Stock
-        inv_item = db.query(InventoryItem).filter(InventoryItem.item_id == req_item.item_id).first()
+        inv_item = crud_all.inventory_item.get_first(db, InventoryItem.item_id == req_item.item_id)
         if inv_item:
             inv_item.current_stock += (req_item.quantity + req_item.free_quantity)
 
@@ -133,7 +134,7 @@ def get_expiring_stock(days: int = 90, db: Session = Depends(get_db), current_us
         MedicineBatch.current_stock > 0,
         MedicineBatch.expiry_date != None,
         MedicineBatch.expiry_date <= threshold_date
-    ).order_by(MedicineBatch.expiry_date.asc()).all()
+    ).order_by(MedicineBatch.expiry_date.asc())
     
     result = []
     for b in batches:
@@ -149,11 +150,11 @@ def get_expiring_stock(days: int = 90, db: Session = Depends(get_db), current_us
 
 @router.get("/batches/{item_id}")
 def get_item_batches(item_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    batches = db.query(MedicineBatch).filter(
+    batches = crud_all.medicine_batch.get_multi(db, 
         MedicineBatch.hospital_id == current_user.hospital_id,
         MedicineBatch.item_id == item_id,
         MedicineBatch.current_stock > 0
-    ).order_by(MedicineBatch.expiry_date.asc()).all()
+    ).order_by(MedicineBatch.expiry_date.asc())
     
     result = []
     for b in batches:

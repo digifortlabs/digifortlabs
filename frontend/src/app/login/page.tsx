@@ -202,24 +202,18 @@ function LoginForm() {
         const isDoctor = data.role === 'doctor';
         const isHospitalUser = data.role === 'hospital_admin' || data.role === 'hospital_staff' || data.role === 'mrd_staff' || data.role === 'account_staff' || data.role === 'nurse_ipd' || data.role === 'doctor_ipd' || data.role === 'doctor_opd';
 
-        // Robustly determine the hospital slug
+        // Robustly determine the hospital slug and target path
         const currentSubdomain = getCurrentSubdomain();
-        const slug = data.hospital_slug || (currentSubdomain !== 'dashboard' && currentSubdomain !== 'admin' ? currentSubdomain : null);
+        
+        let targetSubdomain = data.target_subdomain || 'admin';
+        let targetPath = '/';
 
-        let targetSubdomain = slug || 'admin';
-        let targetPath = '/admin';
-
-        const isDemoAccount = email.toLowerCase() === 'demo@digifortlabs.com' || slug === 'demo';
-
-        if (isDemoAccount) {
-            targetSubdomain = 'demo';
-            targetPath = isDoctor ? '/doctor' : (isHospitalUser ? '/hospital' : '/admin');
-        } else if (isSuperAdmin) {
-            targetSubdomain = 'admin';
+        if (targetSubdomain === 'demo') {
+            targetPath = isDoctor ? '/' : (isHospitalUser ? '/' : '/admin');
+        } else if (targetSubdomain === 'admin') {
             targetPath = '/admin';
-        } else if (slug) {
-            targetSubdomain = slug;
-            targetPath = isDoctor ? '/doctor' : isHospitalUser ? '/hospital' : '/hospital';
+        } else {
+            targetPath = '/';
         }
 
         // getDomainUrl already appends #_auth= hash for cross-subdomain handoff

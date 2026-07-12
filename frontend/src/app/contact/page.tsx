@@ -1,9 +1,10 @@
 "use client";
+import { apiFetch, API_URL } from '@/config/api';
 import React, { useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Phone, Mail, MapPin, Send, CheckCircle } from "lucide-react";
-import { API_URL } from "../../config/api";
+
 
 export default function ContactPage() {
     const [submitted, setSubmitted] = useState(false);

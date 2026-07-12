@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
+import toast from 'react-hot-toast';
 import { Building2, Stethoscope, Tags, Receipt, ArrowRight, ArrowLeft, CheckCircle2, ShieldCheck, Activity } from 'lucide-react';
 
 export default function HospitalOnboarding() {

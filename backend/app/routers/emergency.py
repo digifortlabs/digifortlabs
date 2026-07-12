@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from ..crud import crud_all
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -93,10 +94,10 @@ def register_emergency(
     current_user: User = Depends(get_current_user)
 ):
     # Verify patient
-    patient = db.query(Patient).filter(
+    patient = crud_all.patient.get_first(db, 
         Patient.record_id == data.patient_id, 
         Patient.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -128,7 +129,7 @@ def register_emergency(
     response.patient_name = patient.full_name
     
     if new_visit.doctor_id:
-        doc = db.query(DoctorProfile).filter(DoctorProfile.profile_id == new_visit.doctor_id).first()
+        doc = crud_all.doctor_profile.get_first(db, DoctorProfile.profile_id == new_visit.doctor_id)
         if doc:
             response.doctor_name = doc.full_name
             
@@ -155,7 +156,7 @@ def get_active_emergencies(
         resp.patient_name = patient.full_name
         
         if visit.doctor_id:
-            doc = db.query(DoctorProfile).filter(DoctorProfile.profile_id == visit.doctor_id).first()
+            doc = crud_all.doctor_profile.get_first(db, DoctorProfile.profile_id == visit.doctor_id)
             if doc:
                 resp.doctor_name = doc.full_name
                 
@@ -170,10 +171,10 @@ def update_emergency(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    visit = db.query(EmergencyVisit).filter(
+    visit = crud_all.emergency_visit.get_first(db, 
         EmergencyVisit.emergency_id == emergency_id,
         EmergencyVisit.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not visit:
         raise HTTPException(status_code=404, detail="Emergency visit not found")
@@ -185,14 +186,14 @@ def update_emergency(
     db.commit()
     db.refresh(visit)
     
-    patient = db.query(Patient).filter(Patient.record_id == visit.patient_id).first()
+    patient = crud_all.patient.get_first(db, Patient.record_id == visit.patient_id)
     
     response = EmergencyVisitResponse.model_validate(visit)
     if patient:
         response.patient_name = patient.full_name
         
     if visit.doctor_id:
-        doc = db.query(DoctorProfile).filter(DoctorProfile.profile_id == visit.doctor_id).first()
+        doc = crud_all.doctor_profile.get_first(db, DoctorProfile.profile_id == visit.doctor_id)
         if doc:
             response.doctor_name = doc.full_name
             
@@ -204,10 +205,10 @@ def delete_emergency(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    visit = db.query(EmergencyVisit).filter(
+    visit = crud_all.emergency_visit.get_first(db, 
         EmergencyVisit.emergency_id == emergency_id,
         EmergencyVisit.hospital_id == current_user.hospital_id
-    ).first()
+    )
     
     if not visit:
         raise HTTPException(status_code=404, detail="Emergency visit not found")
