@@ -7,8 +7,11 @@ from pydantic import BaseModel
 
 from ..database import get_db
 from ..crud import crud_all
-from ..models import User, Patient, IPDAdmission, Ward, Bed, OperationTheater, MedicalEquipment, RFIDCard, Hospital, PatientInvoice, PatientInvoiceItem, EmergencyVisit, WhatsAppMessageQueue, Surgery
+from ..models import User, Patient, IPDAdmission, Ward, Bed, OperationTheater, MedicalEquipment, RFIDCard, Hospital, PatientInvoice, PatientInvoiceItem, EmergencyVisit, WhatsAppMessageQueue, Surgery, DoctorProfile, IPDDoctorVisit
 from .auth import get_current_user
+
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/hms", tags=["Hospital Management System"])
 
@@ -726,7 +729,7 @@ def admit_patient(
     # Update ward counter
     ward = crud_all.ward.get_first(db, Ward.ward_id == admission.ward_id)
     if ward:
-        ward.occupied_beds = crud_all.bed.get_first(db, Bed.ward_id == ward.ward_id, Bed.is_occupied == True)  # type: ignore
+        ward.occupied_beds = crud_all.bed.count(db, Bed.ward_id == ward.ward_id, Bed.is_occupied == True)  # type: ignore
         
     # Auto-close any active Emergency Visits for this patient
     active_er_visits = crud_all.emergency_visit.get_multi(db, 
@@ -860,6 +863,18 @@ def discharge_patient(
         
     if admission.status == "discharged":
         raise HTTPException(status_code=400, detail="Patient is already discharged")
+        
+    # TPA/Insurance Lock Check
+    from ..models import MediclaimClaim
+    active_claim = db.query(MediclaimClaim).filter(
+        MediclaimClaim.admission_id == admission_id,
+        MediclaimClaim.status != "APPROVED",
+        MediclaimClaim.status != "REJECTED"
+    ).first()
+    
+    if active_claim:
+        raise HTTPException(status_code=403, detail=f"Discharge blocked. Pending insurance claim ({active_claim.status}). Please clear TPA approval first.")
+
         
     # Set discharge time
     discharge_date = discharge_data.discharge_date or datetime.now()

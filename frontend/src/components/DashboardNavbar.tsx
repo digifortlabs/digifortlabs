@@ -175,7 +175,7 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                         <p className="text-sm font-bold text-white truncate">{userEmail}</p>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
-                                                {userRole?.replace('_', ' ')}
+                                                {userRole === 'superadmin' ? 'PLATFORM ADMIN' : userRole?.replace('_', ' ')}
                                             </span>
                                         </div>
                                     </div>

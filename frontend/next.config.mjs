@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     output: 'standalone',
+    allowedDevOrigins: ['100.100.100.100', 'localhost:3000', 'admin.localhost:3000', '127.0.0.1'],
     // Preserve trailing slashes when proxying /api/* to the FastAPI backend.
     // Without this, Next.js 308-redirects "/api/hospitals/?x=1" -> "/api/hospitals?x=1",
     // which then hits FastAPI's "/hospitals/" route and triggers a 307 to an absolute

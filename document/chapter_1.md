@@ -2,37 +2,52 @@
 
 ## 1.1 Executive Summary
 
-The **DigifortLabs Hospital Management System (HMS)** represents a paradigm shift in how modern healthcare institutions manage their clinical, administrative, and financial workflows. Built on a robust, highly scalable, and secure architecture (Next.js, React, and TypeScript), this platform eliminates data silos by unifying Patient Care, Medical Records, Pharmacy Logistics, Human Resources, and Financial Accounting into a single, cohesive ecosystem.
+The **DigifortLabs Hospital Management System (HMS)** represents a paradigm shift in how modern healthcare institutions manage their clinical, administrative, and financial workflows. Built on a robust, highly scalable, and secure **Multi-Tenant SaaS architecture** (Next.js, React, and TypeScript), this platform acts as a unified backbone for independent hospitals and hospital groups. It is designed with **Shared Database Multi-Tenancy** (logical data isolation via `hospital_id`), ensuring absolute data privacy and robust security for each hospital client, while keeping infrastructure lean and easily manageable for the service provider.
 
 This functional specification document serves as the architectural and operational blueprint for the system. It provides stakeholders, medical directors, and technical implementers with a granular understanding of every module, patient journey, and data structure within the platform.
 
 ### Core Objectives
 
-- **Clinical Unification:** Centralize Electronic Medical Records (EMR) to ensure continuity of care across all hospital departments.
+- **Multi-Hospital Scalability (SaaS):** Support multiple independent hospitals on a centralized shared infrastructure, securely isolating their data at the logical level to guarantee HIPAA/GDPR compliance.
+- **Group-Level Patient Identity (UHID):** For hospital chains (e.g., ABC Vapi, ABC Valsad), implement a Group-Level Unique Health Identifier (UHID). This allows branches within the same group to share patient medical records securely, while remaining completely isolated from competitors.
+- **Service Provider Control (Superadmin):** Provide the service provider (Digifort Labs) with top-down visibility and control to onboard new hospitals, manage billing/subscriptions, and control access.
+- **Clinical Unification:** Centralize Electronic Medical Records (EMR) to ensure continuity of care across all hospital departments and interconnected branches.
 - **Operational Efficiency:** Automate complex workflows such as bed allocation, discharge summaries, and TPA billing calculations.
 - **Financial Transparency:** Enforce real-time accounting directly tied to pharmacy dispensing, laboratory orders, and clinical services.
-- **Security & Compliance:** Implement strict Role-Based Access Control (RBAC) and HIPAA/GDPR-aligned data protection protocols.
+- **Security & Compliance:** Implement strict Role-Based Access Control (RBAC) and HIPAA/GDPR-aligned data protection protocols with absolute tenant-level data segregation.
 
 ---
 
 
 ## 1.2 Patient Registration & OPD
 
-When a patient first arrives at the hospital, the initial step is capturing their demographic data at the registration desk or reception.
+When a patient first arrives at the hospital, the initial step is capturing their demographic data at the registration desk or reception. In our SaaS model, every registration is explicitly tied to the current **Local Hospital Branch (Tenant)** by a `hospital_id`, ensuring data is securely separated and only visible to authorized hospital staff.
+
+- **Group-Level UHID & Local ID:** For hospital chains (e.g., ABC Hospital Group), a patient is assigned a Group-Level Unique Health Identifier (UHID). If the patient visits multiple branches of the same chain, the receptionist can import their Group Profile, ensuring a unified medical history. Independent hospitals simply use standard localized patient IDs.
+- **Tenant/Branch Selection:** Registration desks and online portals automatically route data to the local hospital's logical partition within the shared database. Each patient is assigned a localized Patient ID specific to that branch's records.
+- **Doctor Selection & OPD Routing:** Based on their disease or symptoms, the patient selects their respective specialized doctor from the branch's local roster.
+- **Emergency & Trauma Routing:** Standard OPD registration is bypassed for critical cases. Patients are immediately directed to the Emergency Department, with emergency charges processed locally.
+- **Consultation Queue & Waiting Area:** The patient is added to the local doctor's digital OPD queue.
+- **Centralized Telemedicine Queues (Optional):** For hospital groups, a central pool of doctors can handle virtual OPDs for multiple branches simultaneously, accessing local records via the Global UHID.
+- **Inter-Branch Referrals:** Doctors at Branch A can digitally refer patients to a specialized OPD at Branch B (within the same hospital group). The patient's EMR securely accompanies the referral.
+- **OPD Consultation (Doctor's Cabin):** The doctor examines the patient and uses the system to prescribe medications, laboratory tests, or radiology investigations.
+- **Minor Procedures & Additional Billing:** Minor procedures (e.g., wound dressing) are recorded as extra OPD fees payable at the local billing counter.
+- **Diagnostic Billing & Payment:** Tests prescribed on an OPD basis must be paid for at the branch's Billing Counter before the procedure.
+- **Diagnostics & Sample Collection:** After payment verification, laboratory samples or radiology imaging is completed at the local branch.
+- **Results & Report Waiting:** The patient waits in the designated area until reports are finalized.
+- **Post-Diagnostic OPD Consultation:** The patient returns to the doctor's cabin to review results and receive further prescriptions or admission advice.
+- **Physiotherapy Billing & Treatment:** If the doctor prescribes physiotherapy treatment, the patient must first pay the applicable charges at the billing counter.
+- **Inpatient Admission (IPD):** If hospitalization is required, the doctor recommends admission to a specific ward or ICU within the local branch.
+- **Pharmacy Purchase & Verification:** Prescribed medications are purchased at the branch's Pharmacy Store, followed by verification.
+- **Discharge & Follow-up:** If admission is not needed, the patient goes home and returns for follow-up appointments as necessary.
 
 
-- **Doctor Selection & OPD Routing:** Based on their disease or symptoms, the patient selects their respective specialized doctor. Once registered under the selected doctor, the patient proceeds directly to that specific OPD.
-- **Emergency & Trauma Routing:** If a patient arrives under trauma or in a critical condition, the standard OPD registration is bypassed, and they are immediately directed to the **Emergency Department**. The patient or their accompanying relatives must pay the necessary emergency charges at the respective billing counter.
-- **Consultation Queue & Waiting Area:** For standard cases, the patient is immediately added to the selected doctor's digital OPD queue. The patient will then wait in the designated OPD waiting area until his/her turn arrives as per the digital waiting list.
-- **OPD Consultation (Doctor's Cabin):** When their turn arrives, the patient enters the OPD. The particular doctor will examine the patient based on their complaints and seamlessly use the system to prescribe medications, laboratory tests, or radiology investigations.
-- **Minor Procedures & Additional Billing:** If the doctor performs any minor procedures during the consultation (such as wound dressing), these are recorded in the system as extra OPD fees. The patient must pay these additional charges at the respective billing counter.
-- **Diagnostic Billing & Payment:** If tests are prescribed on an OPD basis, the patient must first proceed to the Registration Desk, Reception, or Billing Counter. They are required to pay the specified amount for the doctor-suggested tests before they are cleared for the procedures.
-- **Diagnostics & Sample Collection:** Once payment is verified, the patient is allowed to proceed to the respective department to provide laboratory samples (blood, urine, etc.) or undergo radiology imaging (X-Ray, CT, MRI, USG).
-- **Results & Report Waiting:** After providing laboratory samples or completing radiology imaging, the patient will wait in the designated area until the diagnostic reports and test results are finalized and made available in the system.
-- **Post-Diagnostic OPD Consultation:** Once the reports are generated, the patient returns to the respective doctor's OPD cabin. After reviewing the diagnostic results, the doctor will prescribe necessary medications, recommend rest, advise inpatient admission, or schedule the next OPD follow-up based on the patient's specific requirements.
-- **Physiotherapy Billing & Treatment:** If the doctor prescribes physiotherapy treatment, the patient must first pay the applicable charges at the billing counter. Once payment is confirmed, the patient will be directed to the Physiotherapy Department to receive the required therapeutic sessions and treatment plans.
-- **Inpatient Admission (IPD):** If the patient presents with major complaints requiring hospitalization, the doctor can directly admit the patient. The system allows the doctor to recommend admission to a specific ward or intensive care unit (ICU) based on the patient's choice and medical necessity.
-- **Pharmacy Purchase & Verification:** If medications are prescribed, the patient proceeds to the Pharmacy Store to purchase them. Afterward, the patient returns to the OPD staff (nurse or doctor) to verify that the correct medicines have been dispensed.
-- **Discharge & Follow-up:** If the patient does not require admission, they will go home after their consultation and medication verification. The patient will return for a follow-up appointment in the OPD as prescribed by the doctor or based on medical necessity.
 
 
+## 1.3 Advanced OPD Features (Roadmap)
+
+To optimize patient flow for medium-to-large hospitals (50-300 beds), the following advanced features are integrated into the OPD roadmap:
+
+- **QR Code Self-Registration (Queue Buster):** Patients scan a QR code in the lobby to self-register their demographics, significantly reducing receptionist data-entry load.
+- **WhatsApp Integration (Automated Comms):** Automated dispatch of OPD prescriptions, lab reports, and follow-up reminders directly to the patient's WhatsApp.
+- **Smart TV Token Display:** Digital displays in waiting areas synced with the doctor's digital queue, visually and audibly announcing token numbers and cabin assignments.

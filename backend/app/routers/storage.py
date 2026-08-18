@@ -894,6 +894,13 @@ def assign_patient_to_box(patient_id: int, request: AssignBoxRequest, db: Sessio
     if current_user.role not in [UserRole.SUPER_ADMIN] and patient.hospital_id != current_user.hospital_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
+    # Enforce Billing / MRD Tier
+    if current_user.hospital and current_user.hospital.mrd_service_type == "PORTAL_ONLY":
+        raise HTTPException(
+            status_code=402, 
+            detail="Payment Required: Your hospital is on the PORTAL_ONLY tier. Upgrade to FULL_MANAGED or HYBRID to assign physical boxes."
+        )
+
     box = crud_all.physical_box.get_first(db, PhysicalBox.box_id == request.box_id)
     if not box:
         raise HTTPException(status_code=404, detail="Box not found")
@@ -961,6 +968,12 @@ def create_request(req: RequestCreate, db: Session = Depends(get_db), current_us
     if not current_user.hospital_id:
          raise HTTPException(status_code=400, detail="Super Admins must switch to a hospital context")
          
+    # Enforce Billing / MRD Tier
+    if current_user.hospital and current_user.hospital.mrd_service_type == "PORTAL_ONLY":
+        raise HTTPException(
+            status_code=402, 
+            detail="Payment Required: Your hospital is on the PORTAL_ONLY tier. Upgrade to FULL_MANAGED or HYBRID to request physical file operations."
+        )
     db.add(new_req)
     db.commit()
     db.refresh(new_req)

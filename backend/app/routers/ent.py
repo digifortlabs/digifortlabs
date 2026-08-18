@@ -235,7 +235,7 @@ def get_surgeries(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    surgeries = db.query(ENTSurgery).filter(ENTSurgery.hospital_id == current_user.hospital_id).all().order_by(ENTSurgery.scheduled_date.asc())
+    surgeries = db.query(ENTSurgery).filter(ENTSurgery.hospital_id == current_user.hospital_id).order_by(ENTSurgery.scheduled_date.asc()).all()
     # attach patient names
     result = []
     for s in surgeries:
@@ -262,7 +262,7 @@ def get_ent_stats(
     ).filter(
         ENTPatient.hospital_id == current_user.hospital_id,
         Patient.is_deleted == False
-    )
+    ).count()
     total_surgeries = crud_all.e_n_t_surgery.count(db, ENTSurgery.hospital_id == current_user.hospital_id)
     total_audiometry = crud_all.audiometry_test.count(db, AudiometryTest.hospital_id == current_user.hospital_id)
     

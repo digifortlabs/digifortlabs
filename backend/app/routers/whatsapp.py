@@ -32,6 +32,18 @@ class WhatsAppMessageUpdate(BaseModel):
 class WhatsAppInstanceCreate(BaseModel):
     hospital_id: int
 
+# Utility to generate local web WhatsApp helper URI (digifort-wa://)
+def generate_local_wa_uri(phone_number: str, message_text: str) -> str:
+    import urllib.parse
+    clean_phone = "".join(filter(str.isdigit, phone_number))
+    encoded_text = urllib.parse.quote(message_text)
+    return f"digifort-wa://send?phone={clean_phone}&text={encoded_text}"
+
+@router.post("/generate-local-link")
+def get_local_wa_link(message: WhatsAppMessageCreate):
+    uri = generate_local_wa_uri(message.phone_number, message.message_text)
+    return {"status": "success", "uri": uri, "phone": message.phone_number}
+
 @router.post("/queue", response_model=dict)
 def queue_message(
     message: WhatsAppMessageCreate, 

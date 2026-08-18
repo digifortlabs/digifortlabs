@@ -174,8 +174,8 @@ def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: U
         current_count = crud_all.user.count(db, User.hospital_id == target_hospital_id, User.is_deleted == False)
         
         # Use Hospital-specific limit if set, otherwise fallback to Plan limit (which is now just a label)
-        # Default max_users in DB is 2.
-        limit = hospital.max_users if hospital.max_users is not None else PLAN_LIMITS.get(hospital.subscription_tier, 2)
+        # Default max_users in DB is 5.
+        limit = hospital.max_users if hospital.max_users is not None else PLAN_LIMITS.get(hospital.subscription_tier, 5)
         
         if current_count >= limit:
             # SOFT LIMIT: Allow creation but log for billing

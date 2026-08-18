@@ -104,7 +104,7 @@ def get_clinic_stats(
     # Today visits
     today = datetime.now().date()
     from sqlalchemy import func
-    today_visits = crud_all.o_p_d_visit.get_first(db, 
+    today_visits = db.query(OPDVisit).filter(
         OPDVisit.hospital_id == target_hospital,
         func.date(OPDVisit.visit_date) == today
     ).count()

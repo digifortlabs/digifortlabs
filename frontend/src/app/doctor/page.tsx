@@ -79,8 +79,34 @@ export default function DoctorPage() {
         );
         tick();
         const id = setInterval(tick, 1000);
-        return () => clearInterval(id);
     }, []);
+
+    const handleCallNext = async () => {
+        try {
+            const res = await apiFetch('appointments/display/call-next', { method: 'POST' });
+            if (res && res.token) {
+                alert(`Called token ${res.token}`);
+                // Re-fetch appointments to update UI
+                const hospitalId = localStorage.getItem('hospital_id');
+                const url = `appointments/today${hospitalId ? `?hospital_id=${hospitalId}` : ''}`;
+                const data = await apiFetch(url);
+                if (Array.isArray(data)) {
+                    setAppointments(data);
+                    setStats({
+                        total: data.length,
+                        waiting: data.filter((a: Appointment) => a.status === 'waiting').length,
+                        inProgress: data.filter((a: Appointment) => a.status === 'in_progress').length,
+                        completed: data.filter((a: Appointment) => a.status === 'completed').length,
+                    });
+                }
+            } else {
+                alert(res?.message || "No patients waiting");
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Failed to call next patient");
+        }
+    };
 
     const displayName = userEmail.split('@')[0]?.split('.').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'Doctor';
     const nextWaiting = appointments.find(a => a.status === 'waiting');
@@ -135,9 +161,17 @@ export default function DoctorPage() {
                             <User size={22} className="text-violet-300" strokeWidth={2.5} />
                         </div>
                     </div>
-                    <button className="mt-4 w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-black transition-colors shadow-lg shadow-violet-500/20">
-                        Start Consultation <ArrowRight size={16} />
-                    </button>
+                    <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                        <button className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm font-black transition-colors shadow-lg shadow-violet-500/20">
+                            Start Consultation <ArrowRight size={16} />
+                        </button>
+                        <button 
+                            onClick={handleCallNext}
+                            className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-xl text-sm font-black transition-colors"
+                        >
+                            Call Next Patient
+                        </button>
+                    </div>
                 </div>
             ) : (
                 !loading && (

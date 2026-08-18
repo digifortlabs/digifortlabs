@@ -42,7 +42,11 @@ router = APIRouter()
 
 class HospitalCreate(BaseModel):
     legal_name: str
+    group_id: Optional[int] = None
     subscription_tier: str = "Standard"
+    billing_cycle: str = "Monthly"
+    platform_base_price: float = 0.0
+    extra_user_price: float = 0.0
     hospital_type: str = "Private"
     organization_type: str = "Hospital"
     specialty: str = "General"
@@ -69,7 +73,7 @@ class HospitalCreate(BaseModel):
     admin_email: EmailStr
     admin_phone: str
     admin_designation: Optional[str] = None
-    password: str
+    # password removed
     
     # Billing & Pricing (Steps 5 & 6)
     price_per_file: float = 100.0
@@ -88,6 +92,7 @@ class HospitalCreate(BaseModel):
 
 class HospitalResponse(BaseModel):
     hospital_id: int
+    group_id: Optional[int] = None
     legal_name: str
     hospital_slug: Optional[str] = None
     subscription_tier: str
@@ -145,6 +150,7 @@ class HospitalUpdate(BaseModel):
     gst_number: Optional[str] = None
     
     # Super Admin Only Fields
+    group_id: Optional[int] = None
     legal_name: Optional[str] = None
     hospital_slug: Optional[str] = None
     subscription_tier: Optional[str] = None
@@ -513,7 +519,7 @@ def get_platform_stats(db: Session = Depends(get_db), current_user: User = Depen
     _PLATFORM_STATS_CACHE['stats'] = (response_data, time.time())
     return response_data
 
-@router.post("", response_model=HospitalResponse, include_in_schema=False)
+@router.post("/activate-ssl", include_in_schema=False)
 def activate_ssl(subdomain: str):
     domain = f"{subdomain}.digifortlabs.com"
     logger.info(f"Activating SSL for {domain}")
@@ -617,6 +623,7 @@ def create_hospital(hospital: HospitalCreate, background_tasks: BackgroundTasks,
             )
     db_hospital = Hospital(
         legal_name=hospital.legal_name, 
+        group_id=hospital.group_id,
         subscription_tier=hospital.subscription_tier,
         organization_type=hospital.organization_type.upper() if hospital.organization_type else (hospital.hospital_type.upper() if hasattr(hospital, 'hospital_type') and hospital.hospital_type else "PRIVATE"),
         specialty=hospital.specialty,

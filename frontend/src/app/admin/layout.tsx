@@ -134,8 +134,10 @@ export default function DashboardLayout({
             <Sidebar userRole={userRole} hospitalSlug={hospitalSlug} />
 
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                {/* Navbar - Sticky to top of content area */}
-                <DashboardNavbar userRole={userRole} />
+                {/* Navbar - Sticky to top of content area (Mobile Only) */}
+                <div className="md:hidden">
+                    <DashboardNavbar userRole={userRole} />
+                </div>
                 <GreetingBar />
                 
                 <div className="flex-1 overflow-y-auto bg-white relative">

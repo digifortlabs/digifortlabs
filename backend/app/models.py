@@ -116,11 +116,26 @@ ROLE_PERMISSIONS = {
     ]
 }
 
+
+
+class HospitalGroup(Base):
+    __tablename__ = 'hospital_groups'
+    group_id = Column(Integer, primary_key=True, index=True)
+    group_name = Column(String, unique=True, index=True)
+    location = Column(String, nullable=True)
+    admin_email = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    hospitals = relationship('Hospital', back_populates='group')
+
 class Hospital(Base):
     __tablename__ = "hospitals"
 
     hospital_id = Column(Integer, primary_key=True, index=True)
-    group_id = Column(Integer, index=True, nullable=True) # For multi-branch hospitals
+    group_id = Column(Integer, ForeignKey("hospital_groups.group_id"), index=True, nullable=True) # For multi-branch hospitals
+    
+    group = relationship("HospitalGroup", back_populates="hospitals")
     legal_name = Column(String, nullable=False)
     hospital_slug = Column(String, unique=True, nullable=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False) # Contact Email
@@ -173,7 +188,7 @@ class Hospital(Base):
     accept_marketing = Column(Boolean, default=False)
     
     # Custom User Limits
-    max_users = Column(Integer, default=2) 
+    max_users = Column(Integer, default=5) 
     per_user_price = Column(Float, default=0.0) 
     extra_user_price = Column(Float, default=0.0) # Custom price for users beyond limit
     
@@ -1898,3 +1913,65 @@ class NewbornRecord(Base):
     
     delivery_record = relationship("DeliveryRecord", backref="newborn_records")
     pediatrician = relationship("DoctorProfile")
+# TO DO: add database_url to Hospital model
+
+
+class NursingHandoverLog(Base):
+    __tablename__ = "nursing_handovers"
+    
+    handover_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    bed_id = Column(Integer, ForeignKey("beds.bed_id"), nullable=True)
+    nurse_user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    
+    shift_date = Column(DateTime, nullable=False, default=func.now())
+    shift_type = Column(String, nullable=False) # Morning, Evening, Night
+    
+    handover_notes = Column(Text, nullable=True)
+    critical_alerts = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class DietOrder(Base):
+    __tablename__ = "diet_orders"
+    
+    order_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    bed_id = Column(Integer, ForeignKey("beds.bed_id"), nullable=True)
+    doctor_user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    
+    diet_type = Column(String, nullable=False) # Diabetic, Liquid, Normal, etc.
+    instructions = Column(Text, nullable=True)
+    status = Column(String, default="ORDERED") # ORDERED, PREPARING, DELIVERED
+    
+    ordered_at = Column(DateTime(timezone=True), server_default=func.now())
+    delivered_at = Column(DateTime, nullable=True)
+
+class Referral(Base):
+    __tablename__ = "referrals"
+    
+    referral_id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=False)
+    source_hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    target_hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    referred_by_user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    reason = Column(Text, nullable=True)
+    status = Column(String, default="PENDING") # PENDING, ACCEPTED, REJECTED
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+class SelfRegistration(Base):
+    __tablename__ = "self_registrations"
+    
+    registration_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    full_name = Column(String, nullable=False)
+    phone = Column(String, nullable=False)
+    gender = Column(String, nullable=True)
+    age = Column(Integer, nullable=True)
+    status = Column(String, default="DRAFT") # DRAFT, CONVERTED
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    converted_patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True)

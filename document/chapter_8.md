@@ -1,22 +1,33 @@
-# Chapter 8: Analytics, Reports & Business Intelligence
+# Chapter 8: Medical Records Department (MRD) & Telemedicine
 
 ## 8.1 Overview
 
-Data is the lifeblood of hospital administration. The Analytics module transforms thousands of daily transactions into actionable insights for the Management and Board.
+Maintaining compliance and continuity of care through digitized Medical Records and modern communication channels.
 
-## 8.2 Operational Dashboards
+## 8.2 Medical Records Department (MRD)
 
-Real-time visibility into the hospital's performance metrics.
+The MRD module ensures the hospital adheres to national compliance standards for data retention, morbidity reporting, and legal auditing.
 
-### 8.2.1 Key Metrics Tracked
+- **ICD-10/ICD-11 Coding:** Automated suggestions for diagnoses to ensure accurate morbidity and mortality reports.
+- **File Tracking (Physical & Digital):** Barcode-based tracking for physical patient files borrowed by researchers or legal departments.
+- **Archiving & Recycle Bin:** Secure archiving of old records with hard-delete prevention (soft delete to recycle bin) for compliance.
 
-| Metric Category | Data Points Analyzed |
-| :--- | :--- |
-| **Clinical Efficacy** | Average Length of Stay (ALOS), Bed Occupancy Rate (BOR), Mortality Rates. |
-| **Financial Health** | Daily Revenue Collection (OPD vs IPD), Department-wise Profitability, Pending TPA Receivables. |
-| **Inventory Trends** | Fast-moving drugs, stock-out alerts, expiry loss value. |
+## 8.3 Telemedicine & WhatsApp Integration
 
-## 8.3 Automated Reporting Engine
+Bringing healthcare to the patient's smartphone via native API integrations.
 
-- **Statutory Reports:** Auto-generation of mandatory government reports (e.g., infectious disease registries, birth/death certificates).
-- **Scheduled Exports:** Automatic daily dispatch of CSV/PDF reports to stakeholders via email.
+```mermaid
+sequenceDiagram
+    participant Patient
+    participant WhatsApp API
+    participant HMS
+    participant Doctor
+
+    Patient->>WhatsApp API: Books Appointment via Chatbot
+    WhatsApp API->>HMS: Creates Slot & Temporary File
+    HMS-->>WhatsApp API: Sends Payment Link
+    Patient->>WhatsApp API: Completes Payment
+    HMS->>Doctor: Alerts Doctor of Video Consult
+    Doctor->>HMS: Generates E-Rx
+    HMS-->>WhatsApp API: Delivers PDF E-Rx to Patient
+```

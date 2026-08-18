@@ -835,10 +835,11 @@ def receive_payment(
     items = crud_all.invoice_item.get_multi(db, InvoiceItem.invoice_id == invoice_id)
     file_ids = [item.file_id for item in items if item.file_id is not None] # Only include actual file_ids
     
-    crud_all.p_d_f_file.get_multi(db, PDFFile.file_id.in_(file_ids)).update({
-        "is_paid": True,
-        "payment_date": datetime.now()
-    }, synchronize_session=False)
+    if file_ids:
+        db.query(PDFFile).filter(PDFFile.file_id.in_(file_ids)).update({
+            "is_paid": True,
+            "payment_date": datetime.now()
+        }, synchronize_session=False)
 
     tds_val = req.tds_amount or 0.0
     received_val = req.received_amount if req.received_amount is not None else (invoice.total_amount - tds_val)
@@ -927,11 +928,11 @@ def delete_payment(
     invoice.payment_date = None  # type: ignore
     
     # Mark all associated files as UNPAID
-    items = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).all().all()
+    items = db.query(InvoiceItem).filter(InvoiceItem.invoice_id == invoice_id).all()
     file_ids = [item.file_id for item in items if item.file_id is not None]
     
     if file_ids:
-        crud_all.p_d_f_file.get_multi(db, PDFFile.file_id.in_(file_ids)).update({
+        db.query(PDFFile).filter(PDFFile.file_id.in_(file_ids)).update({
             "is_paid": False,
             "payment_date": None
         }, synchronize_session=False)

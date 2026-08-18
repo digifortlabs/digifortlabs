@@ -4,12 +4,13 @@ import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 import SessionMonitor from "@/components/Auth/SessionMonitor";
+import WhatsAppFloat from "@/components/WhatsAppFloat";
 
 import { Toaster as HotToaster } from 'react-hot-toast';
 
 export const metadata: Metadata = {
-  title: "Digifort Labs | AIO Data Processor",
-  description: "Enterprise-grade All-In-One Data Processing and Storage system. Secure, compliant physical and digital records management.",
+  title: "Digifort Labs | Comprehensive Hospital Management System (HMS)",
+  description: "Enterprise-grade Hospital Management System unifying OPD, IPD, Pharmacy Batching, Diagnostics, OT, Insurance Billing, and NABH Compliant Medical Records.",
   icons: {
     icon: "/favicon.ico",
   },
@@ -28,6 +29,7 @@ export default function RootLayout({
       >
         {children}
         <SessionMonitor />
+        <WhatsAppFloat />
 
         <HotToaster position="top-right" />
       </body>

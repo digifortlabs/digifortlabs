@@ -142,6 +142,22 @@ export default function ClinicOPDDashboard() {
         { title: "Revenue Today", value: "₹0", icon: DollarSign, color: "text-amber-600", bg: "bg-amber-50" }
     ];
 
+    const handleCallNextPatient = async () => {
+        try {
+            let suffix = selectedHospitalId ? `?hospital_id=${selectedHospitalId}` : '';
+            const data = await apiFetch(`appointments/call-next${suffix}`, {
+                method: 'POST'
+            });
+            if (data && data.status === 'success') {
+                toast.success(`Called Token ${data.token} for ${data.patient_name}`);
+            } else {
+                toast.error("No patients waiting in queue.");
+            }
+        } catch (error) {
+            toast.error("Failed to call next patient.");
+        }
+    };
+
     if (['website_admin', 'superadmin', 'superadmin_staff'].includes(userRole) && !selectedHospitalId) {
         return <HospitalSelectionPrompt requiredModule="clinic" storageKey="clinic_hospital_id" onSelect={setSelectedHospitalId} />;
     }
@@ -185,6 +201,12 @@ export default function ClinicOPDDashboard() {
                         className="gap-2 bg-white shadow-sm"
                     >
                         <Calendar className="w-4 h-4" /> Appointments
+                    </Button>
+                    <Button
+                        onClick={handleCallNextPatient}
+                        className="bg-purple-600 hover:bg-purple-700 shadow-sm text-white"
+                    >
+                        <Activity className="w-4 h-4 mr-2" /> Call Next
                     </Button>
                 </div>
             </div>

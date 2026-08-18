@@ -14,7 +14,7 @@ import {
     Stethoscope, Scale, FlaskConical, Briefcase,
     Cpu, Archive, Hotel, IndianRupee, Loader2,
     MapPin, Hash, Calendar, FileText, ChevronRight,
-    Sparkles, Star, Zap, ChevronDown
+    Sparkles, Star, Zap, ChevronDown, Pill
 } from 'lucide-react';
 
 const STEPS = [
@@ -25,14 +25,32 @@ const STEPS = [
     { id: 5, label: 'Review', icon: CheckCircle2, color: 'green' },
 ];
 
-const ORG_TYPES = ['Hospital', 'Clinic', 'Dental Clinic', 'Independent Doctor'];
-const SPECIALTIES = ['General Medical', 'Dental Practice', 'ENT Specialist'];
+const ORG_TYPES = [
+    'Multi-Specialty Hospital',
+    'Single-Specialty Hospital',
+    'Polyclinic / Day Care Center',
+    'Diagnostic Center (Lab/Imaging)',
+    'Independent Doctor Clinic',
+    'Pharmacy / Medical Store'
+];
+
+const SPECIALTY_MAP: Record<string, string[]> = {
+    'Multi-Specialty Hospital': ['General / Multi-Specialty', 'Corporate Hospital', 'Trust / NGO Hospital'],
+    'Single-Specialty Hospital': ['Cardiology', 'Orthopedics', 'Neurology', 'Oncology', 'Pediatrics / Neonatal', 'Maternity / Gynecology', 'ENT Specialty'],
+    'Polyclinic / Day Care Center': ['General Polyclinic', 'Dental Care', 'Eye / Vision Center', 'Skin / Dermatology'],
+    'Diagnostic Center (Lab/Imaging)': ['Pathology Laboratory', 'Radiology / Imaging', 'Complete Diagnostic Center'],
+    'Independent Doctor Clinic': ['Independent Consultant', 'Physiotherapy Clinic', 'Homeopathy / Ayurveda'],
+    'Pharmacy / Medical Store': ['Retail Pharmacy', 'Wholesale Distributor', '24x7 Emergency Pharmacy']
+};
 
 const MODULES = [
-    { id: 'core', label: 'AIO Core Warehouse', icon: Archive, color: 'slate', desc: 'Base data processor & cloud storage', fixed: true },
-    { id: 'hms', label: 'HMS Pro', icon: Hotel, color: 'indigo', desc: 'IPD, Wards, OT and smart billing' },
-    { id: 'dental', label: 'Dental Engine', icon: Stethoscope, color: 'emerald', desc: '3D charting & clinical records' },
-    { id: 'accounting', label: 'Financial Ledger', icon: IndianRupee, color: 'purple', desc: 'GST invoicing and P&L tracking' },
+    { id: 'core', label: 'Core Patient Records (MRD)', icon: Archive, color: 'slate', desc: 'Document management & patient files storage', fixed: true },
+    { id: 'hms', label: 'Inpatient & Wards (IPD)', icon: Hotel, color: 'indigo', desc: 'Inpatient admissions, real-time beds & ward tracking' },
+    { id: 'clinic', label: 'Outpatient Clinic (OPD)', icon: Activity, color: 'blue', desc: 'Appointments scheduling & lightweight clinic EMR' },
+    { id: 'dental', label: 'Dental Specialty Module', icon: Stethoscope, color: 'emerald', desc: 'Tooth mapping & dental treatment charting' },
+    { id: 'ent', label: 'ENT Specialty Module', icon: Cpu, color: 'amber', desc: 'Ear, Nose & Throat custom diagnostics panel' },
+    { id: 'pharmacy', label: 'Pharmacy & Prescriptions', icon: Pill, color: 'green', desc: 'Standalone medicine dispensing & pharmacy POS' },
+    { id: 'accounting', label: 'SaaS Accounting & Ledger', icon: IndianRupee, color: 'purple', desc: 'Billing invoices, payments & financial control' },
 ];
 
 const colorMap: Record<string, string> = {
@@ -56,8 +74,8 @@ export default function RegisterPage() {
 
     // Step 1: Organization
     const [legalName, setLegalName] = useState('');
-    const [orgType, setOrgType] = useState('Hospital');
-    const [specialty, setSpecialty] = useState('General Medical');
+    const [orgType, setOrgType] = useState('Multi-Specialty Hospital');
+    const [specialty, setSpecialty] = useState('General / Multi-Specialty');
     const [regNumber, setRegNumber] = useState('');
     const [estYear, setEstYear] = useState('');
 
@@ -313,17 +331,26 @@ export default function RegisterPage() {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-1.5 relative group">
                                             <label className="text-[10px] font-black text-indigo-600 uppercase tracking-wider absolute -top-2 left-3 bg-white px-1.5 z-10">Organization Type</label>
-                                            <select value={orgType} onChange={e => setOrgType(e.target.value)} className="w-full px-4 py-3.5 bg-white border-2 border-indigo-500/10 rounded-xl text-slate-800 font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all appearance-none cursor-pointer">
-                                                {ORG_TYPES.map(t => <option key={t}>{t}</option>)}
+                                            <select 
+                                                value={orgType} 
+                                                onChange={e => {
+                                                    const newOrg = e.target.value;
+                                                    setOrgType(newOrg);
+                                                    const availableSpecialties = SPECIALTY_MAP[newOrg] || ['General / Multi-Specialty'];
+                                                    setSpecialty(availableSpecialties[0]);
+                                                }} 
+                                                className="w-full px-4 py-3.5 bg-white border-2 border-indigo-500/10 rounded-xl text-slate-800 font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all appearance-none cursor-pointer text-xs"
+                                            >
+                                                {ORG_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                                             </select>
                                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 pt-4 text-indigo-500">
                                                 <ChevronDown size={16} />
                                             </div>
                                         </div>
                                         <div className="space-y-1.5 relative group">
-                                            <label className="text-[10px] font-black text-indigo-600 uppercase tracking-wider absolute -top-2 left-3 bg-white px-1.5 z-10">Specialty / Industry</label>
-                                            <select value={specialty} onChange={e => setSpecialty(e.target.value)} className="w-full px-4 py-3.5 bg-white border-2 border-indigo-500/10 rounded-xl text-slate-800 font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all appearance-none cursor-pointer">
-                                                {SPECIALTIES.map(s => <option key={s}>{s}</option>)}
+                                            <label className="text-[10px] font-black text-indigo-600 uppercase tracking-wider absolute -top-2 left-3 bg-white px-1.5 z-10">Specialty / Sub-Classification</label>
+                                            <select value={specialty} onChange={e => setSpecialty(e.target.value)} className="w-full px-4 py-3.5 bg-white border-2 border-indigo-500/10 rounded-xl text-slate-800 font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all appearance-none cursor-pointer text-xs">
+                                                {(SPECIALTY_MAP[orgType] || ['General / Multi-Specialty']).map(s => <option key={s} value={s}>{s}</option>)}
                                             </select>
                                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 pt-4 text-indigo-600">
                                                 <ChevronDown size={16} />

@@ -535,6 +535,43 @@ class PatientDetailResponse(PatientResponse):
 class UpdateTagsRequest(BaseModel):
     tags: str
 
+@router.get("/group-lookup", response_model=List[PatientResponse])
+def search_group_patients(
+    query: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Search patient profile across all branches in the same Hospital Group using UHID or phone."""
+    if not current_user.hospital_id:
+        raise HTTPException(status_code=400, detail="User must belong to a hospital tenant")
+    
+    current_hospital = db.query(Hospital).filter(Hospital.hospital_id == current_user.hospital_id).first()
+    if not current_hospital or not current_hospital.group_id:
+        matching = db.query(Patient).filter(
+            Patient.hospital_id == current_user.hospital_id,
+            Patient.is_deleted == False,
+            or_(
+                Patient.uhid.ilike(f"%{query}%"),
+                Patient.contact_number.ilike(f"%{query}%"),
+                Patient.full_name.ilike(f"%{query}%")
+            )
+        ).limit(20).all()
+        return matching
+
+    group_hospitals = db.query(Hospital.hospital_id).filter(Hospital.group_id == current_hospital.group_id).all()
+    group_hospital_ids = [h[0] for h in group_hospitals]
+
+    matching = db.query(Patient).filter(
+        Patient.hospital_id.in_(group_hospital_ids),
+        Patient.is_deleted == False,
+        or_(
+            Patient.uhid.ilike(f"%{query}%"),
+            Patient.contact_number.ilike(f"%{query}%"),
+            Patient.full_name.ilike(f"%{query}%")
+        )
+    ).limit(20).all()
+    return matching
+
 # ... (Existing update_patient)
 
 

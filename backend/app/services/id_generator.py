@@ -66,7 +66,13 @@ def generate_next_id(db: Session, hospital_id: int, module: str, model_class, id
     
     # Check if the model has a hospital_id column to restrict the search
     if hasattr(model_class, 'hospital_id'):
-        query = query.filter(model_class.hospital_id == hospital_id)
+        hospital = db.query(Hospital).filter(Hospital.hospital_id == hospital_id).first()
+        if hospital and hospital.group_id:
+            group_hospitals = db.query(Hospital.hospital_id).filter(Hospital.group_id == hospital.group_id).all()
+            group_hospital_ids = [h[0] for h in group_hospitals]
+            query = query.filter(model_class.hospital_id.in_(group_hospital_ids))
+        else:
+            query = query.filter(model_class.hospital_id == hospital_id)
         
     results = query.all()
     

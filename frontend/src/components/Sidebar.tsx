@@ -585,6 +585,62 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                     </div>
                 )}
             </div>
+
+            {/* User Profile (Bottom) */}
+            <div className={`p-4 border-t border-slate-200 bg-slate-50 transition-all duration-300 ${isCollapsed ? 'flex justify-center' : ''}`}>
+                <div className="relative group/profile w-full">
+                    <button
+                        onClick={() => {
+                            const event = new MouseEvent('click', { bubbles: true });
+                            document.dispatchEvent(event); // Optional: if any global listeners
+                            router.push('/settings');
+                        }}
+                        className={`flex items-center gap-3 w-full hover:bg-slate-200/50 p-2 rounded-xl transition-colors ${isCollapsed ? 'justify-center' : ''}`}
+                    >
+                        <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
+                            {typeof window !== 'undefined' ? (localStorage.getItem('userEmail') || 'U').charAt(0).toUpperCase() : 'U'}
+                        </div>
+                        {!isCollapsed && (
+                            <div className="flex-1 text-left min-w-0">
+                                <p className="text-xs font-bold text-slate-800 truncate">
+                                    {typeof window !== 'undefined' ? localStorage.getItem('userEmail') : 'User'}
+                                </p>
+                                <p className="text-[9px] font-black text-indigo-500 uppercase tracking-widest truncate mt-0.5">
+                                    {userRole?.replace('_', ' ')}
+                                </p>
+                            </div>
+                        )}
+                        {!isCollapsed && (
+                            <Settings className="w-4 h-4 text-slate-400 group-hover/profile:text-slate-600" />
+                        )}
+                    </button>
+                    
+                    {/* Hover tooltip for collapsed state */}
+                    {isCollapsed && (
+                        <div className="absolute left-14 bottom-0 bg-white border border-slate-200 p-3 rounded-xl shadow-xl opacity-0 translate-x-2 pointer-events-none group-hover/profile:opacity-100 group-hover/profile:translate-x-0 transition-all duration-150 z-50 w-48">
+                            <p className="text-sm font-bold text-slate-800 truncate">
+                                {typeof window !== 'undefined' ? localStorage.getItem('userEmail') : 'User'}
+                            </p>
+                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mt-1">
+                                {userRole?.replace('_', ' ')}
+                            </p>
+                            <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                    <Settings className="w-3 h-3" /> Settings
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <button
+                    onClick={handleLogout}
+                    className={`mt-2 flex items-center gap-2 w-full p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors ${isCollapsed ? 'justify-center' : ''}`}
+                    title="Sign Out"
+                >
+                    <LogOut className="w-4 h-4 flex-shrink-0" />
+                    {!isCollapsed && <span className="text-xs font-bold">Sign Out</span>}
+                </button>
+            </div>
         </div>
     );
 }

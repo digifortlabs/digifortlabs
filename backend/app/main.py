@@ -2,9 +2,9 @@ import sys
 import io
 # Force UTF-8 stdout/stderr on Windows to prevent emoji encoding crashes
 if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', write_through=True)
 if sys.stderr.encoding and sys.stderr.encoding.lower() != 'utf-8':
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace', write_through=True)
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -16,6 +16,7 @@ from .core.config import settings
 from .database import Base, engine
 from .routers import auth, hospitals, patients
 from .routers.auth import require_module
+from .middleware.tenant_middleware import TenantMiddleware
 from .core.logging_config import setup_logging
 
 # Initialize Logging
@@ -48,7 +49,7 @@ from fastapi import Depends, Request
 class CsrfSettings(BaseModel):
     secret_key: str = settings.SECRET_KEY.get_secret_value()
     cookie_samesite: str = "lax"
-    cookie_secure: bool = settings.ENVIRONMENT == "production" and not any(x in str(settings.BACKEND_CORS_ORIGINS) for x in ["localhost", "127.0.0.1", "100.", "192.", "10."])
+    cookie_secure: bool = settings.ENVIRONMENT == "production" and not any(x in str(settings.BACKEND_CORS_ORIGINS) for x in ["localhost", "127.0.0.1", "10.", "192.", "10."])
 
 @CsrfProtect.load_config  # type: ignore
 def get_csrf_config():
@@ -122,6 +123,8 @@ app = FastAPI(
     lifespan=lifespan,
     root_path="/api" if settings.ENVIRONMENT == "production" else ""
 )
+
+app.add_middleware(TenantMiddleware)
 
 import time
 from datetime import datetime, timezone
@@ -305,6 +308,7 @@ app.router.route_class = type(
 # Include Routers
 app.include_router(hospitals.router, prefix="/hospitals", tags=["hospitals"])
 app.include_router(patients.router, prefix="/patients", tags=["patients"])
+
 from .routers import users
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -312,6 +316,12 @@ app.include_router(users.router, prefix="/users", tags=["users"])
 from .routers import audit_logs, platform, platform_ops
 
 app.include_router(audit_logs.router, prefix="/audit", tags=["audit"])
+from .routers import superadmin_groups
+app.include_router(superadmin_groups.router, prefix="/superadmin/groups", tags=["superadmin-groups"])
+from .routers import doctors, self_registration, referrals
+app.include_router(doctors.router, prefix="/doctors", tags=["doctors"])
+app.include_router(self_registration.router, prefix="/self-registration", tags=["self-registration"])
+app.include_router(referrals.router, prefix="/referrals", tags=["referrals"])
 app.include_router(platform.router, prefix="/platform", tags=["platform"])
 app.include_router(platform_ops.router)
 
@@ -336,14 +346,14 @@ from .routers import reports, contact
 app.include_router(reports.router, prefix="/reports", tags=["reports"])
 app.include_router(contact.router, prefix="/contact", tags=["contact"])
 from .routers import accounting, accounting_advanced
-app.include_router(accounting.router, prefix="/accounting", tags=["accounting"])
-app.include_router(accounting_advanced.router, prefix="/accounting-adv", tags=["accounting-advanced"])
+app.include_router(accounting.router, prefix="/accounting", tags=["accounting"], dependencies=[Depends(require_module("accounting"))])
+app.include_router(accounting_advanced.router, prefix="/accounting-adv", tags=["accounting-advanced"], dependencies=[Depends(require_module("accounting"))])
 
 from .routers import inventory 
 app.include_router(inventory.router, prefix="/inventory", tags=["inventory"], dependencies=[Depends(require_module("inventory"))])
 
 from .routers import dental
-app.include_router(dental.router, prefix="/dental", tags=["dental"])
+app.include_router(dental.router, prefix="/dental", tags=["dental"], dependencies=[Depends(require_module("dental"))])
 
 from .routers import appointments
 app.include_router(appointments.router)
@@ -352,7 +362,7 @@ from .routers import doctors
 app.include_router(doctors.router)
 
 from .routers import ent
-app.include_router(ent.router)
+app.include_router(ent.router, dependencies=[Depends(require_module("ent"))])
 
 
 from .routers import patient_billing, patient_ledger
@@ -370,12 +380,12 @@ from .routers import emergency
 app.include_router(emergency.router)
 
 from .routers import tpa, nursing, pharmacy, pharmacy_inventory, lab, maternity
-app.include_router(tpa.router)
-app.include_router(nursing.router)
-app.include_router(pharmacy.router)
-app.include_router(pharmacy_inventory.router)
-app.include_router(lab.router)
-app.include_router(maternity.router)
+app.include_router(tpa.router, dependencies=[Depends(require_module("hms"))])
+app.include_router(nursing.router, dependencies=[Depends(require_module("hms"))])
+app.include_router(pharmacy.router, dependencies=[Depends(require_module("pharmacy"))])
+app.include_router(pharmacy_inventory.router, dependencies=[Depends(require_module("pharmacy"))])
+app.include_router(lab.router, dependencies=[Depends(require_module("lab"))])
+app.include_router(maternity.router, dependencies=[Depends(require_module("hms"))])
 
 from .routers import whatsapp
 app.include_router(whatsapp.router)

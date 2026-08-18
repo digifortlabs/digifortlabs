@@ -10,7 +10,9 @@
     | Traceback (most recent call last):
     |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
     |     await self.app(scope, receive, _send)
-    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 88, in __call__
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 96, in __call__
+    |     await self.simple_response(scope, receive, send, request_headers=headers)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 154, in simple_response
     |     await self.app(scope, receive, send)
     |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
     |     with recv_stream, send_stream, collapse_excgroups():
@@ -69,7 +71,7 @@
     |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
     |     response = await self.dispatch_func(request, call_next)
     |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "D:\Website\DIGIFORTLABS\backend\app\main.py", line 161, in remove_trailing_slash
+    |   File "D:\Website\DIGIFORTLABS\backend\app\main.py", line 168, in remove_trailing_slash
     |     return await call_next(request)
     |            ^^^^^^^^^^^^^^^^^^^^^^^^
     |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
@@ -85,7 +87,23 @@
     |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
     |     response = await self.dispatch_func(request, call_next)
     |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "D:\Website\DIGIFORTLABS\backend\app\main.py", line 135, in latency_middleware
+    |   File "D:\Website\DIGIFORTLABS\backend\app\main.py", line 138, in latency_middleware
+    |     response = await call_next(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    |     raise app_exc from app_exc.__cause__ or app_exc.__context__
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 144, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    |     with recv_stream, send_stream, collapse_excgroups():
+    |   File "C:\Users\Codexshop\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+    |     raise exc
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\Website\DIGIFORTLABS\backend\app\middleware\tenant_middleware.py", line 47, in dispatch
     |     response = await call_next(request)
     |                ^^^^^^^^^^^^^^^^^^^^^^^^
     |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
@@ -133,10 +151,10 @@
     |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
     |     result = context.run(func, *args)
     |              ^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "D:\Website\DIGIFORTLABS\backend\app\routers\doctors.py", line 95, in get_doctors
-    |     query = query.filter(DoctorProfile.hospital_id == target_hospital_id)
-    |             ^^^^^^^^^^^^
-    | AttributeError: 'DoctorProfile' object has no attribute 'filter'
+    |   File "D:\Website\DIGIFORTLABS\backend\app\routers\accounting.py", line 838, in receive_payment
+    |     crud_all.p_d_f_file.get_multi(db, PDFFile.file_id.in_(file_ids)).update({
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    | AttributeError: 'list' object has no attribute 'update'
     +------------------------------------
 
 The above exception was the direct cause of the following exception:
@@ -144,7 +162,9 @@ The above exception was the direct cause of the following exception:
 Traceback (most recent call last):
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
     await self.app(scope, receive, _send)
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 88, in __call__
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 96, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 154, in simple_response
     await self.app(scope, receive, send)
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
     with recv_stream, send_stream, collapse_excgroups():
@@ -203,7 +223,7 @@ Traceback (most recent call last):
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
     response = await self.dispatch_func(request, call_next)
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\app\main.py", line 161, in remove_trailing_slash
+  File "D:\Website\DIGIFORTLABS\backend\app\main.py", line 168, in remove_trailing_slash
     return await call_next(request)
            ^^^^^^^^^^^^^^^^^^^^^^^^
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
@@ -219,7 +239,23 @@ Traceback (most recent call last):
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
     response = await self.dispatch_func(request, call_next)
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\app\main.py", line 135, in latency_middleware
+  File "D:\Website\DIGIFORTLABS\backend\app\main.py", line 138, in latency_middleware
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+  File "C:\Users\Codexshop\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Website\DIGIFORTLABS\backend\app\middleware\tenant_middleware.py", line 47, in dispatch
     response = await call_next(request)
                ^^^^^^^^^^^^^^^^^^^^^^^^
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 168, in call_next
@@ -267,7 +303,7 @@ Traceback (most recent call last):
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
     result = context.run(func, *args)
              ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\app\routers\doctors.py", line 95, in get_doctors
-    query = query.filter(DoctorProfile.hospital_id == target_hospital_id)
-            ^^^^^^^^^^^^
-AttributeError: 'DoctorProfile' object has no attribute 'filter'
+  File "D:\Website\DIGIFORTLABS\backend\app\routers\accounting.py", line 838, in receive_payment
+    crud_all.p_d_f_file.get_multi(db, PDFFile.file_id.in_(file_ids)).update({
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'update'

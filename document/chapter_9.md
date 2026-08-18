@@ -1,25 +1,22 @@
-# Chapter 9: Configuration & Master Data Management
+# Chapter 9: Analytics, Reports & Business Intelligence
 
 ## 9.1 Overview
 
-The Configuration module is the central nervous system of the HMS, allowing administrators to dictate the rules of the system without requiring code changes.
+Data is the lifeblood of hospital administration. The Analytics module transforms thousands of daily transactions into actionable insights for the Management and Board.
 
-## 9.2 Master Data Architecture
+## 9.2 Operational Dashboards
 
-Structured master tables prevent data duplication and ensure system-wide consistency.
+Real-time visibility into the hospital's performance metrics.
 
-### 9.2.1 Core Master Tables
+### 9.2.1 Key Metrics Tracked
 
-- **Service Master:** Defining every billable item in the hospital (consultations, room rent, procedures, nursing charges) and linking them to specific departments.
-- **Tariff & Corporate Rules:** Complex pricing engines where a single service (e.g., CBC Test) has dynamic pricing depending on the patient's ward (General vs ICU) or their TPA sponsor.
-- **Role-Based Access Control (RBAC):** Granular permission matrices to define what a specific user (e.g., Junior Nurse vs Head Nurse) can view, edit, or delete.
+| Metric Category | Data Points Analyzed |
+| :--- | :--- |
+| **Clinical Efficacy** | Average Length of Stay (ALOS), Bed Occupancy Rate (BOR), Mortality Rates. |
+| **Financial Health** | Daily Revenue Collection (OPD vs IPD), Department-wise Profitability, Pending TPA Receivables. |
+| **Inventory Trends** | Fast-moving drugs, stock-out alerts, expiry loss value. |
 
-```mermaid
-graph TD
-    A[System Administrator] --> B[Service Master]
-    A --> C[Tariff Master]
-    A --> D[User Roles]
-    B --> E[Billing Engine]
-    C --> E
-    D --> F[Security & Audit Logs]
-```
+## 9.3 Automated Reporting Engine
+
+- **Statutory Reports:** Auto-generation of mandatory government reports (e.g., infectious disease registries, birth/death certificates).
+- **Scheduled Exports:** Automatic daily dispatch of CSV/PDF reports to stakeholders via email.

@@ -273,3 +273,51 @@ async def download_scanner_app():
                 return FileResponse(path, media_type='application/vnd.microsoft.portable-executable', filename="DigifortScanner.exe")
                 
         raise HTTPException(status_code=404, detail="Scanner app not found on server.")
+
+@router.get("/mrd-usage-report/{hospital_id}")
+async def get_mrd_usage_report(
+    hospital_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.MANAGE_PLATFORM_SETTINGS))
+):
+    """Calculates manual MRD usage report for a hospital tenant (Super Admin only)."""
+    try:
+        from ..services.mrd_metering import calculate_mrd_usage
+        report = calculate_mrd_usage(db, hospital_id)
+        return report
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error calculating MRD usage report: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/generate-mrd-invoice/{hospital_id}")
+async def generate_manual_mrd_invoice(
+    hospital_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.MANAGE_PLATFORM_SETTINGS))
+):
+    """Manually generates and records an MRD usage invoice for a tenant (Super Admin only)."""
+    try:
+        from ..services.mrd_metering import calculate_mrd_usage
+        report = calculate_mrd_usage(db, hospital_id)
+        
+        log_audit(
+            db, 
+            current_user.user_id, 
+            "MANUAL_MRD_INVOICE_GENERATED", 
+            f"Generated MRD invoice for hospital {hospital_id}. Total: ₹{report['billing_breakdown']['total_mrd_bill']}"
+        )
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": f"MRD usage invoice generated for {report['legal_name']}",
+            "invoice_details": report
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error generating manual MRD invoice: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

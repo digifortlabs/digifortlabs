@@ -549,7 +549,7 @@ class DesktopApp:
 
     def auto_start_stack_services(self):
         print("Executing sequential auto-start on all development stack services...")
-        self.trigger_service("ssh", "start")
+        # self.trigger_service("ssh", "start") # Disabled since using local PostgreSQL
         self.root.after(1000, lambda: self.trigger_service("backend", "start"))
         self.root.after(2200, lambda: self.trigger_service("frontend", "start"))
 

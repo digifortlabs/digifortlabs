@@ -69,7 +69,7 @@ def check_email(data: EmailCheckRequest, db: Session = Depends(get_db)):
     """Check if an email belongs to a hospital and return the target subdomain slug."""
     user = crud_all.user.get_first(db, func.lower(User.email) == func.lower(data.email), User.is_deleted == False)  # noqa: E712
     if not user:
-        raise HTTPException(status_code=404, detail="Email address not found in our registry.")
+        raise HTTPException(status_code=404, detail="No account found with this email. Please check your spelling or register a new organization.")
         
     if user.hospital:
         hospital_slug = user.hospital.hospital_slug or re.sub(r'[^a-z0-9]', '', user.hospital.legal_name.lower())
@@ -568,7 +568,7 @@ async def request_password_reset(request: PasswordResetRequest, db: Session = De
         return {"message": "If this email is registered, you will receive an OTP shortly."}
     
     # Invalidate previous active OTPs
-    crud_all.password_reset_o_t_p.get_first(db, 
+    db.query(PasswordResetOTP).filter(
         func.lower(PasswordResetOTP.email) == email,
         PasswordResetOTP.is_used == False  # noqa: E712 - SQLAlchemy requires == for column comparison
     ).update({PasswordResetOTP.is_used: True}, synchronize_session=False)
@@ -737,6 +737,27 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
                 detail="Your trial period has expired. Please upgrade your subscription to continue.",
             )
             
+    # Subdomain / Tenant Isolation Enforcement
+    # The frontend proxy injects `x-hospital-slug` based on the URL subdomain
+    requested_slug = request.headers.get("x-hospital-slug")
+    if requested_slug and user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]:
+        # If the user belongs to a hospital, ensure their hospital's slug matches the requested subdomain
+        if user.hospital:
+            # Fallback to alphanumeric parsing if slug isn't explicitly set
+            actual_slug = user.hospital.hospital_slug or re.sub(r'[^a-z0-9]', '', user.hospital.legal_name.lower())
+            if actual_slug != requested_slug:
+                logger.warning(f"[AUTH] Cross-tenant access blocked. User {user.email} (Tenant: {actual_slug}) tried to access Subdomain: {requested_slug}")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access Denied: You do not have permission to access this hospital's workspace.",
+                )
+        else:
+            # User doesn't belong to any hospital, but tried to access a tenant subdomain
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access Denied: You are not assigned to any hospital.",
+            )
+
     # Dynamic Hospital Scoping for Global Doctors and Super Admins
     if not user.hospital_id and (user.role.startswith("doctor") or user.role in ["superadmin", "superadmin_staff"]):
         requested_hospital = request.headers.get("X-Hospital-Id")

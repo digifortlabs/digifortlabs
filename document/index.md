@@ -13,13 +13,14 @@
 <h1>Table of Contents</h1>
 <ol>
 <li><strong><a href="#chapter-1">Chapter 1: Executive Summary & Patient Management</a></strong></li>
-<li><strong><a href="#chapter-2">Chapter 2: Inpatient (IPD) Operations</a></strong></li>
-<li><strong><a href="#chapter-3">Chapter 3: Pharmacy, Inventory & Supply Chain</a></strong></li>
-<li><strong><a href="#chapter-4">Chapter 4: Financial Accounting, Billing & TPA</a></strong></li>
-<li><strong><a href="#chapter-5">Chapter 5: Laboratory & Diagnostics (LIS/RIS)</a></strong></li>
-<li><strong><a href="#chapter-6">Chapter 6: SURGERY AND OPERATION THEATRE</a></strong></li>
-<li><strong><a href="#chapter-7">Chapter 7: Medical Records Department (MRD) & Telemedicine</a></strong></li>
-<li><strong><a href="#chapter-8">Chapter 8: Analytics, Reports & Business Intelligence</a></strong></li>
-<li><strong><a href="#chapter-9">Chapter 9: Configuration & Master Data Management</a></strong></li>
-<li><strong><a href="#chapter-10">Chapter 10: Human Resources, Staff Management & Onboarding</a></strong></li>
+<li><strong><a href="#chapter-2">Chapter 2: Super Admin & SaaS Tenant Management</a></strong></li>
+<li><strong><a href="#chapter-3">Chapter 3: Inpatient (IPD) Operations</a></strong></li>
+<li><strong><a href="#chapter-4">Chapter 4: Pharmacy, Inventory & Supply Chain</a></strong></li>
+<li><strong><a href="#chapter-5">Chapter 5: Financial Accounting, Billing & TPA</a></strong></li>
+<li><strong><a href="#chapter-6">Chapter 6: Laboratory & Diagnostics (LIS/RIS)</a></strong></li>
+<li><strong><a href="#chapter-7">Chapter 7: SURGERY AND OPERATION THEATRE</a></strong></li>
+<li><strong><a href="#chapter-8">Chapter 8: Medical Records Department (MRD) & Telemedicine</a></strong></li>
+<li><strong><a href="#chapter-9">Chapter 9: Analytics, Reports & Business Intelligence</a></strong></li>
+<li><strong><a href="#chapter-10">Chapter 10: Configuration & Master Data Management</a></strong></li>
+<li><strong><a href="#chapter-11">Chapter 11: Human Resources, Staff Management & Onboarding</a></strong></li>
 </ol>

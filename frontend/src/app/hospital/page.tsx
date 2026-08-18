@@ -10,7 +10,6 @@ import {
 import toast from 'react-hot-toast';
 import { apiFetch } from '@/config/api';
 import { formatDateTime } from '@/lib/dateFormatter';
-import LiveHospitalMap from '@/components/dashboard/LiveHospitalMap';
 import RecentActivityLog from '@/components/dashboard/RecentActivityLog';
 
 const QUICK_ACTIONS = [
@@ -92,7 +91,7 @@ export default function HospitalPage() {
 
 
     return (
-        <div className="page-container">
+        <div className="w-full h-full flex flex-col space-y-6 pb-8">
 
             {/* ── PAGE HEADER ── */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -118,10 +117,7 @@ export default function HospitalPage() {
                 </div>
             </div>
 
-            {/* ── LIVE HOSPITAL MAP ── */}
-            <div className="mt-2">
-                <LiveHospitalMap recentActivity={stats?.recent_activity || []} clinicalOps={stats?.clinical_ops} />
-            </div>
+
 
             {/* ── CLINICAL OPERATIONS ── */}
             {stats?.clinical_ops && (

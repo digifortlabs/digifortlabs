@@ -390,7 +390,7 @@ def get_dashboard_stats(
             })
         
         # IPD Admitted
-        q_ipd = crud_all.i_p_d_admission.count(db, IPDAdmission.status == 'admitted')
+        q_ipd = crud_all.i_p_d_admission.get_multi(db, IPDAdmission.status == 'admitted')
         if target_hospital_id:
             q_ipd = q_ipd.filter(IPDAdmission.hospital_id == target_hospital_id)
         clinical_ops["ipd_admitted"] = q_ipd.count()
@@ -403,7 +403,7 @@ def get_dashboard_stats(
             })
         
         # OT In Use
-        q_ot = crud_all.operation_theater.count(db, OperationTheater.status == 'IN_USE')
+        q_ot = crud_all.operation_theater.get_multi(db, OperationTheater.status == 'IN_USE')
         if target_hospital_id:
             q_ot = q_ot.filter(OperationTheater.hospital_id == target_hospital_id)
         clinical_ops["ot_in_use"] = q_ot.count()
@@ -415,7 +415,7 @@ def get_dashboard_stats(
             })
         
         # ER Active
-        q_er = crud_all.emergency_visit.count(db, EmergencyVisit.status == 'Active')
+        q_er = crud_all.emergency_visit.get_multi(db, EmergencyVisit.status == 'Active')
         if target_hospital_id:
             q_er = q_er.filter(EmergencyVisit.hospital_id == target_hospital_id)
         clinical_ops["er_active"] = q_er.count()

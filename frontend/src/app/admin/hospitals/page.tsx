@@ -23,10 +23,16 @@ import {
     AlertCircle,
     BadgeAlert,
     ShieldAlert,
+    Globe,
     LayoutGrid,
     CheckCircle2,
     Settings,
-    Pill
+    Pill,
+    Baby,
+    TestTube,
+    ShieldCheck,
+    FileText,
+    Download
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import toast from 'react-hot-toast';
@@ -48,6 +54,7 @@ interface PlatformStats {
 // Client Hospital Type
 interface Hospital {
     hospital_id: number;
+    group_id?: number;
     legal_name: string;
     hospital_slug?: string;
     subscription_tier: string;
@@ -78,9 +85,48 @@ interface Hospital {
     pending_updates?: string;
 }
 
+const SPECIALTY_OPTIONS: Record<string, {value: string, label: string}[]> = {
+    'Multi-Specialty Hospital': [
+        {value: 'General', label: 'General / Multi-Specialty'},
+        {value: 'Corporate', label: 'Corporate Hospital'},
+        {value: 'Trust', label: 'Trust / NGO Hospital'}
+    ],
+    'Single-Specialty Hospital': [
+        {value: 'Cardiology', label: 'Cardiology'},
+        {value: 'Orthopedics', label: 'Orthopedics'},
+        {value: 'Neurology', label: 'Neurology'},
+        {value: 'Oncology', label: 'Oncology'},
+        {value: 'Pediatrics', label: 'Pediatrics / Neonatal'},
+        {value: 'Maternity', label: 'Maternity / Gynecology'}
+    ],
+    'Polyclinic / Day Care Center': [
+        {value: 'Polyclinic', label: 'General Polyclinic'},
+        {value: 'Dental', label: 'Dental Care'},
+        {value: 'Eye', label: 'Eye / Vision Center'},
+        {value: 'Skin', label: 'Skin / Dermatology'}
+    ],
+    'Diagnostic Center (Lab/Imaging)': [
+        {value: 'Pathology', label: 'Pathology Laboratory'},
+        {value: 'Radiology', label: 'Radiology / Imaging (X-Ray, MRI)'},
+        {value: 'Complete_Diagnostics', label: 'Complete Diagnostic Center'}
+    ],
+    'Independent Doctor Clinic': [
+        {value: 'Doctor', label: 'Independent Doctor / Consultant'},
+        {value: 'Physiotherapy', label: 'Physiotherapy Clinic'},
+        {value: 'Homeopathy', label: 'Homeopathy / Ayurveda'}
+    ],
+    'Pharmacy / Medical Store': [
+        {value: 'Retail_Pharmacy', label: 'Retail Pharmacy'},
+        {value: 'Wholesale_Pharmacy', label: 'Wholesale Distributor'},
+        {value: '24x7_Pharmacy', label: '24x7 Emergency Pharmacy'}
+    ]
+};
+const defaultSpecialties = [{value: 'General', label: 'General / Multi-Specialty'}];
+
 export default function ManageClientsPage() {
     const router = useRouter();
     const [hospitals, setHospitals] = useState<Hospital[]>([]);
+    const [hospitalGroups, setHospitalGroups] = useState<any[]>([]);
     const [stats, setStats] = useState<PlatformStats | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -104,10 +150,22 @@ export default function ManageClientsPage() {
         director_name: '',
         specialty: 'General',
         mrd_service_type: 'PORTAL_ONLY',
+        total_bed_capacity: 50,
+        nabh_accredited: 'Full NABH',
         address: '',
-        city: '',
-        state: '',
+        city: 'Vapi',
+        state: 'Gujarat',
         pincode: '',
+        regulatory_compliance_preset: 'gujarat_cea',
+        whatsapp_dispatch_mode: 'wa_me_link',
+        
+        // Group Setup
+        is_group: false,
+        group_id: null as number | null,
+        new_group_name: '',
+        new_group_location: '',
+        new_group_email: '',
+        add_branch_later: false,
         
         // Tenant Setup
         subdomain: '',
@@ -118,10 +176,12 @@ export default function ManageClientsPage() {
         admin_full_name: '',
         admin_email: '',
         admin_phone: '',
-        password: '',
+        
         
         // Subscription & Pricing
-        subscription_tier: 'Standard',
+        billing_cycle: 'Monthly',
+        platform_base_price: 5000,
+        extra_user_price: 500,
         price_per_file: 100.0,
         included_pages: 20,
         price_per_extra_page: 1.0,
@@ -132,6 +192,16 @@ export default function ManageClientsPage() {
     const [isEditOpen, setIsEditOpen] = useState<boolean>(false);
     const [editingHospital, setEditingHospital] = useState<Hospital | null>(null);
     const [editTab, setEditTab] = useState<'profile' | 'modules' | 'billing'>('profile');
+
+    // Group Management Modal State
+    const [isGroupManageOpen, setIsGroupManageOpen] = useState<boolean>(false);
+    const [selectedGroup, setSelectedGroup] = useState<any>(null);
+    const [groupManageTab, setGroupManageTab] = useState<'profile' | 'branches'>('profile');
+    const [editGroupForm, setEditGroupForm] = useState({
+        group_name: '',
+        location: '',
+        admin_email: ''
+    });
 
     // Review Pending Updates State
     const [reviewHospital, setReviewHospital] = useState<Hospital | null>(null);
@@ -144,14 +214,14 @@ export default function ManageClientsPage() {
     const [purgeError, setPurgeError] = useState<string>('');
 
     // Dynamic Host Suffix Builder for Subdomains
-    const [hostSuffix, setHostSuffix] = useState<string>('.localhost:3000');
+    const [hostSuffix, setHostSuffix] = useState<string>('.digifortlabs.com');
     
     useEffect(() => {
         if (typeof window !== 'undefined') {
             const host = window.location.host;
             const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'digifortlabs.com';
             if (host.includes('localhost')) {
-                setHostSuffix('.localhost:3000');
+                setHostSuffix('.digifortlabs.com');
             } else {
                 setHostSuffix(`.${rootDomain}`);
             }
@@ -168,6 +238,13 @@ export default function ManageClientsPage() {
             if (listRes.ok) {
                 const listData = await listRes.json();
                 setHospitals(listData);
+            }
+
+            // Fetch Groups
+            const groupsRes = await apiFetch('/superadmin/groups/');
+            if (groupsRes.ok) {
+                const groupsData = await groupsRes.json();
+                setHospitalGroups(groupsData);
             }
 
             // Fetch Stats
@@ -187,14 +264,8 @@ export default function ManageClientsPage() {
     const handleSubdomainChange = (val: string) => {
         const cleanVal = val.toLowerCase().replace(/[^a-z0-9-]/g, '');
         setNewHospital(prev => ({ ...prev, subdomain: cleanVal }));
-        
-        // Automatically sync email & admin credentials if empty
+
         if (cleanVal) {
-            setNewHospital(prev => ({
-                ...prev,
-                email: prev.email || `contact@${cleanVal}.com`,
-                admin_email: prev.admin_email || `admin@${cleanVal}.com`
-            }));
             setSubdomainAvailable(cleanVal.length > 2);
         } else {
             setSubdomainAvailable(null);
@@ -210,7 +281,10 @@ export default function ManageClientsPage() {
         { id: 'clinic', label: 'Outpatient Clinic (OPD)', desc: 'Appointments scheduling, lightweight clinic EMR', icon: Activity, color: 'text-rose-400 bg-rose-950/40 border-rose-800' },
         { id: 'dental', label: 'Dental Specialty Module', desc: 'Tooth mapping, dental treatments charting', icon: Sparkles, color: 'text-sky-400 bg-sky-950/40 border-sky-800' },
         { id: 'ent', label: 'ENT Specialty Module', desc: 'Ear, Nose & Throat custom diagnostics panel', icon: Settings, color: 'text-teal-400 bg-teal-950/40 border-teal-800' },
-        { id: 'pharmacy', label: 'Pharmacy & Prescriptions', desc: 'Standalone medicine dispensing & pharmacy', icon: Pill, color: 'text-pink-400 bg-pink-950/40 border-pink-800' }
+        { id: 'pharmacy', label: 'Pharmacy & Prescriptions', desc: 'Standalone medicine dispensing & pharmacy', icon: Pill, color: 'text-pink-400 bg-pink-950/40 border-pink-800' },
+        { id: 'maternity', label: 'Maternity & Obstetrics', desc: 'ANC tracking, labor ward logs & birth records', icon: Baby, color: 'text-purple-400 bg-purple-950/40 border-purple-800' },
+        { id: 'lab', label: 'Pathology & LIS Analyzer', desc: 'Lab test reporting, machine auto-capture', icon: TestTube, color: 'text-cyan-400 bg-cyan-950/40 border-cyan-800' },
+        { id: 'tpa', label: 'TPA & Cashless Claims', desc: 'Insurance claims, pre-authorization & cashless settlement', icon: ShieldCheck, color: 'text-blue-400 bg-blue-950/40 border-blue-800' }
     ];
 
     const toggleModuleOnboard = (moduleId: string) => {
@@ -283,17 +357,59 @@ export default function ManageClientsPage() {
         setErrorMsg('');
         setSuccessMsg('');
         
-        // Basic Validations
-        if (!newHospital.legal_name || !newHospital.subdomain || !newHospital.admin_full_name || !newHospital.admin_email || !newHospital.password) {
-            setErrorMsg("Please complete all mandatory setup steps.");
-            return;
-        }
-
         try {
+            let finalGroupId = newHospital.group_id;
+
+            if (newHospital.is_group && newHospital.group_id === -1) {
+                // Create New Group
+                if (!newHospital.new_group_name) {
+                    setErrorMsg("Please provide a name for the new Hospital Group.");
+                    return;
+                }
+                const groupPayload = {
+                    group_name: newHospital.new_group_name,
+                    location: newHospital.new_group_location,
+                    admin_email: newHospital.new_group_email
+                };
+                const groupRes = await apiFetch('/superadmin/groups/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(groupPayload)
+                });
+                
+                if (groupRes.ok) {
+                    const groupData = await groupRes.json();
+                    finalGroupId = groupData.group_id;
+                    // Refresh groups list in background
+                    apiFetch('/superadmin/groups/').then(r => r.json()).then(setHospitalGroups).catch(console.error);
+                } else {
+                    const errorData = await groupRes.json();
+                    setErrorMsg(errorData.detail || "Failed to create new Hospital Group.");
+                    return;
+                }
+            }
+
+            if (newHospital.is_group && newHospital.add_branch_later) {
+                // Stop here, group created, no branch
+                setSuccessMsg("Hospital Group created successfully! You can add branches later.");
+                setTimeout(() => {
+                    setIsOnboardOpen(false);
+                    setOnboardStep(1);
+                    fetchData();
+                }, 2000);
+                return;
+            }
+
+            // Basic Validations for Branch
+            if (!newHospital.legal_name || !newHospital.subdomain || !newHospital.admin_full_name || !newHospital.admin_email) {
+                setErrorMsg("Please complete all mandatory setup steps for the branch.");
+                return;
+            }
+
             // Build Create Payload matching backend HospitalCreate model
             const payload = {
                 legal_name: newHospital.legal_name,
-                subscription_tier: newHospital.subscription_tier,
+                group_id: newHospital.is_group ? finalGroupId : null,
                 organization_type: "Hospital",
                 specialty: newHospital.specialty,
                 mrd_service_type: newHospital.mrd_service_type,
@@ -310,7 +426,6 @@ export default function ManageClientsPage() {
                 admin_full_name: newHospital.admin_full_name,
                 admin_email: newHospital.admin_email,
                 admin_phone: newHospital.admin_phone,
-                password: newHospital.password,
                 price_per_file: parseFloat(newHospital.price_per_file.toString()) || 100.0,
                 included_pages: parseInt(newHospital.included_pages.toString()) || 20,
                 price_per_extra_page: parseFloat(newHospital.price_per_extra_page.toString()) || 1.0,
@@ -339,14 +454,24 @@ export default function ManageClientsPage() {
                         city: '',
                         state: '',
                         pincode: '',
+                        
+                        is_group: false,
+                        group_id: null,
+                        new_group_name: '',
+                        new_group_location: '',
+                        new_group_email: '',
+                        add_branch_later: false,
+                        
                         subdomain: '',
                         email: '',
                         gst_number: '',
                         admin_full_name: '',
                         admin_email: '',
                         admin_phone: '',
-                        password: '',
-                        subscription_tier: 'Standard',
+                        
+                        billing_cycle: 'Monthly',
+        platform_base_price: 5000,
+        extra_user_price: 500,
                         price_per_file: 100.0,
                         included_pages: 20,
                         price_per_extra_page: 1.0,
@@ -414,6 +539,35 @@ export default function ManageClientsPage() {
             }
         } catch (err) {
             setErrorMsg("Failed to write updates.");
+        }
+    };
+
+    // Group Config Update Trigger
+    const handleGroupEditSubmit = async () => {
+        if (!selectedGroup) return;
+        setErrorMsg('');
+        setSuccessMsg('');
+
+        try {
+            const res = await apiFetch(`/superadmin/groups/${selectedGroup.group_id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(editGroupForm)
+            });
+
+            if (res.ok) {
+                setSuccessMsg("Group configurations updated successfully!");
+                setTimeout(() => {
+                    setIsGroupManageOpen(false);
+                    setSelectedGroup(null);
+                    fetchData();
+                }, 1500);
+            } else {
+                const data = await res.json();
+                setErrorMsg(data.detail || "Failed to update group.");
+            }
+        } catch (err) {
+            setErrorMsg("Failed to write group updates.");
         }
     };
 
@@ -562,6 +716,8 @@ export default function ManageClientsPage() {
                     onClick={() => {
                         setIsOnboardOpen(true);
                         setOnboardStep(1);
+                        setSuccessMsg("");
+                        setErrorMsg("");
                     }}
                     className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-2xl flex items-center gap-2 text-xs font-black shadow-lg shadow-indigo-900/25 active:scale-95 transition-all uppercase tracking-wider border border-indigo-500/25"
                 >
@@ -756,6 +912,12 @@ export default function ManageClientsPage() {
                                                     </div>
                                                     <div>
                                                         <h4 className="font-black text-slate-900 text-sm tracking-tight">{hospital.legal_name}</h4>
+                                                        {hospital.group_id && (
+                                                            <div className="flex items-center gap-1 text-[9px] font-bold text-indigo-600 uppercase mt-0.5">
+                                                                <Building2 className="w-3 h-3" />
+                                                                {hospitalGroups.find(g => g.group_id === hospital.group_id)?.group_name || 'Group Member'}
+                                                            </div>
+                                                        )}
                                                         <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
                                                             {hospital.specialty} • Est. {hospital.established_year || 'N/A'}
                                                         </p>
@@ -780,21 +942,21 @@ export default function ManageClientsPage() {
 
                                             {/* Module Matrix badges */}
                                             <td className="py-4 px-4">
-                                                <div className="flex flex-wrap gap-1.5 max-w-[220px]">
+                                                <div className="grid grid-cols-6 gap-1 w-fit">
                                                     {MODULE_OPTIONS.map(opt => {
                                                         const isEnabled = hospital.enabled_modules?.includes(opt.id);
                                                         const Icon = opt.icon;
                                                         return (
                                                             <div 
                                                                 key={opt.id}
-                                                                title={opt.label}
-                                                                className={`w-6 h-6 rounded-md flex items-center justify-center border transition-all ${
+                                                                title={`${opt.label}: ${isEnabled ? 'Active' : 'Disabled'}`}
+                                                                className={`w-5.5 h-5.5 rounded-md flex items-center justify-center border transition-all ${
                                                                     isEnabled 
-                                                                        ? 'bg-indigo-50 border-indigo-200 text-indigo-600' 
+                                                                        ? 'bg-indigo-50 border-indigo-200 text-indigo-600 font-bold' 
                                                                         : 'bg-slate-50 border-slate-100 text-slate-300'
                                                                 }`}
                                                             >
-                                                                <Icon className="w-3.5 h-3.5" />
+                                                                <Icon className="w-3 h-3" />
                                                             </div>
                                                         );
                                                     })}
@@ -876,14 +1038,25 @@ export default function ManageClientsPage() {
                                                             
                                                             <button
                                                                 onClick={() => {
+                                                                    const targetUrl = `http://${hospital.hospital_slug || hospital.legal_name.toLowerCase().replace(/[^a-z0-9]/g, '')}${hostSuffix}`;
+                                                                    window.open(targetUrl, '_blank');
+                                                                }}
+                                                                className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors text-[11px] font-bold border border-blue-200 flex items-center gap-1"
+                                                                title="Launch Client Portal"
+                                                            >
+                                                                <Globe className="w-3.5 h-3.5" /> Launch
+                                                            </button>
+
+                                                            <button
+                                                                onClick={() => {
                                                                     setEditingHospital(hospital);
                                                                     setIsEditOpen(true);
                                                                     setEditTab('profile');
                                                                 }}
-                                                                className="p-2 hover:bg-slate-100 text-slate-600 hover:text-slate-900 rounded-xl transition-colors"
-                                                                title="Configure Subscription & Profile"
+                                                                className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-slate-900 rounded-lg transition-colors border border-slate-200"
+                                                                title="Configure SaaS Licenses & Modules"
                                                             >
-                                                                <Edit2 className="w-4 h-4" />
+                                                                <Edit2 className="w-3.5 h-3.5" />
                                                             </button>
                                                             
                                                             <button
@@ -916,6 +1089,199 @@ export default function ManageClientsPage() {
                     </div>
                 )}
             </div>
+
+                        {/* Hospital Groups Table */}
+            <div className="mt-8 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between">
+                    <div>
+                        <h3 className="text-sm font-black text-slate-900 tracking-tight">Hospital Groups / Networks</h3>
+                        <p className="text-xs text-slate-500 font-semibold mt-0.5">Parent organizations overseeing multiple branches.</p>
+                    </div>
+                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                        <Building2 className="w-5 h-5" />
+                    </div>
+                </div>
+                
+                {hospitalGroups.length === 0 ? (
+                    <div className="py-12 text-center">
+                        <Building2 className="w-8 h-8 text-slate-300 mx-auto" />
+                        <p className="text-xs text-slate-500 mt-3 font-black uppercase">No Hospital Groups Found</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Create a new group during the onboarding process.</p>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                    <th className="py-4 px-6">Group Profile</th>
+                                    <th className="py-4 px-4">Contact Email</th>
+                                    <th className="py-4 px-4">HQ Location</th>
+                                    <th className="py-4 px-4">Branches</th>
+                                    <th className="py-4 px-6 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-xs">
+                                {hospitalGroups.map(group => (
+                                    <tr key={group.group_id} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="py-4 px-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 font-black text-xs shadow-sm">
+                                                    <Building2 className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-black text-slate-900 text-sm tracking-tight">{group.group_name}</h4>
+                                                    <p className="text-[10px] text-slate-500 font-semibold mt-0.5">ID: {group.group_id}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="py-4 px-4 font-semibold text-slate-600">{group.admin_email || 'N/A'}</td>
+                                        <td className="py-4 px-4 font-semibold text-slate-600">
+                                            <div className="flex items-center gap-1">
+                                                <MapPin className="w-3 h-3 text-slate-400" />
+                                                {group.location || 'N/A'}
+                                            </div>
+                                        </td>
+                                        <td className="py-4 px-4 font-black text-indigo-600">
+                                            {hospitals.filter(h => h.group_id === group.group_id).length} Branches
+                                        </td>
+                                        <td className="py-4 px-6 text-right">
+                                            <button 
+                                                onClick={() => {
+                                                    setSelectedGroup(group);
+                                                    setEditGroupForm({
+                                                        group_name: group.group_name || '',
+                                                        location: group.location || '',
+                                                        admin_email: group.admin_email || ''
+                                                    });
+                                                    setIsGroupManageOpen(true);
+                                                    setGroupManageTab('profile');
+                                                }}
+                                                className="text-indigo-600 font-bold hover:underline text-[10px] uppercase tracking-wider"
+                                            >
+                                                Manage
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
+            {/* Group Management Modal */}
+            {isGroupManageOpen && selectedGroup && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                        
+                        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-indigo-100 text-indigo-600 rounded-xl">
+                                    <Building2 className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 tracking-tight">Manage Group</h3>
+                                    <p className="text-[11px] font-semibold text-slate-500 mt-0.5">{selectedGroup.group_name}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsGroupManageOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                                <X className="w-5 h-5 text-slate-400" />
+                            </button>
+                        </div>
+
+                        {/* Tabs */}
+                        <div className="flex px-6 pt-4 border-b border-slate-200 gap-6">
+                            <button
+                                onClick={() => setGroupManageTab('profile')}
+                                className={`pb-3 text-xs font-black uppercase tracking-wider transition-colors border-b-2 ${
+                                    groupManageTab === 'profile' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+                                }`}
+                            >
+                                Profile
+                            </button>
+                            <button
+                                onClick={() => setGroupManageTab('branches')}
+                                className={`pb-3 text-xs font-black uppercase tracking-wider transition-colors border-b-2 ${
+                                    groupManageTab === 'branches' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+                                }`}
+                            >
+                                Branches
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 bg-white">
+                            {groupManageTab === 'profile' && (
+                                <div className="space-y-5">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Group Name</label>
+                                        <input 
+                                            type="text" 
+                                            value={editGroupForm.group_name} 
+                                            onChange={(e) => setEditGroupForm({...editGroupForm, group_name: e.target.value})}
+                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Location</label>
+                                            <input 
+                                                type="text" 
+                                                value={editGroupForm.location} 
+                                                onChange={(e) => setEditGroupForm({...editGroupForm, location: e.target.value})}
+                                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Admin Email</label>
+                                            <input 
+                                                type="email" 
+                                                name="edit_group_admin_email_no_autofill"
+                                                autoComplete="off"
+                                                value={editGroupForm.admin_email} 
+                                                onChange={(e) => setEditGroupForm({...editGroupForm, admin_email: e.target.value})}
+                                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="pt-4 flex justify-end">
+                                        <button 
+                                            onClick={handleGroupEditSubmit}
+                                            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all active:scale-95"
+                                        >
+                                            Save Changes
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {groupManageTab === 'branches' && (
+                                <div className="space-y-4">
+                                    {hospitals.filter(h => h.group_id === selectedGroup.group_id).length === 0 ? (
+                                        <p className="text-center text-slate-400 text-xs py-8">No branches found for this group.</p>
+                                    ) : (
+                                        hospitals.filter(h => h.group_id === selectedGroup.group_id).map(hospital => (
+                                            <div key={hospital.hospital_id} className="p-4 border border-slate-200 rounded-2xl flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-sm">
+                                                        {hospital.legal_name.substring(0, 2).toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-slate-900">{hospital.legal_name}</h4>
+                                                        <p className="text-[10px] text-slate-500 font-semibold">{hospital.email}</p>
+                                                    </div>
+                                                </div>
+                                                <span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider ${hospital.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                                                    {hospital.is_active ? 'Active' : 'Suspended'}
+                                                </span>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Permanent Delete Confirmation Modal (type-the-name to confirm) */}
             {purgeTarget && (
@@ -990,418 +1356,762 @@ export default function ManageClientsPage() {
                 </div>
             )}
 
-            {/* 🧙 Onboard Client Wizard Modal */}
+            {/* 🧙 Premium Onboard Client Wizard Modal */}
             {isOnboardOpen && (
-                <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-                    <div className="bg-white border border-slate-200 w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-                        {/* Modal Header */}
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                            <div>
-                                <h3 className="text-lg font-black text-slate-950 tracking-tight flex items-center gap-2">
-                                    <Sparkles className="w-5 h-5 text-indigo-600" />
-                                    Onboard New Client Hospital
-                                </h3>
-                                <p className="text-[11px] text-slate-400 mt-0.5">Step {onboardStep} of 3 — Configure medical platform tenant parameters.</p>
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[9999] flex items-center justify-center p-4 lg:p-8 animate-in fade-in duration-300">
+                    <div className="bg-white w-full max-w-5xl rounded-[2rem] overflow-hidden shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] flex flex-col lg:flex-row max-h-[95vh] lg:h-[800px] border border-white/20">
+                        
+                        {/* LEFT PANEL - Gradient Sidebar */}
+                        <div className="lg:w-80 bg-slate-900 p-8 flex flex-col justify-between text-white shrink-0 relative overflow-hidden hidden lg:flex">
+                            {/* Decorative background blurbs */}
+                            <div className="absolute top-[-20%] left-[-20%] w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+                            <div className="absolute bottom-[-10%] right-[-10%] w-48 h-48 bg-fuchsia-400/20 rounded-full blur-2xl"></div>
+
+                            <div className="relative z-10">
+                                <div className="flex items-center gap-2 mb-12">
+                                    <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/30">
+                                        <Sparkles className="w-5 h-5 text-white" />
+                                    </div>
+                                    <h3 className="text-xl font-black tracking-tight">Onboard Client</h3>
+                                </div>
+
+                                {/* Vertical Stepper */}
+                                <div className="space-y-8">
+                                    {[
+                                        { id: 1, label: "Hospital Profile", desc: "Basic details & identity" },
+                                        { id: 2, label: "Tenant Access", desc: "Subdomain & Admin config" },
+                                        { id: 3, label: "Billing & Modules", desc: "Subscription packages" }
+                                    ].map((step) => (
+                                        <div key={step.id} className="flex gap-4 relative">
+                                            {/* Connector line */}
+                                            {step.id !== 3 && (
+                                                <div className={`absolute top-8 left-[1.1rem] w-0.5 h-10 transition-colors duration-500 ${onboardStep > step.id ? 'bg-white/50' : 'bg-white/10'}`}></div>
+                                            )}
+                                            
+                                            <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-sm shrink-0 transition-all duration-500 z-10 ${
+                                                onboardStep === step.id 
+                                                    ? 'bg-white text-indigo-600 shadow-[0_0_15px_rgba(255,255,255,0.4)] scale-110' 
+                                                    : onboardStep > step.id 
+                                                        ? 'bg-white/30 text-white border border-white/50'
+                                                        : 'bg-white/10 text-slate-400 border border-white/20'
+                                            }`}>
+                                                {onboardStep > step.id ? <Check className="w-4 h-4" /> : step.id}
+                                            </div>
+                                            <div className={`pt-1 transition-all duration-300 ${onboardStep === step.id ? 'opacity-100 translate-x-1' : 'opacity-60'}`}>
+                                                <p className="font-black text-sm uppercase tracking-wider">{step.label}</p>
+                                                <p className="text-sm text-white/70 mt-0.5 font-semibold">{step.desc}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                            <button 
-                                onClick={() => setIsOnboardOpen(false)}
-                                className="p-2 hover:bg-slate-200 text-slate-400 hover:text-slate-600 rounded-xl transition-colors"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
+
+                            <div className="relative z-10">
+                                <p className="text-xs text-slate-400 font-semibold leading-relaxed">
+                                    This wizard provisions a fully isolated tenant instance on the Digifort Cloud.
+                                </p>
+                            </div>
                         </div>
 
-                        {/* Step Visualizer */}
-                        <div className="flex border-b border-slate-100">
-                            {[
-                                { id: 1, label: "Hospital Profile" },
-                                { id: 2, label: "Tenant & Credentials" },
-                                { id: 3, label: "Billing & Modules" }
-                            ].map((step) => (
-                                <div 
-                                    key={step.id}
-                                    className={`flex-1 text-center py-3 text-[10px] font-black uppercase tracking-wider border-b-2 transition-colors ${
-                                        onboardStep === step.id 
-                                            ? 'border-indigo-600 text-indigo-600 bg-indigo-50/10' 
-                                            : 'border-transparent text-slate-400'
+                        {/* RIGHT PANEL - Content Area */}
+                        <div className="flex-1 flex flex-col bg-slate-50 relative">
+                            {/* Mobile Header (Hidden on LG) */}
+                            <div className="lg:hidden p-4 border-b border-slate-200 bg-white flex justify-between items-center">
+                                <div className="flex items-center gap-2">
+                                    <Sparkles className="w-4 h-4 text-indigo-600" />
+                                    <span className="font-black text-sm text-slate-900">Step {onboardStep} of 3</span>
+                                </div>
+                                <button onClick={() => setIsOnboardOpen(false)} className="p-2 bg-slate-100 rounded-full">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            {/* Main Form Scroll Area */}
+                            <div className="flex-1 overflow-y-auto p-6 lg:p-10 space-y-8 animate-in slide-in-from-right-4 duration-500">
+                                
+                                {errorMsg && (
+                                    <div className="p-4 bg-red-50/80 backdrop-blur border border-red-200 text-red-800 rounded-2xl flex items-start gap-3 font-semibold shadow-sm animate-in fade-in zoom-in-95">
+                                        <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                                        <span className="text-sm">{errorMsg}</span>
+                                    </div>
+                                )}
+                                {successMsg && (
+                                    <div className="p-4 bg-emerald-50/80 backdrop-blur border border-emerald-200 text-emerald-800 rounded-2xl flex items-start gap-3 font-semibold shadow-sm animate-in fade-in zoom-in-95">
+                                        <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                                        <span className="text-sm">{successMsg}</span>
+                                    </div>
+                                )}
+
+                                {/* STEP 1 */}
+                                {onboardStep === 1 && (
+                                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                        
+                                        {/* Hospital Group Setup Premium Toggle */}
+                                        <div className="p-6 bg-white border border-slate-200/60 shadow-sm rounded-3xl transition-all duration-300 hover:shadow-md">
+                                            <div className="flex items-center justify-between cursor-pointer" onClick={() => setNewHospital(p => ({...p, is_group: !p.is_group}))}>
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`w-12 h-14 rounded-2xl flex items-center justify-center transition-colors ${newHospital.is_group ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                        <Building2 className="w-6 h-6" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-base font-black text-slate-900 tracking-tight">Hospital Group / Chain</h4>
+                                                        <p className="text-xs text-slate-500 mt-0.5 font-semibold">Is this branch part of a larger multi-hospital group?</p>
+                                                    </div>
+                                                </div>
+                                                <div className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 ${newHospital.is_group ? 'bg-indigo-600' : 'bg-slate-200'}`}>
+                                                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-300 ${newHospital.is_group ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                </div>
+                                            </div>
+
+                                            {/* Expandable Group Details */}
+                                            {newHospital.is_group && (
+                                                <div className="mt-6 pt-6 border-t border-slate-100 space-y-6 animate-in slide-in-from-top-4 fade-in duration-300">
+                                                    
+                                                    {/* Group Selector Cards */}
+                                                    <div>
+                                                        <label className="text-sm font-bold text-slate-500 uppercase tracking-wider block mb-3">Group Affiliation</label>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                            <div 
+                                                                onClick={() => setNewHospital({...newHospital, group_id: -1})}
+                                                                className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${newHospital.group_id === -1 ? 'border-indigo-500 bg-indigo-50/50 shadow-sm' : 'border-slate-200 hover:border-indigo-300 bg-white'}`}
+                                                            >
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${newHospital.group_id === -1 ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>+</div>
+                                                                    <span className={`font-black text-sm ${newHospital.group_id === -1 ? 'text-indigo-900' : 'text-slate-700'}`}>Create New Group</span>
+                                                                </div>
+                                                                <p className="text-xs text-slate-500 font-semibold pl-8">Register a completely new hospital network</p>
+                                                            </div>
+                                                            <div 
+                                                                onClick={() => setNewHospital({...newHospital, group_id: hospitalGroups.length > 0 ? hospitalGroups[0].group_id : null})}
+                                                                className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${newHospital.group_id !== -1 && newHospital.group_id !== null ? 'border-indigo-500 bg-indigo-50/50 shadow-sm' : 'border-slate-200 hover:border-indigo-300 bg-white'}`}
+                                                            >
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${newHospital.group_id !== -1 && newHospital.group_id !== null ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}><Building2 className="w-3 h-3"/></div>
+                                                                    <span className={`font-black text-sm ${newHospital.group_id !== -1 && newHospital.group_id !== null ? 'text-indigo-900' : 'text-slate-700'}`}>Existing Group</span>
+                                                                </div>
+                                                                {newHospital.group_id !== -1 && newHospital.group_id !== null ? (
+                                                                    <select
+                                                                        value={newHospital.group_id ?? ''}
+                                                                        onChange={(e) => setNewHospital({...newHospital, group_id: parseInt(e.target.value)})}
+                                                                        className="w-full text-xs font-bold p-2 bg-white rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                                    >
+                                                                        {hospitalGroups.map(g => (
+                                                                            <option key={g.group_id} value={g.group_id}>{g.group_name}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                ) : (
+                                                                    <p className="text-xs text-slate-500 font-semibold pl-8 mt-[-4px]">Add branch to an existing network</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* New Group Fields */}
+                                                    {newHospital.group_id === -1 && (
+                                                        <div className="p-5 bg-gradient-to-br from-slate-50 to-indigo-50/30 rounded-2xl border border-slate-200 space-y-4">
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                <div className="space-y-1.5">
+                                                                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Group Name *</label>
+                                                                    <div className="relative">
+                                                                        <input 
+                                                                            type="text" placeholder="e.g. Apollo Group"
+                                                                            value={newHospital.new_group_name} onChange={(e) => setNewHospital({...newHospital, new_group_name: e.target.value})}
+                                                                            className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm font-semibold transition-all shadow-sm"
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                                <div className="space-y-1.5">
+                                                                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Headquarters</label>
+                                                                    <div className="relative">
+                                                                        <input 
+                                                                            type="text" placeholder="e.g. Mumbai"
+                                                                            value={newHospital.new_group_location} onChange={(e) => setNewHospital({...newHospital, new_group_location: e.target.value})}
+                                                                            className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm font-semibold transition-all shadow-sm"
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                                <div className="space-y-1.5 md:col-span-2">
+                                                                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Group Admin Email</label>
+                                                                    <div className="relative">
+                                                                        <input 
+                                                                            type="email" placeholder="admin@group.com"
+                                                                            value={newHospital.new_group_email} onChange={(e) => setNewHospital({...newHospital, new_group_email: e.target.value})}
+                                                                            className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm font-semibold transition-all shadow-sm"
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <label className="flex items-center gap-3 cursor-pointer mt-4 p-3 bg-white rounded-xl border border-slate-200 hover:border-indigo-300 transition-colors shadow-sm">
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    checked={newHospital.add_branch_later}
+                                                                    onChange={(e) => setNewHospital({...newHospital, add_branch_later: e.target.checked})}
+                                                                    className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                                                                />
+                                                                <div>
+                                                                    <span className="text-xs font-black text-slate-800 block">Create Group Only (Skip Branch setup)</span>
+                                                                    <span className="text-xs font-semibold text-slate-500">You can add branches to this group later.</span>
+                                                                </div>
+                                                            </label>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Hide Branch profile if just creating group */}
+                                        {!(newHospital.is_group && newHospital.group_id === -1 && newHospital.add_branch_later) && (
+                                        <div className="space-y-6">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="h-px bg-slate-200 flex-1"></div>
+                                                <span className="text-sm font-bold text-slate-500 uppercase tracking-wider">Branch Details</span>
+                                                <div className="h-px bg-slate-200 flex-1"></div>
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Legal Name *</label>
+                                                <input 
+                                                    type="text" placeholder="e.g. Fortis Healthcare - Vashi"
+                                                    value={newHospital.legal_name} onChange={(e) => setNewHospital({...newHospital, legal_name: e.target.value})}
+                                                    className="w-full px-4 py-3.5 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm font-black text-slate-900 transition-all shadow-sm"
+                                                />
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                                <div className="space-y-2">
+                                                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Organization Type *</label>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        {['Multi-Specialty Hospital', 'Single-Specialty Hospital', 'Polyclinic / Day Care Center', 'Diagnostic Center (Lab/Imaging)', 'Independent Doctor Clinic', 'Pharmacy / Medical Store'].map(type => (
+                                                            <div 
+                                                                key={type}
+                                                                onClick={() => setNewHospital({...newHospital, organization_type: type, specialty: (SPECIALTY_OPTIONS[type] || defaultSpecialties)[0].value})}
+                                                                className={`p-2.5 rounded-xl border cursor-pointer text-center transition-all ${newHospital.organization_type === type ? 'bg-indigo-600 border-indigo-600 text-white font-bold shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 font-semibold'} text-sm`}
+                                                            >
+                                                                {type}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="space-y-2">
+                                                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Primary Specialty *</label>
+                                                    <div className="relative">
+                                                        <select
+                                                            value={newHospital.specialty}
+                                                            onChange={(e) => setNewHospital({...newHospital, specialty: e.target.value})}
+                                                            className="w-full px-4 py-3.5 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none text-sm font-semibold shadow-sm"
+                                                        >
+                                                            {(SPECIALTY_OPTIONS[newHospital.organization_type || 'Multi-Specialty Hospital'] || defaultSpecialties).map(opt => (
+                                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                            ))}
+                                                        </select>
+                                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                                                            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <div className="space-y-1.5">
+                                                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Registration Number</label>
+                                                    <input 
+                                                        type="text" placeholder="e.g. REG-776182-A"
+                                                        value={newHospital.registration_number} onChange={(e) => setNewHospital({...newHospital, registration_number: e.target.value})}
+                                                        className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold shadow-sm"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Total Bed Capacity</label>
+                                                    <input 
+                                                        type="number" placeholder="50"
+                                                        value={newHospital.total_bed_capacity} onChange={(e) => setNewHospital({...newHospital, total_bed_capacity: parseInt(e.target.value) || 0})}
+                                                        className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold shadow-sm"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">NABH Status</label>
+                                                    <select
+                                                        value={newHospital.nabh_accredited} onChange={(e) => setNewHospital({...newHospital, nabh_accredited: e.target.value})}
+                                                        className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold shadow-sm"
+                                                    >
+                                                        <option value="Full NABH">Full NABH Accredited</option>
+                                                        <option value="Entry Level NABH">Entry Level NABH</option>
+                                                        <option value="In Process">NABH In Process</option>
+                                                        <option value="Not Applied">Not Applied</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Director / CEO Full Name</label>
+                                                <input 
+                                                    type="text" placeholder="Dr. Aditya Sharma"
+                                                    value={newHospital.director_name} onChange={(e) => setNewHospital({...newHospital, director_name: e.target.value})}
+                                                    className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold shadow-sm"
+                                                />
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                 <div className="space-y-1.5 md:col-span-3">
+                                                     <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Hospital Physical Address</label>
+                                                     <input 
+                                                         type="text" placeholder="Main Outer Ring Road, Sector 5"
+                                                         value={newHospital.address} onChange={(e) => setNewHospital({...newHospital, address: e.target.value})}
+                                                         className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold shadow-sm"
+                                                     />
+                                                 </div>
+                                                 <div className="space-y-1.5">
+                                                     <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">City *</label>
+                                                     <input 
+                                                         type="text" placeholder="e.g. Vapi / Valsad"
+                                                         value={newHospital.city} onChange={(e) => setNewHospital({...newHospital, city: e.target.value})}
+                                                         className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold shadow-sm"
+                                                     />
+                                                 </div>
+                                                 <div className="space-y-1.5">
+                                                     <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">State Regulatory Preset *</label>
+                                                     <select 
+                                                         value={newHospital.regulatory_compliance_preset} 
+                                                         onChange={(e) => {
+                                                             const val = e.target.value;
+                                                             const stateName = val.includes('gujarat') ? 'Gujarat' : val.includes('maharashtra') ? 'Maharashtra' : val.includes('daman') ? 'DNH & Daman' : 'Pan-India Standard';
+                                                             setNewHospital({...newHospital, regulatory_compliance_preset: val, state: stateName});
+                                                         }}
+                                                         className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold shadow-sm"
+                                                     >
+                                                         <option value="gujarat_cea">Gujarat CEA (Vapi/Valsad/Surat)</option>
+                                                         <option value="maharashtra_nursing">Maharashtra Nursing Homes Act</option>
+                                                         <option value="daman_ut">DNH & Daman Diu UT Framework</option>
+                                                         <option value="national_standard">National CEA Regulatory Standard</option>
+                                                     </select>
+                                                 </div>
+                                                 <div className="space-y-1.5">
+                                                     <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Pincode</label>
+                                                     <input 
+                                                         type="text" placeholder="396191"
+                                                         value={newHospital.pincode} onChange={(e) => setNewHospital({...newHospital, pincode: e.target.value})}
+                                                         className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold shadow-sm"
+                                                     />
+                                                 </div>
+                                             </div>
+
+                                             {/* 📄 Download Rules & Regulations PDF Banner */}
+                                             <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-2xl flex items-center justify-between gap-4">
+                                                 <div className="flex items-center gap-3">
+                                                     <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-xs">
+                                                         <FileText className="w-5 h-5" />
+                                                     </div>
+                                                     <div>
+                                                         <h5 className="text-xs font-black text-slate-900">Healthcare Statutory Compliance Handbook</h5>
+                                                         <p className="text-[11px] text-indigo-700/80 font-semibold mt-0.5">DPDP 2023, NABH Standards, Fire NOC & AERB legal checklist PDF.</p>
+                                                     </div>
+                                                 </div>
+                                                 <button 
+                                                     type="button"
+                                                     onClick={() => {
+                                                         const printWindow = window.open('', '_blank');
+                                                         if (!printWindow) return;
+                                                         printWindow.document.write(`
+                                                             <html>
+                                                             <head>
+                                                                 <title>Digifort Labs - Healthcare Rules and Statutory Regulations Guide</title>
+                                                                 <style>
+                                                                     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #0f172a; line-height: 1.6; }
+                                                                     h1 { color: #4338ca; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; font-size: 24px; }
+                                                                     h2 { color: #1e293b; font-size: 16px; margin-top: 25px; border-left: 4px solid #4338ca; padding-left: 10px; }
+                                                                     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                                                                     th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; font-size: 13px; }
+                                                                     th { background-color: #f1f5f9; font-weight: bold; }
+                                                                     .badge { background: #dbeafe; color: #1e40af; padding: 4px 8px; rounded: 4px; font-size: 11px; font-weight: bold; }
+                                                                     .footer { margin-top: 40px; font-size: 11px; text-align: center; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+                                                                 </style>
+                                                             </head>
+                                                             <body>
+                                                                 <h1>🏥 Digifort Labs — Healthcare Statutory Rules & Regulations Compliance Guide</h1>
+                                                                 <p><strong>Selected Region Framework:</strong> ${newHospital.state} (${newHospital.regulatory_compliance_preset.toUpperCase()})</p>
+                                                                 <p><strong>Target Facility:</strong> ${newHospital.legal_name || 'Hospital Client'} — ${newHospital.total_bed_capacity} Beds (${newHospital.nabh_accredited})</p>
+                                                                 
+                                                                 <h2>1. Digital Personal Data Protection (DPDP Act 2023)</h2>
+                                                                 <ul>
+                                                                     <li><strong>AES-256 Medical Records Encryption:</strong> All scanned patient files & prescription notes encrypted at rest.</li>
+                                                                     <li><strong>Explicit Patient Consent Logs:</strong> Mandatory digital consent capture before WhatsApp prescription dispatch.</li>
+                                                                     <li><strong>ABHA M1/M2 Gateway Interoperability:</strong> Seamless linking with Ayushman Bharat Digital Mission IDs.</li>
+                                                                 </ul>
+
+                                                                 <h2>2. NABH Accreditation Standards (5th Edition)</h2>
+                                                                 <ul>
+                                                                     <li><strong>Patient Safety & Infection Control (AAC & COP):</strong> Standardized IPD admission & emergency triage logs.</li>
+                                                                     <li><strong>Medication Safety (MOM):</strong> Pharmacy double-verification for high-alert medications.</li>
+                                                                     <li><strong>Continuous Quality Monitoring (CQI):</strong> Automated OPD wait-time & bed turnaround telemetry.</li>
+                                                                 </ul>
+
+                                                                 <h2>3. Statutory State Licenses & NOC Checklist</h2>
+                                                                 <table>
+                                                                     <tr><th>License / Certificate</th><th>Regulatory Authority</th><th>Mandatory Renewal Cycle</th></tr>
+                                                                     <tr><td>Clinical Establishment Act License</td><td>District Health Office (DHO / Chief Medical Officer)</td><td>Every 3 Years</td></tr>
+                                                                     <tr><td>Fire Safety NOC</td><td>State Fire & Emergency Services</td><td>Annual Renewal</td></tr>
+                                                                     <tr><td>Biomedical Waste (BMW) Authorization</td><td>State Pollution Control Board (GPCB/MPCB)</td><td>Every 5 Years</td></tr>
+                                                                     <tr><td>AERB X-Ray / CT Registration</td><td>Atomic Energy Regulatory Board (eLORA Portal)</td><td>Every 5 Years</td></tr>
+                                                                     <tr><td>Pharmacy Retail / Wholesale License</td><td>State Food & Drugs Laboratory (FDCA)</td><td>Every 5 Years</td></tr>
+                                                                 </table>
+
+                                                                 <div className="footer">
+                                                                     Issued by Digifort Labs Platform Admin Control | Verified for ${newHospital.legal_name || 'Hospital Client'} | ${new Date().toLocaleDateString('en-IN')}
+                                                                 </div>
+                                                                 <script>window.print();</script>
+                                                             </body>
+                                                             </html>
+                                                         `);
+                                                         printWindow.document.close();
+                                                     }}
+                                                     className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all shrink-0 active:scale-95"
+                                                 >
+                                                     <Download className="w-3.5 h-3.5" /> Download PDF Guide
+                                                 </button>
+                                             </div>
+                                        </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* STEP 2 */}
+                                {onboardStep === 2 && (
+                                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                        
+                                        <div className="p-6 bg-indigo-50/50 rounded-3xl border border-slate-200 space-y-6">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center">
+                                                    <Globe className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-black text-indigo-950 tracking-tight">Tenant Domain Routing</h4>
+                                                    <p className="text-xs text-indigo-700/70 font-semibold mt-0.5">Isolated URL for patient and staff login.</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-black text-indigo-800 uppercase tracking-wider block">Subdomain Slug *</label>
+                                                <div className="flex rounded-xl overflow-hidden shadow-sm focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 transition-all">
+                                                    <div className="bg-white flex-1 relative">
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="e.g. apollo-vashi"
+                                                            value={newHospital.subdomain}
+                                                            onChange={(e) => handleSubdomainChange(e.target.value)}
+                                                            className="w-full px-4 py-4 focus:outline-none text-right font-black text-indigo-950 tracking-tight placeholder-slate-300"
+                                                        />
+                                                    </div>
+                                                    <div className="px-5 bg-indigo-900 text-indigo-100 font-bold text-sm flex items-center select-none border-l border-indigo-800">
+                                                        {hostSuffix}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* WhatsApp E-Rx & OPD Messaging Configuration */}
+                                        <div className="p-5 bg-emerald-50/60 rounded-3xl border border-emerald-200 space-y-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-9 h-9 bg-emerald-600 text-white rounded-xl flex items-center justify-center font-bold text-xs shadow-sm">
+                                                    WA
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-black text-emerald-950 tracking-tight">WhatsApp Patient Messaging Mode</h4>
+                                                    <p className="text-xs text-emerald-700/80 font-semibold">Pre-configured wa.me link integration for local web.whatsapp.com</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                                <div 
+                                                    onClick={() => setNewHospital({...newHospital, whatsapp_dispatch_mode: 'wa_me_link'})}
+                                                    className={`p-3 rounded-2xl border-2 cursor-pointer transition-all ${
+                                                        newHospital.whatsapp_dispatch_mode === 'wa_me_link'
+                                                            ? 'bg-white border-emerald-600 shadow-sm ring-1 ring-emerald-500'
+                                                            : 'bg-white/60 border-slate-200 hover:border-emerald-300'
+                                                    }`}
+                                                >
+                                                    <p className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                                                        <span>💬 Direct wa.me Web Link</span>
+                                                        <span className="text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full">Default</span>
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-500 mt-1 font-medium">Launches web.whatsapp.com directly in browser with pre-filled E-Rx text. Zero API fee.</p>
+                                                </div>
+
+                                                <div 
+                                                    onClick={() => setNewHospital({...newHospital, whatsapp_dispatch_mode: 'desktop_pairing'})}
+                                                    className={`p-3 rounded-2xl border-2 cursor-pointer transition-all ${
+                                                        newHospital.whatsapp_dispatch_mode === 'desktop_pairing'
+                                                            ? 'bg-white border-emerald-600 shadow-sm ring-1 ring-emerald-500'
+                                                            : 'bg-white/60 border-slate-200 hover:border-emerald-300'
+                                                    }`}
+                                                >
+                                                    <p className="text-xs font-black text-slate-900">💻 Desktop Worker Pairing</p>
+                                                    <p className="text-[11px] text-slate-500 mt-1 font-medium">Dispatches background messages via local Windows Desktop pairing worker.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Official Email Address *</label>
+                                                <div className="relative">
+                                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-500" />
+                                                    <input 
+                                                        type="email" placeholder="contact@hospital.com"
+                                                        name="hospital_official_email_no_autofill"
+                                                        autoComplete="off"
+                                                        value={newHospital.email} onChange={(e) => setNewHospital({...newHospital, email: e.target.value})}
+                                                        className="w-full pl-11 pr-4 py-3.5 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold shadow-sm"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">GST Identification</label>
+                                                <input 
+                                                    type="text" placeholder="29GGGGG1314R9Z8"
+                                                    value={newHospital.gst_number} onChange={(e) => setNewHospital({...newHospital, gst_number: e.target.value})}
+                                                    className="w-full px-4 py-3.5 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-bold uppercase shadow-sm"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm space-y-6 relative overflow-hidden">
+                                            {/* Decorative element */}
+                                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-full -z-0"></div>
+                                            
+                                            <div className="relative z-10">
+                                                <div className="flex items-center gap-3 mb-6">
+                                                    <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center">
+                                                        <ShieldAlert className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-black text-slate-900 tracking-tight">Root Admin Credentials</h4>
+                                                        <p className="text-xs text-slate-500 font-semibold mt-0.5">Seeds the initial HOSPITAL_ADMIN account.</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Admin Full Name *</label>
+                                                        <div className="relative">
+                                                            <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-500" />
+                                                            <input 
+                                                                type="text" placeholder="Aditya Sharma"
+                                                                value={newHospital.admin_full_name} onChange={(e) => setNewHospital({...newHospital, admin_full_name: e.target.value})}
+                                                                className="w-full pl-10 pr-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-sm font-semibold transition-all"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Admin Phone *</label>
+                                                        <div className="relative">
+                                                            <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-500" />
+                                                            <input 
+                                                                type="text" placeholder="+91 99009 88123"
+                                                                value={newHospital.admin_phone} onChange={(e) => setNewHospital({...newHospital, admin_phone: e.target.value})}
+                                                                className="w-full pl-10 pr-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-sm font-semibold transition-all"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Login Email *</label>
+                                                        <div className="relative">
+                                                            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-500" />
+                                                            <input 
+                                                                type="email" placeholder="admin@domain.com"
+                                                                name="hospital_admin_email_no_autofill"
+                                                                autoComplete="off"
+                                                                value={newHospital.admin_email} onChange={(e) => setNewHospital({...newHospital, admin_email: e.target.value})}
+                                                                className="w-full pl-10 pr-4 py-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-sm font-semibold transition-all"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="col-span-2 mt-4 p-4 rounded-xl bg-indigo-50 border border-indigo-100 flex items-start gap-3">
+                                                        <div className="p-2 rounded-lg bg-indigo-600 text-white shrink-0 mt-0.5">
+                                                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-bold text-slate-800">Admin Password Setup</p>
+                                                            <p className="text-xs text-slate-500 mt-1">A secure setup link will be emailed to <span className="font-bold text-indigo-600">{newHospital.admin_email || 'the admin email'}</span> once onboarding is complete. They will set their own password.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* STEP 3 */}
+                                {onboardStep === 3 && (
+                                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                        
+                                        {/* Billing Cycle & Licensing */}
+                                        <div className="grid grid-cols-2 gap-6 mb-8">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Billing Cycle *</label>
+                                                <div className="flex gap-2">
+                                                    {['Monthly', 'Yearly'].map(cycle => (
+                                                        <button
+                                                            key={cycle}
+                                                            onClick={() => setNewHospital({ ...newHospital, billing_cycle: cycle })}
+                                                            className={`flex-1 py-3 rounded-xl border text-sm font-bold transition-all ${newHospital.billing_cycle === cycle ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}
+                                                        >
+                                                            {cycle}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Platform Base Price (₹) *</label>
+                                                <div className="relative">
+                                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                                                    <input type="text"
+                                                        value={newHospital.platform_base_price}
+                                                        onChange={(e) => setNewHospital({ ...newHospital, platform_base_price: e.target.value as any })}
+                                                        className="w-full h-12 pl-8 pr-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-bold text-slate-800"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Included Users</label>
+                                                <input type="text" disabled value="First 5 Users Free" className="w-full h-12 px-4 rounded-xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-500" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Extra User Price (₹/user) *</label>
+                                                <div className="relative">
+                                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                                                    <input type="text"
+                                                        value={newHospital.extra_user_price}
+                                                        onChange={(e) => setNewHospital({ ...newHospital, extra_user_price: e.target.value as any })}
+                                                        className="w-full h-12 pl-8 pr-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-sm font-bold text-slate-800"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                                            <div className="space-y-1.5 md:col-span-2">
+                                                <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">MRD Service Type</label>
+                                                <div className="relative">
+                                                    <select
+                                                        value={newHospital.mrd_service_type}
+                                                        onChange={(e) => setNewHospital({...newHospital, mrd_service_type: e.target.value})}
+                                                        className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none text-sm font-semibold shadow-sm"
+                                                    >
+                                                        <option value="PORTAL_ONLY">Portal Only (Self Storage)</option>
+                                                        <option value="SCANNING_SUPPORT">Scanning Support (Digifort Scans)</option>
+                                                        <option value="FULL_MANAGED">Fully Managed (Digifort Stores)</option>
+                                                    </select>
+                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                                                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Price per MRD (₹)</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={newHospital.price_per_file}
+                                                    onChange={(e) => setNewHospital({...newHospital, price_per_file: e.target.value as any})}
+                                                    className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-black text-slate-900 shadow-sm"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-5">
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Included Pages / File</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={newHospital.included_pages}
+                                                    onChange={(e) => setNewHospital({...newHospital, included_pages: e.target.value as any})}
+                                                    className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold shadow-sm"
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Extra Page Price (₹)</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={newHospital.price_per_extra_page}
+                                                    onChange={(e) => setNewHospital({...newHospital, price_per_extra_page: e.target.value as any})}
+                                                    className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold shadow-sm"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Subscribed Modules Matrix</label>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                                                {MODULE_OPTIONS.map((opt) => {
+                                                    const isEnabled = newHospital.enabled_modules.includes(opt.id);
+                                                    const Icon = opt.icon;
+                                                    return (
+                                                        <div 
+                                                            key={opt.id}
+                                                            onClick={() => toggleModuleOnboard(opt.id)}
+                                                            className={`border p-3.5 rounded-2xl cursor-pointer transition-all flex items-start gap-3 relative ${
+                                                                isEnabled 
+                                                                    ? `${opt.color} ring-2 ring-indigo-500 shadow-md` 
+                                                                    : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                                            }`}
+                                                        >
+                                                            <div className={`p-2 rounded-xl border ${isEnabled ? 'bg-indigo-600 text-white border-transparent' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+                                                                <Icon className="w-4 h-4" />
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <h5 className="font-black text-slate-900 text-xs">{opt.label}</h5>
+                                                                <p className="text-xs text-slate-400 mt-0.5 leading-normal font-semibold">{opt.desc}</p>
+                                                            </div>
+                                                            {isEnabled && (
+                                                                <div className="w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center absolute top-3 right-3 text-[9px] font-bold">
+                                                                    ✓
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                            </div>
+
+                            {/* Sticky Footer */}
+                            <div className="p-6 border-t border-slate-200 bg-white flex justify-between items-center rounded-br-[2rem]">
+                                <button
+                                    disabled={onboardStep === 1}
+                                    onClick={() => setOnboardStep(prev => Math.max(1, prev - 1))}
+                                    className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${
+                                        onboardStep === 1 
+                                            ? 'text-slate-300 bg-transparent opacity-50 cursor-not-allowed' 
+                                            : 'text-slate-600 hover:bg-slate-100 active:scale-95'
                                     }`}
                                 >
-                                    {step.id}. {step.label}
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Modal Content - Scrollable */}
-                        <div className="p-6 overflow-y-auto flex-1 space-y-5 text-xs text-slate-700">
-                            {errorMsg && (
-                                <div className="p-4 bg-red-50 border border-red-200 text-red-800 rounded-2xl flex items-start gap-2.5 font-semibold">
-                                    <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
-                                    <span>{errorMsg}</span>
-                                </div>
-                            )}
-                            {successMsg && (
-                                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-start gap-2.5 font-semibold">
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
-                                    <span>{successMsg}</span>
-                                </div>
-                            )}
-
-                            {/* STEP 1: Hospital Profile */}
-                            {onboardStep === 1 && (
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Legal Name *</label>
-                                            <input 
-                                                type="text" 
-                                                placeholder="e.g. Fortis Healthcare"
-                                                value={newHospital.legal_name}
-                                                onChange={(e) => setNewHospital({...newHospital, legal_name: e.target.value})}
-                                                className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Organization Type *</label>
-                                            <select
-                                                value={newHospital.organization_type}
-                                                onChange={(e) => setNewHospital({...newHospital, organization_type: e.target.value})}
-                                                className="w-full p-3 rounded-xl border border-slate-200 bg-white focus:outline-none"
-                                            >
-                                                <option value="Hospital">Hospital</option>
-                                                <option value="Clinic">Clinic</option>
-                                                <option value="Dental Clinic">Dental Clinic</option>
-                                                <option value="Independent Doctor">Independent Doctor</option>
-                                            </select>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Primary Specialty *</label>
-                                            <select
-                                                value={newHospital.specialty}
-                                                onChange={(e) => setNewHospital({...newHospital, specialty: e.target.value})}
-                                                className="w-full p-3 rounded-xl border border-slate-200 bg-white focus:outline-none"
-                                            >
-                                                <option value="General">General / Multi-Specialty</option>
-                                                <option value="Doctor">Independent Doctor / Consultant</option>
-                                                <option value="Dental">Dental Care Clinic</option>
-                                                <option value="ENT">ENT Diagnostics</option>
-                                                <option value="Clinic">Outpatient Clinic</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Registration Number</label>
-                                            <input 
-                                                type="text" 
-                                                placeholder="e.g. REG-776182-A"
-                                                value={newHospital.registration_number}
-                                                onChange={(e) => setNewHospital({...newHospital, registration_number: e.target.value})}
-                                                className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Established Year</label>
-                                            <input 
-                                                type="number" 
-                                                value={newHospital.established_year}
-                                                onChange={(e) => setNewHospital({...newHospital, established_year: parseInt(e.target.value) || 2026})}
-                                                className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Director / CEO Full Name</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Dr. Aditya Sharma"
-                                            value={newHospital.director_name}
-                                            onChange={(e) => setNewHospital({...newHospital, director_name: e.target.value})}
-                                            className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        />
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Hospital Physical Address</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Main Outer Ring Road, Sector 5"
-                                            value={newHospital.address}
-                                            onChange={(e) => setNewHospital({...newHospital, address: e.target.value})}
-                                            className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">City</label>
-                                            <input 
-                                                type="text" 
-                                                value={newHospital.city}
-                                                onChange={(e) => setNewHospital({...newHospital, city: e.target.value})}
-                                                className="w-full p-3 rounded-xl border border-slate-200"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">State</label>
-                                            <input 
-                                                type="text" 
-                                                value={newHospital.state}
-                                                onChange={(e) => setNewHospital({...newHospital, state: e.target.value})}
-                                                className="w-full p-3 rounded-xl border border-slate-200"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Pincode</label>
-                                            <input 
-                                                type="text" 
-                                                value={newHospital.pincode}
-                                                onChange={(e) => setNewHospital({...newHospital, pincode: e.target.value})}
-                                                className="w-full p-3 rounded-xl border border-slate-200"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* STEP 2: Subdomain Selector & Admin credentials */}
-                            {onboardStep === 2 && (
-                                <div className="space-y-4">
-                                    {/* Subdomain Input with Dynamic Suffix */}
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Select Subdomain *</label>
-                                        <div className="flex border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500">
-                                            <input 
-                                                type="text" 
-                                                placeholder="e.g. dixithospital"
-                                                value={newHospital.subdomain}
-                                                onChange={(e) => handleSubdomainChange(e.target.value)}
-                                                className="flex-1 p-3 focus:outline-none text-right font-black tracking-tight"
-                                            />
-                                            <span className="p-3 bg-slate-100 border-l border-slate-200 text-slate-500 font-bold text-xs flex items-center select-none">
-                                                {hostSuffix}
-                                            </span>
-                                        </div>
-                                        <span className="text-[9px] text-slate-400 mt-1 block font-semibold leading-relaxed">
-                                            This subdomain will be the direct URL slug that users access (e.g. <span className="text-indigo-600 font-black">https://{newHospital.subdomain || '[slug]'}{hostSuffix}</span>).
-                                        </span>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Contact Email Address *</label>
-                                            <input 
-                                                type="email" 
-                                                value={newHospital.email}
-                                                onChange={(e) => setNewHospital({...newHospital, email: e.target.value})}
-                                                className="w-full p-3 rounded-xl border border-slate-200"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">GST Identification Number</label>
-                                            <input 
-                                                type="text" 
-                                                placeholder="e.g. 29GGGGG1314R9Z8"
-                                                value={newHospital.gst_number}
-                                                onChange={(e) => setNewHospital({...newHospital, gst_number: e.target.value})}
-                                                className="w-full p-3 rounded-xl border border-slate-200 uppercase"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Platform Admin Credentials seed */}
-                                    <div className="bg-slate-50/80 border border-slate-200/50 rounded-2xl p-4 space-y-3.5">
-                                        <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                                            <ShieldAlert className="w-4 h-4 text-indigo-600" />
-                                            Tenant Admin Credentials
-                                        </h4>
-                                        <p className="text-[10px] text-slate-400 leading-normal font-semibold">
-                                            These credentials will seed the initial <span className="text-slate-800 font-bold">HOSPITAL_ADMIN</span> account for the client. They can sign in instantly to configure staff roles.
-                                        </p>
-
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Admin Full Name *</label>
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="Aditya Sharma"
-                                                    value={newHospital.admin_full_name}
-                                                    onChange={(e) => setNewHospital({...newHospital, admin_full_name: e.target.value})}
-                                                    className="w-full p-3 rounded-xl border border-slate-200 bg-white"
-                                                />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Admin Phone Number *</label>
-                                                <input 
-                                                    type="text" 
-                                                    placeholder="+91 99009 88123"
-                                                    value={newHospital.admin_phone}
-                                                    onChange={(e) => setNewHospital({...newHospital, admin_phone: e.target.value})}
-                                                    className="w-full p-3 rounded-xl border border-slate-200 bg-white"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Admin Login Email *</label>
-                                                <input 
-                                                    type="email" 
-                                                    value={newHospital.admin_email}
-                                                    onChange={(e) => setNewHospital({...newHospital, admin_email: e.target.value})}
-                                                    className="w-full p-3 rounded-xl border border-slate-200 bg-white"
-                                                />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Secure Password *</label>
-                                                <input 
-                                                    type="password" 
-                                                    value={newHospital.password}
-                                                    onChange={(e) => setNewHospital({...newHospital, password: e.target.value})}
-                                                    className="w-full p-3 rounded-xl border border-slate-200 bg-white font-mono"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* STEP 3: Modules & Billing */}
-                            {onboardStep === 3 && (
-                                <div className="space-y-5">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        {/* Subscription Tier */}
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Subscription Tier</label>
-                                            <select
-                                                value={newHospital.subscription_tier}
-                                                onChange={(e) => setNewHospital({...newHospital, subscription_tier: e.target.value})}
-                                                className="w-full p-3 rounded-xl border border-slate-200 bg-white focus:outline-none"
-                                            >
-                                                <option value="Starter">Starter (Basic MRD)</option>
-                                                <option value="Standard">Standard (MRD + Outpatient)</option>
-                                                <option value="Professional">Professional (Full HMS Clinic)</option>
-                                                <option value="Enterprise">Enterprise (IPD + Asset + High SLA)</option>
-                                            </select>
-                                        </div>
-
-                                        {/* MRD Service Type */}
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">MRD Service Type</label>
-                                            <select
-                                                value={newHospital.mrd_service_type}
-                                                onChange={(e) => setNewHospital({...newHospital, mrd_service_type: e.target.value})}
-                                                className="w-full p-3 rounded-xl border border-slate-200 bg-white focus:outline-none"
-                                            >
-                                                <option value="PORTAL_ONLY">Portal Only (Self Storage)</option>
-                                                <option value="SCANNING_SUPPORT">Scanning Support (Digifort Scans)</option>
-                                                <option value="FULL_MANAGED">Fully Managed (Digifort Stores)</option>
-                                            </select>
-                                        </div>
-
-                                        {/* Price per patient MRD file */}
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Price per Patient MRD File (Patient ID)</label>
-                                            <input 
-                                                type="number" 
-                                                value={newHospital.price_per_file}
-                                                onChange={(e) => setNewHospital({...newHospital, price_per_file: parseFloat(e.target.value) || 0})}
-                                                className="w-full p-3 rounded-xl border border-slate-200"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Pages configs */}
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Included Pages per File</label>
-                                            <input 
-                                                type="number" 
-                                                value={newHospital.included_pages}
-                                                onChange={(e) => setNewHospital({...newHospital, included_pages: parseInt(e.target.value) || 20})}
-                                                className="w-full p-3 rounded-xl border border-slate-200"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Price per Extra Page (₹)</label>
-                                            <input 
-                                                type="number" 
-                                                value={newHospital.price_per_extra_page}
-                                                onChange={(e) => setNewHospital({...newHospital, price_per_extra_page: parseFloat(e.target.value) || 1.0})}
-                                                className="w-full p-3 rounded-xl border border-slate-200"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Interactive Module Card Selector Grid */}
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Select Subscribed Modules *</label>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                                            {MODULE_OPTIONS.map((opt) => {
-                                                const isEnabled = newHospital.enabled_modules.includes(opt.id);
-                                                const Icon = opt.icon;
-                                                return (
-                                                    <div 
-                                                        key={opt.id}
-                                                        onClick={() => toggleModuleOnboard(opt.id)}
-                                                        className={`border p-3.5 rounded-2xl cursor-pointer transition-all flex items-start gap-3 relative ${
-                                                            isEnabled 
-                                                                ? `${opt.color} ring-2 ring-indigo-500 shadow-md` 
-                                                                : 'bg-white border-slate-200 hover:border-slate-300'
-                                                        }`}
-                                                    >
-                                                        <div className={`p-2 rounded-xl border ${isEnabled ? 'bg-indigo-600 text-white border-transparent' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
-                                                            <Icon className="w-4 h-4" />
-                                                        </div>
-                                                        <div className="flex-1">
-                                                            <h5 className="font-black text-slate-900 text-xs">{opt.label}</h5>
-                                                            <p className="text-[10px] text-slate-400 mt-0.5 leading-normal font-semibold">{opt.desc}</p>
-                                                        </div>
-                                                        {isEnabled && (
-                                                            <div className="w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center absolute top-3 right-3 text-[9px] font-bold">
-                                                                ✓
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Modal Footer Controls */}
-                        <div className="p-6 border-t border-slate-100 flex justify-between items-center bg-slate-50/50">
-                            <button
-                                disabled={onboardStep === 1}
-                                onClick={() => setOnboardStep(prev => Math.max(1, prev - 1))}
-                                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-colors ${
-                                    onboardStep === 1 
-                                        ? 'text-slate-300 bg-transparent cursor-not-allowed' 
-                                        : 'text-slate-600 hover:bg-slate-200'
-                                }`}
-                            >
-                                Back
-                            </button>
-
-                            {onboardStep < 3 ? (
-                                <button
-                                    onClick={() => setOnboardStep(prev => Math.min(3, prev + 1))}
-                                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-md"
-                                >
-                                    Continue
+                                    Go Back
                                 </button>
-                            ) : (
-                                <button
-                                    onClick={handleOnboardSubmit}
-                                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-md flex items-center gap-1.5"
-                                >
-                                    <Check className="w-4 h-4" />
-                                    Complete Onboard
-                                </button>
-                            )}
+
+                                {onboardStep < 3 ? (
+                                    <button
+                                        onClick={() => setOnboardStep(prev => Math.min(3, prev + 1))}
+                                        className="bg-slate-900 hover:bg-indigo-600 text-white px-8 py-3 rounded-xl text-xs font-black uppercase tracking-wider shadow-lg hover:shadow-indigo-500/30 transition-all duration-300 active:scale-95 flex items-center gap-2"
+                                    >
+                                        Continue <Sparkles className="w-4 h-4" />
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleOnboardSubmit}
+                                        className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-xl text-xs font-black uppercase tracking-wider shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all duration-300 active:scale-95 flex items-center gap-2"
+                                    >
+                                        <CheckCircle2 className="w-4 h-4" />
+                                        Complete Onboarding
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1418,7 +2128,7 @@ export default function ManageClientsPage() {
                                     <Settings className="w-5 h-5 text-indigo-600" />
                                     Configure Subscriptions & Billing
                                 </h3>
-                                <p className="text-[11px] text-slate-400 mt-0.5">Editing: {editingHospital.legal_name}</p>
+                                <p className="text-sm text-slate-400 mt-0.5">Editing: {editingHospital.legal_name}</p>
                             </div>
                             <button 
                                 onClick={() => {
@@ -1441,7 +2151,7 @@ export default function ManageClientsPage() {
                                 <button 
                                     key={tab.id}
                                     onClick={() => setEditTab(tab.id as any)}
-                                    className={`flex-1 text-center py-3 text-[10px] font-black uppercase tracking-wider border-b-2 transition-colors focus:outline-none ${
+                                    className={`flex-1 text-center py-3 text-xs font-black uppercase tracking-wider border-b-2 transition-colors focus:outline-none ${
                                         editTab === tab.id 
                                             ? 'border-indigo-600 text-indigo-600 bg-indigo-50/10' 
                                             : 'border-transparent text-slate-400 hover:text-slate-600'
@@ -1472,7 +2182,7 @@ export default function ManageClientsPage() {
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Legal Name</label>
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Legal Name</label>
                                             <input
                                                 type="text"
                                                 value={editingHospital.legal_name}
@@ -1481,7 +2191,7 @@ export default function ManageClientsPage() {
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Subdomain</label>
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subdomain</label>
                                             <div className="flex items-center rounded-xl border border-slate-200 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-400">
                                                 <input
                                                     type="text"
@@ -1490,23 +2200,48 @@ export default function ManageClientsPage() {
                                                     className="flex-1 p-3 text-sm font-mono focus:outline-none bg-white"
                                                     placeholder="slug"
                                                 />
-                                                <span className="px-2 text-[11px] text-slate-400 bg-slate-50 border-l border-slate-200 whitespace-nowrap">{hostSuffix}</span>
+                                                <span className="px-2 text-sm text-slate-400 bg-slate-50 border-l border-slate-200 whitespace-nowrap">{hostSuffix}</span>
                                             </div>
-                                            <p className="text-[10px] text-amber-600">Changing this updates the hospital login URL</p>
+                                            <p className="text-xs text-amber-600">Changing this updates the hospital login URL</p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Organization Type *</label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {['Multi-Specialty Hospital', 'Single-Specialty Hospital', 'Polyclinic / Day Care Center', 'Diagnostic Center (Lab/Imaging)', 'Independent Doctor Clinic', 'Pharmacy / Medical Store'].map(type => (
+                                                    <div 
+                                                        key={type}
+                                                        onClick={() => setEditingHospital({...editingHospital, organization_type: type, specialty: (SPECIALTY_OPTIONS[type] || defaultSpecialties)[0].value})}
+                                                        className={`p-2.5 rounded-xl border cursor-pointer text-center transition-all ${editingHospital.organization_type === type ? 'bg-indigo-600 border-indigo-600 text-white font-bold shadow-md' : 'bg-white border-slate-200 text-slate-600 hover:border-indigo-300 font-semibold'} text-xs`}
+                                                    >
+                                                        {type}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Primary Specialty *</label>
+                                            <div className="relative">
+                                                <select
+                                                    value={editingHospital.specialty || ''}
+                                                    onChange={(e) => setEditingHospital({...editingHospital, specialty: e.target.value})}
+                                                    className="w-full px-4 py-3 bg-white rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none text-sm font-semibold shadow-sm"
+                                                >
+                                                    {(SPECIALTY_OPTIONS[editingHospital.organization_type || 'Multi-Specialty Hospital'] || defaultSpecialties).map(opt => (
+                                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                    ))}
+                                                </select>
+                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Specialty</label>
-                                            <input
-                                                type="text"
-                                                value={editingHospital.specialty || ''}
-                                                onChange={(e) => setEditingHospital({...editingHospital, specialty: e.target.value})}
-                                                className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Director / CEO Name</label>
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Director / CEO Name</label>
                                             <input
                                                 type="text"
                                                 value={editingHospital.director_name || ''}
@@ -1517,7 +2252,7 @@ export default function ManageClientsPage() {
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">GST Registration Number</label>
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">GST Registration Number</label>
                                             <input
                                                 type="text"
                                                 value={editingHospital.gst_number || ''}
@@ -1529,16 +2264,17 @@ export default function ManageClientsPage() {
 
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Contact Email</label>
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Contact Email</label>
                                             <input 
                                                 type="email" 
+                                                autoComplete="new-password"
                                                 value={editingHospital.email}
                                                 onChange={(e) => setEditingHospital({...editingHospital, email: e.target.value})}
                                                 className="w-full p-3 rounded-xl border border-slate-200"
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Phone Number</label>
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Phone Number</label>
                                             <input 
                                                 type="text" 
                                                 value={editingHospital.phone || ''}
@@ -1549,7 +2285,7 @@ export default function ManageClientsPage() {
                                     </div>
 
                                     <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Address Details</label>
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Address Details</label>
                                         <input 
                                             type="text" 
                                             value={editingHospital.address || ''}
@@ -1564,8 +2300,8 @@ export default function ManageClientsPage() {
                             {editTab === 'modules' && (
                                 <div className="space-y-4">
                                     <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Modify Enabled Modules</label>
-                                        <p className="text-[10px] text-slate-400 leading-normal font-semibold">Toggling these parameters instantly updates client access authorizations across their custom subdomains.</p>
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Modify Enabled Modules</label>
+                                        <p className="text-xs text-slate-400 leading-normal font-semibold">Toggling these parameters instantly updates client access authorizations across their custom subdomains.</p>
                                     </div>
                                     
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -1587,7 +2323,7 @@ export default function ManageClientsPage() {
                                                     </div>
                                                     <div className="flex-1">
                                                         <h5 className="font-black text-slate-900 text-xs">{opt.label}</h5>
-                                                        <p className="text-[10px] text-slate-400 mt-0.5 leading-normal font-semibold">{opt.desc}</p>
+                                                        <p className="text-xs text-slate-400 mt-0.5 leading-normal font-semibold">{opt.desc}</p>
                                                     </div>
                                                     {isEnabled && (
                                                         <div className="w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center absolute top-3 right-3 text-[9px] font-bold">
@@ -1606,7 +2342,7 @@ export default function ManageClientsPage() {
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Subscription Plan Tier</label>
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subscription Plan Tier</label>
                                             <select
                                                 value={editingHospital.subscription_tier}
                                                 onChange={(e) => setEditingHospital({...editingHospital, subscription_tier: e.target.value})}
@@ -1620,7 +2356,7 @@ export default function ManageClientsPage() {
                                         </div>
 
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">MRD Service Type</label>
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">MRD Service Type</label>
                                             <select
                                                 value={editingHospital.mrd_service_type}
                                                 onChange={(e) => setEditingHospital({...editingHospital, mrd_service_type: e.target.value})}
@@ -1633,11 +2369,11 @@ export default function ManageClientsPage() {
                                         </div>
 
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Price per Patient MRD File (Patient ID)</label>
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Price per Patient MRD File (Patient ID)</label>
                                             <input 
-                                                type="number" 
+                                                type="text" 
                                                 value={editingHospital.price_per_file}
-                                                onChange={(e) => setEditingHospital({...editingHospital, price_per_file: parseFloat(e.target.value) || 0})}
+                                                onChange={(e) => setEditingHospital({...editingHospital, price_per_file: e.target.value as any})}
                                                 className="w-full p-3 rounded-xl border border-slate-200"
                                             />
                                         </div>
@@ -1645,20 +2381,20 @@ export default function ManageClientsPage() {
 
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Included Pages</label>
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Included Pages</label>
                                             <input 
-                                                type="number" 
+                                                type="text" 
                                                 value={editingHospital.included_pages}
-                                                onChange={(e) => setEditingHospital({...editingHospital, included_pages: parseInt(e.target.value) || 0})}
+                                                onChange={(e) => setEditingHospital({...editingHospital, included_pages: e.target.value as any})}
                                                 className="w-full p-3 rounded-xl border border-slate-200"
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Price per Extra Page (₹)</label>
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Price per Extra Page (₹)</label>
                                             <input 
-                                                type="number" 
+                                                type="text" 
                                                 value={editingHospital.price_per_extra_page}
-                                                onChange={(e) => setEditingHospital({...editingHospital, price_per_extra_page: parseFloat(e.target.value) || 0})}
+                                                onChange={(e) => setEditingHospital({...editingHospital, price_per_extra_page: e.target.value as any})}
                                                 className="w-full p-3 rounded-xl border border-slate-200"
                                             />
                                         </div>
@@ -1700,7 +2436,7 @@ export default function ManageClientsPage() {
                                     <BadgeAlert className="w-5 h-5 text-amber-600" />
                                     Review Pending Updates
                                 </h3>
-                                <p className="text-[11px] text-amber-700/70 mt-0.5">Requested by {reviewHospital.legal_name}</p>
+                                <p className="text-sm text-amber-700/70 mt-0.5">Requested by {reviewHospital.legal_name}</p>
                             </div>
                             <button 
                                 onClick={() => setReviewHospital(null)}

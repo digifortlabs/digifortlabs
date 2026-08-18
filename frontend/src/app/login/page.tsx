@@ -10,7 +10,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { apiFetch } from '@/config/api';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { Mail, Lock, ArrowRight, ShieldCheck, Activity, Globe, Home } from 'lucide-react';
+import { Mail, Lock, ArrowRight, ShieldCheck, Activity, Globe, Home, Stethoscope, HeartPulse, Microscope, Syringe, Building2, UserCheck, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 
 function LoginForm() {
@@ -18,6 +18,7 @@ function LoginForm() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
  
     // MFA State
@@ -60,6 +61,7 @@ function LoginForm() {
         setDeviceId(storedDeviceId);
  
         const errorMsg = searchParams.get('error');
+        const successMsg = searchParams.get('message') || searchParams.get('msg');
         const reason = searchParams.get('reason');
  
         if (reason === 'maintenance') {
@@ -70,6 +72,10 @@ function LoginForm() {
             setError('🔒 Your session has expired. Please log in again to continue.');
         } else if (errorMsg) {
             setError(errorMsg);
+        }
+
+        if (successMsg) {
+            setSuccess(successMsg);
         }
  
         // Sync URL Email Query for redirection support
@@ -85,6 +91,7 @@ function LoginForm() {
         if (!email) return;
         setLoading(true);
         setError('');
+        setSuccess('');
  
         try {
             const data = await apiFetch(`/auth/check-email`, {
@@ -120,7 +127,7 @@ function LoginForm() {
             }
         } catch (err: any) {
             console.error('[Email Check] Error:', err);
-            const msg = typeof err?.message === 'string' ? err.message : (err?.data?.detail || 'Email address not found in our registry.');
+            const msg = typeof err?.message === 'string' ? err.message : (err?.data?.detail || 'No account found with this email. Please check your spelling or register a new organization.');
             setError(msg);
             setLoading(false);
         }
@@ -265,7 +272,11 @@ function LoginForm() {
                                     autoComplete="email"
                                     required
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    onChange={(e) => {
+                                        setEmail(e.target.value);
+                                        if (error) setError('');
+                                        if (success) setSuccess('');
+                                    }}
                                     className="appearance-none block w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 font-medium transition-all shadow-sm"
                                     placeholder="name@company.com"
                                 />
@@ -341,22 +352,56 @@ function LoginForm() {
                             <span className="text-sm font-medium text-slate-600">Remember me</span>
                         </label>
  
-                        <Link href="/forgot-password" className={`text-sm font-bold text-indigo-600 hover:text-indigo-700 ${loading ? 'pointer-events-none opacity-50' : ''}`}>
+                        <Link href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ''}`} className={`text-sm font-bold text-indigo-600 hover:text-indigo-700 ${loading ? 'pointer-events-none opacity-50' : ''}`}>
                             Forgot Password?
                         </Link>
                     </div>
                 )}
  
+                {success && (
+                    <div className="p-4 bg-emerald-50 border border-emerald-200/80 text-emerald-800 rounded-xl text-sm font-medium animate-in zoom-in-95 flex items-center gap-2.5 shadow-sm">
+                        <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+                        <p className="font-bold">{success}</p>
+                    </div>
+                )}
+
                 {error && (
-                    <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm font-bold flex items-center gap-2 animate-in zoom-in-95">
-                        <ShieldCheck size={16} /> {error}
+                    <div className="p-4 bg-red-50/90 border border-red-200/80 text-red-700 rounded-xl text-sm font-medium animate-in zoom-in-95 space-y-3 shadow-sm">
+                        <div className="flex items-start gap-2.5">
+                            <ShieldCheck size={18} className="text-red-500 shrink-0 mt-0.5" />
+                            <div className="leading-snug">
+                                <p className="font-bold text-red-900">{error}</p>
+                                {error.toLowerCase().includes('not found') && (
+                                    <p className="text-xs text-red-600 mt-1 font-normal">
+                                        This email is not registered in our system. You can create a new organization account or explore our interactive demo.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        {error.toLowerCase().includes('not found') && (
+                            <div className="pt-2 border-t border-red-200/60 flex items-center gap-2">
+                                <Link 
+                                    href={`/register${email ? `?email=${encodeURIComponent(email)}` : ''}`}
+                                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
+                                >
+                                    <UserCheck size={14} /> Register Organization
+                                </Link>
+                                <Link 
+                                    href="/demo"
+                                    className="inline-flex items-center justify-center gap-1 py-2 px-3 bg-white hover:bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-bold transition-all active:scale-95"
+                                >
+                                    Try Demo <ArrowRight size={12} />
+                                </Link>
+                            </div>
+                        )}
                     </div>
                 )}
  
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full relative flex items-center justify-center gap-2 py-4 px-4 bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-xl font-bold text-sm hover:from-indigo-600 hover:to-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed disabled:pointer-events-none shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:shadow-[0_8px_30px_rgba(79,70,229,0.3)] active:scale-[0.98]"
+                    className="w-full relative flex items-center justify-center gap-2 py-4 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed disabled:pointer-events-none shadow-md shadow-blue-200 active:scale-[0.98]"
                 >
                     {loading ? (
                         <span className="flex items-center gap-2">
@@ -391,16 +436,19 @@ function LoginForm() {
                         <div className="w-full border-t border-slate-200"></div>
                     </div>
                     <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-white px-2 text-slate-500 font-bold">New User?</span>
+                        <span className="bg-white px-2 text-slate-500 font-bold">New to Digifort Labs?</span>
                     </div>
                 </div>
  
-                <div className="flex gap-3">
-                    <Link href="/demo" className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-all border border-indigo-200 shadow-sm hover:shadow-md hover:border-indigo-300 ${loading ? 'pointer-events-none opacity-50' : ''}`}>
+                <div className="grid grid-cols-3 gap-2">
+                    <Link href={`/register${email ? `?email=${encodeURIComponent(email)}` : ''}`} className={`flex items-center justify-center gap-1.5 py-3 px-2 bg-indigo-600 text-white rounded-xl font-bold text-xs hover:bg-indigo-700 transition-all shadow-sm hover:shadow active:scale-95 ${loading ? 'pointer-events-none opacity-50' : ''}`}>
+                        <UserCheck size={14} /> Register
+                    </Link>
+                    <Link href="/demo" className={`flex items-center justify-center gap-1 py-3 px-2 bg-white text-indigo-600 rounded-xl font-bold text-xs hover:bg-indigo-50 transition-all border border-indigo-200 shadow-sm hover:shadow ${loading ? 'pointer-events-none opacity-50' : ''}`}>
                         Try Demo
                     </Link>
-                    <Link href="/contact" className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-white text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all border border-slate-200 shadow-sm hover:shadow-md ${loading ? 'pointer-events-none opacity-50' : ''}`}>
-                        Contact Sales
+                    <Link href="/contact" className={`flex items-center justify-center gap-1 py-3 px-2 bg-white text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all border border-slate-200 shadow-sm hover:shadow ${loading ? 'pointer-events-none opacity-50' : ''}`}>
+                        Contact
                     </Link>
                 </div>
             </form>
@@ -412,44 +460,86 @@ export default function LoginPage() {
     return (
         <div className="min-h-screen flex bg-white font-sans">
             {/* Left Side - Visuals */}
-            <div className="hidden lg:flex lg:w-1/2 bg-slate-900 relative overflow-hidden items-center justify-center p-12 text-white">
+            <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-950 via-slate-900 to-indigo-950 relative overflow-hidden items-center justify-center p-12 text-white">
+                {/* Background Cyber Grid & Medical Patterns */}
+                <div className="absolute inset-0 z-0 bg-cyber-grid opacity-20 pointer-events-none" />
+                <div className="absolute inset-0 z-0 bg-medical-crosses opacity-15 pointer-events-none" />
+
+                {/* Glow Orbs */}
                 <div className="absolute inset-0 z-0">
-                    <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-indigo-600/20 rounded-full blur-[120px] translate-x-1/3 -translate-y-1/3"></div>
-                    <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[100px] -translate-x-1/3 translate-y-1/3"></div>
+                    <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-blue-600/25 rounded-full blur-[130px] translate-x-1/3 -translate-y-1/3 animate-pulse"></div>
+                    <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-teal-500/20 rounded-full blur-[100px] -translate-x-1/3 translate-y-1/3"></div>
+                </div>
+
+                {/* Animated Patient Care & Medical Equipment Diagnostic Hub Graphic (Subtle Background Backdrop) */}
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/4 z-0 pointer-events-none opacity-30">
+                    <div className="relative w-[500px] h-[500px] flex items-center justify-center">
+                        
+                        {/* Orbit Ring 1 - Medical Equipment */}
+                        <div className="absolute w-[440px] h-[440px] rounded-full border border-cyan-400/30 animate-spin [animation-duration:35s]">
+                            <div className="absolute -top-4 left-1/2 -translate-x-1/2 p-2.5 bg-slate-900 border border-cyan-400/50 text-cyan-300 rounded-2xl shadow-[0_0_15px_rgba(6,182,212,0.4)]">
+                                <Stethoscope className="w-5 h-5" />
+                            </div>
+                            <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 p-2.5 bg-slate-900 border border-blue-400/50 text-blue-300 rounded-2xl shadow-[0_0_15px_rgba(59,130,246,0.4)]">
+                                <Microscope className="w-5 h-5" />
+                            </div>
+                        </div>
+
+                        {/* Orbit Ring 2 - Patient Care & OPD Diagnostics */}
+                        <div className="absolute w-[320px] h-[320px] rounded-full border border-indigo-400/30 animate-spin [animation-duration:22s] [animation-direction:reverse]">
+                            <div className="absolute top-1/2 -right-4 -translate-y-1/2 p-2.5 bg-slate-900 border border-emerald-400/50 text-emerald-300 rounded-2xl shadow-[0_0_15px_rgba(16,185,129,0.4)]">
+                                <UserCheck className="w-5 h-5" />
+                            </div>
+                            <div className="absolute top-1/2 -left-4 -translate-y-1/2 p-2.5 bg-slate-900 border border-purple-400/50 text-purple-300 rounded-2xl shadow-[0_0_15px_rgba(168,85,247,0.4)]">
+                                <Syringe className="w-5 h-5" />
+                            </div>
+                        </div>
+
+                        {/* Central Live Treatment Pulse Icon */}
+                        <div className="absolute w-20 h-20 rounded-2xl bg-slate-900/90 border border-cyan-400/60 flex flex-col items-center justify-center text-cyan-300 shadow-[0_0_30px_rgba(6,182,212,0.4)] animate-pulse-glow">
+                            <HeartPulse className="w-8 h-8 text-cyan-400 mb-0.5" />
+                            <span className="text-[8px] font-black tracking-widest text-cyan-200 uppercase">CARE HUB</span>
+                        </div>
+
+                    </div>
                 </div>
 
                 <div className="relative z-10 max-w-lg">
-                    <div className="flex items-center gap-3 mb-8">
-                        <div className="p-3 bg-white/10 backdrop-blur-md rounded-xl border border-white/10">
-                            <Activity className="text-indigo-400" size={32} />
+                    {/* Clear Wide Logo Display & Live Heartbeat Badge */}
+                    <div className="mb-10 flex items-center gap-4">
+                        <div className="inline-block bg-white/95 backdrop-blur-md rounded-2xl px-6 py-3.5 shadow-xl border border-white/20">
+                            <img src="/logo/longlogo.png" alt="Digifort Labs Logo" className="h-10 w-auto object-contain" />
                         </div>
-                        <h1 className="text-2xl font-black tracking-tight">DIGIFORT LABS</h1>
+                        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-400/30 text-cyan-300 text-xs font-bold shadow-lg animate-pulse-glow">
+                            <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></span>
+                            <span>LIVE CLINICAL MONITOR</span>
+                        </div>
                     </div>
 
-                    <h2 className="text-5xl font-black mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 py-1">
-                        The Future of Data Processing.
+                    <h2 className="text-4xl font-black mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-blue-200 leading-tight">
+                        Next-Gen Hospital Management System.
                     </h2>
-                    <p className="text-lg text-slate-400 leading-relaxed mb-10">
-                        Securely manage enterprise data, streamline retrieval, and ensure compliance with our state-of-the-art digital infrastructure.
+                    <p className="text-base text-slate-300 leading-relaxed mb-10">
+                        Streamline OPD Queueing, IPD Bed Beds, Digital Pharmacy Expiry Batching, and Cashless Insurance Billing across 11 integrated FRS clinical modules.
                     </p>
 
-                    <div className="flex gap-6">
+                    <div className="grid grid-cols-2 gap-6">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                            <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400">
                                 <ShieldCheck size={20} />
                             </div>
                             <div>
-                                <p className="font-bold text-sm">Enterprise Compliant</p>
-                                <p className="text-xs text-slate-500">Bank-grade security</p>
+                                <p className="font-bold text-sm text-white">DPDP 2023 & NABH</p>
+                                <p className="text-xs text-slate-400">ABHA & 256-bit AES Security</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                            <div className="w-10 h-10 rounded-full bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-400">
                                 <Globe size={20} />
                             </div>
                             <div>
-                                <p className="font-bold text-sm">Cloud Access</p>
-                                <p className="text-xs text-slate-500">24/7 Availability</p>
+                                <p className="font-bold text-sm text-white">Cloud & On-Premise</p>
+                                <p className="text-xs text-slate-400">24/7 High Availability</p>
                             </div>
                         </div>
                     </div>

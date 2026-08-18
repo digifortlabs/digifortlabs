@@ -71,14 +71,14 @@ export default function MaternityDashboard() {
     );
 
     if (['superadmin', 'superadmin_staff', 'website_admin'].includes(userRole) && !selectedHospitalId) {
-        return <HospitalSelectionPrompt storageKey="hospital_id" />;
+        return <HospitalSelectionPrompt storageKey="hospital_id" onSelect={(id) => setSelectedHospitalId(id)} />;
     }
 
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                    <h1 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
                         <Baby className="h-8 w-8 text-pink-600" />
                         Maternity & Obstetrics
                     </h1>
@@ -100,8 +100,8 @@ export default function MaternityDashboard() {
                                 <p className="text-sm font-medium text-muted-foreground">Total Maternity Patients</p>
                                 <h3 className="text-2xl font-bold mt-2">{patients.length}</h3>
                             </div>
-                            <div className="h-12 w-12 bg-pink-100 dark:bg-pink-900/30 rounded-full flex items-center justify-center">
-                                <User className="h-6 w-6 text-pink-600 dark:text-pink-400" />
+                            <div className="h-12 w-12 bg-pink-100 rounded-full flex items-center justify-center">
+                                <User className="h-6 w-6 text-pink-600" />
                             </div>
                         </div>
                     </CardContent>
@@ -113,8 +113,8 @@ export default function MaternityDashboard() {
                                 <p className="text-sm font-medium text-muted-foreground">High Risk Pregnancies</p>
                                 <h3 className="text-2xl font-bold mt-2">{patients.filter(p => p.high_risk).length}</h3>
                             </div>
-                            <div className="h-12 w-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
-                                <Activity className="h-6 w-6 text-red-600 dark:text-red-400" />
+                            <div className="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center">
+                                <Activity className="h-6 w-6 text-red-600" />
                             </div>
                         </div>
                     </CardContent>
@@ -171,7 +171,7 @@ export default function MaternityDashboard() {
                                 ) : (
                                     filteredPatients.map((patient) => (
                                         <tr key={patient.maternity_id} className="hover:bg-muted/30 transition-colors">
-                                            <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">
+                                            <td className="px-6 py-4 font-medium text-gray-900">
                                                 {patient.patient_name}
                                             </td>
                                             <td className="px-6 py-4 text-muted-foreground">{patient.uhid}</td>
@@ -183,9 +183,9 @@ export default function MaternityDashboard() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 {patient.high_risk ? (
-                                                    <Badge variant="destructive" className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">High Risk</Badge>
+                                                    <Badge variant="destructive" className="bg-red-100 text-red-800">High Risk</Badge>
                                                 ) : (
-                                                    <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-0">Normal</Badge>
+                                                    <Badge variant="outline" className="bg-green-100 text-green-800 border-0">Normal</Badge>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 text-right">

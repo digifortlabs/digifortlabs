@@ -1,27 +1,25 @@
-# Chapter 10: Human Resources, Staff Management & Onboarding
+# Chapter 10: Configuration & Master Data Management
 
 ## 10.1 Overview
 
-Managing the hospital's workforce, from recruitment and credential verification to payroll and attendance.
+The Configuration module is the central nervous system of the HMS, allowing administrators to dictate the rules of the system without requiring code changes.
 
-## 10.2 Staff Lifecycle Management
+## 10.2 Master Data Architecture
 
-### 10.2.1 Onboarding & Credentialing
+Structured master tables prevent data duplication and ensure system-wide consistency.
 
-- **Digital Onboarding:** Secure portals for new staff to upload medical licenses (e.g., Medical Council Registrations), degrees, and identification.
-- **Credential Expiry Alerts:** Automated notifications to HR and the Doctor when their medical license or malpractice insurance is about to expire.
+### 10.2.1 Core Master Tables
 
-### 10.2.2 Roster & Attendance
+- **Service Master:** Defining every billable item in the hospital (consultations, room rent, procedures, nursing charges) and linking them to specific departments.
+- **Tariff & Corporate Rules:** Complex pricing engines where a single service (e.g., CBC Test) has dynamic pricing depending on the patient's ward (General vs ICU) or their TPA sponsor.
+- **Role-Based Access Control (RBAC):** Granular permission matrices to define what a specific user (e.g., Junior Nurse vs Head Nurse) can view, edit, or delete.
 
-Managing complex shift patterns unique to healthcare.
-
-| Feature | Functional Description |
-| :--- | :--- |
-| **Shift Management** | Dynamic 24/7 duty rosters for nursing staff, residents, and consultants. |
-| **Biometric Integration** | API links to physical fingerprint/face-scanners for real-time attendance logging. |
-| **Leave Management** | Hierarchical leave approval workflows ensuring wards are never understaffed. |
-
-## 10.3 Payroll & Incentive Calculation
-
-- **Doctor Payouts:** Specialized logic for calculating consultant fee-for-service (FFS) splits, flat salaries, or hybrid models based on the services they rendered during the month.
-- **Statutory Deductions:** Automated calculation of taxes, provident funds, and health insurance.
+```mermaid
+graph TD
+    A[System Administrator] --> B[Service Master]
+    A --> C[Tariff Master]
+    A --> D[User Roles]
+    B --> E[Billing Engine]
+    C --> E
+    D --> F[Security & Audit Logs]
+```

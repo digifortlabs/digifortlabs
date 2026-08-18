@@ -110,7 +110,6 @@ export default function QAMonitorPage() {
     };
 
     const handleResolve = async (id: number) => {
-        if (!confirm('Are you sure you want to mark this quality issue as resolved?')) return;
         setActionLoading(true);
         try {
             await apiFetch(`qa/${id}/resolve`, {
@@ -134,7 +133,6 @@ export default function QAMonitorPage() {
     };
 
     const handleIgnore = async (id: number) => {
-        if (!confirm('Are you sure you want to ignore this QA exception? Only Super Admins can execute this.')) return;
         setActionLoading(true);
         try {
             await apiFetch(`qa/${id}/ignore`, {
@@ -147,7 +145,7 @@ export default function QAMonitorPage() {
                 ignored: prev.ignored + 1
             }));
             setSelectedIssue(null);
-            toast.error('QA issue has been ignored and minimized.');
+            toast.success('QA issue has been ignored.');
         } catch (err: any) {
             console.error(err);
             toast.error(err.message || 'Failed to ignore QA issue');

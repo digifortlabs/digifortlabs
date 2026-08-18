@@ -125,6 +125,33 @@ export default function HospitalLayout({ children }: { children: React.ReactNode
                 router.replace('/hospital');
             }
         }
+
+        // Module access protection based on tenant's enabled_modules
+        const modulesStr = localStorage.getItem('userModules');
+        if (modulesStr) {
+            try {
+                const modules = JSON.parse(modulesStr) as string[];
+                const moduleMap: Record<string, string> = {
+                    '/hospital/dental': 'dental',
+                    '/hospital/ent': 'ent',
+                    '/hospital/inventory': 'inventory',
+                    '/hospital/billing': 'accounting',
+                    '/hospital/accounting': 'accounting',
+                    '/hospital/maternity': 'maternity',
+                    '/hospital/pharmacy': 'pharmacy',
+                    '/hospital/lab': 'lab'
+                };
+                for (const [pathPrefix, moduleName] of Object.entries(moduleMap)) {
+                    if (pathname.startsWith(pathPrefix) && !modules.includes(moduleName)) {
+                        console.warn(`[Module Protection] Blocked access to ${pathPrefix}. Missing module: ${moduleName}`);
+                        router.replace('/hospital');
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to parse userModules', e);
+            }
+        }
     }, [pathname, userRole, router]);
 
     if (!isAuthReady) {
@@ -143,7 +170,7 @@ export default function HospitalLayout({ children }: { children: React.ReactNode
                     <GreetingBar />
                 </div>
 
-                <main className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 animate-in fade-in duration-700">
+                <main className="flex-1 w-full p-4 sm:p-6 animate-in fade-in duration-700">
                     {children}
                 </main>
 

@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '../../config/api';
 import { getDomainUrl, getCurrentSubdomain } from '@/lib/utils';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordForm() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [step, setStep] = useState<1 | 2>(1);
     const [email, setEmail] = useState('');
     const [otp, setOtp] = useState('');
@@ -17,6 +18,13 @@ export default function ForgotPasswordPage() {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+    useEffect(() => {
+        const queryEmail = searchParams.get('email');
+        if (queryEmail) {
+            setEmail(queryEmail);
+        }
+    }, [searchParams]);
 
     const handleRequestOTP = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -246,5 +254,13 @@ export default function ForgotPasswordPage() {
 
             <Footer />
         </div>
+    );
+}
+
+export default function ForgotPasswordPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center">Loading...</div>}>
+            <ForgotPasswordForm />
+        </Suspense>
     );
 }

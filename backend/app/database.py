@@ -43,8 +43,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
-
-# Setup auditing listener
-from .auditing import setup_auditing
-setup_auditing()

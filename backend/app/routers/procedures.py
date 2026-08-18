@@ -148,7 +148,7 @@ def get_patient_procedures(patient_id: int, db: Session = Depends(get_db), curre
     if not patient:
         raise HTTPException(status_code=404, detail="Patient record not found")
     
-    procs = db.query(PatientProcedure).filter(PatientProcedure.record_id == patient_id).all().order_by(PatientProcedure.performed_at.desc())
+    procs = db.query(PatientProcedure).filter(PatientProcedure.record_id == patient_id).order_by(PatientProcedure.performed_at.desc()).all()
     
     results = []
     for p in procs:

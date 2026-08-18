@@ -90,7 +90,7 @@ def get_doctors(
     if current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF] and hospital_id:
         target_hospital_id = hospital_id
 
-    query = db.query(DoctorProfile).filter(DoctorProfile.is_active == True).first()
+    query = db.query(DoctorProfile).filter(DoctorProfile.is_active == True)
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF] or target_hospital_id is not None:
         query = query.filter(DoctorProfile.hospital_id == target_hospital_id)
         

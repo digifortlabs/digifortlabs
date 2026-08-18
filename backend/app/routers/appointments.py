@@ -482,7 +482,7 @@ async def get_appointments(
     db: Session = Depends(get_db)
 ):
     """Get appointments with optional filters."""
-    query = db.query(Appointment).filter(Appointment.hospital_id == current_user.hospital_id).first()
+    query = db.query(Appointment).filter(Appointment.hospital_id == current_user.hospital_id)
     
     if date:
         # Simple date casting approximation
@@ -624,6 +624,79 @@ async def delete_appointment(
     db.commit()
     return {"message": "Appointment cancelled successfully"}
 
+@router.get("/display/tokens")
+async def get_active_tokens(
+    hospital_id: int = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    target_hospital_id = hospital_id or current_user.hospital_id
+    if not target_hospital_id:
+        return []
+    
+    # Get all "In-Consultation" appointments for today
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+    
+    active = db.query(Appointment).filter(
+        Appointment.hospital_id == target_hospital_id,
+        Appointment.status == "In-Consultation",
+        Appointment.appointment_date >= today_start,
+        Appointment.appointment_date < today_end
+    ).all()
+    
+    tokens = []
+    for appt in active:
+        tokens.append({
+            "token": appt.opd_number or f"A-{appt.appointment_id}",
+            "doctor": appt.doctor.user.full_name if (appt.doctor and appt.doctor.user) else "Doctor",
+            "room": appt.department.name if appt.department else "Room 1"
+        })
+    return tokens
+
+@router.post("/display/call-next")
+async def call_next_patient(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not current_user.doctor_profile:
+        raise HTTPException(status_code=400, detail="Only doctors can call the next patient")
+        
+    doctor_id = current_user.doctor_profile[0].profile_id
+    hospital_id = current_user.hospital_id
+    
+    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = today_start + timedelta(days=1)
+    
+    # Finish current consultation
+    current = db.query(Appointment).filter(
+        Appointment.hospital_id == hospital_id,
+        Appointment.doctor_id == doctor_id,
+        Appointment.status == "In-Consultation",
+        Appointment.appointment_date >= today_start,
+        Appointment.appointment_date < today_end
+    ).all()
+    for appt in current:
+        appt.status = "Completed"
+        
+    # Get next Arrived patient
+    next_appt = db.query(Appointment).filter(
+        Appointment.hospital_id == hospital_id,
+        Appointment.doctor_id == doctor_id,
+        Appointment.status == "Arrived",
+        Appointment.appointment_date >= today_start,
+        Appointment.appointment_date < today_end
+    ).order_by(Appointment.start_time.asc()).first()
+    
+    if next_appt:
+        next_appt.status = "In-Consultation"
+        db.commit()
+        return {"message": "Called next patient", "token": next_appt.opd_number or f"A-{next_appt.appointment_id}"}
+        
+    db.commit()
+    return {"message": "No more patients waiting"}
+
+
 @router.post("/preview-slot", response_model=NextSlotResponse)
 async def preview_slot(
     request: PreviewSlotRequest,
@@ -696,7 +769,7 @@ def get_next_slot(
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
         
-    start_time, end_time = get_next_available_slot(db, doctor_id, target_date, current_user.hospital_id)
+    start_time, end_time, _ = get_next_available_slot(db, doctor_id, target_date, current_user.hospital_id)
     
     # Check if the slot fits in the schedule
     day_of_week = target_date.weekday()
@@ -728,4 +801,43 @@ def get_next_slot(
         available=available,
         message=message
     )
+
+class TicketPrintPayload(BaseModel):
+    token_number: str
+    patient_name: str
+    doctor_name: str
+    department_name: str
+    appointment_time: str
+    hospital_name: str
+    printed_at: str
+
+@router.get("/doctor-queue/{doctor_id}/ticket/{appointment_id}", response_model=TicketPrintPayload)
+def get_appointment_ticket_payload(
+    doctor_id: int,
+    appointment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Generates structured payload for auto-printing thermal OPD tickets."""
+    appt = db.query(Appointment).filter(
+        Appointment.appointment_id == appointment_id,
+        Appointment.hospital_id == current_user.hospital_id
+    ).first()
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+        
+    doc = db.query(DoctorProfile).filter(DoctorProfile.profile_id == doctor_id).first()
+    dept = db.query(Department).filter(Department.department_id == appt.department_id).first()
+    hosp = db.query(Hospital).filter(Hospital.hospital_id == current_user.hospital_id).first()
+    
+    return TicketPrintPayload(
+        token_number=appt.opd_number or f"T-{appt.appointment_id}",
+        patient_name=appt.patient.full_name if appt.patient else "Patient",
+        doctor_name=doc.full_name if doc else "Doctor",
+        department_name=dept.name if dept else "General OPD",
+        appointment_time=appt.start_time.strftime("%Y-%m-%d %H:%M"),
+        hospital_name=hosp.legal_name if hosp else "DigifortLabs Hospital",
+        printed_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    )
+
 
