@@ -32,7 +32,7 @@ export default function Navbar() {
           <Link href="/" className="text-[14px] font-semibold text-slate-600 hover:text-slate-900 transition">
             Home
           </Link>
-          <Link href="/modules" className="text-[14px] font-semibold text-teal-600 hover:text-teal-700 transition">
+          <Link href="/services" className="text-[14px] font-semibold text-teal-600 hover:text-teal-700 transition">
             11 FRS Modules
           </Link>
           <Link href="/services" className="text-[14px] font-semibold text-slate-600 hover:text-slate-900 transition">
