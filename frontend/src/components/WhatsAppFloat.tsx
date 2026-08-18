@@ -1,11 +1,22 @@
 "use client";
 import React from "react";
+import { usePathname } from "next/navigation";
 import { MessageSquare } from "lucide-react";
 
 export default function WhatsAppFloat() {
+  const pathname = usePathname();
   const whatsappNumber = "919725790563";
   const defaultMessage = encodeURIComponent("Hello Digifort Labs, I would like to inquire about the HMS platform demonstration and features.");
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${defaultMessage}`;
+
+  // Hide WhatsApp button on authenticated app / dashboard routes
+  if (
+    pathname?.startsWith("/admin") ||
+    pathname?.startsWith("/hospital") ||
+    pathname?.startsWith("/doctor")
+  ) {
+    return null;
+  }
 
   return (
     <a
