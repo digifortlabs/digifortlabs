@@ -1213,6 +1213,61 @@ def get_patients(
         
     return patients
 
+# ==========================================
+# RECYCLE BIN ENDPOINTS
+# ==========================================
+
+@router.get("/recycle-bin/list")
+@router.get("/recycle-bin/list/", include_in_schema=False)
+def get_recycled_patients(
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """Get list of soft-deleted patients (Recycle Bin)"""
+    is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
+    query = db.query(Patient).filter(Patient.is_deleted == True)
+    
+    if not is_platform:
+        query = query.filter(Patient.hospital_id == current_user.hospital_id)
+        
+    recycled = query.all()
+    
+    hospital_map = {}
+    if is_platform:
+        try:
+            hospital_map = {h.hospital_id: h.legal_name for h in db.query(Hospital).all()}
+        except Exception:
+            hospital_map = {}
+
+    result = []
+    for p in recycled:
+        days_left = 90
+        if p.deleted_at:
+            from datetime import datetime
+            del_at = p.deleted_at.replace(tzinfo=None) if hasattr(p.deleted_at, 'tzinfo') and p.deleted_at.tzinfo else p.deleted_at
+            delta = datetime.now() - del_at
+            days_left = max(0, 90 - delta.days)
+            
+        hospital_name = "Unknown"
+        if is_platform:
+            h_obj = getattr(p, 'hospital', None)
+            if h_obj and getattr(h_obj, 'legal_name', None):
+                hospital_name = h_obj.legal_name
+            else:
+                hospital_name = hospital_map.get(p.hospital_id, "Unknown")
+            
+        result.append({
+            "record_id": p.record_id,
+            "patient_u_id": p.patient_u_id,
+            "uhid": p.uhid,
+            "full_name": p.full_name,
+            "deleted_at": p.deleted_at,
+            "days_until_permanent_deletion": days_left,
+            "hospital_name": hospital_name
+        })
+        
+    return result
+
 @router.get("/{patient_id}", response_model=PatientDetailResponse)
 def get_patient(patient_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     is_platform = current_user.role in ["superadmin", "superadmin_staff"]
@@ -2181,44 +2236,6 @@ def unassign_doctor(patient_id: int, profile_id: int, db: Session = Depends(get_
 # ==========================================
 # RECYCLE BIN ENDPOINTS
 # ==========================================
-
-@router.get("/recycle-bin/list")
-def get_recycled_patients(
-    db: Session = Depends(get_db), 
-    current_user: User = Depends(get_current_user)
-):
-    """Get list of soft-deleted patients (Recycle Bin)"""
-    is_platform = current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF]
-    query = db.query(Patient).filter(Patient.is_deleted == True).first()
-    
-    if not is_platform:
-        query = query.filter(Patient.hospital_id == current_user.hospital_id)
-        
-    recycled = query.all()
-    
-    result = []
-    for p in recycled:
-        days_left = 90
-        if p.deleted_at:
-            from datetime import datetime, timezone
-            delta = datetime.now(timezone.utc) - p.deleted_at
-            days_left = max(0, 90 - delta.days)
-            
-        hospital_name = "Unknown"
-        if is_platform and p.hospital:
-            hospital_name = p.hospital.legal_name
-            
-        result.append({
-            "record_id": p.record_id,
-            "patient_u_id": p.patient_u_id,
-            "uhid": p.uhid,
-            "full_name": p.full_name,
-            "deleted_at": p.deleted_at,
-            "days_until_permanent_deletion": days_left,
-            "hospital_name": hospital_name
-        })
-        
-    return result
 
 @router.post("/{patient_id}/restore")
 def restore_patient(

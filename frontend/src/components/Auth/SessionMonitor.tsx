@@ -21,8 +21,9 @@ const PUBLIC_PREFIXES = [
 ];
 
 function isPublicPath(pathname: string): boolean {
-    if (pathname === '/') return true;
-    return PUBLIC_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'));
+    if (!pathname || pathname === '/') return true;
+    const cleanPath = pathname.toLowerCase().replace(/\/$/, '');
+    return PUBLIC_PREFIXES.some(p => cleanPath === p || cleanPath.startsWith(p + '/'));
 }
 
 export default function SessionMonitor() {

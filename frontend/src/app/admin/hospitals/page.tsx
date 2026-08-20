@@ -196,11 +196,18 @@ export default function ManageClientsPage() {
     // Group Management Modal State
     const [isGroupManageOpen, setIsGroupManageOpen] = useState<boolean>(false);
     const [selectedGroup, setSelectedGroup] = useState<any>(null);
-    const [groupManageTab, setGroupManageTab] = useState<'profile' | 'branches'>('profile');
+    const [groupManageTab, setGroupManageTab] = useState<'profile' | 'branches' | 'billing' | 'modules'>('profile');
     const [editGroupForm, setEditGroupForm] = useState({
         group_name: '',
         location: '',
         admin_email: ''
+    });
+    const [groupBulkBilling, setGroupBulkBilling] = useState({
+        subscription_tier: 'Standard',
+        price_per_file: 100.0,
+        included_pages: 20,
+        price_per_extra_page: 1.0,
+        enabled_modules: ['core']
     });
 
     // Review Pending Updates State
@@ -450,10 +457,15 @@ export default function ManageClientsPage() {
                         registration_number: '',
                         director_name: '',
                         specialty: 'General',
+                        mrd_service_type: 'PORTAL_ONLY',
+                        total_bed_capacity: 50,
+                        nabh_accredited: 'Full NABH',
                         address: '',
-                        city: '',
-                        state: '',
+                        city: 'Vapi',
+                        state: 'Gujarat',
                         pincode: '',
+                        regulatory_compliance_preset: 'gujarat_cea',
+                        whatsapp_dispatch_mode: 'wa_me_link',
                         
                         is_group: false,
                         group_id: null,
@@ -470,12 +482,11 @@ export default function ManageClientsPage() {
                         admin_phone: '',
                         
                         billing_cycle: 'Monthly',
-        platform_base_price: 5000,
-        extra_user_price: 500,
+                        platform_base_price: 5000,
+                        extra_user_price: 500,
                         price_per_file: 100.0,
                         included_pages: 20,
                         price_per_extra_page: 1.0,
-                        mrd_service_type: 'PORTAL_ONLY',
                         enabled_modules: ['core']
                     });
                     fetchData();
@@ -568,6 +579,58 @@ export default function ManageClientsPage() {
             }
         } catch (err) {
             setErrorMsg("Failed to write group updates.");
+        }
+    };
+
+    // Delete Hospital Group
+    const handleGroupDelete = async (groupId: number, groupName: string) => {
+        if (!confirm(`Are you sure you want to delete group "${groupName}"? All member branch hospitals will be unlinked and retained as individual clients.`)) {
+            return;
+        }
+
+        try {
+            const res = await apiFetch(`/superadmin/groups/${groupId}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                setIsGroupManageOpen(false);
+                setSelectedGroup(null);
+                fetchData();
+            } else {
+                alert("Failed to delete group.");
+            }
+        } catch (err) {
+            console.error("Error deleting group:", err);
+        }
+    };
+
+    // Group-Wide Bulk Billing & Module Config Submit
+    const handleGroupBulkConfigSubmit = async () => {
+        if (!selectedGroup) return;
+        setErrorMsg('');
+        setSuccessMsg('');
+
+        try {
+            const res = await apiFetch(`/superadmin/groups/${selectedGroup.group_id}/bulk-config`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(groupBulkBilling)
+            });
+
+            if (res.ok) {
+                setSuccessMsg(`SaaS & Billing settings applied across all branches in ${selectedGroup.group_name}!`);
+                setTimeout(() => {
+                    setIsGroupManageOpen(false);
+                    setSelectedGroup(null);
+                    fetchData();
+                }, 1500);
+            } else {
+                const data = await res.json();
+                setErrorMsg(data.detail || "Failed to update group branches billing.");
+            }
+        } catch (err) {
+            setErrorMsg("Network error updating group billing.");
         }
     };
 
@@ -679,10 +742,13 @@ export default function ManageClientsPage() {
 
     // Filtering & Searching Logic
     const filteredHospitals = hospitals.filter(h => {
+        const query = searchQuery.toLowerCase();
         const matchesSearch = 
-            h.legal_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            h.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (h.registration_number && h.registration_number.toLowerCase().includes(searchQuery.toLowerCase()));
+            (h.legal_name && h.legal_name.toLowerCase().includes(query)) ||
+            (h.email && h.email.toLowerCase().includes(query)) ||
+            (h.hospital_slug && h.hospital_slug.toLowerCase().includes(query)) ||
+            (h.city && h.city.toLowerCase().includes(query)) ||
+            (h.registration_number && h.registration_number.toLowerCase().includes(query));
         
         const matchesTier = selectedTier === 'All' || h.subscription_tier === selectedTier;
         
@@ -1144,7 +1210,7 @@ export default function ManageClientsPage() {
                                         <td className="py-4 px-4 font-black text-indigo-600">
                                             {hospitals.filter(h => h.group_id === group.group_id).length} Branches
                                         </td>
-                                        <td className="py-4 px-6 text-right">
+                                        <td className="py-4 px-6 text-right flex items-center justify-end gap-3">
                                             <button 
                                                 onClick={() => {
                                                     setSelectedGroup(group);
@@ -1159,6 +1225,13 @@ export default function ManageClientsPage() {
                                                 className="text-indigo-600 font-bold hover:underline text-[10px] uppercase tracking-wider"
                                             >
                                                 Manage
+                                            </button>
+                                            <button 
+                                                onClick={() => handleGroupDelete(group.group_id, group.group_name)}
+                                                className="text-red-600 hover:text-red-700 font-bold text-[10px] uppercase tracking-wider p-1"
+                                                title="Delete Group"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                         </td>
                                     </tr>
@@ -1184,9 +1257,19 @@ export default function ManageClientsPage() {
                                     <p className="text-[11px] font-semibold text-slate-500 mt-0.5">{selectedGroup.group_name}</p>
                                 </div>
                             </div>
-                            <button onClick={() => setIsGroupManageOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
-                                <X className="w-5 h-5 text-slate-400" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    type="button"
+                                    onClick={() => handleGroupDelete(selectedGroup.group_id, selectedGroup.group_name)}
+                                    className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-bold transition-all flex items-center gap-1"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Delete Group
+                                </button>
+                                <button onClick={() => setIsGroupManageOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                                    <X className="w-5 h-5 text-slate-400" />
+                                </button>
+                            </div>
                         </div>
 
                         {/* Tabs */}
@@ -1206,6 +1289,22 @@ export default function ManageClientsPage() {
                                 }`}
                             >
                                 Branches
+                            </button>
+                            <button
+                                onClick={() => setGroupManageTab('billing')}
+                                className={`pb-3 text-xs font-black uppercase tracking-wider transition-colors border-b-2 ${
+                                    groupManageTab === 'billing' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+                                }`}
+                            >
+                                Billing & Tier
+                            </button>
+                            <button
+                                onClick={() => setGroupManageTab('modules')}
+                                className={`pb-3 text-xs font-black uppercase tracking-wider transition-colors border-b-2 ${
+                                    groupManageTab === 'modules' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+                                }`}
+                            >
+                                Group Modules
                             </button>
                         </div>
 
@@ -1248,7 +1347,120 @@ export default function ManageClientsPage() {
                                             onClick={handleGroupEditSubmit}
                                             className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all active:scale-95"
                                         >
-                                            Save Changes
+                                            Save Group Profile
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {groupManageTab === 'billing' && (
+                                <div className="space-y-5">
+                                    <p className="text-xs text-slate-500 font-semibold leading-relaxed">
+                                        Manage subscription tiers and digitisation rates applied across all branches in <span className="font-bold text-slate-900">{selectedGroup.group_name}</span>.
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Subscription Tier</label>
+                                            <select
+                                                value={groupBulkBilling.subscription_tier}
+                                                onChange={(e) => setGroupBulkBilling({...groupBulkBilling, subscription_tier: e.target.value})}
+                                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold"
+                                            >
+                                                <option value="Enterprise">Enterprise</option>
+                                                <option value="Professional">Professional</option>
+                                                <option value="Standard">Standard</option>
+                                                <option value="Starter">Starter</option>
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Base Rate / File (₹)</label>
+                                            <input 
+                                                type="number"
+                                                value={groupBulkBilling.price_per_file}
+                                                onChange={(e) => setGroupBulkBilling({...groupBulkBilling, price_per_file: parseFloat(e.target.value) || 0})}
+                                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Included Pages / File</label>
+                                            <input 
+                                                type="number"
+                                                value={groupBulkBilling.included_pages}
+                                                onChange={(e) => setGroupBulkBilling({...groupBulkBilling, included_pages: parseInt(e.target.value) || 0})}
+                                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Extra Page Rate (₹)</label>
+                                            <input 
+                                                type="number"
+                                                step="0.5"
+                                                value={groupBulkBilling.price_per_extra_page}
+                                                onChange={(e) => setGroupBulkBilling({...groupBulkBilling, price_per_extra_page: parseFloat(e.target.value) || 0})}
+                                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-semibold"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="pt-4 flex justify-end">
+                                        <button 
+                                            onClick={handleGroupBulkConfigSubmit}
+                                            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all active:scale-95"
+                                        >
+                                            Apply Billing To All Branches
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {groupManageTab === 'modules' && (
+                                <div className="space-y-5">
+                                    <p className="text-xs text-slate-500 font-semibold leading-relaxed">
+                                        Configure operational module permissions for all branch hospitals in this group network.
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {[
+                                            { id: 'core', label: 'Core EMR & Digital Files' },
+                                            { id: 'hms', label: 'HMS & IPD Bed Management' },
+                                            { id: 'accounting', label: 'Accounting & Daily Invoicing' },
+                                            { id: 'pharmacy', label: 'POS Pharmacy Management' },
+                                            { id: 'lab', label: 'Diagnostics & Pathology Lab' },
+                                            { id: 'dental', label: 'Dental Specialty Cockpit' },
+                                            { id: 'ent', label: 'ENT Specialty Cockpit' },
+                                            { id: 'emergency', label: 'Emergency & Triage' }
+                                        ].map((module) => {
+                                            const isChecked = groupBulkBilling.enabled_modules.includes(module.id);
+                                            return (
+                                                <label 
+                                                    key={module.id} 
+                                                    className={`p-3.5 rounded-2xl border flex items-center gap-3 cursor-pointer transition-all ${
+                                                        isChecked ? 'border-indigo-600 bg-indigo-50/40 text-indigo-900 font-bold' : 'border-slate-200 bg-slate-50 text-slate-600'
+                                                    }`}
+                                                >
+                                                    <input 
+                                                        type="checkbox"
+                                                        checked={isChecked}
+                                                        onChange={(e) => {
+                                                            const checked = e.target.checked;
+                                                            setGroupBulkBilling(prev => ({
+                                                                ...prev,
+                                                                enabled_modules: checked
+                                                                    ? [...prev.enabled_modules, module.id]
+                                                                    : prev.enabled_modules.filter(m => m !== module.id)
+                                                            }));
+                                                        }}
+                                                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                    <span className="text-xs font-semibold">{module.label}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="pt-4 flex justify-end">
+                                        <button 
+                                            onClick={handleGroupBulkConfigSubmit}
+                                            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all active:scale-95"
+                                        >
+                                            Update Group Module Permissions
                                         </button>
                                     </div>
                                 </div>
@@ -1256,23 +1468,125 @@ export default function ManageClientsPage() {
 
                             {groupManageTab === 'branches' && (
                                 <div className="space-y-4">
+                                    {/* Actions Header */}
+                                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                                        <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">
+                                            Group Branches ({hospitals.filter(h => h.group_id === selectedGroup.group_id).length})
+                                        </h4>
+                                        <div className="flex items-center gap-2">
+                                            {/* Add Existing Hospital Dropdown */}
+                                            {hospitals.filter(h => !h.group_id || h.group_id !== selectedGroup.group_id).length > 0 && (
+                                                <select
+                                                    onChange={async (e) => {
+                                                        const hId = e.target.value;
+                                                        if (!hId) return;
+                                                        try {
+                                                            const res = await apiFetch(`/superadmin/groups/${hId}/assign-group/${selectedGroup.group_id}`, {
+                                                                method: 'POST'
+                                                            });
+                                                            if (res.ok) {
+                                                                fetchData();
+                                                            } else {
+                                                                alert('Failed to link hospital to group');
+                                                            }
+                                                        } catch (err) {
+                                                            console.error('Error linking hospital:', err);
+                                                        }
+                                                        e.target.value = '';
+                                                    }}
+                                                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all focus:outline-none cursor-pointer"
+                                                >
+                                                    <option value="">+ Link Existing Client...</option>
+                                                    {hospitals
+                                                        .filter(h => !h.group_id || h.group_id !== selectedGroup.group_id)
+                                                        .map(h => (
+                                                            <option key={h.hospital_id} value={h.hospital_id}>
+                                                                {h.legal_name} ({h.city})
+                                                            </option>
+                                                        ))}
+                                                </select>
+                                            )}
+
+                                            {/* Add New Hospital Branch Button */}
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setIsGroupManageOpen(false);
+                                                    setNewHospital(prev => ({
+                                                        ...prev,
+                                                        is_group: false,
+                                                        group_id: selectedGroup.group_id
+                                                    }));
+                                                    setOnboardStep(1);
+                                                    setIsOnboardOpen(true);
+                                                }}
+                                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1 active:scale-95"
+                                            >
+                                                <Plus className="w-3.5 h-3.5" />
+                                                Add New Branch
+                                            </button>
+                                        </div>
+                                    </div>
+
                                     {hospitals.filter(h => h.group_id === selectedGroup.group_id).length === 0 ? (
-                                        <p className="text-center text-slate-400 text-xs py-8">No branches found for this group.</p>
+                                        <div className="text-center py-10 space-y-3">
+                                            <p className="text-slate-400 text-xs font-semibold">No branches linked to this hospital group yet.</p>
+                                            <div className="flex justify-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setIsGroupManageOpen(false);
+                                                        setNewHospital(prev => ({
+                                                            ...prev,
+                                                            is_group: false,
+                                                            group_id: selectedGroup.group_id
+                                                        }));
+                                                        setOnboardStep(1);
+                                                        setIsOnboardOpen(true);
+                                                    }}
+                                                    className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all"
+                                                >
+                                                    + Onboard New Branch Hospital
+                                                </button>
+                                            </div>
+                                        </div>
                                     ) : (
                                         hospitals.filter(h => h.group_id === selectedGroup.group_id).map(hospital => (
-                                            <div key={hospital.hospital_id} className="p-4 border border-slate-200 rounded-2xl flex items-center justify-between">
+                                            <div key={hospital.hospital_id} className="p-4 border border-slate-200/70 rounded-2xl flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-sm">
+                                                    <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-sm border border-indigo-100">
                                                         {hospital.legal_name.substring(0, 2).toUpperCase()}
                                                     </div>
                                                     <div>
-                                                        <h4 className="font-bold text-slate-900">{hospital.legal_name}</h4>
-                                                        <p className="text-[10px] text-slate-500 font-semibold">{hospital.email}</p>
+                                                        <h4 className="font-bold text-slate-900 text-sm">{hospital.legal_name}</h4>
+                                                        <p className="text-[11px] text-slate-400 font-semibold">{hospital.email} • {hospital.city}, {hospital.state}</p>
                                                     </div>
                                                 </div>
-                                                <span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider ${hospital.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                                                    {hospital.is_active ? 'Active' : 'Suspended'}
-                                                </span>
+                                                <div className="flex items-center gap-3">
+                                                    <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${hospital.is_active ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                                                        {hospital.is_active ? 'Active' : 'Suspended'}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        title="Unlink from group"
+                                                        onClick={async () => {
+                                                            if (!confirm(`Unlink ${hospital.legal_name} from this group?`)) return;
+                                                            try {
+                                                                const res = await apiFetch(`/superadmin/groups/${hospital.hospital_id}/assign-group/0`, {
+                                                                    method: 'POST'
+                                                                });
+                                                                if (res.ok) {
+                                                                    fetchData();
+                                                                }
+                                                            } catch (err) {
+                                                                console.error('Error unlinking hospital:', err);
+                                                            }
+                                                        }}
+                                                        className="text-xs font-bold text-slate-400 hover:text-red-600 transition-colors p-1"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
                                             </div>
                                         ))
                                     )}

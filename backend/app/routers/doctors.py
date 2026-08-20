@@ -76,15 +76,23 @@ class ScheduleBlockResponse(ScheduleBlockCreate):
     class Config:
         from_attributes = True
 
-@router.get("/", response_model=List[DoctorProfileResponse])
+@router.get("", response_model=List[DoctorProfileResponse])
+@router.get("/", response_model=List[DoctorProfileResponse], include_in_schema=False)
 def get_doctors(
     hospital_id: Optional[int] = None,
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
     """Get all doctors in the current hospital."""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.HOSPITAL_ADMIN, UserRole.RECEPTION_STAFF, UserRole.HOSPITAL_STAFF]:
-        raise HTTPException(status_code=403, detail="Not authorized to view doctors")
+    ALLOWED_ROLES = [
+        UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.HOSPITAL_ADMIN, 
+        UserRole.RECEPTION_STAFF, UserRole.HOSPITAL_STAFF, UserRole.DOCTOR_OPD,
+        UserRole.DOCTOR_IPD, UserRole.DOCTOR_BOTH, UserRole.NURSE_IPD, UserRole.ACCOUNT_STAFF
+    ]
+    if current_user.role not in ALLOWED_ROLES:
+        # Fallback check for string matching doctor or nurse roles
+        if not (str(current_user.role).startswith("doctor") or str(current_user.role).startswith("nurse")):
+            raise HTTPException(status_code=403, detail="Not authorized to view doctors")
         
     target_hospital_id = current_user.hospital_id
     if current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF] and hospital_id:

@@ -34,13 +34,16 @@ class LabTestCreate(BaseModel):
     price: float = 0.0
 
 @router.get("/catalog")
+@router.get("/catalog/", include_in_schema=False)
 def get_catalog(
     hospital_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     target_hospital = hospital_id if hospital_id else current_user.hospital_id
-    
+    if not target_hospital:
+        return []
+        
     # Auto-seed basic catalog if empty
     catalog = db.query(LabTestCatalog).filter(LabTestCatalog.hospital_id == target_hospital).all()
     if not catalog:

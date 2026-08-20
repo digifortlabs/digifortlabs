@@ -1,10 +1,6 @@
 "use client";
+
 import { getDomainUrl, getRootUrl } from '@/lib/utils';
-
-// ... existing imports ...
-
-// Inside completeLogin function replace router.push calls with getDomainUrl based redirect
-
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
 import { apiFetch } from '@/config/api';
@@ -102,7 +98,10 @@ function LoginForm() {
             const targetSubdomain = data.target_subdomain || 'dashboard';
             const currentSubdomain = getCurrentSubdomain();
  
-            if (currentSubdomain === targetSubdomain) {
+            const isLocalDev = process.env.NODE_ENV === 'development' || 
+                               (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(window.location.hostname)));
+
+            if (currentSubdomain === targetSubdomain || isLocalDev) {
                 setStep('password');
                 setLoading(false);
             } else {
@@ -175,7 +174,9 @@ function LoginForm() {
             }
 
             if (!res.ok) {
-                throw new Error(data.detail || 'Login failed');
+                setError(data.detail || 'Incorrect username or password.');
+                setLoading(false);
+                return;
             }
 
             completeLogin(data);
@@ -207,23 +208,27 @@ function LoginForm() {
         // Determine target subdomain and path based on role
         const isSuperAdmin = data.role === 'superadmin' || data.role === 'superadmin_staff' || data.role === 'website_admin' || data.role === 'warehouse_manager';
         const isDoctor = data.role === 'doctor';
-        const isHospitalUser = data.role === 'hospital_admin' || data.role === 'hospital_staff' || data.role === 'mrd_staff' || data.role === 'account_staff' || data.role === 'nurse_ipd' || data.role === 'doctor_ipd' || data.role === 'doctor_opd';
+        const isHospitalUser = data.role === 'hospital_admin' || data.role === 'hospital_staff' || data.role === 'mrd_staff' || data.role === 'account_staff' || data.role === 'nurse_ipd' || data.role === 'doctor_ipd' || data.role === 'doctor_opd' || data.role === 'doctor_both' || data.role === 'reception_staff';
 
-        // Robustly determine the hospital slug and target path
-        const currentSubdomain = getCurrentSubdomain();
-        
-        let targetSubdomain = data.target_subdomain || 'admin';
+        const isLocalDev = process.env.NODE_ENV === 'development' || 
+                           (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(window.location.hostname)));
+
         let targetPath = '/';
-
-        if (targetSubdomain === 'demo') {
-            targetPath = isDoctor ? '/' : (isHospitalUser ? '/' : '/admin');
-        } else if (targetSubdomain === 'admin') {
+        if (isSuperAdmin) {
             targetPath = '/admin';
+        } else if (isHospitalUser || isDoctor) {
+            targetPath = '/hospital/hms';
         } else {
-            targetPath = '/';
+            targetPath = '/admin';
         }
 
-        // getDomainUrl already appends #_auth= hash for cross-subdomain handoff
+        if (isLocalDev) {
+            router.push(targetPath);
+            setLoading(false);
+            return;
+        }
+
+        const targetSubdomain = data?.target_subdomain || (isSuperAdmin ? 'admin' : 'dashboard');
         const targetUrl = getDomainUrl(targetSubdomain, targetPath);
 
         setTimeout(() => {

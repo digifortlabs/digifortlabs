@@ -321,6 +321,7 @@ class Patient(Base):
     # Storage linkage
     physical_box_id = Column(Integer, ForeignKey("physical_boxes.box_id"), nullable=True)
     
+    hospital = relationship("Hospital")
     doctor_assignments = relationship("PatientDoctorAssignment", back_populates="patient", cascade="all, delete-orphan")
     
     patient_category = Column(String, default="STANDARD") # STANDARD, MLC, BIRTH, DEATH

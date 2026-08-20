@@ -60,6 +60,11 @@ def assign_hospital_to_group(hospital_id: int, group_id: int, db: Session = Depe
     if not hospital:
         raise HTTPException(status_code=404, detail="Hospital not found")
         
+    if group_id <= 0:
+        hospital.group_id = None
+        db.commit()
+        return {"message": f"Hospital {hospital.legal_name} unlinked from group"}
+        
     group = db.query(HospitalGroup).filter(HospitalGroup.group_id == group_id).first()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
@@ -83,14 +88,42 @@ def update_hospital_group(group_id: int, updates: HospitalGroupUpdate, db: Sessi
     db.refresh(group)
     return group
 
+class GroupBulkConfigUpdate(BaseModel):
+    subscription_tier: Optional[str] = None
+    price_per_file: Optional[float] = None
+    included_pages: Optional[int] = None
+    price_per_extra_page: Optional[float] = None
+    enabled_modules: Optional[List[str]] = None
+
 @router.delete("/{group_id}")
 def delete_hospital_group(group_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_superadmin)):
     group = db.query(HospitalGroup).filter(HospitalGroup.group_id == group_id).first()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
         
-    # Soft delete
+    # Unlink member hospitals so they aren't orphaned
+    db.query(Hospital).filter(Hospital.group_id == group_id).update({"group_id": None})
+    
+    # Soft delete group
     group.is_active = False
     db.commit()
     
-    return {"message": f"Group {group.group_name} deactivated"}
+    return {"message": f"Group {group.group_name} deactivated and member hospitals unlinked."}
+
+@router.patch("/{group_id}/bulk-config")
+def bulk_update_group_hospitals(group_id: int, config: GroupBulkConfigUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_superadmin)):
+    group = db.query(HospitalGroup).filter(HospitalGroup.group_id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+        
+    hospitals = db.query(Hospital).filter(Hospital.group_id == group_id, Hospital.is_deleted == False).all()
+    
+    updates = config.dict(exclude_unset=True)
+    count = 0
+    for h in hospitals:
+        for key, value in updates.items():
+            setattr(h, key, value)
+        count += 1
+        
+    db.commit()
+    return {"message": f"Updated SaaS & Billing configurations across {count} branch hospital(s) in {group.group_name}."}

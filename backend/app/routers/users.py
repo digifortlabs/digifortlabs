@@ -87,12 +87,13 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
     allowed_hospitals = []
     is_global = current_user.subdomain and current_user.role.startswith("doctor") and (not current_user.hospital_id or getattr(current_user, 'is_global_mocked', False))
     if is_global:
-        for p in current_user.doctor_profile:
-            if p.hospital_id:
+        profiles = getattr(current_user, 'doctor_profile', None) or []
+        for p in profiles:
+            if getattr(p, 'hospital_id', None):
                 allowed_hospitals.append({
                     "hospital_id": p.hospital_id,
-                    "legal_name": p.hospital.legal_name if p.hospital else "Unknown Hospital",
-                    "hospital_slug": p.hospital.hospital_slug if p.hospital else ""
+                    "legal_name": p.hospital.legal_name if getattr(p, 'hospital', None) else "Unknown Hospital",
+                    "hospital_slug": p.hospital.hospital_slug if getattr(p, 'hospital', None) else ""
                 })
     
     # We must return a dict to satisfy Pydantic since we are injecting allowed_hospitals which isn't on the User model

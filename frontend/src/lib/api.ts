@@ -37,7 +37,7 @@ export async function apiFetch(endpoint: string, options: Omit<RequestInit, 'bod
 
     // Resolve API URL dynamically at call time to prevent the SSR vs client caching issue
     const currentApiUrl = typeof window !== 'undefined'
-        ? (window.location.hostname.includes('digifortlabs.com') ? 'https://digifortlabs.com/api' : '/api')
+        ? '/api'
         : ((process.env.ENVIRONMENT === 'development' || process.env.NODE_ENV === 'development') ? 'http://localhost:8000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'));
 
     // SSRF Prevention: Validate dynamically constructed URLs
@@ -55,9 +55,13 @@ export async function apiFetch(endpoint: string, options: Omit<RequestInit, 'bod
     try {
         const parsedUrl = new URL(targetUrl);
         // Only allow connections to known domains, subdomains, or localhost
+        const currentHostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
         if (
             parsedUrl.hostname === 'localhost' || 
             parsedUrl.hostname.endsWith('.localhost') ||
+            parsedUrl.hostname === '127.0.0.1' ||
+            parsedUrl.hostname === currentHostname ||
+            /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(parsedUrl.hostname) ||
             parsedUrl.hostname === 'digifortlabs.com' ||
             parsedUrl.hostname.endsWith('.digifortlabs.com')
         ) {

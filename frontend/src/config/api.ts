@@ -3,16 +3,9 @@
 // correctly distinguish between SSR (window undefined) and client-side browser execution.
 
 function getApiUrl(): string {
-    // BROWSER: window is always defined → always use the Next.js /api proxy.
-    // This path runs for every real user request in the browser.
+    // BROWSER: window is always defined → always use the Next.js /api proxy relative path.
+    // This routes requests cleanly to local Next.js proxy route /api/...
     if (typeof window !== 'undefined') {
-        const hostname = window.location.hostname;
-        // Production
-        if (hostname.includes('digifortlabs.com')) {
-            return 'https://digifortlabs.com/api';
-        }
-        // Any local dev hostname (localhost, 127.0.0.1, admin.localhost, etc.)
-        // → always go through the Next.js proxy to avoid direct cross-origin calls
         return '/api';
     }
     // SERVER-SIDE RENDERING: window is undefined, talk to FastAPI directly.
@@ -20,11 +13,8 @@ function getApiUrl(): string {
     return isDev ? 'http://localhost:8000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
 }
 
-// Export a stable constant for places that import API_URL for non-fetch purposes
-// (e.g. constructing download links). In the browser this is always correct because
-// the module initialises client-side after hydration.
 export const API_URL = typeof window !== 'undefined'
-    ? (window.location.hostname.includes('digifortlabs.com') ? 'https://digifortlabs.com/api' : '/api')
+    ? '/api'
     : ((process.env.ENVIRONMENT === 'development' || process.env.NODE_ENV === 'development') ? 'http://localhost:8000' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'));
 
 

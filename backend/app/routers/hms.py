@@ -2592,7 +2592,7 @@ def get_surgeries(
 ):
     """Get list of surgeries for the hospital"""
     from sqlalchemy.orm import joinedload
-    query = db.query(Surgery).filter(Surgery.hospital_id == current_user.hospital_id).first()
+    query = db.query(Surgery).filter(Surgery.hospital_id == current_user.hospital_id)
     
     if status:
         query = query.filter(Surgery.status == status)
@@ -2600,7 +2600,7 @@ def get_surgeries(
         query = query.filter(Surgery.admission_id == admission_id)
         
     # We join patient to easily get the patient name
-    surgeries = query.options(joinedload(Surgery.patient), joinedload(Surgery.admission))
+    surgeries = query.options(joinedload(Surgery.patient), joinedload(Surgery.admission)).all()
     
     result = []
     for s in surgeries:

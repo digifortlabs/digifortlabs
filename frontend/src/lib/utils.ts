@@ -16,11 +16,8 @@ export function getDomainUrl(subdomain: string | null, path: string = '') {
   let targetUrl = '';
 
   if (isLocal) {
-     // Local testing constructs localhost URLs with dynamic subdomains
-     const host = typeof window !== 'undefined' ? window.location.host : 'localhost:3000';
-     const protocol = (typeof window !== 'undefined' ? window.location.protocol : 'http:') || 'http:';
-     const port = host.split(':')[1] || '3000';
-     targetUrl = `${protocol}//${subdomain}.localhost:${port}${path}`;
+     // In local development (localhost, 127.0.0.1, or local IP), use relative paths to avoid unreachable *.localhost subdomains
+     targetUrl = path;
   } else {
      // --- Production Logic ---
      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'digifortlabs.com';

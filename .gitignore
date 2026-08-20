@@ -25,6 +25,7 @@ test_files/
 *.db
 *.sqlite3
 *.sqlite
+*.sql
 
 # Python
 .venv/
@@ -70,3 +71,5 @@ backend/logs/
 # Build outputs
 *.exe
 local_whatsapp_sender/WhatsAppSender_Setup.exe
+Sample/
+*.mp4

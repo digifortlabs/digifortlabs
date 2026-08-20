@@ -607,7 +607,7 @@ async def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_d
         func.lower(PasswordResetOTP.email) == email,
         PasswordResetOTP.is_used == False,  # noqa: E712 - SQLAlchemy requires == for column comparison
         PasswordResetOTP.expires_at > datetime.now(IST).replace(microsecond=0)
-    )
+    ).order_by(PasswordResetOTP.otp_id.desc()).first()
 
     if not otp_entry:
         raise HTTPException(status_code=400, detail="Invalid or expired OTP")
