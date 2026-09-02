@@ -400,14 +400,14 @@ export default function RecordManager({ mode }: RecordManagerProps) {
     };
 
     const checkExistingUHID = async (uhid: string) => {
-        if (!uhid) return;
+        if (!uhid || uhid.trim().length < 3) return;
         const normalized = uhid.toUpperCase().trim();
         const match = patients.find(p => p.uhid?.toUpperCase() === normalized);
         if (match) {
             handleSelectPatient(match);
         } else {
             try {
-                const res = await apiFetch(`/patients/check/uhid/${encodeURIComponent(normalized)}`);
+                const res = await apiFetch(`patients/check/uhid/${encodeURIComponent(normalized)}`);
                 if (res && res.exists && res.patient) {
                     handleSelectPatient({
                         ...res.patient,

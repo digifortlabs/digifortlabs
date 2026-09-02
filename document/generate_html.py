@@ -6,7 +6,6 @@ import re
 sys.stdout.reconfigure(encoding='utf-8')
 
 doc_dir = os.path.dirname(os.path.abspath(__file__))
-# Note: we are writing to DigifortLabs_Documentation.html as requested
 html_output = os.path.join(doc_dir, 'DigifortLabs_Documentation.html')
 
 chapters = [
@@ -20,11 +19,26 @@ chapters = [
     'chapter_7.md',
     'chapter_8.md',
     'chapter_9.md',
-    'chapter_10.md'
+    'chapter_10.md',
+    'chapter_11.md',
+    'chapter_12.md',
+    'chapter_13.md',
+    'chapter_14.md',
+    'chapter_15.md',
+    'chapter_16.md',
+    'chapter_17.md',
+    'chapter_18.md',
+    'chapter_19.md',
+    'chapter_20.md',
+    'chapter_21.md',
+    'chapter_22.md',
+    'chapter_23.md',
+    'chapter_24.md',
+    'chapter_25.md',
+    'chapter_26.md'
 ]
 
-html_template = """
-<!DOCTYPE html>
+html_template = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
@@ -185,20 +199,97 @@ html_template = """
         .mermaid { 
             text-align: center; 
             margin: 40px 0; 
-            background: #ffffff; 
-            padding: 30px; 
-            border-radius: 12px; 
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
             border: 1px solid var(--border-color);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .mermaid:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
         }
 
-        .page-break { margin: 60px 0; border-top: 2px dashed var(--border-color); }
+        /* Responsive */
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .container { padding: 25px; }
+        }
+        
+        /* Print Styles for A4 Output */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 15mm;
+            }
+            
+            body {
+                background: white !important;
+                color: #000 !important;
+                padding: 0 !important;
+            }
+
+            .container {
+                background: white !important;
+                box-shadow: none !important;
+                border: none !important;
+                max-width: 100% !important;
+                padding: 0 !important;
+            }
+
+            .page-break {
+                break-before: page !important;
+                page-break-before: always !important;
+            }
+
+            h1, h2, h3, h4 {
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+            }
+
+            table, pre, .mermaid, blockquote {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            tr {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+
+            pre {
+                white-space: pre-wrap !important;
+                word-wrap: break-word !important;
+                background-color: #f8fafc !important;
+                color: #0f172a !important;
+                border: 1px solid #cbd5e1 !important;
+            }
+
+            code {
+                background-color: #f1f5f9 !important;
+                color: #0f172a !important;
+            }
+
+            table {
+                border: 1px solid #cbd5e1 !important;
+            }
+
+            th {
+                background-color: #f1f5f9 !important;
+                color: #000 !important;
+            }
+
+            td, th {
+                border: 1px solid #e2e8f0 !important;
+                padding: 8px 12px !important;
+            }
+
+            .mermaid {
+                border: 1px solid #e2e8f0 !important;
+                padding: 15px !important;
+            }
+
+            a {
+                text-decoration: none !important;
+                color: #1d4ed8 !important;
+            }
+        }
         
         /* Interactive TOC */
         ol {
@@ -256,13 +347,18 @@ html_template = """
 """
 
 full_md_text = ""
-for i, chapter in enumerate(chapters):
+for chapter in chapters:
     filepath = os.path.join(doc_dir, chapter)
     if os.path.exists(filepath):
         with open(filepath, 'r', encoding='utf-8') as f:
-            if i > 0:
+            if full_md_text:
                 full_md_text += "\n\n<div class=\"page-break\"></div>\n\n"
-            full_md_text += f'<a id="chapter-{i}"></a>\n\n'
+            if chapter == 'index.md':
+                ch_id = "chapter-0"
+            else:
+                num = re.findall(r'\d+', chapter)[0]
+                ch_id = f"chapter-{num}"
+            full_md_text += f'<a id="{ch_id}"></a>\n\n'
             full_md_text += f.read()
 
 # Convert Markdown to HTML

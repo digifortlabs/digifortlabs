@@ -174,7 +174,7 @@ class StorageService:
         import os
         import uuid
         ext = os.path.splitext(old_key)[1]
-        new_key = f"{hospital_name}/{year_str}/{month_str}/{mrd_number}_{uuid.uuid4().hex[:8]}{ext}"
+        new_key = f"{hospital_name}/MRD/{year_str}/{month_str}/{mrd_number}_{uuid.uuid4().hex[:8]}{ext}"
         
         s3 = S3Manager()
         if s3.mode != 's3':
@@ -200,3 +200,59 @@ class StorageService:
             return True, "Successfully migrated draft to final storage"
         except Exception as e:
             return False, str(e)
+
+    @staticmethod
+    def relocate_patient_s3_files(db: Session, patient_id: int):
+        """
+        When a patient's discharge_date is updated, relocates all attached S3 objects
+        to the new hospital_name/MRD/YYYY/MM/ folder matching the new date.
+        """
+        from .s3_handler import S3Manager
+        from ..models import PDFFile, Patient
+        
+        patient = db.query(Patient).filter(Patient.record_id == patient_id).first()
+        if not patient:
+            return
+            
+        date_source = patient.discharge_date or patient.admission_date or datetime.now()
+        year_str = date_source.strftime("%Y")
+        month_str = date_source.strftime("%m")
+        
+        import re
+        def simple_sanitize(name: str) -> str:
+            return re.sub(r'[^a-zA-Z0-9_\-]', '_', str(name))
+            
+        hospital_name = simple_sanitize(patient.hospital.legal_name or f"Hospital_{patient.hospital_id}") if patient.hospital else "Dixit_Hospital"
+        
+        pdf_files = db.query(PDFFile).filter(PDFFile.record_id == patient_id).all()
+        if not pdf_files:
+            return
+            
+        s3 = S3Manager()
+        if s3.mode != 's3':
+            return
+            
+        for db_file in pdf_files:
+            if not db_file.s3_key:
+                continue
+            old_key = db_file.s3_key
+            file_part = old_key.split('/')[-1]
+            new_key = f"{hospital_name}/MRD/{year_str}/{month_str}/{file_part}"
+            
+            if old_key == new_key:
+                continue
+                
+            try:
+                s3.s3_client.copy_object(
+                    Bucket=s3.bucket_name,
+                    CopySource={'Bucket': s3.bucket_name, 'Key': old_key},
+                    Key=new_key
+                )
+                s3.s3_client.delete_object(Bucket=s3.bucket_name, Key=old_key)
+                
+                db_file.s3_key = new_key
+                db_file.storage_path = f"s3://{s3.bucket_name}/{new_key}"
+                db.commit()
+                logger.info(f"Relocated S3 file {db_file.file_id}: {old_key} -> {new_key}")
+            except Exception as e:
+                logger.error(f"Error relocating S3 file {db_file.file_id}: {e}")

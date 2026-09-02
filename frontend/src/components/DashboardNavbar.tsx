@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Building2, Menu, X, Settings, LogOut, LayoutDashboard, Database, Archive, FileClock, Users as UsersIcon, Box, FileText, Receipt, Shield, HardDrive } from 'lucide-react';
+import { Building2, Menu, X, Settings, LogOut, LayoutDashboard, Database, Archive, FileClock, Users as UsersIcon, Box, FileText, Receipt, Shield, HardDrive, Mail } from 'lucide-react';
 import { useTerminology } from '@/hooks/useTerminology';
 
 interface DashboardNavbarProps {
@@ -156,6 +156,18 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                             </button>
                         )}
 
+                        {/* Super Admin Mailbox Quick Link in Top Menu Bar */}
+                        {isPlatformStaff && (
+                            <Link
+                                href="/admin/mail"
+                                className="flex items-center gap-2 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95"
+                                title="Mailbox - View All Sent & Received Emails"
+                            >
+                                <Mail size={16} className="text-indigo-600" />
+                                <span className="hidden sm:inline font-black uppercase tracking-wider text-[10px]">Mailbox</span>
+                            </Link>
+                        )}
+
                         {/* Profile Dropdown */}
                         <div className="relative">
                             <button
@@ -172,9 +184,9 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
                                 <div className="absolute right-0 mt-3 w-72 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
                                     {/* Header */}
                                     <div className="p-4 border-b border-slate-200 bg-slate-50">
-                                        <p className="text-sm font-bold text-white truncate">{userEmail}</p>
+                                        <p className="text-sm font-bold text-slate-900 truncate">{userEmail}</p>
                                         <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">
+                                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">
                                                 {userRole === 'superadmin' ? 'PLATFORM ADMIN' : userRole?.replace('_', ' ')}
                                             </span>
                                         </div>
@@ -182,11 +194,21 @@ export default function DashboardNavbar({ userRole }: DashboardNavbarProps) {
 
                                     {/* Links */}
                                     <div className="p-2 space-y-1">
+                                        {isPlatformStaff && (
+                                            <Link
+                                                href="/admin/mail"
+                                                onClick={() => setIsProfileOpen(false)}
+                                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                                            >
+                                                <Mail size={16} /> Super Admin Mailbox
+                                            </Link>
+                                        )}
+
                                         {(isHospitalAdmin || isGroupAdmin || isPlatformStaff) && (
                                             <Link
                                                 href="/settings"
                                                 onClick={() => setIsProfileOpen(false)}
-                                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-100 hover:text-white transition-colors"
+                                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
                                             >
                                                 <Settings size={16} /> Settings
                                             </Link>

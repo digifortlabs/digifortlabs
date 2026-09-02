@@ -18,13 +18,39 @@ template_env = Environment(
 
 class EmailService:
     @staticmethod
+    def _log_email(mail_type: str, category: str, sender_email: str, sender_name: str, recipient_email: str, subject: str, body_html: str, bcc: str = None, hospital_id: int = None):
+        try:
+            from app.database import SessionLocal
+            from app.models import PlatformEmailLog
+            db = SessionLocal()
+            log = PlatformEmailLog(
+                mail_type=mail_type,
+                category=category,
+                sender_email=sender_email,
+                sender_name=sender_name,
+                recipient_email=recipient_email,
+                bcc=bcc,
+                subject=subject,
+                body_html=body_html,
+                body_text=subject,
+                status="SENT",
+                hospital_id=hospital_id
+            )
+            db.add(log)
+            db.commit()
+            db.close()
+        except Exception as ex:
+            logger.error(f"[EMAIL LOGGING ERROR] {ex}")
+
+    @staticmethod
     def _send_email(
         recipient: str, 
         subject: str, 
         template_name: str, 
         context: dict, 
-        bcc: str = "info@digifortlabs.com",
-        sender_name: str = "Digifort Labs"
+        bcc: str = "info@digifortlabs.com, admin@digifortlabs.com",
+        sender_name: str = "Digifort Labs",
+        category: str = "GENERAL"
     ):
         """
         Private helper to render a template and send an email via SMTP.
@@ -52,11 +78,13 @@ class EmailService:
             server = smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT)
             server.starttls()
             server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-            recipients = [recipient]
-            if bcc:
-                recipients.append(bcc)
+            bcc_list = [addr.strip() for addr in bcc.split(",") if addr.strip()] if bcc else []
+            recipients = [recipient] + bcc_list
             server.sendmail(settings.SENDER_EMAIL, recipients, msg.as_string())
             server.quit()
+            
+            # Log to DB Outbox
+            EmailService._log_email("OUTBOX", category, settings.SENDER_EMAIL, sender_name, recipient, subject, html_body, bcc)
             
             return True
         except Exception as e:
@@ -476,11 +504,24 @@ class EmailService:
         inv_period = ext.get('invoice_period', 'N/A')
         detailed_records = ext.get('detailed_records', [])
 
+        bd = bank_details or {}
+        customer_gstin = bd.get('customer_gst') or bd.get('gst') or 'URD'
+        company_gstin = bd.get('company_gst') or '24AAFCD9999A1ZP'
+        
+        bank_name = bd.get('bank_name') or bd.get('name') or 'HDFC Bank'
+        bank_branch = bd.get('bank_branch') or bd.get('branch') or ''
+        full_bank_name = f"{bank_name} - {bank_branch}" if bank_branch else bank_name
+        account_name = bd.get('account_name') or bd.get('company_name') or 'Digifort Labs Pvt. Ltd.'
+        account_no = bd.get('account') or bd.get('bank_acc') or bd.get('account_no') or '50200012345678'
+        ifsc_code = bd.get('ifsc') or bd.get('bank_ifsc') or 'HDFC0001234'
+        company_pan = bd.get('pan') or bd.get('company_pan') or 'AAFCD9999A'
+
+        bcc_emails = "info@digifortlabs.com, admin@digifortlabs.com"
         try:
             msg = MIMEMultipart()
             msg['From'] = f"Digifort Billing <{SENDER_EMAIL}>"
             msg['To'] = recipient_email
-            msg['Bcc'] = "info@digifortlabs.com"
+            msg['Bcc'] = bcc_emails
             msg['Subject'] = f"TAX INVOICE - {invoice_number} - Digifort Labs"
 
             # 1. Summary Items Rows - Grouping files into one line
@@ -578,7 +619,7 @@ class EmailService:
                             <p style="margin: 5px 0 0 0; font-size: 10px; color: #4338ca; font-weight: bold;">Empowering Healthcare Providers and Patients</p>
                         </div>
                         <div style="float: right; text-align: right;">
-                            <h2 style="margin:0; font-size: 16px;">Digifort Labs Pvt. Ltd.</h2>
+                            <h2 style="margin:0; font-size: 16px;">{account_name}</h2>
                             <p style="margin: 5px 0; font-size: 11px;">
                                 A-502, Tech Park, GIDC Estate,<br>
                                 Vapi 396191, Gujarat.
@@ -595,7 +636,7 @@ class EmailService:
                                 <strong style="font-size: 15px;">Bill To Party</strong><br><br>
                                 <div style="font-weight: bold; font-size: 14px;">{hospital_name}</div>
                                 <div style="margin-top: 5px;">
-                                    <strong>GSTIN :</strong> {bank_details.get('gst') if bank_details else 'URD'}<br>
+                                    <strong>GSTIN :</strong> {customer_gstin}<br>
                                     <strong>State :</strong> Gujarat &nbsp;&nbsp; <strong>Code :</strong> 24
                                 </div>
                             </td>
@@ -605,7 +646,7 @@ class EmailService:
                                 <div><span class="details-label">Date of Invoice :</span> {datetime.now().strftime("%d-%m-%Y")}</div>
                                 <div><span class="details-label">Due Date :</span> {datetime.now().strftime("%d-%m-%Y")}</div>
                                 <div><span class="details-label">Invoice period :</span> {inv_period}</div>
-                                <div><span class="details-label">Company's GSTIN :</span> 24AAFCD9999A1ZP</div>
+                                <div><span class="details-label">Company's GSTIN :</span> {company_gstin}</div>
                                 <div><span class="details-label">State :</span> Gujarat &nbsp;&nbsp; <strong>Code :</strong> 24</div>
                             </td>
                         </tr>
@@ -648,11 +689,11 @@ class EmailService:
                         <tr>
                             <td style="width: 65%;">
                                 <strong style="font-size: 14px; text-transform: uppercase;">BANK DETAILS</strong><br><br>
-                                <strong>Bank Name :</strong> HDFC Bank - Tech Park Branch<br>
-                                <strong>Account Name. :</strong> Digifort Labs Pvt. Ltd.<br>
-                                <strong>Account No. :</strong> 50200012345678<br>
-                                <strong>IFSC CODE :</strong> HDFC0001234<br>
-                                <strong>Company's PAN :</strong> AAFCD9999A
+                                <strong>Bank Name :</strong> {full_bank_name}<br>
+                                <strong>Account Name :</strong> {account_name}<br>
+                                <strong>Account No. :</strong> {account_no}<br>
+                                <strong>IFSC CODE :</strong> {ifsc_code}<br>
+                                <strong>Company's PAN :</strong> {company_pan}
                             </td>
                             <td style="text-align: center;">
                                 <strong>Common Seal</strong><br><br><br><br>
@@ -697,8 +738,12 @@ class EmailService:
             server.starttls()
             server.login(SMTP_USERNAME, SMTP_PASSWORD)
             text = msg.as_string()
-            server.sendmail(SENDER_EMAIL, recipient_email, text)
+            all_recipients = [recipient_email, "info@digifortlabs.com", "admin@digifortlabs.com"]
+            server.sendmail(SENDER_EMAIL, all_recipients, text)
             server.quit()
+            
+            # Log to PlatformEmailLog Outbox
+            EmailService._log_email("OUTBOX", "TAX_INVOICE", SENDER_EMAIL, "Digifort Billing", recipient_email, msg['Subject'], body, bcc_emails)
             
             logger.info(f"[OK] [EMAIL SERVICE] Professional Invoice {invoice_number} sent to {recipient_email}")
             return True

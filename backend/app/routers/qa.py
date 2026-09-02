@@ -40,7 +40,7 @@ def get_qa_issues(
 ):
     query = db.query(QAIssue)
     
-    if current_user.role != UserRole.SUPER_ADMIN:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         query = query.filter(QAIssue.hospital_id == current_user.hospital_id)
         
     if status:
@@ -87,8 +87,8 @@ def resolve_qa_issue(
     if not issue:
         raise HTTPException(status_code=404, detail="Issue not found")
         
-    # Only Super Admin or Hospital Admin can resolve
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HOSPITAL_ADMIN]:
+    # Only Platform Admins or Hospital Admin can resolve
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN, UserRole.HOSPITAL_ADMIN]:
         raise HTTPException(status_code=403, detail="Access denied")
         
     if current_user.role == UserRole.HOSPITAL_ADMIN and issue.hospital_id != current_user.hospital_id:
@@ -108,8 +108,8 @@ def ignore_qa_issue(
     if not issue:
         raise HTTPException(status_code=404, detail="Issue not found")
         
-    if current_user.role != UserRole.SUPER_ADMIN:
-        raise HTTPException(status_code=403, detail="Only Super Admin can ignore issues")
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN, UserRole.HOSPITAL_ADMIN]:
+        raise HTTPException(status_code=403, detail="Only Platform Admins or Hospital Admin can ignore issues")
 
     issue.status = "ignored"  # type: ignore
     db.commit()

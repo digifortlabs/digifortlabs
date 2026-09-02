@@ -134,6 +134,32 @@ def get_accounting_config(db: Session = Depends(get_db), current_user: User = De
         db.add(config)
         db.commit()
         db.refresh(config)
+
+    # Sync next_invoice_number if existing invoices exceed current counter
+    existing_invoices = db.query(Invoice.invoice_number).all()
+    if existing_invoices:
+        import re
+        max_gst_num = config.next_invoice_number or 1
+        max_nongst_num = config.next_invoice_number_nongst or 1
+        gst_prefix = config.invoice_prefix or "DFL"
+        nongst_prefix = config.invoice_prefix_nongst or "BOS"
+        
+        for (inv_num,) in existing_invoices:
+            if inv_num:
+                match = re.search(r'(\d+)$', inv_num)
+                if match:
+                    val = int(match.group(1))
+                    if inv_num.startswith(gst_prefix) and val >= max_gst_num:
+                        max_gst_num = val + 1
+                    elif inv_num.startswith(nongst_prefix) and val >= max_nongst_num:
+                        max_nongst_num = val + 1
+
+        if max_gst_num != config.next_invoice_number or max_nongst_num != config.next_invoice_number_nongst:
+            config.next_invoice_number = max_gst_num
+            config.next_invoice_number_nongst = max_nongst_num
+            db.commit()
+            db.refresh(config)
+
     return config
 
 class ConfigUpdate(BaseModel):
@@ -235,7 +261,8 @@ def get_invoices(
     results = []
     for inv in invoices:
         res = InvoiceResponse.model_validate(inv)
-        res.hospital_name = inv.hospital.legal_name if inv.hospital else "Unknown"
+        res.invoice_number = inv.invoice_number or ""
+        res.hospital_name = (inv.hospital.legal_name if (inv.hospital and inv.hospital.legal_name) else "Unknown Hospital")
         res.hospital_gst = inv.hospital.gst_number if inv.hospital else None
         res.bank_name = inv.hospital.bank_name if inv.hospital else None
         res.bank_account_no = inv.hospital.bank_account_no if inv.hospital else None
@@ -550,7 +577,7 @@ def generate_invoice(
             PDFFile.file_id.in_(req.file_ids),
             Patient.hospital_id == req.hospital_id,
             PDFFile.is_paid == False
-        )
+        ).all()
         
         if not files and not req.custom_items and not (req.include_registration_fee and hospital and not hospital.is_reg_fee_paid):
             raise HTTPException(status_code=400, detail="No valid, unpaid files, custom items, or registration fee to bill for this invoice")
@@ -562,21 +589,18 @@ def generate_invoice(
             db.add(config)
             db.flush()
             
-        # Generate or Use Custom Invoice Number
-        if req.custom_invoice_number:
-            invoice_number = req.custom_invoice_number
-            # Check for collision
-            if crud_all.invoice.get_first(db, Invoice.invoice_number == invoice_number):
-                raise HTTPException(status_code=400, detail=f"Invoice number '{invoice_number}' already exists!")
+        # Determine prefix based on GST vs Non-GST
+        if req.is_gst_bill:
+            prefix = config.invoice_prefix
+            invoice_type = 'gst'
         else:
-            # Determine prefix based on GST vs Non-GST
-            if req.is_gst_bill:
-                prefix = config.invoice_prefix
-                invoice_type = 'gst'
-            else:
-                prefix = config.invoice_prefix_nongst or "BOS"
-                invoice_type = 'nongst'
-            
+            prefix = config.invoice_prefix_nongst or "BOS"
+            invoice_type = 'nongst'
+
+        # Generate or Use Custom Invoice Number (Fallback to auto-sequence if custom number collides)
+        if req.custom_invoice_number and not crud_all.invoice.get_first(db, Invoice.invoice_number == req.custom_invoice_number):
+            invoice_number = req.custom_invoice_number
+        else:
             while True:
                 # OPTIMIZED: Check cache table for available numbers (O(1) instead of O(n))
                 from ..models import AvailableInvoiceNumber
@@ -610,7 +634,18 @@ def generate_invoice(
                 if not crud_all.invoice.get_first(db, Invoice.invoice_number == invoice_number):
                     break
             
-        # Calculate total and items
+        # Ensure config counter is auto-incremented past current invoice_number
+        import re
+        match = re.search(r'(\d+)$', invoice_number)
+        if match:
+            num_val = int(match.group(1))
+            if req.is_gst_bill:
+                if (config.next_invoice_number or 1) <= num_val:
+                    config.next_invoice_number = num_val + 1
+            else:
+                if (config.next_invoice_number_nongst or 1) <= num_val:
+                    config.next_invoice_number_nongst = num_val + 1
+            db.flush()
         total_amount = 0.0
         invoice_items = []
         detailed_patient_records = []
@@ -738,10 +773,14 @@ def generate_invoice(
                 "hsn": item["hsn_code"]
             } for item in invoice_items],
             bank_details={
-                "name": hospital.bank_name,
-                "account": hospital.bank_account_no,
-                "ifsc": hospital.bank_ifsc,
-                "gst": hospital.gst_number
+                "bank_name": config.company_bank_name if (config and config.company_bank_name) else "HDFC Bank",
+                "bank_branch": config.company_bank_branch if (config and config.company_bank_branch) else "Tech Park Branch",
+                "account": config.company_bank_acc if (config and config.company_bank_acc) else "50200012345678",
+                "ifsc": config.company_bank_ifsc if (config and config.company_bank_ifsc) else "HDFC0001234",
+                "account_name": config.company_name if (config and config.company_name) else "Digifort Labs Pvt. Ltd.",
+                "pan": config.company_pan if (config and config.company_pan) else "AAFCD9999A",
+                "company_gst": config.company_gst if (config and config.company_gst) else "24AAFCD9999A1ZP",
+                "customer_gst": hospital.gst_number or "URD"
             },
             extra_details={
                 "amount_in_words": number_to_words(grand_total),
@@ -1012,6 +1051,22 @@ def send_invoice_email(
         
     config = db.query(AccountingConfig).first()
     
+    # Build detailed patient records if available
+    detailed_patient_records = []
+    for item in invoice.items:
+        pdf = getattr(item, 'pdf_file', None)
+        if not pdf and item.file_id:
+            pdf = db.query(PDFFile).filter(PDFFile.file_id == item.file_id).first()
+        if pdf and pdf.patient:
+            p = pdf.patient
+            detailed_patient_records.append({
+                "mrd_id": p.patient_u_id,
+                "name": p.full_name,
+                "admission_date": p.admission_date.strftime("%Y-%m-%d") if p.admission_date else "N/A",
+                "file_id": item.file_id,
+                "pages": pdf.page_count
+            })
+            
     # Call email service
     success = EmailService.send_invoice_email(
         recipient_email=invoice.hospital.email,
@@ -1024,10 +1079,19 @@ def send_invoice_email(
             "hsn": item.hsn_code
         } for item in invoice.items],
         bank_details={
-            "name": config.company_bank_name if config else None,
-            "account": config.company_bank_acc if config else None,
-            "ifsc": config.company_bank_ifsc if config else None,
-            "gst": config.company_gst if config else None
+            "bank_name": config.company_bank_name if (config and config.company_bank_name) else "HDFC Bank",
+            "bank_branch": config.company_bank_branch if (config and config.company_bank_branch) else "Tech Park Branch",
+            "account": config.company_bank_acc if (config and config.company_bank_acc) else "50200012345678",
+            "ifsc": config.company_bank_ifsc if (config and config.company_bank_ifsc) else "HDFC0001234",
+            "account_name": config.company_name if (config and config.company_name) else "Digifort Labs Pvt. Ltd.",
+            "pan": config.company_pan if (config and config.company_pan) else "AAFCD9999A",
+            "company_gst": config.company_gst if (config and config.company_gst) else "24AAFCD9999A1ZP",
+            "customer_gst": invoice.hospital.gst_number if invoice.hospital else "URD"
+        },
+        extra_details={
+            "amount_in_words": number_to_words(invoice.total_amount),
+            "invoice_period": invoice.bill_date.strftime("%B %Y") if invoice.bill_date else "N/A",
+            "detailed_records": detailed_patient_records
         }
     )
     

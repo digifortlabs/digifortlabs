@@ -137,14 +137,16 @@ def get_ledger(
     if party_type == "HOSPITAL":
         h = crud_all.hospital.get_first(db, Hospital.hospital_id == party_id)
         party_name = h.legal_name if h else "Unknown Hospital"
+    elif party_type in ["INTERNAL", "SYSTEM", "COMPANY"]:
+        party_name = "Digifort Labs Internal"
     else:
         v = crud_all.accounting_vendor.get_first(db, AccountingVendor.vendor_id == party_id)
         party_name = v.name if v else "Unknown Vendor"
 
-    query = db.query(AccountingTransaction).filter(AccountingTransaction.party_type == party_type).first()
+    query = db.query(AccountingTransaction).filter(AccountingTransaction.party_type == party_type)
     
     if party_id == 0:
-        query = query.filter(AccountingTransaction.party_id.is_(None))
+        query = query.filter((AccountingTransaction.party_id.is_(None)) | (AccountingTransaction.party_id == 0))
     else:
         query = query.filter(AccountingTransaction.party_id == party_id)
         

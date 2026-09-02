@@ -197,7 +197,21 @@ function LoginForm() {
             sessionStorage.setItem('access_token', data.access_token);
             localStorage.setItem('access_token', data.access_token);
         }
-        if (data.role) localStorage.setItem('userRole', data.role);
+        // Extract and normalize array of roles (one user can hold 1 to N roles simultaneously)
+        let roles: string[] = [];
+        if (Array.isArray(data.roles)) {
+            roles = data.roles.map((r: any) => String(r).trim().toLowerCase());
+        } else if (Array.isArray(data.role)) {
+            roles = data.role.map((r: any) => String(r).trim().toLowerCase());
+        } else if (typeof data.role === 'string' && data.role.includes(',')) {
+            roles = data.role.split(',').map((r: string) => r.trim().toLowerCase());
+        } else if (data.role) {
+            roles = [String(data.role).trim().toLowerCase()];
+        }
+        if (roles.length === 0) roles = ['hospital_staff'];
+
+        localStorage.setItem('userRole', data.role || roles[0]);
+        localStorage.setItem('userRoles', JSON.stringify(roles));
         if (data.specialty) localStorage.setItem('userSpecialty', data.specialty);
         if (data.pricing_tier) localStorage.setItem('userPricingTier', data.pricing_tier);
         if (data.group_id) localStorage.setItem('userGroupId', data.group_id.toString());
@@ -205,22 +219,32 @@ function LoginForm() {
         if (data.terminology) localStorage.setItem('userTerminology', JSON.stringify(data.terminology));
         if (data.hospital_id) localStorage.setItem('hospital_id', data.hospital_id.toString());
 
-        // Determine target subdomain and path based on role
-        const isSuperAdmin = data.role === 'superadmin' || data.role === 'superadmin_staff' || data.role === 'website_admin' || data.role === 'warehouse_manager';
-        const isDoctor = data.role === 'doctor';
-        const isHospitalUser = data.role === 'hospital_admin' || data.role === 'hospital_staff' || data.role === 'mrd_staff' || data.role === 'account_staff' || data.role === 'nurse_ipd' || data.role === 'doctor_ipd' || data.role === 'doctor_opd' || data.role === 'doctor_both' || data.role === 'reception_staff';
+        const hasRole = (...targetRoles: string[]) => roles.some(r => targetRoles.includes(r));
+        
+        let targetPath = '/hospital';
+        if (hasRole('superadmin', 'superadmin_staff', 'website_admin', 'warehouse_manager')) {
+            targetPath = '/admin';
+        } else if (hasRole('hospital_admin', 'group_admin')) {
+            targetPath = '/hospital';
+        } else if (hasRole('doctor', 'doctor_opd', 'doctor_both')) {
+            targetPath = '/doctor';
+        } else if (hasRole('nurse_ipd', 'doctor_ipd')) {
+            targetPath = '/hospital/hms';
+        } else if (hasRole('account_staff')) {
+            targetPath = '/hospital/accounting';
+        } else if (hasRole('mrd_staff')) {
+            targetPath = '/hospital/mrd';
+        } else if (hasRole('pharmacist')) {
+            targetPath = '/hospital/pharmacy';
+        } else if (hasRole('reception_staff')) {
+            targetPath = '/hospital/appointments';
+        } else {
+            targetPath = '/hospital';
+        }
 
+        const isSuperAdmin = hasRole('superadmin', 'superadmin_staff', 'website_admin', 'warehouse_manager');
         const isLocalDev = process.env.NODE_ENV === 'development' || 
                            (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(window.location.hostname)));
-
-        let targetPath = '/';
-        if (isSuperAdmin) {
-            targetPath = '/admin';
-        } else if (isHospitalUser || isDoctor) {
-            targetPath = '/hospital/hms';
-        } else {
-            targetPath = '/admin';
-        }
 
         if (isLocalDev) {
             router.push(targetPath);

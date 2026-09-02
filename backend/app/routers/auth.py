@@ -818,23 +818,51 @@ async def get_worker_token(current_user: User = Depends(get_current_user)):
     return {"worker_token": access_token}
 
 
+from typing import Union
 
-def require_permission(required_permission: Permission):
+def require_permission(module_or_permission: Union[Permission, str], action: str = "read"):
     """
     Dependency generator that checks if the current user has the required permission.
+    Supports both legacy `Permission` enums and new dynamic module:action scopes.
     """
     def permission_checker(current_user: User = Depends(get_current_user)):
-        # Give SUPER_ADMIN bypass if they magically don't have it in the mapping
+        # Give SUPER_ADMIN bypass
         if current_user.role == UserRole.SUPER_ADMIN:
             return current_user
             
+        # 1. Check Dynamic Custom Roles First
+        if current_user.dynamic_roles:
+            has_access = False
+            for user_role_map in current_user.dynamic_roles:
+                role_perms = user_role_map.role.permissions
+                
+                # Map legacy permission to new dynamic module/action for backwards compatibility
+                mod = module_or_permission.value if isinstance(module_or_permission, Permission) else module_or_permission
+                check_action = action
+                
+                # Simple mapping for common legacy permissions
+                if mod == "manage_patients" or mod == "upload_records": mod = "patients"; check_action = "edit"
+                elif mod == "view_records": mod = "patients"; check_action = "read"
+                elif mod == "manage_billing": mod = "billing"; check_action = "edit"
+                elif mod == "view_billing": mod = "billing"; check_action = "read"
+                
+                mod_perms = role_perms.get(mod, {})
+                if mod_perms.get(check_action, False) or mod_perms.get("all", False) or role_perms.get("all", {}).get("all", False):
+                    has_access = True
+                    break
+                    
+            if has_access:
+                return current_user
+
+        # 2. Fallback to legacy static permissions
         user_permissions = ROLE_PERMISSIONS.get(cast(UserRole, current_user.role), [])
-        if required_permission not in user_permissions:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission denied. Require: {required_permission.value}"
-            )
-        return current_user
+        if isinstance(module_or_permission, Permission) and module_or_permission in user_permissions:
+            return current_user
+            
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permission denied. Require access to {module_or_permission}"
+        )
     return permission_checker
 
 

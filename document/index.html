@@ -6,10 +6,10 @@
     <title>DigifortLabs Documentation Viewer</title>
     <style>
         :root {
-            --sidebar-width: 250px;
-            --primary-color: #2c3e50;
-            --highlight-color: #3498db;
-            --bg-color: #f5f7fa;
+            --sidebar-width: 320px;
+            --primary-color: #1e293b;
+            --highlight-color: #2563eb;
+            --bg-color: #f8fafc;
         }
         body {
             margin: 0;
@@ -26,12 +26,14 @@
             padding: 20px 0;
             overflow-y: auto;
             box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            flex-shrink: 0;
         }
         .sidebar h2 {
             text-align: center;
-            margin-bottom: 30px;
-            font-size: 1.5em;
+            margin-bottom: 20px;
+            font-size: 1.4em;
             padding: 0 20px;
+            color: #38bdf8;
         }
         .nav-list {
             list-style: none;
@@ -39,37 +41,39 @@
             margin: 0;
         }
         .nav-item {
-            padding: 15px 25px;
+            padding: 12px 20px;
             cursor: pointer;
             transition: background 0.3s;
             border-left: 4px solid transparent;
+            font-size: 0.9em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .nav-item:hover {
-            background-color: #34495e;
+            background-color: #334155;
             border-left-color: var(--highlight-color);
         }
         .nav-item.active {
-            background-color: #34495e;
-            border-left-color: var(--highlight-color);
+            background-color: #334155;
+            border-left-color: #38bdf8;
             font-weight: bold;
+            color: #38bdf8;
         }
         .main-content {
             flex: 1;
-            padding: 40px;
+            padding: 20px 40px;
             overflow-y: auto;
         }
-        /* The container for the injected markdown/html */
         #viewer {
             background: white;
             padding: 40px;
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            max-width: 900px;
+            max-width: 950px;
             margin: 0 auto;
             min-height: 80vh;
         }
-        
-        /* Loading spinner */
         .loader {
             border: 4px solid #f3f3f3;
             border-top: 4px solid var(--highlight-color);
@@ -84,8 +88,6 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
-        /* Error message */
         .error {
             color: #e74c3c;
             text-align: center;
@@ -93,9 +95,7 @@
             display: none;
         }
     </style>
-    <!-- Include Marked.js for standard Markdown parsing -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <!-- Include Mermaid JS for diagrams -->
     <script type="module">
         import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
         window.mermaid = mermaid;
@@ -105,14 +105,34 @@
 <body>
 
     <div class="sidebar">
-        <h2>DigifortLabs</h2>
+        <h2>DigifortLabs HMS</h2>
         <ul class="nav-list" id="navList">
             <li class="nav-item active" data-file="index.md">Table of Contents</li>
-            <li class="nav-item" data-file="chapter_1.md">Chapter 1: Patient Mgt</li>
-            <li class="nav-item" data-file="chapter_2.md">Chapter 2: OPD & IPD</li>
-            <li class="nav-item" data-file="chapter_3.md">Chapter 3: Pharmacy</li>
-            <li class="nav-item" data-file="chapter_4.md">Chapter 4: Billing</li>
-            <li class="nav-item" data-file="chapter_5.md">Chapter 5: Laboratory</li>
+            <li class="nav-item" data-file="chapter_1.md">Ch 1: SaaS & Architecture</li>
+            <li class="nav-item" data-file="chapter_2.md">Ch 2: OPD & Smart QMS</li>
+            <li class="nav-item" data-file="chapter_3.md">Ch 3: Telemed & WhatsApp AI</li>
+            <li class="nav-item" data-file="chapter_4.md">Ch 4: Emergency ER & ESI</li>
+            <li class="nav-item" data-file="chapter_5.md">Ch 5: Inpatient IPD & Wards</li>
+            <li class="nav-item" data-file="chapter_6.md">Ch 6: Surgery OT & Implants</li>
+            <li class="nav-item" data-file="chapter_7.md">Ch 7: OT Sanitation & CSSD</li>
+            <li class="nav-item" data-file="chapter_8.md">Ch 8: Maternity & NICU</li>
+            <li class="nav-item" data-file="chapter_9.md">Ch 9: Surrogacy & IVF Vault</li>
+            <li class="nav-item" data-file="chapter_10.md">Ch 10: PCPNDT Act Form F</li>
+            <li class="nav-item" data-file="chapter_11.md">Ch 11: MTP Act & CARA Registry</li>
+            <li class="nav-item" data-file="chapter_12.md">Ch 12: Organ Donation NOTTO</li>
+            <li class="nav-item" data-file="chapter_13.md">Ch 13: Mortality & Forensic MLC</li>
+            <li class="nav-item" data-file="chapter_14.md">Ch 14: Pathology LIS & IQC</li>
+            <li class="nav-item" data-file="chapter_15.md">Ch 15: Radiology RIS/PACS</li>
+            <li class="nav-item" data-file="chapter_16.md">Ch 16: Blood Bank & Cord Bio-Vault</li>
+            <li class="nav-item" data-file="chapter_17.md">Ch 17: Pharmacy POS & FEFO</li>
+            <li class="nav-item" data-file="chapter_18.md">Ch 18: B2B Vendor Portal</li>
+            <li class="nav-item" data-file="chapter_19.md">Ch 19: Biomedical CMMS</li>
+            <li class="nav-item" data-file="chapter_20.md">Ch 20: Financial Accounting & TPA</li>
+            <li class="nav-item" data-file="chapter_21.md">Ch 21: Clinical Coding ICD/CPT</li>
+            <li class="nav-item" data-file="chapter_22.md">Ch 22: MRD Physical Warehouse</li>
+            <li class="nav-item" data-file="chapter_23.md">Ch 23: Ethics Committee IEC/IRB</li>
+            <li class="nav-item" data-file="chapter_24.md">Ch 24: BI Analytics & Configs</li>
+            <li class="nav-item" data-file="chapter_25.md">Ch 25: HR, Rostering & Doctor FFS</li>
         </ul>
     </div>
 
@@ -120,7 +140,7 @@
         <div class="loader" id="loader"></div>
         <div class="error" id="errorMsg">
             <h3>Could not load file.</h3>
-            <p>Note: Fetching local files directly (file://) is blocked by modern browsers due to CORS policy. Please serve this folder using a local web server (e.g., <code>npx serve .</code> or VS Code Live Server).</p>
+            <p>Please serve this folder using a local web server (e.g., <code>npx serve .</code> or VS Code Live Server).</p>
         </div>
         <div id="viewer"></div>
     </div>
@@ -132,16 +152,12 @@
             const loader = document.getElementById('loader');
             const errorMsg = document.getElementById('errorMsg');
 
-            // Load the default active file
             loadFile('index.md');
 
             navItems.forEach(item => {
                 item.addEventListener('click', (e) => {
-                    // Update active state
                     navItems.forEach(nav => nav.classList.remove('active'));
                     e.currentTarget.classList.add('active');
-                    
-                    // Load the file
                     const fileToLoad = e.currentTarget.getAttribute('data-file');
                     loadFile(fileToLoad);
                 });
@@ -159,19 +175,15 @@
                     
                     loader.style.display = 'none';
                     
-                    // Check if it's already an HTML file wrapped in .md
                     if (text.includes('<!DOCTYPE html>') || text.includes('<html>')) {
-                        // Extract just the body/container content to avoid nesting html tags
                         const parser = new DOMParser();
                         const doc = parser.parseFromString(text, 'text/html');
                         const container = doc.querySelector('.container') || doc.body;
                         viewer.innerHTML = container.innerHTML;
                     } else {
-                        // Parse standard markdown
                         viewer.innerHTML = marked.parse(text);
                     }
 
-                    // Re-initialize mermaid diagrams if any exist
                     if (window.mermaid) {
                         try {
                             window.mermaid.run({

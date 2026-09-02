@@ -1,110 +1,62 @@
-# Chapter 7: SURGERY AND OPERATION THEATRE
+# Chapter 7: OT Sanitation, AHU/HEPA Telemetry & CSSD Sterilization
 
-## 7.1 Overview
+## 7.1 Operation Theatre Sanitation & Environmental Telemetry
 
-The OT module manages complex clinical workflows that require specialized equipment, multidisciplinary teams, and unique documentation formats. A core component of this is the digital capturing and management of Surgical Consent Forms.
-
-## 7.2 Operation Theatre (OT) Management
-
-Managing surgical workflows from pre-op preparation to post-op recovery.
-
-### 7.2.1 OT Workflow Features
-
-- **OT Scheduling & Consent:** Algorithmic booking of theatres, anesthetists, and surgeons. Digital capture of patient consent forms.
-- **Surgical Notes & PAC:** Detailed Pre-Anesthesia Checkup (PAC) notes and structured surgical procedure logs.
-- **OT Consumables Inventory:** Real-time deduction of surgical kits, implants, and medicines directly to the patient's billing folio.
+The Operation Theatre Sanitation & Sterile Supply module governs surgical suite environmental hygiene, HVAC Air Handling Unit (AHU) telemetry, UV-C robotic sterilization, and Central Sterile Services Department (CSSD) autoclave tracking.
 
 ```mermaid
 graph TD
-    A[Surgery Recommended] --> B[PAC Clearance]
-    B --> C[OT Booking & Team Assignment]
-    C --> D[Pre-Op Preparation (Ward)]
-    D --> E[Surgery & Anesthesia Log]
-    E --> F[OT Pharmacy/Consumables Billed]
-    F --> G[Post-Op Recovery (ICU/Ward)]
+    A[Surgical Case Completion] --> B[HVAC Air Changes & AHU Flush Cycle]
+    B --> C[Terminal Chemical Disinfection & UV-C Sterilization]
+    C --> D[Swab Culture Microbiology Sampling]
+    D --> E{Sterility Lab Clearance}
+    E -->|Passed| F[🟢 OT Cleared & Unlocked for Surgery]
+    E -->|Failed| G[🔴 OT Hard Lock & Re-Fumigation Trigger]
+    
+    H[Used Surgical Instruments] --> I[Decontamination & Ultrasonic Scrubbing]
+    I --> J[CSSD Barcode Packaging & Bowie-Dick Test]
+    J --> K[Autoclearing Steam Sterilization 121°C / 134°C]
+    K --> L[Biological Indicator Release & OT Supply]
 ```
 
-### 7.2.2 Surgery List
+### 7.1.1 Laminar Airflow & Air Handling Unit (AHU / HEPA) Telemetry
+- **Continuous HVAC / AHU Monitoring:** Real-time telemetry tracking operating room HVAC parameters:
+  - **Positive Pressure Differential:** Maintains positive pressure ($\ge 15\text{ Pascals}$) relative to corridors to prevent airborne contaminant ingress.
+  - **HEPA Filter Efficiency (0.3 μm):** Monitors differential pressure drops across High-Efficiency Particulate Air (HEPA) filters, triggering automated maintenance tickets on filter clogging.
+  - **Air Changes Per Hour (ACPH):** Enforces minimum 20 air changes per hour (with at least 4 fresh air changes) for ultra-clean surgical suites.
+  - **Climate Telemetry:** Logs temperature (18°C–21°C) and relative humidity (40%–60% RH) to prevent bacterial proliferation.
 
-To ensure accurate billing and insurance (TPA) claim processing, DigifortLabs HMS maintains a comprehensive Master Surgical Tariff list mapped directly to specific clinical departments.
+### 7.1.2 Terminal Cleaning, UV-C Sanitization & Microbiological Swab Clearance
+- **Between-Case & Terminal Cleaning Checklists:** Digital sanitization checklists requiring environmental service team sign-off for floor scrubbing, surgical lamp wipe-downs, operating table sanitization, and anesthesia cart disinfection.
+- **UV-C Automated Room Disinfection:** Logs automated UV-C robotic sterilization cycles, recording ultraviolet dose intensity ($mJ/cm^2$) and run duration.
+- **Microbiological Air & Swab Culture Registry:** Tracks periodic microbiological settle-plate air cultures and surface swab tests (*Staphylococcus aureus, Pseudomonas aeruginosa, Aspergillus*).
+- **Automated Infection Control Room Lock:** Automatically locks the physical OT scheduling board if a microbiological swab culture yields positive bacterial growth or if scheduled quarterly AHU validation expires, preventing surgery bookings until re-fumigation and sterile re-clearance.
 
-| Department | Covered Surgeries / Procedures (Tariff List) |
-| :--- | :--- |
-| **General Surgery** | Appendicectomy (Open & Laparoscopic), Cholecystectomy, Hernia Repair (Inguinal, Umbilical, Incisional), Thyroidectomy, Mastectomy, Haemorrhoidectomy (Open & Stapled), Fissurectomy, Fistula-in-Ano, Exploratory Laparotomy, Colostomy, Hydrocele, Gastrectomy, Adhesiolysis. |
-| **Gynaecology & Obstetrics** | Normal Delivery, Caesarian Section (LSCS), Hysterectomy (Abdominal, Vaginal, LAVH, TLH), Myomectomy, Ovarian Cystectomy, Tuboplasty, Dilatation & Curettage (D&C), Ectopic Pregnancy Operation, Colposcopy, Fimbrioplasty. |
-| **Urology** | TURP (Prostate Resection), TURBT (Bladder Tumour), Nephrectomy (Radical/Partial), Nephrolithotomy (PCNL), Cystolithotomy, Ureterolithotomy, Pyeloplasty, Urethroplasty, Cystoscopy. |
-| **Plastic & Reconstructive Surgery** | Abdominoplasty, Breast Augmentation/Reduction, Cleft Lip & Palate Repair, Rhinoplasty, Liposuction, Skin Grafting (Homograft/FTSG), Burn Management/Dressings, Flap Transplants (Local/Free Flap), Maxillofacial Fracture Reductions. |
-| **Paediatric Surgery** | Omphalocele Repair, Hirschsprung's Pull Through, Hydrocephalus V-P Shunt, Syndactyly/Polydactyly Correction, Orchiopexy (Undescended Testis), Congenital Diaphragmatic Hernia, Thyroglossal Cyst Excision. |
-| **Gastroenterology (Endoscopic)** | Upper GI Endoscopy, Endoscopic Sclerotherapy (EST), Endoscopic Variceal Ligation (EVL), PEG Tube Placement, Stricture Dilatation, Foreign Body Removal. |
+---
 
-### 7.2.3 Standardized OT Forms & Digital Consent Architecture
+## 7.2 Central Sterile Services Department (CSSD) & Autoclave Management
 
-The DigifortLabs HMS digitizes a comprehensive suite of pre-operative, intra-operative, and post-operative forms to ensure strict clinical compliance and patient safety. The built-in library includes:
+### 7.2.1 Surgical Instrument Decontamination & Pack Assembly
+- **Decontamination & Ultrasonic Washer Tracking:** Tracks dirty instrument tray collection from OT, manual pre-soak, automated ultrasonic washer cycles, and thermal disinfection (90°C).
+- **Barcode Instrument Pack Serialization:** Assembles surgical instrument sets (*e.g., Major Laparotomy Set, Orthopedic Drill Set*), wrapping in medical-grade sterile barrier paper and printing a barcoded CSSD Label capturing Pack ID, Assembly Date, Expiry Date, and Assembly Operator UHID.
 
-- **Pre-Operative Forms:** Pre Operation Evaluation, Preoperative Assessment Form, Surgical Safety Checklist
-- **Anaesthesia & Sedation Forms:** Pre Sedation Assessment, Consent for Anaesthesia, Consent for Procedural Sedation, Procedure Without Sedation Record
-- **Post-Operative & Discharge:** Operation Note, Modified Aldrete Scorecard, Post Sedation Discharge Criteria
-- **General Consent:** Informed Consent for Medical Treatment
+### 7.2.2 Autoclave Validation & Biological Indicator Release
+- **Steam & ETO Sterilization Cycles:** Integrates with Autoclave sterilizers monitoring cycle parameters (121°C for 20 mins or 134°C for 4 mins at 30 psi).
+- **Chemical & Biological Indicator Verification:**
+  - **Class 5 / Class 6 Chemical Integrators:** Scans internal chemical indicator strip color changes confirming steam penetration.
+  - **Bowie-Dick Air Removal Test:** Mandatory daily morning vacuum check log for pre-vacuum autoclaves.
+  - **Geobacillus stearothermophilus Biological Indicators (BI):** 24-hour rapid biological indicator incubator readout. Releases sterile load batches only upon negative BI spore growth confirmation.
+- **Sterile Pack Inventory FEFO Distribution:** Tracks sterile store inventory with automated expiration alerts, blocking issuance of expired or un-cleared surgical sets to operating rooms.
 
-Informed consent is a critical legal and ethical requirement. The HMS digitizes this process, allowing hospitals to generate, capture, and securely store dynamic consent forms tailored to specific surgical procedures.
+---
 
-#### Digital Consent Capabilities
+## 7.3 Bio-Medical Waste (BMW) Management & CPCB Barcode Telemetry
 
-- **Biometric & Stylus Signatures:** Native support for capturing electronic signatures via tablets (e.g., iPads in the pre-op ward).
-- **Multilingual Support:** Auto-translation of consent terms into the patient's primary language.
-- **Audit Trails:** Immutable timestamps recording exactly when the patient, witness, and doctor signed the document.
-
-#### Consent Templates by Surgery Type
-
-| Surgery / Procedure Type | Specific Consent Clauses Included |
-| :--- | :--- |
-| **General Surgery (e.g., Appendectomy)** | Risks of general anesthesia, potential for open surgery conversion, infection risks. |
-| **Orthopedic Surgery (e.g., Joint Replacement)** | Implant specifics (material, brand), deep vein thrombosis (DVT) risks, rehabilitation requirements. |
-| **Cardiothoracic Surgery** | High-risk mortality clauses, bypass machine risks, ICU ventilation expectations. |
-| **Obstetrics / Maternity (C-Section)** | Fetal distress risks, maternal hemorrhage, neonatal ICU admission clauses. |
-| **Ophthalmology (e.g., Cataract, LASIK)** | Visual impairment risks, intraocular lens (IOL) choices, post-op vision expectations. |
-| **Blood Transfusion** | Risks of bloodborne pathogens, allergic reactions, alternatives to transfusion. |
-
-#### Consent Workflow
-
-```mermaid
-sequenceDiagram
-    participant Doc as Surgeon / Doctor
-    participant System as DigifortLabs HMS
-    participant Patient
-    participant Vault as Secure EMR Vault
-
-    Doc->>System: Selects Scheduled Surgery
-    System->>System: Auto-generates Procedure-Specific Consent
-    System-->>Patient: Displays Digital Form (Tablet)
-    Patient->>System: Reads in Preferred Language
-    Patient->>System: Signs via Stylus (Patient + Witness)
-    Doc->>System: Countersigns Document
-    System->>Vault: Locks PDF with Digital Certificate
-```
-
-### 7.2.4 OT Cleaning, Turnaround & Infection Control Protocols
-
-To maintain stringent infection control standards between consecutive surgeries, the HMS mandates and logs adherence to the **OT Turnaround Time (TAT) and Cleaning Protocol**. The system blocks the induction of the next patient until the housekeeping and nursing staff digitally sign off on the cleaning checklist.
-
-**Between-Case Cleaning Protocol:**
-- **Surface Disinfection:** Immediate mopping of the operating table, mayo stands, overhead surgical lights, and monitor touchscreens with a hospital-grade disinfectant (e.g., 1% Sodium Hypochlorite or Bacillocid).
-- **Floor Cleaning:** The floor area within the sterile perimeter is wet-mopped to remove organic spills (blood/fluids).
-- **Waste Segregation:** Secure removal of all bio-medical waste (BMW) bins (Yellow/Red bags) and sharp containers, logged into the BMW tracking module.
-- **Air Quality & Instrument Swap:** Allowing adequate air exchanges (ventilation turnaround) before opening fresh sterile surgical sets and draping for the next patient.
-
-
-
-### 7.2.5 Post-Operative Care & Ward Transfer
-
-Following the successful completion of the surgery, the HMS facilitates a seamless handover from the Operation Theatre to the designated recovery area. This ensures continuity of care, precise medication administration, and accurate tracking of the patient's post-operative stay.
-
-#### Patient Handover & Recovery Workflow
-- **OT to Recovery Room (PACU) or ICU:** Immediate post-extubation, the patient is electronically transferred to the Post-Anesthesia Care Unit (PACU). If critical care is required, the patient will be shifted directly to the **ICU / MICU / SICU**. Vitals are continuously logged via integrated monitors until it is safe for ward transfer or step-down.
-- **Ward / ICU Transfer Protocol:** The receiving nursing station (Ward or Intensive Care Unit) receives an automated alert indicating the impending arrival of the post-op patient. The system enforces a digital handover checklist to ensure the receiving nurse gets all necessary post-op orders, drain details, and catheter statuses.
-
-#### Inpatient Stay & Medication Administration
-Once settled in the inpatient ward, the HMS manages the remainder of the hospital stay:
-- **Electronic Medication Administration Record (eMAR):** The system generates a strict schedule for post-op antibiotics, analgesics, and DVT prophylaxis as prescribed by the surgeon. Nurses scan the medication barcode and the patient's wristband before administration to ensure the "Five Rights" of medication administration.
-- **Surgical Wound Care & Vitals:** Scheduled nursing tasks are automatically queued for wound dressing changes, drain output measurements, and pain scoring (e.g., VAS scale).
-- **Dietary Orders:** The dietician module is updated with post-op dietary restrictions (e.g., NBM to clear liquids to soft diet), ensuring the IPD kitchen delivers the appropriate meals.
+### 7.3.1 Color-Coded Segregation & CPCB Compliance
+- **4-Color Category Segregation Engine:** Enforces central Bio-Medical Waste Management Rules (CPCB Guidelines):
+  - 🟡 **Yellow Bag (Infectious Anatomical & Solid Waste):** Human anatomical tissues, soiled dressings, expired drugs, blood bags.
+  - 🔴 **Red Bag (Contaminated Recyclable Plastic):** Disposable tubing, IV bottles, catheters, urine bags, gloves.
+  - ⚪ **White Container (Sharps Translucent Puncture-Proof):** Needles, scalpels, blades, fixed-needle syringes.
+  - 🔵 **Blue Box/Pouch (Glassware & Metallic Implants):** Medicine vials, ampoules, glass slides, broken glassware.
+- **Barcoded Waste Bag Tracking & Digital Weight Scale Interfacing:** Weighs color-coded waste bags on Bluetooth digital scales at ward collection points, generating barcoded CPCB stickers capturing Bag ID, Ward ID, Weight (kg), and Time.
+- **CBWTF Dispatch & Manifest Generation:** Generates mandatory daily pickup manifests for Common Bio-Medical Waste Treatment Facility (CBWTF) pickup trucks with GPS vehicle tracking and digital receipt sign-off.

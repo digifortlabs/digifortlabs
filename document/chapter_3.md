@@ -1,83 +1,47 @@
-# Chapter 3: Inpatient (IPD) Operations
+# Chapter 3: Patient Digital Engagement, Telemedicine & WhatsApp AI Portal
 
-## 3.1 Overview of IPD in a SaaS Environment
+## 3.1 Multi-Channel Patient Digital Engagement Ecosystem
 
-The Inpatient Department (IPD) handles the complex workflows of admitted patients. In our **Multi-Tenant SaaS architecture**, IPD operations are the most critical area for strict data isolation. 
+The Patient Digital Engagement suite provides seamless, paperless patient interaction across WhatsApp Business AI Automation, WebRTC Telemedicine, Mobile App Portals, and Self-Service Kiosks.
 
-While a patient's **demographic profile and clinical history (Group-Level UHID)** can be shared across branches of the same hospital group, their **IPD Admission** is strictly locked to the local hospital branch (`hospital_id`). 
+```mermaid
+graph TD
+    A[Patient Interaction Touchpoints] -->|WhatsApp / SMS / Mobile App / Web| B[Digifort Patient Engagement Gateway]
+    B --> C{Patient Service Request}
+    C -->|Appointment Booking / Reschedule| D[Smart Appointment Engine & QMS Slot Allocation]
+    C -->|Virtual Consultation| E[WebRTC Telemedicine & Video Room]
+    C -->|Lab / Diagnostic Reports| F[Zero-Footprint Web PACS & PDF Dispatch]
+    C -->|Billing & Payments| G[UPI / Card Payment Gateway & Digital Receipt]
+    C -->|Post-Consultation Prescription| H[WhatsApp Instant E-Rx Dispatch]
+    D --> I[Patient EHR History & Timeline Synchronization]
+    E --> I
+    F --> I
+    G --> I
+    H --> I
+```
 
-This ensures that:
-- Bed availability and physical ward management never conflict between branches.
-- Inpatient billing and daily ward charges are strictly routed to the local branch's accounting ledger.
-- Nursing stations only see patients physically admitted to their specific building.
+### 3.1.1 WhatsApp AI Chatbot & Interactive Messaging (`wa.me`)
+- **24/7 Automated WhatsApp Assistant:** Interactive WhatsApp Business API chatbot enabling patients to interact directly via text or voice notes.
+- **Interactive WhatsApp Capabilities:**
+  - **1-Click Appointment Booking:** Patients select specialty, doctor, date, and time slot via interactive WhatsApp button menus.
+  - **Live QMS Queue Tracking:** Real-time updates notifying patients of their live token queue status (*e.g., "Your token is #14. Doctor is currently examining #12. Estimated wait: 10 mins"*).
+  - **Instant Diagnostic Report Downloads:** Dispatches secure PDF download links for Pathology Lab reports and Radiology PACS views as soon as results are authorized.
+  - **Automated Visit & Medication Reminders:** Automated WhatsApp notifications for upcoming doctor appointments, follow-up dates, and daily prescription dosage reminders.
 
----
-
-## 3.2 Admission & Ward Management
-
-When a doctor recommends admission (from OPD or Emergency), the patient is transitioned to IPD.
-
-### 3.2.1 Bed Allocation (Tenant-Scoped)
-- **Real-Time Visual Layout:** Receptionists view a live dashboard of wards (ICU, General, Private, Semi-Private). This layout is highly customizable by the local hospital administrator.
-- **Availability Tracking:** Beds are color-coded (Available, Occupied, Cleaning, Maintenance).
-- **Admission Record:** An IPD Admission record is generated, tying the patient to a specific Bed ID. **Crucially, this bed assignment is entirely invisible to other branches.**
-- **Advance Deposit:** Most hospitals require an advance deposit before assigning a bed, which is credited to the local branch's `PatientLedger`.
-
-### 3.2.2 Inter-Ward Transfers
-If a patient's condition changes (e.g., moving from ICU to a General Ward), the local system handles the bed transfer. The billing engine automatically calculates pro-rated bed charges based on the exact hours spent in each ward category.
-
----
-
-## 3.3 Nursing Station & Clinical Care
-
-The Nursing Station module is the operational hub for admitted patients. It is restricted to the nursing staff of that specific hospital branch.
-
-### 3.3.1 Medication Administration Record (MAR)
-- Nurses receive digital indent orders from the doctor.
-- Medications are requested from the **Local Branch Pharmacy**. 
-- Once administered, the nurse logs the exact time and dosage. The cost of the medication is instantly added to the patient's local running IPD bill.
-
-### 3.3.2 Vitals & Progress Notes
-- Nurses log hourly or daily vitals (BP, Heart Rate, SpO2, Temperature).
-- Doctors add Daily Progress Notes during their rounds. 
-- *Note for Hospital Groups:* If the patient visits another branch in the future, these clinical progress notes will be visible in the "Group Medical History", but the financial charges associated with the doctor's round remain at this local branch.
-
-### 3.3.3 Order Execution (Labs & Radiology)
-- Doctors can order lab tests directly from the IPD dashboard.
-- The local laboratory receives the order, processes the sample, and uploads the results directly to the patient's local IPD file.
-- The cost of the test is added to the running IPD bill.
+### 3.1.2 WebRTC High-Definition Telemedicine Suite
+- **Browser-Based Video Rooms:** High-definition, encrypted WebRTC video consultation rooms running on PC, Mac, Android, and iOS without requiring third-party software downloads.
+- **Integrated Doctor EMR Workspace:** Enables doctors to view the patient's full medical history, past vitals, lab reports, and Web PACS DICOM scans side-by-side on screen during the live video call.
+- **Digital E-Prescription Dispatch:** Upon closing the virtual call, a digitally signed E-Prescription featuring clinic letterhead, doctor digital signature, and QR verification code is automatically dispatched to the patient's WhatsApp and email.
 
 ---
 
-## 3.4 Surgery & Operation Theatre (OT)
+## 3.2 Patient Self-Service Mobile App & Portal Features
 
-For surgical patients, the system manages the complexities of the Operation Theatre.
+### 3.2.1 Native iOS & Android Patient Mobile App
+- **Patient Personal Health Record (PHR Vault):** Centralized health vault storing past OPD prescriptions, IPD discharge summaries, vaccination certificates, surgical records, and allergies.
+- **Family Profile Management:** Allows a primary account holder to manage healthcare records, appointments, and lab test downloads for dependents (*children, elderly parents*).
+- **UPI & Payment Gateway Integration:** One-click OPD registration fee payment, IPD advance deposit top-up, and diagnostic bill payment via UPI (Google Pay, PhonePe, Paytm), Credit/Debit Cards, and Net Banking.
 
-- **OT Scheduling:** Booking the physical theatre room and surgical team.
-- **Surgical Notes:** The primary surgeon inputs operative notes, anesthesia details, and implant records.
-- **OT Billing:** The system automatically calculates charges for OT rent, surgeon fees, anesthetist fees, and consumed surgical inventory.
-
----
-
-## 3.5 Discharge & IPD Billing
-
-The discharge process requires coordination between clinical and financial teams.
-
-### 3.5.1 Clinical Discharge (Discharge Summary)
-- The system automatically aggregates admission notes, lab results, surgical notes, and daily progress notes.
-- The doctor finalizes the **Discharge Summary**, which serves as the official medical record of the stay.
-
-### 3.5.2 Financial Discharge (Final Billing)
-- The local billing department generates the final IPD invoice.
-- The system automatically compiles all daily bed charges, nursing charges, pharmacy indents, lab tests, and doctor visits.
-- Any advance deposits are automatically deducted from the final total.
-- Once the final payment is cleared (or insurance/TPA approval is logged), the system physically releases the bed, turning its status to "Cleaning" or "Available".
-
-
-## 3.6 Advanced IPD Features (Roadmap)
-
-To manage the complexity of admitted patients efficiently, the following advanced features are planned:
-
-- **Digital Shift Handover (Nursing):** A mandatory digital log where departing nurses leave structured handover notes (e.g., vital alerts) for the incoming shift, ensuring continuity of critical care without relying on paper diaries.
-- **Kitchen & Diet Module:** Dietary orders placed by doctors are instantly transmitted to a centralized hospital kitchen dashboard, mapped to the patient's specific Bed ID for accurate tray delivery.
-- **Automated TPA/Insurance Locks:** If a patient is admitted under insurance, the system automatically locks the final clinical discharge button until the TPA desk officially uploads the insurer's approval letter, preventing premature discharge before financial clearance.
+### 3.2.2 ABHA (Ayushman Bharat Digital Mission) Health ID Sync
+- **ABHA Registration & QR Scan:** Allows patients to create or link their national 14-digit ABHA Number and ABHA Address (`name@abdm`).
+- **Consent-Based Health Data Exchange:** Enables secure, consent-driven sharing of health records between external ABDM-compliant hospitals, clinics, and diagnostic centers.

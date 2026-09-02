@@ -67,6 +67,12 @@ export default function HospitalLayout({ children }: { children: React.ReactNode
                     if (user.hospital.enabled_modules) localStorage.setItem('userModules', JSON.stringify(user.hospital.enabled_modules));
                     if (user.hospital.terminology) localStorage.setItem('userTerminology', JSON.stringify(user.hospital.terminology));
                 }
+                
+                if (user.dynamic_permissions) {
+                    localStorage.setItem('userDynamicPermissions', JSON.stringify(user.dynamic_permissions));
+                } else {
+                    localStorage.removeItem('userDynamicPermissions');
+                }
 
                 // Store hospital name — check every known field shape from the API
                 const hName = (

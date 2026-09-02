@@ -55,19 +55,14 @@ export default function DigitizationScanner({ onComplete, onCancel }: Digitizati
     // --- Initialization ---
 
     useEffect(() => {
-        // Enumerate Devices
-        navigator.mediaDevices.enumerateDevices().then(data => {
-            const videoDevices = data.filter(d => d.kind === 'videoinput');
-            setDevices(videoDevices);
-            if (videoDevices.length > 0) setSelectedDeviceId(videoDevices[0].deviceId);
-        });
-
-        // Cleanup: Stop all tracks on unmount
-        return () => {
-            if (webcamRef.current && webcamRef.current.stream) {
-                webcamRef.current.stream.getTracks().forEach(track => track.stop());
-            }
-        };
+        // Enumerate Devices safely (navigator.mediaDevices is undefined on HTTP non-localhost origins)
+        if (typeof window !== 'undefined' && navigator?.mediaDevices?.enumerateDevices) {
+            navigator.mediaDevices.enumerateDevices().then(data => {
+                const videoDevices = data.filter(d => d.kind === 'videoinput');
+                setDevices(videoDevices);
+                if (videoDevices.length > 0) setSelectedDeviceId(videoDevices[0].deviceId);
+            }).catch(() => {});
+        }
     }, []);
 
     // Explicitly release camera when resolution or device changes to prevent AbortError

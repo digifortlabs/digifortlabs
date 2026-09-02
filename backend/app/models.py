@@ -118,6 +118,31 @@ ROLE_PERMISSIONS = {
 
 
 
+class Role(Base):
+    __tablename__ = 'roles'
+    role_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey('hospitals.hospital_id'), nullable=True, index=True)
+    name = Column(String, nullable=False)
+    is_system_locked = Column(Boolean, default=False)
+    permissions = Column(JSON, default=dict)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    # Relationships
+    hospital = relationship("Hospital")
+    user_mappings = relationship("UserRoleMap", back_populates="role", cascade="all, delete-orphan")
+
+class UserRoleMap(Base):
+    __tablename__ = 'user_roles_map'
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.user_id', ondelete="CASCADE"), nullable=False, index=True)
+    role_id = Column(Integer, ForeignKey('roles.role_id', ondelete="CASCADE"), nullable=False, index=True)
+    assigned_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    user = relationship("User", back_populates="dynamic_roles")
+    role = relationship("Role", back_populates="user_mappings")
+
 class HospitalGroup(Base):
     __tablename__ = 'hospital_groups'
     group_id = Column(Integer, primary_key=True, index=True)
@@ -279,6 +304,7 @@ class User(Base):
     audit_logs = relationship("AuditLog", back_populates="user")
     qa_entries = relationship("QAEntry", back_populates="reviewer")
     patient_invoices_created = relationship("PatientInvoice", back_populates="creator")
+    dynamic_roles = relationship("UserRoleMap", back_populates="user", cascade="all, delete-orphan")
 
 class PatientDoctorAssignment(Base):
     __tablename__ = "patient_doctor_assignments"
@@ -1976,3 +2002,29 @@ class SelfRegistration(Base):
     status = Column(String, default="DRAFT") # DRAFT, CONVERTED
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     converted_patient_id = Column(Integer, ForeignKey("patients.record_id"), nullable=True)
+
+class PlatformEmailLog(Base):
+    __tablename__ = "platform_email_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    mail_type = Column(String, default="OUTBOX")  # "INBOX" or "OUTBOX"
+    category = Column(String, default="GENERAL")   # "TAX_INVOICE", "FILE_REQUEST", "LOGIN_ALERT", "WELCOME", "CUSTOM", "SUPPORT"
+    sender_email = Column(String, nullable=False)
+    sender_name = Column(String, default="Digifort Labs")
+    recipient_email = Column(String, nullable=False)
+    recipient_name = Column(String, nullable=True)
+    cc = Column(String, nullable=True)
+    bcc = Column(String, nullable=True)
+    subject = Column(String, nullable=False)
+    body_html = Column(Text, nullable=True)
+    body_text = Column(Text, nullable=True)
+    status = Column(String, default="SENT")        # "SENT", "FAILED", "RECEIVED", "UNREAD"
+    is_starred = Column(Boolean, default=False)
+    is_archived = Column(Boolean, default=False)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    hospital = relationship("Hospital")
+    user = relationship("User")
+

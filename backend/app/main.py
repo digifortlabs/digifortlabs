@@ -324,6 +324,8 @@ app.include_router(self_registration.router, prefix="/self-registration", tags=[
 app.include_router(referrals.router, prefix="/referrals", tags=["referrals"])
 app.include_router(platform.router, prefix="/platform", tags=["platform"])
 app.include_router(platform_ops.router)
+from .routers import platform_mail
+app.include_router(platform_mail.router, prefix="/platform-mail", tags=["platform-mail"])
 
 
 from .routers import server_files
@@ -360,6 +362,9 @@ app.include_router(appointments.router)
 
 from .routers import doctors
 app.include_router(doctors.router)
+
+from .routers import roles
+app.include_router(roles.router)
 
 from .routers import ent
 app.include_router(ent.router, dependencies=[Depends(require_module("ent"))])

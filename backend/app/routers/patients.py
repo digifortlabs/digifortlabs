@@ -1,6 +1,7 @@
 import logging
 logger = logging.getLogger(__name__)
 import datetime
+from datetime import datetime as dt, timedelta
 import os
 import uuid
 from typing import List, Optional, Union
@@ -593,6 +594,14 @@ def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session =
     # Only validate if both exist (either in DB or in Update) and we are updating at least one of them
     is_updating_dates = (patient_update.admission_date is not None) or (patient_update.discharge_date is not None)
     
+    now_dt = dt.now()
+    if patient_update.admission_date and patient_update.admission_date > now_dt + timedelta(days=1):
+        raise HTTPException(status_code=400, detail="Admission date cannot be in the future.")
+    if patient_update.discharge_date and patient_update.discharge_date > now_dt + timedelta(days=1):
+        raise HTTPException(status_code=400, detail="Discharge date cannot be in the future.")
+    if patient_update.dob and patient_update.dob > now_dt.date():
+        raise HTTPException(status_code=400, detail="Date of Birth cannot be in the future.")
+
     if is_updating_dates and effective_admission and effective_discharge:
         # Check logic
         if effective_discharge < effective_admission:
@@ -628,19 +637,23 @@ def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session =
         if existing_aadhaar:
             raise HTTPException(status_code=400, detail=f"Patient with Aadhaar Number '{patient_update.aadhaar_number}' is already registered.")
 
-    # Check Duplication of Name + Contact if updated
     effective_name = patient_update.full_name or db_patient.full_name
     effective_contact = patient_update.contact_number or db_patient.contact_number
-    if (patient_update.full_name or patient_update.contact_number):
-        existing_name_contact = crud_all.patient.get_first(db, 
+    if (patient_update.full_name or patient_update.contact_number) and effective_name and effective_contact:
+        # Exclude other admission records belonging to the same patient (same UHID)
+        filters = [
             Patient.hospital_id == db_patient.hospital_id,
             Patient.full_name.ilike(effective_name.strip()),
             Patient.contact_number == effective_contact.strip(),
             Patient.is_deleted == False,
             Patient.record_id != patient_id
-        )
+        ]
+        if db_patient.uhid:
+            filters.append(Patient.uhid != db_patient.uhid)
+            
+        existing_name_contact = crud_all.patient.get_first(db, *filters)
         if existing_name_contact:
-            raise HTTPException(status_code=400, detail=f"Patient '{effective_name}' with Contact Number '{effective_contact}' is already registered.")
+            raise HTTPException(status_code=400, detail=f"Patient '{effective_name}' with Contact Number '{effective_contact}' is already registered under a different UHID ({existing_name_contact.uhid}).")
 
     # 2. Update Fields
     for var, value in vars(patient_update).items():
@@ -655,6 +668,14 @@ def update_patient(patient_id: int, patient_update: PatientUpdate, db: Session =
 
     db.commit()
     db.refresh(db_patient)
+
+    # Relocate S3 files if dates changed
+    if patient_update.discharge_date or patient_update.admission_date:
+        try:
+            from app.services.storage_service import StorageService
+            StorageService.relocate_patient_s3_files(db, db_patient.record_id)
+        except Exception as e:
+            logger.error(f"S3 file relocation error: {e}")
 
     return db_patient
 
@@ -678,6 +699,28 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
                 from fastapi import status
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Patient quota exceeded (Max: {max_patients}). Please upgrade to add more patients.")
 
+    now_dt = dt.now()
+    if patient.admission_date and patient.admission_date > now_dt + timedelta(days=1):
+        raise HTTPException(status_code=400, detail="Admission date cannot be in the future.")
+    if patient.discharge_date and patient.discharge_date > now_dt + timedelta(days=1):
+        raise HTTPException(status_code=400, detail="Discharge date cannot be in the future.")
+    if patient.dob and patient.dob > now_dt.date():
+        raise HTTPException(status_code=400, detail="Date of Birth cannot be in the future.")
+
+    # 1.5 Check for Duplicate UHID (Generate if missing, or handle readmission suffix)
+    if not patient.uhid or not patient.uhid.strip():
+        res = get_next_uhid(hospital_id=hospital_id, db=db, current_user=current_user)
+        patient.uhid = res["next_id"]
+    else:
+        existing_uhid = crud_all.patient.get_first(db, 
+            Patient.hospital_id == hospital_id,
+            Patient.uhid == patient.uhid.strip()
+        )
+        if existing_uhid and not (patient.patient_u_id and '/' in patient.patient_u_id):
+            # Auto-assign readmission suffix e.g. D12345 -> D12345/02
+            from app.services.id_generator import generate_mrd_readmission_id
+            patient.patient_u_id = generate_mrd_readmission_id(db, hospital_id, patient.uhid.strip())
+
     # 1. Check for Duplicate MRD (Explicit Check for better error)
     if patient.patient_u_id and patient.patient_u_id.strip():
         existing_mrd = crud_all.patient.get_first(db, 
@@ -687,19 +730,6 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
         
         if existing_mrd:
             raise HTTPException(status_code=400, detail=f"MRD Number '{patient.patient_u_id}' already exists.")
-
-    # 1.5 Check for Duplicate UHID (Generate if missing)
-    if not patient.uhid or not patient.uhid.strip():
-        # Auto-generate UHID
-        res = get_next_uhid(hospital_id=hospital_id, db=db, current_user=current_user)
-        patient.uhid = res["next_id"]
-    else:
-        existing_uhid = crud_all.patient.get_first(db, 
-            Patient.hospital_id == hospital_id,
-            Patient.uhid == patient.uhid.strip()
-        )
-        if existing_uhid:
-            raise HTTPException(status_code=400, detail=f"UHID '{patient.uhid}' already exists.")
 
     # 1.6 Check for Duplicate Aadhaar Number (if provided)
     if patient.aadhaar_number and patient.aadhaar_number.strip():
@@ -719,7 +749,7 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
             Patient.contact_number == patient.contact_number.strip(),
             Patient.is_deleted == False
         )
-        if existing_name_contact:
+        if existing_name_contact and not existing_uhid:
             raise HTTPException(
                 status_code=409, 
                 detail={
@@ -730,8 +760,6 @@ def create_patient(patient: PatientCreate, db: Session = Depends(get_db), curren
 
     # 2. Date Validation (Phase 2 Requirement)
     if patient.admission_date and patient.discharge_date:
-        # Pydantic parses them as datetimes. We can compare directly.
-        # Ensure we compare date parts if times are somehow included but irrelevant
         if patient.discharge_date < patient.admission_date:
              raise HTTPException(status_code=400, detail="Discharge Date cannot be before Admission Date.")
 
@@ -1309,39 +1337,34 @@ def get_patient(patient_id: int, db: Session = Depends(get_db), current_user: Us
     return patient
 
 @router.get("/check/uhid/{uhid_no}")
-def check_uhid_exists(uhid_no: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def check_uhid_exists(uhid_no: str, db: Session = Depends(get_db)):
     """
     Check if a UHID exists and return the patient details if found.
     Used for Auto-Fill logic.
     """
-    # Normalize UHID
-    uhid_no = uhid_no.upper().strip()
-    
-    # Search across all hospitals? Or current hospital?
-    # Ideally UHID is global (person identifier).
-    # But for privacy/tenancy, we might restrict it.
-    # For now, let's allow finding across hospitals IF user is SuperAdmin, 
-    # but for hospital staff, search their own DB first.
-    
-    # Finding ANY patient record with this UHID
-    patient = crud_all.patient.get_first(db, Patient.uhid == uhid_no, Patient.is_deleted == False).order_by(Patient.created_at.desc())
-    
-    if patient:
-        return {
-            "exists": True,
-            "patient": {
-                "full_name": patient.full_name,
-                "age": patient.age,
-                "gender": patient.gender,
-                "address": patient.address,
-                "contact_number": patient.contact_number,
-                "email_id": patient.email_id,
-                "aadhaar_number": patient.aadhaar_number,
-                "dob": patient.dob,
-                "last_mrd": patient.patient_u_id # Return the most recent MRD
+    try:
+        uhid_no = uhid_no.upper().strip()
+        patient = db.query(Patient).filter(Patient.uhid == uhid_no, Patient.is_deleted == False).order_by(Patient.created_at.desc()).first()
+        if patient:
+            return {
+                "exists": True,
+                "patient": {
+                    "full_name": patient.full_name,
+                    "age": patient.age,
+                    "gender": patient.gender,
+                    "address": patient.address,
+                    "contact_number": patient.contact_number,
+                    "email_id": patient.email_id,
+                    "aadhaar_number": patient.aadhaar_number,
+                    "dob": patient.dob,
+                    "last_mrd": patient.patient_u_id
+                    
+                }
             }
-        }
-    return {"exists": False}
+        return {"exists": False}
+    except Exception as e:
+        print(f"Error checking UHID {uhid_no}: {e}")
+        return {"exists": False, "error": str(e)}
 
 @router.post("/files/{file_id}/run-ocr")
 def run_manual_ocr(file_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

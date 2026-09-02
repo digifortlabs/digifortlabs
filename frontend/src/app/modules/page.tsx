@@ -169,11 +169,14 @@ const chapters: FRSChapter[] = [
     summary: "ICD-10/11 diagnostic indexing, barcoded physical paper vault chain-of-custody, soft-delete bin, and video tele-consultations.",
     deepDive: [
       "Doctors can instantly map diagnoses to official ICD-10 and ICD-11 codes, ensuring global compliance and easing TPA insurance claims.",
+      "Cloud storage automatically organizes patient scans and PDFs into hospital-specific discharge date folders ({Hospital}/MRD/YYYY/MM). Updating a patient's discharge date dynamically relocates S3 files to match the new discharge month and year in real-time.",
       "For legacy physical records, the MRD module tracks barcoded paper files to specific physical racks and boxes within the hospital vault.",
       "An integrated Telemedicine portal allows doctors to conduct encrypted video consultations and issue digital E-Rx prescriptions."
     ],
     features: [
       "ICD-10 & ICD-11 Diagnostic Code Search & Indexing",
+      "Automated Discharge-Date S3 Storage Hierarchy ({Hospital}/MRD/YYYY/MM)",
+      "Dynamic S3 File Relocation Engine on Patient Date Change",
       "Barcoded Physical Paper Document Rack & Box Tracking",
       "7-Year Retention Soft-Delete Bin & Restore Vault",
       "Integrated Tele-Consultation Video Portal & E-Rx"

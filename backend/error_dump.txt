@@ -10,9 +10,7 @@
     | Traceback (most recent call last):
     |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
     |     await self.app(scope, receive, _send)
-    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 96, in __call__
-    |     await self.simple_response(scope, receive, send, request_headers=headers)
-    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 154, in simple_response
+    |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 88, in __call__
     |     await self.app(scope, receive, send)
     |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
     |     with recv_stream, send_stream, collapse_excgroups():
@@ -151,10 +149,10 @@
     |   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
     |     result = context.run(func, *args)
     |              ^^^^^^^^^^^^^^^^^^^^^^^^
-    |   File "D:\Website\DIGIFORTLABS\backend\app\routers\accounting.py", line 838, in receive_payment
-    |     crud_all.p_d_f_file.get_multi(db, PDFFile.file_id.in_(file_ids)).update({
-    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    | AttributeError: 'list' object has no attribute 'update'
+    |   File "D:\Website\DIGIFORTLABS\backend\app\routers\pharmacy.py", line 356, in get_direct_sales
+    |     ).order_by(PharmacyDirectSale.sale_id.desc()).limit(limit)
+    |       ^^^^^^^^
+    | AttributeError: 'list' object has no attribute 'order_by'
     +------------------------------------
 
 The above exception was the direct cause of the following exception:
@@ -162,9 +160,7 @@ The above exception was the direct cause of the following exception:
 Traceback (most recent call last):
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
     await self.app(scope, receive, _send)
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 96, in __call__
-    await self.simple_response(scope, receive, send, request_headers=headers)
-  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 154, in simple_response
+  File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\cors.py", line 88, in __call__
     await self.app(scope, receive, send)
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\starlette\middleware\base.py", line 191, in __call__
     with recv_stream, send_stream, collapse_excgroups():
@@ -303,7 +299,7 @@ Traceback (most recent call last):
   File "D:\Website\DIGIFORTLABS\backend\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1002, in run
     result = context.run(func, *args)
              ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "D:\Website\DIGIFORTLABS\backend\app\routers\accounting.py", line 838, in receive_payment
-    crud_all.p_d_f_file.get_multi(db, PDFFile.file_id.in_(file_ids)).update({
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AttributeError: 'list' object has no attribute 'update'
+  File "D:\Website\DIGIFORTLABS\backend\app\routers\pharmacy.py", line 356, in get_direct_sales
+    ).order_by(PharmacyDirectSale.sale_id.desc()).limit(limit)
+      ^^^^^^^^
+AttributeError: 'list' object has no attribute 'order_by'

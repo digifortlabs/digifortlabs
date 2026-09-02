@@ -192,8 +192,8 @@ export default function InvoiceGenerationModal({ isOpen, onClose, onSuccess }: I
     if (!isOpen) return null;
 
     const filteredHospitals = hospitals.filter(h =>
-        h.legal_name.toLowerCase().includes(searchHospital.toLowerCase()) ||
-        h.city.toLowerCase().includes(searchHospital.toLowerCase())
+        (h.legal_name || '').toLowerCase().includes((searchHospital || '').toLowerCase()) ||
+        (h.city || '').toLowerCase().includes((searchHospital || '').toLowerCase())
     );
 
     const filesTotal = unbilledFiles

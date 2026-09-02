@@ -394,6 +394,7 @@ export default function ServicesPage() {
               </p>
               <ul className="space-y-3 text-sm text-slate-700 mb-6">
                 <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-orange-600" /> ICD-10 & ICD-11 Diagnostic Code Indexing</li>
+                <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-orange-600" /> Discharge-Date Automated S3 Storage Hierarchy ({'{Hospital}'}/MRD/YYYY/MM)</li>
                 <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-orange-600" /> Barcoded Physical Paper Rack & Box Tracking</li>
                 <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-orange-600" /> 7-Year Retention Soft-Delete Bin & Vault</li>
                 <li className="flex items-center gap-2.5"><CheckCircle2 className="w-4 h-4 text-orange-600" /> Integrated Tele-Consultation Video Portal & E-Rx</li>

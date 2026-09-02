@@ -98,3 +98,43 @@ def generate_next_id(db: Session, hospital_id: int, module: str, model_class, id
     postfix = settings.get("postfix", "")
     
     return f"{prefix}{padded}{postfix}"
+
+def generate_mrd_readmission_id(db: Session, hospital_id: int, base_uhid: str) -> str:
+    """
+    Generates readmission MRD suffix for patients sharing the same UHID root (e.g., D12345 -> D12345/02, D12345/03).
+    """
+    if not base_uhid or not base_uhid.strip():
+        return ""
+        
+    root_base = base_uhid.split('/')[0].strip()
+    
+    from app.models import Patient
+    from sqlalchemy import or_
+    
+    patients = db.query(Patient).filter(
+        Patient.hospital_id == hospital_id,
+        or_(
+            Patient.uhid == root_base,
+            Patient.patient_u_id == root_base,
+            Patient.patient_u_id.like(f"{root_base}/%")
+        )
+    ).all()
+    
+    if not patients:
+        return root_base
+        
+    max_num = 1
+    for p in patients:
+        uid = p.patient_u_id or ""
+        if '/' in uid:
+            parts = uid.split('/')
+            if parts[-1].isdigit():
+                val = int(parts[-1])
+                if val > max_num:
+                    max_num = val
+        elif uid == root_base:
+            if max_num < 1:
+                max_num = 1
+                
+    next_num = max_num + 1
+    return f"{root_base}/{str(next_num).zfill(2)}"

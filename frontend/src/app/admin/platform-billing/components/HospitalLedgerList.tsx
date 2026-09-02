@@ -53,7 +53,7 @@ export default function HospitalLedgerList() {
     }, []);
 
     const filtered = hospitals.filter(h =>
-        h.legal_name.toLowerCase().includes(searchTerm.toLowerCase())
+        (h.legal_name || '').toLowerCase().includes((searchTerm || '').toLowerCase())
     );
 
     if (loading) return <div className="p-12 text-center text-slate-400">Loading party ledgers...</div>;

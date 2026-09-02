@@ -72,6 +72,8 @@ class UserResponse(BaseModel):
     hospital: Optional[HospitalMini] = None
     mfa_enabled: bool = True
     allowed_hospitals: Optional[list] = None
+    dynamic_roles: Optional[list] = None
+    dynamic_permissions: Optional[dict] = None
     
     class Config:
         from_attributes = True
@@ -96,6 +98,26 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
                     "hospital_slug": p.hospital.hospital_slug if getattr(p, 'hospital', None) else ""
                 })
     
+    # Aggregate dynamic permissions
+    dynamic_permissions = {}
+    dynamic_roles_list = []
+    if current_user.dynamic_roles:
+        for dr in current_user.dynamic_roles:
+            if getattr(dr, 'role', None):
+                dynamic_roles_list.append({
+                    "id": dr.id,
+                    "role_id": dr.role_id,
+                    "role": {"name": dr.role.name}
+                })
+                role_perms = dr.role.permissions
+                for mod, perms in role_perms.items():
+                    if mod not in dynamic_permissions:
+                        dynamic_permissions[mod] = {}
+                    if isinstance(perms, dict):
+                        for k, v in perms.items():
+                            if v:
+                                dynamic_permissions[mod][k] = True
+
     # We must return a dict to satisfy Pydantic since we are injecting allowed_hospitals which isn't on the User model
     response_data = {
         "user_id": current_user.user_id,
@@ -105,26 +127,42 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
         "hospital_id": current_user.hospital_id,
         "hospital": current_user.hospital,
         "mfa_enabled": True,
-        "allowed_hospitals": allowed_hospitals
+        "allowed_hospitals": allowed_hospitals,
+        "dynamic_roles": dynamic_roles_list,
+        "dynamic_permissions": dynamic_permissions
     }
     return response_data
 
 @router.get("/", response_model=List[UserResponse])
 def get_users(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Security Check
-    if current_user.role not in [UserRole.HOSPITAL_ADMIN, UserRole.SUPER_ADMIN, UserRole.HOSPITAL_STAFF]:
+    if current_user.role not in [UserRole.HOSPITAL_ADMIN, UserRole.SUPER_ADMIN, UserRole.HOSPITAL_STAFF, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
         raise HTTPException(status_code=403, detail="Not authorized to view users")
 
     try:
-        if current_user.role == UserRole.SUPER_ADMIN:
-            return db.query(User).filter(User.is_deleted == False).all()
-
+        if current_user.role in [UserRole.SUPER_ADMIN, UserRole.PLATFORM_STAFF, UserRole.WEBSITE_ADMIN]:
+            users_list = db.query(User).filter(User.is_deleted == False).all()
         elif current_user.role == UserRole.HOSPITAL_ADMIN:
-            return crud_all.user.get_multi(db, User.hospital_id == current_user.hospital_id, User.is_deleted == False)
-            
+            users_list = crud_all.user.get_multi(db, User.hospital_id == current_user.hospital_id, User.is_deleted == False)
         else: # HOSPITAL_STAFF
-            # Hospital staff can only see themselves (Issue 46)
-            return crud_all.user.get_multi(db, User.user_id == current_user.user_id, User.is_deleted == False)
+            users_list = crud_all.user.get_multi(db, User.user_id == current_user.user_id, User.is_deleted == False)
+            
+        # Serialize dynamic roles for the list view
+        result = []
+        for u in users_list:
+            u_dict = {
+                "user_id": u.user_id,
+                "email": u.email,
+                "full_name": u.full_name,
+                "role": u.role,
+                "hospital_id": u.hospital_id,
+                "hospital": u.hospital,
+                "mfa_enabled": u.mfa_enabled,
+                "dynamic_roles": [{"id": dr.id, "role_id": dr.role_id, "role": {"name": dr.role.name}} for dr in u.dynamic_roles] if getattr(u, 'dynamic_roles', None) else []
+            }
+            result.append(u_dict)
+            
+        return result
             
     except Exception as e:
         import traceback

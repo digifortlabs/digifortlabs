@@ -1,7 +1,7 @@
 "use client";
 import {
     Users, LayoutDashboard, Settings, UserCircle, LogOut, FileText, ChevronDown, Activity, Calendar as CalendarIcon, Package, ShoppingBag, BrainCircuit, Ear, Factory, BarChart3, ShieldCheck,
-    Building2, DollarSign, ClipboardList, Inbox, Archive, FolderOpen, Clock, Shield, ChevronLeft, ChevronRight, Wallet, Trash2, Smartphone
+    Building2, DollarSign, ClipboardList, Inbox, Archive, FolderOpen, Clock, Shield, ChevronLeft, ChevronRight, Wallet, Trash2, Smartphone, Mail
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
@@ -171,7 +171,24 @@ export default function Sidebar({ userRole, hospitalSlug }: SidebarProps) {
                             )}
                         </Link>
                         
-
+                        <Link
+                            href={getDomainUrl('admin', '/admin/mail')}
+                            className={`block rounded-xl transition-all duration-200 border relative group ${isActive('/admin/mail')
+                                ? 'active bg-indigo-50 text-indigo-600 font-medium border-indigo-200'
+                                : 'text-slate-500 hover:bg-slate-50 border-transparent hover:text-slate-900'
+                                } ${isCollapsed ? 'p-2.5 w-10 h-10 mx-auto flex items-center justify-center' : 'px-4 py-2'}`}
+                        >
+                            <div className="flex items-center gap-3 text-xs font-semibold">
+                                <Mail className="w-4 h-4 text-indigo-500" />
+                                {!isCollapsed && <span>Mail Center</span>}
+                            </div>
+                            
+                            {isCollapsed && (
+                                <span className="absolute left-16 bg-white border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md opacity-0 translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-150 whitespace-nowrap z-50">
+                                    Mail Center
+                                </span>
+                            )}
+                        </Link>
                         
                         <Link
                             href={getDomainUrl(dashboardSubdomain, '/admin/audit')}

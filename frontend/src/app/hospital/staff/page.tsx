@@ -9,8 +9,10 @@ export default function StaffManagement() {
     const [staff, setStaff] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    const [newStaff, setNewStaff] = useState({ full_name: '', email: '', password: '', role: 'mrd_staff', mfa_enabled: true });
+    const [newStaff, setNewStaff] = useState({ full_name: '', email: '', password: '', role: 'hospital_staff', mfa_enabled: true });
     const [editStaff, setEditStaff] = useState({ user_id: 0, role: '', password: '', mfa_enabled: true });
+    const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([]);
+    const [availableRoles, setAvailableRoles] = useState<any[]>([]);
     const [isEditing, setIsEditing] = useState(false);
     const [error, setError] = useState('');
     const [hospitalInfo, setHospitalInfo] = useState<any>(null);
@@ -37,11 +39,22 @@ export default function StaffManagement() {
 
     useEffect(() => {
         fetchStaff();
+        fetchStaff();
+        fetchRoles();
         const storedHospitalId = localStorage.getItem('hospital_id');
         if (storedHospitalId) {
             fetchHospitalPlan(storedHospitalId);
         }
     }, []);
+
+    const fetchRoles = async () => {
+        try {
+            const data = await apiFetch('roles/');
+            if (data) setAvailableRoles(data);
+        } catch (error) {
+            console.error(error);
+        }
+    };
 
     const fetchHospitalPlan = async (hospitalId: string) => {
         try {
@@ -75,8 +88,17 @@ export default function StaffManagement() {
             });
 
             if (data) {
+                // Assign roles
+                if (selectedRoleIds.length > 0) {
+                    await apiFetch('roles/assign', {
+                        method: 'POST',
+                        body: JSON.stringify({ user_id: data.user_id, role_ids: selectedRoleIds })
+                    });
+                }
+                
                 setShowModal(false);
-                setNewStaff({ full_name: '', email: '', password: '', role: 'mrd_staff', mfa_enabled: true });
+                setNewStaff({ full_name: '', email: '', password: '', role: 'hospital_staff', mfa_enabled: true });
+                setSelectedRoleIds([]);
                 fetchStaff();
             }
         } catch (err: any) {
@@ -110,6 +132,12 @@ export default function StaffManagement() {
 
     const handleEdit = (user: any) => {
         setEditStaff({ user_id: user.user_id, role: user.role, password: '', mfa_enabled: user.mfa_enabled !== false });
+        
+        // Find user's assigned custom roles from `user.dynamic_roles` if backend provides them, 
+        // otherwise just empty array to prevent errors. (Assuming backend returns it eventually)
+        const userRoles = user.dynamic_roles ? user.dynamic_roles.map((dr:any) => dr.role_id) : [];
+        setSelectedRoleIds(userRoles);
+
         setIsEditing(true);
         setShowModal(true);
         setError('');
@@ -130,6 +158,12 @@ export default function StaffManagement() {
             });
 
             if (data) {
+                // Assign roles
+                await apiFetch('roles/assign', {
+                    method: 'POST',
+                    body: JSON.stringify({ user_id: editStaff.user_id, role_ids: selectedRoleIds })
+                });
+
                 setShowModal(false);
                 setIsEditing(false);
                 fetchStaff();
@@ -217,6 +251,12 @@ export default function StaffManagement() {
                                     ⚠️ OTP Disabled
                                 </span>
                             )}
+                            
+                            {user.dynamic_roles && user.dynamic_roles.map((dr: any) => (
+                                <span key={dr.id} className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full">
+                                    {dr.role?.name || "Custom Role"}
+                                </span>
+                            ))}
                         </div>
 
                         {user.plain_password && (
@@ -279,21 +319,44 @@ export default function StaffManagement() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-2">Role</label>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Legacy Primary Role</label>
+                                <p className="text-xs text-slate-400 mb-2">For backward compatibility. Will be replaced fully by Custom Roles soon.</p>
                                 <select
                                     disabled={isEditingSelf}
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition font-medium disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed"
-                                    value={isEditing ? (editStaff.role === 'doctor_opd' ? 'doctor_ipd' : editStaff.role) : (newStaff.role === 'doctor_opd' ? 'doctor_ipd' : newStaff.role)}
+                                    value={isEditing ? editStaff.role : newStaff.role}
                                     onChange={(e) => isEditing ? setEditStaff({ ...editStaff, role: e.target.value }) : setNewStaff({ ...newStaff, role: e.target.value })}
                                 >
-                                    <option value="mrd_staff">MRD Staff (Warehouse Only)</option>
-                                    <option value="account_staff">Account Staff (Billing & Invoices)</option>
-                                    <option value="nurse_ipd">Nurse IPD (Ward & Bed Manager)</option>
-                                    <option value="doctor_ipd">Doctor (IPD & OPD Access)</option>
-                                    <option value="reception_staff">Receptionist (Registration & Intake)</option>
-                                    <option value="pharmacy_staff">Pharmacy Staff (Prescriptions)</option>
-                                    <option value="hospital_admin">Client Admin (Full Access)</option>
+                                    <option value="hospital_admin">Hospital Admin</option>
+                                    <option value="hospital_staff">General Staff</option>
                                 </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 mb-1">Assign Custom Roles (User Types)</label>
+                                <p className="text-xs text-slate-400 mb-2">Select one or more dynamic roles for this user to grant granular access.</p>
+                                <div className="grid grid-cols-2 gap-2 mt-2 max-h-40 overflow-y-auto p-1">
+                                    {availableRoles.map((role) => (
+                                        <label key={role.role_id} className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                className="w-4 h-4 text-indigo-600 rounded"
+                                                checked={selectedRoleIds.includes(role.role_id)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectedRoleIds([...selectedRoleIds, role.role_id]);
+                                                    } else {
+                                                        setSelectedRoleIds(selectedRoleIds.filter(id => id !== role.role_id));
+                                                    }
+                                                }}
+                                            />
+                                            <span className="text-sm font-semibold text-slate-700">{role.name}</span>
+                                        </label>
+                                    ))}
+                                    {availableRoles.length === 0 && (
+                                        <p className="text-xs text-amber-600 col-span-2">No custom roles found. Create them in Settings first.</p>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex items-center gap-3 py-2">
                                 <input

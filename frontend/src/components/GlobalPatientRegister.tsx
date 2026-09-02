@@ -54,6 +54,46 @@ export default function GlobalPatientRegister() {
     const [ageUnit, setAgeUnit] = useState<'Years' | 'Months' | 'Days'>('Years');
     const [namePrefix, setNamePrefix] = useState('Mr.');
     const [uhidMode, setUhidMode] = useState<'auto' | 'semi-auto' | 'manual'>('auto');
+    const [isExistingPatient, setIsExistingPatient] = useState(false);
+
+    const checkExistingUHID = async (uhidVal: string) => {
+        if (!uhidVal) return;
+        const normalized = uhidVal.toUpperCase().trim();
+        try {
+            const res = await apiFetch(`patients/check/uhid/${encodeURIComponent(normalized)}`);
+            if (res && res.exists && res.patient) {
+                const p = res.patient;
+                let ageVal = p.age || '';
+                let unitVal: 'Years' | 'Months' | 'Days' = 'Years';
+                if (p.dob) {
+                    const calc = calculateAgeFromDob(p.dob.split('T')[0]);
+                    if (calc) {
+                        ageVal = calc.age;
+                        unitVal = calc.unit as any;
+                    }
+                }
+                setFormData(prev => ({
+                    ...prev,
+                    full_name: p.full_name || prev.full_name,
+                    uhid: normalized,
+                    contact_number: p.contact_number || prev.contact_number,
+                    gender: p.gender || prev.gender,
+                    age: ageVal,
+                    dob: p.dob ? p.dob.split('T')[0] : prev.dob,
+                    address: p.address || prev.address,
+                    email_id: p.email_id || prev.email_id,
+                    aadhaar_number: p.aadhaar_number || prev.aadhaar_number
+                }));
+                setAgeUnit(unitVal);
+                setIsExistingPatient(true);
+                toast.success("✨ Patient details auto-filled from existing UHID record!");
+            } else {
+                setIsExistingPatient(false);
+            }
+        } catch (e: any) {
+            console.error('UHID check failed:', e);
+        }
+    };
 
     const [formData, setFormData] = useState({
         full_name: '',
@@ -100,6 +140,7 @@ export default function GlobalPatientRegister() {
     useEffect(() => {
         const handleOpen = async () => {
             setIsOpen(true);
+            setIsExistingPatient(false);
             const today = new Date().toISOString().split('T')[0];
             const { finalUHID, mode } = await autoGenerateIds();
             setUhidMode(mode as any);
@@ -127,6 +168,7 @@ export default function GlobalPatientRegister() {
     };
 
     const resetForm = async () => {
+        setIsExistingPatient(false);
         const { finalUHID, mode } = await autoGenerateIds();
         setUhidMode(mode as any);
         setFormData({
@@ -289,15 +331,35 @@ export default function GlobalPatientRegister() {
                                         </div>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-xs font-black uppercase tracking-widest text-slate-500">
-                                            UHID ({uhidMode === 'manual' ? 'Manual' : uhidMode === 'semi-auto' ? 'Editable' : 'Auto-generated'})
-                                        </Label>
+                                        <div className="flex justify-between items-center">
+                                            <Label className="text-xs font-black uppercase tracking-widest text-slate-500">
+                                                UHID ({uhidMode === 'manual' ? 'Manual' : uhidMode === 'semi-auto' ? 'Editable' : 'Auto-generated'})
+                                            </Label>
+                                            {isExistingPatient && (
+                                                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                                    Patient Found
+                                                </span>
+                                            )}
+                                        </div>
                                         <Input 
                                             placeholder="DF-1234"
                                             className={`h-11 border-slate-200 rounded-xl focus:ring-indigo-500 font-mono ${uhidMode === 'auto' ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : ''}`}
                                             value={formData.uhid}
                                             readOnly={uhidMode === 'auto'}
-                                            onChange={e => setFormData({...formData, uhid: toUpperCaseMRD(e.target.value)})}
+                                            onChange={e => {
+                                                const val = toUpperCaseMRD(e.target.value);
+                                                setFormData({...formData, uhid: val});
+                                                if (val.trim().length >= 3) {
+                                                    checkExistingUHID(val);
+                                                }
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    checkExistingUHID(formData.uhid);
+                                                }
+                                            }}
+                                            onBlur={e => checkExistingUHID(e.target.value)}
                                         />
                                     </div>
                                     <div className="space-y-2">

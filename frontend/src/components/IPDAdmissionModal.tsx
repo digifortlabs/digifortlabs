@@ -247,6 +247,7 @@ export default function IPDAdmissionModal({ isOpen, onClose, patientId, patientN
                                 <Input 
                                     type="date"
                                     required
+                                    max={new Date().toISOString().split('T')[0]}
                                     value={formData.admission_date}
                                     onChange={(e) => setFormData(prev => ({ ...prev, admission_date: e.target.value }))}
                                     className="bg-slate-50/50 border-slate-200 focus-visible:ring-blue-500"

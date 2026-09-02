@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DigifortLabs HMS - Enterprise Marketing & Onboarding Booklet</title>
+    
+    <!-- Premium Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            --card-bg: #ffffff;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --accent: #0ea5e9;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            line-height: 1.7; 
+            color: var(--text-main); 
+            background: #f8fafc;
+            margin: 0;
+            padding: 40px 20px;
+            scroll-behavior: smooth;
+        }
+
+        .container { 
+            background: var(--card-bg); 
+            padding: 60px 80px; 
+            border-radius: 20px; 
+            box-shadow: var(--shadow); 
+            max-width: 1050px; 
+            margin: 0 auto; 
+            border: 1px solid var(--border-color);
+        }
+
+        h1, h2, h3, h4 { 
+            font-family: 'Outfit', sans-serif; 
+            color: var(--text-main); 
+        }
+
+        h1 { 
+            font-size: 2.6em; 
+            font-weight: 800;
+            color: var(--primary);
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+        }
+
+        h2 { 
+            font-size: 1.8em; 
+            color: #0f172a;
+            position: relative;
+            padding-left: 18px;
+            margin-top: 2em;
+            border-left: 5px solid var(--primary);
+        }
+
+        h3 { 
+            color: var(--primary-hover); 
+            font-size: 1.3em;
+            margin-top: 1.5em;
+        }
+
+        a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        a:hover {
+            color: var(--primary-hover);
+            text-decoration: underline;
+        }
+
+        /* Lists & Bullet Points */
+        ul, ol {
+            padding-left: 24px;
+        }
+
+        li {
+            margin-bottom: 10px;
+            font-size: 1.05em;
+        }
+
+        /* Modern Tables */
+        table { 
+            border-collapse: separate; 
+            border-spacing: 0;
+            width: 100%; 
+            margin: 30px 0;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03);
+        }
+        
+        th, td { 
+            padding: 16px 22px; 
+            text-align: left; 
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        th { 
+            background-color: #f1f5f9; 
+            font-weight: 700; 
+            color: #0f172a;
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 0.05em;
+        }
+        
+        tr:hover td {
+            background-color: #f8fafc;
+        }
+
+        /* Mermaid Diagrams */
+        .mermaid { 
+            text-align: center; 
+            margin: 40px 0; 
+            background: #ffffff;
+            padding: 24px;
+            border-radius: 14px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+        }
+
+        /* Action Cards & Step Numbers */
+        blockquote {
+            background: #eff6ff;
+            border-left: 5px solid var(--primary);
+            padding: 20px 25px;
+            margin: 30px 0;
+            border-radius: 0 12px 12px 0;
+            color: #1e3a8a;
+            font-size: 1.05em;
+        }
+
+        /* Print Styles for A4 Output */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 15mm;
+            }
+            
+            body {
+                background: white !important;
+                color: #000 !important;
+                padding: 0 !important;
+            }
+
+            .container {
+                background: white !important;
+                box-shadow: none !important;
+                border: none !important;
+                max-width: 100% !important;
+                padding: 0 !important;
+            }
+
+            .page-break {
+                break-before: page !important;
+                page-break-before: always !important;
+            }
+        }
+    </style>
+    
+    <!-- Include Mermaid JS -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ 
+            startOnLoad: true, 
+            theme: 'base',
+            themeVariables: {
+                primaryColor: '#e0f2fe',
+                primaryTextColor: '#0f172a',
+                primaryBorderColor: '#38bdf8',
+                lineColor: '#64748b',
+                secondaryColor: '#f1f5f9',
+                tertiaryColor: '#fff'
+            }
+        });
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>DigifortLabs HMS - Enterprise Product Guide &amp; Marketing Booklet</h1>
+<div style="text-align: center; padding: 40px 20px; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; border-radius: 16px; margin-bottom: 40px;">
+    <h1 style="color: #38bdf8; font-size: 2.8em; margin-bottom: 10px; border-bottom: none;">DigifortLabs HMS</h1>
+    <h3 style="color: #94a3b8; font-size: 1.4em; font-weight: 400; margin-top: 0;">Next-Generation Hospital Management System & EMR Platform</h3>
+    <p style="font-size: 1.1em; color: #cbd5e1; max-width: 750px; margin: 20px auto 0;">
+        Empowering Hospitals, Clinics, and Multi-Specialty Networks with AI-Driven OPD/IPD Workflows, ABDM/ABHA Sync, Smart QMS, and NABH 5th Edition Compliance.
+    </p>
+</div>
+
+<hr />
+<h2>1. Executive Product Overview &amp; Value Proposition</h2>
+<p>DigifortLabs HMS is a multi-tenant, cloud-native Healthcare Enterprise Resource Planning (ERP) platform designed for multi-specialty hospitals, diagnostic chains, and medical institutions. Built with cutting-edge web technology and strict adherence to Indian and international healthcare standards, DigifortLabs HMS eliminates revenue leakage, automates clinical documentation, and provides an unmatchable patient experience.</p>
+<div class="mermaid">
+graph TD
+    A[DigifortLabs HMS Platform] --> B[Smart Patient Access & WhatsApp AI]
+    A --> C[AI OPD / IPD Clinical EMR]
+    A --> D[Full Diagnostic Suite LIS & PACS]
+    A --> E[Smart Pharmacy & FEFO Inventory]
+    A --> F[AI Claim Denial & Financials]
+    A --> G[32-Role RBAC & Multi-Tenant SaaS]
+</div>
+<h3>Core Value Drivers:</h3>
+<ul>
+<li>🚀 <strong>30-Second E-Prescribing</strong>: Doctors generate structured OPD prescriptions, lab orders, and follow-up schedules in under 30 seconds using intelligent clinical templates.</li>
+<li>🤖 <strong>WhatsApp AI Patient Portal</strong>: Zero-download patient engagement! Patients receive appointment tokens, lab reports, e-prescriptions, and payment receipts directly on WhatsApp.</li>
+<li>🛡️ <strong>100% Statutory Compliance</strong>: Built-in automated engines for <strong>NABH 5th Edition</strong>, <strong>ABDM/ABHA (M1/M2/M3)</strong>, <strong>PCPNDT Act 1994</strong>, <strong>MTP Act 2021</strong>, <strong>THOA Organ Transplant 1994</strong>, and <strong>DPDP Act 2023</strong>.</li>
+<li>💰 <strong>35% Reduction in TPA Denial Rates</strong>: Integrated GIPSA package auto-checker and AI claim denial predictor inspects billing items before submission to insurance companies.</li>
+<li>⚡ <strong>Hardware Integration Ready</strong>: Native desktop protocol handlers for WhatsApp Web automation (<code>digifort-wa://</code>), TWAIN document scanners, and laboratory analyzer machine serial links (ASTM E1381 / HL7).</li>
+</ul>
+<hr />
+<h2>2. Comprehensive Module Feature Showcase</h2>
+<h3>2.1 Outpatient (OPD) &amp; Smart Queue Management (QMS)</h3>
+<ul>
+<li><strong>Smart QMS Kiosks</strong>: Waiting area digital signage TV displays with live token calling and automated WhatsApp notifications (<em>"You are next in line for Dr. Smith"</em>).</li>
+<li><strong>CDSS Safety Engine</strong>: Real-time allergy warnings, drug-drug interaction alerts, and pediatric weight-based dosage auto-calculators.</li>
+<li><strong>Specialty OPD Charts</strong>: Customized clinical interfaces for Cardiology, Pediatrics, Ophthalmology (refraction charts), Orthopedics, Dental (32-tooth chart), and ENT (Audiometry decibel graphs).</li>
+</ul>
+<h3>2.2 Inpatient (IPD), Ward &amp; ICU Management</h3>
+<ul>
+<li><strong>Visual Interactive Bed Matrix</strong>: Color-coded ward grid displaying real-time bed status (<em>Vacant, Occupied, Under Cleaning, Reserved, Isolation</em>).</li>
+<li><strong>Nursing eMAR</strong>: Barcode patient wristband verification ensuring zero medication administration errors at the bedside.</li>
+<li><strong>ICU Vitals Telemetry</strong>: Continuous hour-by-hour vital sign recording with automated alert escalation for critical SpO2, BP, or cardiac deviations.</li>
+</ul>
+<h3>2.3 Surgery, Operation Theatre (OT) &amp; High-Value RFID Implants</h3>
+<ul>
+<li><strong>OT Scheduling &amp; PAC</strong>: Pre-Anesthesia Clearance workflow with WHO Surgical Safety Checklist hard locks.</li>
+<li><strong>High-Value Implant Barcode/RFID Tracking</strong>: Trace expensive cardiac stents and orthopedic implants from vendor batch to patient surgical invoice with 100% audit accuracy.</li>
+</ul>
+<h3>2.4 Diagnostics: LIS &amp; RIS/PACS</h3>
+<ul>
+<li><strong>Pathology LIS</strong>: ASTM E1381 / HL7 bi-directional analyzer machine interfacing, Westgard 6-Sigma quality control rules, and instant panic value SMS/WhatsApp alerts.</li>
+<li><strong>Diagnostic RIS/PACS</strong>: DICOM 3.0 Modality Worklist (MWL) integration, zero-footprint Web PACS viewer, and radiologist AI dictation co-pilot.</li>
+<li><strong>Blood Bank (ISBT 128)</strong>: DIN barcode tracking, mandatory 5-TTI infection screening lock, and donor cross-matching.</li>
+</ul>
+<h3>2.5 Pharmacy POS &amp; FEFO Supply Chain</h3>
+<ul>
+<li><strong>Multi-Store Inventory</strong>: Central pharmacy store supplying sub-pharmacies, ward emergency boxes, and OT stores with FEFO (First-Expiry, First-Out) picking rules.</li>
+<li><strong>Narcotics Vault</strong>: Quadruple-check digital sign-off and serial tracking for restricted habit-forming medications.</li>
+</ul>
+<h3>2.6 Financial Accounting &amp; Insurance (TPA)</h3>
+<ul>
+<li><strong>GIPSA Package Auto-Posting</strong>: Instant package billing breakdown separating covered TPA items from non-covered out-of-pocket room upgrades.</li>
+<li><strong>Patient E-Wallet Ledger</strong>: Prepaid deposit accounts supporting instant swiping at pharmacy, lab, and billing desks.</li>
+</ul>
+<hr />
+<h2>3. How to Register &amp; Onboard Your Hospital</h2>
+<p>Getting started with DigifortLabs HMS is fast, simple, and can be completed in <strong>4 easy steps</strong>:</p>
+<div class="mermaid">
+graph LR
+    S1[Step 1: Tenant Registration] --> S2[Step 2: Department Setup]
+    S2 --> S3[Step 3: Staff & Doctor Credentials]
+    S3 --> S4[Step 4: Desktop Helper Installation]
+</div>
+<h3>Step 1: Register Your Hospital Account (Tenant Provisioning)</h3>
+<ol>
+<li>Visit the DigifortLabs Registration Portal at <code>https://digifortlabs.com/register</code>.</li>
+<li>Enter your <strong>Hospital Name</strong>, <strong>Organization Type</strong> (Single Clinic, Multi-Specialty Hospital, Diagnostic Chain), <strong>Address</strong>, and <strong>Contact Information</strong>.</li>
+<li>Choose your desired custom subdomain (e.g., <code>cityhospital.digifortlabs.com</code>).</li>
+<li>System automatically provisions your isolated cloud database and sends your <strong>Super Admin Credentials</strong> via encrypted email and SMS.</li>
+</ol>
+<h3>Step 2: Configure Departments &amp; Tariff Masters</h3>
+<ol>
+<li>Log in as <strong>Super Admin</strong> or <strong>Hospital Admin</strong>.</li>
+<li>Navigate to <strong>Master Configurations $\rightarrow$ Hospital Departments</strong>.</li>
+<li>Activate the departments operating in your facility (e.g., General Medicine, OPD, IPD, Surgery OT, LIS Lab, Pharmacy, Radiology).</li>
+<li>Upload or enter your <strong>Service Tariffs</strong>, <strong>Bed Category Rates</strong> (General Ward, Deluxe, ICU), and <strong>Consultation Fees</strong>.</li>
+</ol>
+<h3>Step 3: Onboard Doctors, Nurses &amp; Staff Members</h3>
+<ol>
+<li>Go to <strong>User Management $\rightarrow$ Create User</strong>.</li>
+<li>Input staff details: Full Name, Council Registration Number (for Doctors), Mobile Number, and Email.</li>
+<li>Assign the exact <strong>Role-Based Access (RBAC)</strong>:</li>
+<li><code>DOCTOR_OPD</code> / <code>DOCTOR_IPD</code> / <code>DOCTOR_BOTH</code></li>
+<li><code>NURSE_IPD</code> / <code>RECEPTION_STAFF</code></li>
+<li><code>PHARMACIST</code> / <code>ACCOUNT_STAFF</code> / <code>MRD_STAFF</code></li>
+<li>The staff member receives an automated WhatsApp login link with temporary PIN activation.</li>
+</ol>
+<h3>Step 4: Install Desktop Tools &amp; Scanner Services (Optional)</h3>
+<ol>
+<li>Download the <strong>Digifort Desktop Utility Pack</strong> from <code>https://digifortlabs.com/downloads</code>.</li>
+<li>Install <code>local_wa_sender</code> for local WhatsApp protocol handling (<code>digifort-wa://</code>).</li>
+<li>Install <code>local_scanner</code> to enable direct one-click USB TWAIN document scanning into EMR charts.</li>
+</ol>
+<hr />
+<h2>4. How to Use: Daily Operational Workflows</h2>
+<h3>4.1 For Reception &amp; Registration Staff (OPD Patient Intake)</h3>
+<ol>
+<li>Open the <strong>Registration Module</strong>.</li>
+<li>Scan the patient's <strong>Aadhaar / ABHA QR Code</strong> or enter their mobile number.</li>
+<li>If new patient: Enter basic demographic details (Name, Age, Gender, Address).</li>
+<li>Select the <strong>Attending Doctor</strong> and <strong>Consultation Type</strong>.</li>
+<li>Click <strong>Collect Fee &amp; Print Token</strong>. System generates an OPD Token (e.g., <code>T-014</code>) and sends a WhatsApp confirmation to the patient.</li>
+</ol>
+<h3>4.2 For OPD Doctors (Consultation &amp; 30-Sec E-Rx)</h3>
+<ol>
+<li>Open the <strong>Doctor OPD Dashboard</strong>.</li>
+<li>Click on the patient token from the live queue list.</li>
+<li>Enter or select <strong>Chief Complaints</strong>, <strong>Vitals</strong>, and <strong>Clinical Diagnosis</strong> (auto-coded with ICD-10).</li>
+<li>Type medication names in the search box; select dosage, frequency, and duration.</li>
+<li>Click <strong>Sign &amp; Issue E-Rx</strong>. The prescription is instantly printed or sent to the patient's WhatsApp!</li>
+</ol>
+<h3>4.3 For IPD Nurses (Ward &amp; eMAR Medication Administration)</h3>
+<ol>
+<li>Open the <strong>IPD Ward Bed Matrix</strong>.</li>
+<li>Click on a bed to view patient details, doctor notes, and prescribed vitals schedules.</li>
+<li>To administer medication: Scan patient wristband barcode, match drug name/dosage on eMAR screen, and click <strong>Confirm Administered</strong>.</li>
+</ol>
+<h3>4.4 For Pharmacists (POS Dispensing &amp; FEFO Stocking)</h3>
+<ol>
+<li>Open <strong>Pharmacy POS</strong>.</li>
+<li>Enter patient UHID or OPD Token to fetch prescribed medications automatically.</li>
+<li>System highlights the exact batch with the earliest expiry (FEFO).</li>
+<li>Scan medicine barcode, collect payment, and click <strong>Dispense &amp; Print Invoice</strong>.</li>
+</ol>
+<hr />
+<h2>5. Contact &amp; Support Information</h2>
+<p>Ready to transform your healthcare facility with <strong>DigifortLabs HMS</strong>?</p>
+<ul>
+<li>🌐 <strong>Official Website</strong>: <a href="https://digifortlabs.com">https://digifortlabs.com</a></li>
+<li>✉️ <strong>Sales &amp; Inquiries</strong>: info@digifortlabs.com</li>
+<li>📞 <strong>Direct Contact / WhatsApp</strong>: +91 81416 69879 (Rahul) | +91 97257 90563 (Keval)</li>
+<li>🏢 <strong>Headquarters</strong>: Vapi, District Valsad, Gujarat, India</li>
+</ul>
+    </div>
+</body>
+</html>

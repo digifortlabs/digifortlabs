@@ -154,7 +154,7 @@ export default function PatientEditModal({ patient, isOpen, onClose, onUpdated }
                             </div>
                              <div className="space-y-1">
                                 <label className="text-sm font-bold text-slate-700">Date of Birth</label>
-                                <input type="date" className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-medium"
+                                <input type="date" max={new Date().toISOString().split('T')[0]} className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-medium"
                                     value={formData.dob}
                                     onChange={e => {
                                         const dobVal = e.target.value;
@@ -187,6 +187,16 @@ export default function PatientEditModal({ patient, isOpen, onClose, onUpdated }
                                         <option value="Days">DY</option>
                                     </select>
                                 </div>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-sm font-bold text-slate-700">Admission Date <span className="text-red-500">*</span></label>
+                                <input required type="date" max={new Date().toISOString().split('T')[0]} className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-medium"
+                                    value={formData.admission_date || ''} onChange={e => setFormData({...formData, admission_date: e.target.value})} />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-sm font-bold text-slate-700">Discharge Date <span className="text-red-500">*</span></label>
+                                <input required type="date" max={new Date().toISOString().split('T')[0]} className="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-medium"
+                                    value={formData.discharge_date || ''} onChange={e => setFormData({...formData, discharge_date: e.target.value})} />
                             </div>
                             <div className="space-y-1">
                                 <label className="text-sm font-bold text-slate-700">Gender</label>

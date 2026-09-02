@@ -99,19 +99,19 @@ export default function AccountingPage() {
         setFetchError(null);
         try {
             const data = await apiFetch('/accounting');
-            if (!Array.isArray(data)) {
-                throw new Error(`Unexpected response format: ${JSON.stringify(data)}`);
-            }
-            setInvoices(data);
+            const invoiceList = Array.isArray(data) ? data : [];
+            setInvoices(invoiceList);
 
             // Calculate stats
-            const pending = data.filter((inv: Invoice) => inv.status === 'PENDING').reduce((acc: number, inv: Invoice) => acc + inv.total_amount, 0);
-            const paid = data.filter((inv: Invoice) => inv.status === 'PAID').reduce((acc: number, inv: Invoice) => acc + inv.total_amount, 0);
+            const pending = invoiceList.filter((inv: Invoice) => inv.status === 'PENDING').reduce((acc: number, inv: Invoice) => acc + inv.total_amount, 0);
+            const paid = invoiceList.filter((inv: Invoice) => inv.status === 'PAID').reduce((acc: number, inv: Invoice) => acc + inv.total_amount, 0);
+            const totalRevenue = invoiceList.filter((inv: Invoice) => inv.status !== 'CANCELLED').reduce((acc: number, inv: Invoice) => acc + inv.total_amount, 0);
 
             setStats({
                 total_pending: pending,
                 total_paid: paid,
-                total_invoices: data.length
+                total_revenue: totalRevenue,
+                total_invoices: invoiceList.length
             });
         } catch (error: any) {
             console.error("Error fetching invoices:", error);
@@ -126,8 +126,7 @@ export default function AccountingPage() {
         if (typeof window !== 'undefined') {
             const role = localStorage.getItem('userRole');
             const isSuperAdmin = role === 'superadmin' || role === 'superadmin_staff' || role === 'website_admin';
-            const isHospital = role === 'hospital_admin' || role === 'hospital_staff';
-            if (isSuperAdmin || isHospital) {
+            if (isSuperAdmin) {
                 setIsAuthorized(true);
                 fetchInvoices();
             } else {
@@ -180,8 +179,11 @@ export default function AccountingPage() {
 
     const filteredInvoices = invoices.filter(inv => {
         const matchesStatus = filterStatus === 'ALL' || inv.status === filterStatus;
-        const matchesSearch = inv.invoice_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            inv.hospital_name.toLowerCase().includes(searchTerm.toLowerCase());
+        const invNum = inv.invoice_number || '';
+        const hospName = inv.hospital_name || '';
+        const search = searchTerm || '';
+        const matchesSearch = invNum.toLowerCase().includes(search.toLowerCase()) ||
+            hospName.toLowerCase().includes(search.toLowerCase());
         return matchesStatus && matchesSearch;
     });
 

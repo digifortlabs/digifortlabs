@@ -49,7 +49,6 @@ export default function Footer() {
                 <div className="mt-12 pt-8 border-t border-slate-200 flex flex-col md:flex-row justify-between items-center text-xs text-slate-500">
                     <p>&copy; {new Date().getFullYear()} Digifort Labs. All rights reserved.</p>
                     <div className="flex space-x-6 mt-4 md:mt-0">
-                        <span>ISO 27001 Certified</span>
                         <span>Enterprise Compliant</span>
                         <span>Made with ❤️ for Hospitals</span>
                     </div>

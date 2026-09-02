@@ -20,11 +20,11 @@ export default function ServerFileManager() {
     useEffect(() => {
         if (typeof window !== 'undefined') {
             const role = localStorage.getItem('userRole');
-            if (role === 'superadmin') {
+            if (role === 'superadmin' || role === 'superadmin_staff' || role === 'website_admin') {
                 setIsAuthorized(true);
                 fetchFiles();
             } else {
-                router.push('/');
+                router.push('/admin');
             }
         }
     }, [router]);
@@ -38,7 +38,7 @@ export default function ServerFileManager() {
                 method: 'POST'
             });
             if (data) {
-                toast.error(data.message);
+                toast.success(data.message || "OCR Triggered");
             }
         } catch (e: any) {
             console.error(e);

@@ -161,9 +161,9 @@ export default function AuditPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {loading ? (
-                            <tr><td colSpan={4} className="p-8 text-center text-slate-400 text-xs font-bold">Initializing Telemetry...</td></tr>
+                            <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs font-bold">Initializing Telemetry...</td></tr>
                         ) : logs.length === 0 ? (
-                            <tr><td colSpan={4} className="p-8 text-center text-slate-400 text-xs font-bold">No Records Found</td></tr>
+                            <tr><td colSpan={5} className="p-8 text-center text-slate-400 text-xs font-bold">No Records Found</td></tr>
                         ) : (
                             logs.map((log) => (
                                 <tr key={log.log_id} className="hover:bg-slate-50/80 transition-colors group">

@@ -78,6 +78,7 @@ export default function PatientCreateModal({
     toTitleCase
 }: PatientCreateModalProps) {
     if (!show) return null;
+    const todayStr = new Date().toISOString().split('T')[0];
 
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -175,6 +176,15 @@ export default function PatientCreateModal({
                                             onChange={e => {
                                                 const val = toUpperCaseMRD(e.target.value);
                                                 setNewPatient({ ...newPatient, uhid: val });
+                                                if (val.trim().length >= 3) {
+                                                    checkExistingUHID(val);
+                                                }
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    checkExistingUHID(newPatient.uhid);
+                                                }
                                             }}
                                             onBlur={(e) => checkExistingUHID(e.target.value)}
                                             placeholder="Auto-fill..." />
@@ -182,6 +192,9 @@ export default function PatientCreateModal({
                                             {isExistingPatient ? "FOUND" : "NEW"}
                                         </div>
                                     </div>
+                                    {isExistingPatient && (
+                                        <p className="text-amber-600 text-[10px] font-bold mt-1">ℹ️ Patient already registered! Re-admission MRD ID will be auto-assigned.</p>
+                                    )}
                                 </div>
 
                                 <div className="md:col-span-8 relative">
@@ -252,7 +265,7 @@ export default function PatientCreateModal({
 
                                 <div className="md:col-span-5">
                                     <label className="block text-xs font-bold text-slate-700 mb-1">DOB</label>
-                                    <input type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm"
+                                    <input type="date" max={todayStr} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm"
                                         value={newPatient.dob} onChange={e => calculateAge(e.target.value)} />
                                 </div>
 
@@ -303,14 +316,14 @@ export default function PatientCreateModal({
                                 </div>
 
                                 <div className="md:col-span-6">
-                                    <label className="block text-xs font-bold text-slate-700 mb-1">Admission Date</label>
-                                    <input type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
+                                    <label className="block text-xs font-bold text-slate-700 mb-1">Admission Date <span className="text-red-500">*</span></label>
+                                    <input required type="date" max={todayStr} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
                                         value={newPatient.admission_date} onChange={e => setNewPatient((prev: any) => ({ ...prev, admission_date: e.target.value }))} />
                                 </div>
 
                                 <div className="md:col-span-6">
                                     <label className="block text-xs font-bold text-slate-700 mb-1">Discharge Date <span className="text-red-500">*</span></label>
-                                    <input required type="date" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
+                                    <input required type="date" max={todayStr} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:border-amber-500 text-sm"
                                         value={newPatient.discharge_date} onChange={e => setNewPatient((prev: any) => ({ ...prev, discharge_date: e.target.value }))} />
                                 </div>
 

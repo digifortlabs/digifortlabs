@@ -139,7 +139,7 @@ export default function SettingsPage() {
         if (!hospitalId) return;
         try {
             await apiFetch(`hospitals/${hospitalId}`, { method: 'PATCH', body: JSON.stringify(profile) });
-            toast.error("Profile synced.");
+            toast.success("Profile synced.");
         } catch (e) { toast.error("Update failed"); }
     };
 

@@ -4,7 +4,11 @@ const BACKEND = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 async function proxy(req: NextRequest) {
     const host = req.headers.get('host') || '';
-    const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
+    // If accessing via localhost, 127.0.0.1, IP address, or local dev port, route to localhost:8000
+    const isLocal = host.includes('localhost') || 
+                    host.includes('127.0.0.1') || 
+                    /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(host) ||
+                    !host.includes('digifortlabs.com');
     const backendUrl = isLocal ? 'http://localhost:8000' : BACKEND;
 
     // Strip /api/ prefix to get the backend path
@@ -37,7 +41,9 @@ async function proxy(req: NextRequest) {
             } catch (e) {}
         }
         
-        if (allowedDomains.includes(parsedUrl.hostname)) {
+        const host = req.headers.get('host') || '';
+        const hostDomain = host.split(':')[0];
+        if (allowedDomains.includes(parsedUrl.hostname) || /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(parsedUrl.hostname) || hostDomain === parsedUrl.hostname) {
             isSafe = true;
         }
     } catch {

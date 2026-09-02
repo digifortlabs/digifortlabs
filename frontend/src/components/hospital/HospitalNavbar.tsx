@@ -81,6 +81,7 @@ export default function HospitalNavbar() {
     const [hospitalName, setHospitalName] = useState('Hospital Portal');
     const [hospitalLogo, setHospitalLogo] = useState<string | null>(null);
     const [userModules, setUserModules] = useState<string[]>([]);
+    const [dynamicPermissions, setDynamicPermissions] = useState<any>(null);
     const [isCollapsed, setIsCollapsed] = useState(false);
 
     useEffect(() => {
@@ -91,6 +92,10 @@ export default function HospitalNavbar() {
             const modulesStr = localStorage.getItem('userModules');
             if (modulesStr) {
                 setUserModules(JSON.parse(modulesStr));
+            }
+            const permsStr = localStorage.getItem('userDynamicPermissions');
+            if (permsStr) {
+                setDynamicPermissions(JSON.parse(permsStr));
             }
         } catch (e) {
             console.error(e);
@@ -127,9 +132,34 @@ export default function HospitalNavbar() {
 
     const filterCategoryItems = (items: typeof CATEGORIZED_NAV_ITEMS[0]['items']) => {
         return items.filter(item => {
-            if (item.roles && !item.roles.includes(userRole)) return false;
+            // First check if the hospital even has this module enabled
             // @ts-ignore
             if (item.module && !userModules.includes(item.module)) return false;
+            
+            // Allow super admins and hospital admins
+            if (['superadmin', 'hospital_admin', 'platform_staff'].includes(userRole)) return true;
+            
+            // Check dynamic permissions
+            if (dynamicPermissions) {
+                // If the item doesn't map to a specific module, default to showing it for backwards compat,
+                // but usually the item.module should match the dynamic permission key.
+                // @ts-ignore
+                const modKey = item.module || (item.label.toLowerCase().includes('patient') ? 'patients' : 
+                                               item.label.toLowerCase().includes('setting') ? 'settings' : null);
+                
+                if (modKey) {
+                    const modPerms = dynamicPermissions[modKey];
+                    // Must have read, edit, or all permissions for this module
+                    if (modPerms && (modPerms.read || modPerms.edit || modPerms.all)) {
+                        return true;
+                    }
+                    return false; // Dynamic permissions exist but access is denied
+                }
+            }
+
+            // Fallback to legacy string roles
+            if (item.roles && !item.roles.includes(userRole)) return false;
+            
             return true;
         });
     };
